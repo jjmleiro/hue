@@ -30,105 +30,130 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 
 <div class="container-fluid">
   <div class="card card-small">
-  <div class="card-body">
-  <p>
-  <form>
-    <input type="text" id="filterInput" class="input-xlarge search-query" placeholder="${ _('Search for username, name, etc...') }">
+    <div class="card-body">
+      <div class="row-fluid">
+        <div id="properties" class="section">
+          <ul class="nav nav-tabs" style="margin-bottom: 0">
+            <li class="active"><a href="#step1" class="step"><i class="fa fa-cogs"></i> ${ _('Workflows') }</a></li>
+            <li><a href="#step2" class="step"><i class="fa fa-calendar"></i> ${ _('Calendar') }</a></li>
+          </ul>
 
-    <div class="btn-toolbar" style="display: inline; vertical-align: middle; margin-left: 10px; font-size: 12px">
-      <span class="loader hide"><i class="fa fa-2x fa-spinner fa-spin muted"></i></span>
-      <button class="btn bulkToolbarBtn bulk-resume" data-operation="resume" title="${ _('Resume selected') }" disabled="disabled" type="button"><i class="fa fa-play"></i><span class="hide-small"> ${ _('Resume') }</span></button>
-      <button class="btn bulkToolbarBtn bulk-suspend" data-operation="suspend" title="${ _('Suspend selected') }" disabled="disabled" type="button"><i class="fa fa-pause"></i><span class="hide-small"> ${ _('Suspend') }</span></button>
-      <button class="btn bulkToolbarBtn btn-danger bulk-kill disable-feedback" data-operation="kill" title="${ _('Kill selected') }" disabled="disabled" type="button"><i class="fa fa-times"></i><span class="hide-small"> ${ _('Kill') }</span></button>
+          <div class="steps">
+            <div id="step1" class="stepDetails">
+              <div class="card card-tab">
+                <h2 class="card-heading simple">${ _('Checking current configuration') }</h2>
+                <div class="card-body">
+                  <p>
+                    <form>
+                      <input type="text" id="filterInput" class="input-xlarge search-query" placeholder="${ _('Search for username, name, etc...') }">
+
+                      <div class="btn-toolbar" style="display: inline; vertical-align: middle; margin-left: 10px; font-size: 12px">
+                        <span class="loader hide"><i class="fa fa-2x fa-spinner fa-spin muted"></i></span>
+                        <button class="btn bulkToolbarBtn bulk-resume" data-operation="resume" title="${ _('Resume selected') }" disabled="disabled" type="button"><i class="fa fa-play"></i><span class="hide-small"> ${ _('Resume') }</span></button>
+                        <button class="btn bulkToolbarBtn bulk-suspend" data-operation="suspend" title="${ _('Suspend selected') }" disabled="disabled" type="button"><i class="fa fa-pause"></i><span class="hide-small"> ${ _('Suspend') }</span></button>
+                        <button class="btn bulkToolbarBtn btn-danger bulk-kill disable-feedback" data-operation="kill" title="${ _('Kill selected') }" disabled="disabled" type="button"><i class="fa fa-times"></i><span class="hide-small"> ${ _('Kill') }</span></button>
+                      </div>
+
+                      <span class="pull-right">
+                        <span style="padding-right:10px;float:left;margin-top:3px" class="hide-smaller">
+                        ${ _('Show only') }
+                        </span>
+                        <span class="btn-group" style="float:left">
+                          <a class="btn btn-date btn-info" data-value="1">${ _('1') }</a>
+                          <a class="btn btn-date btn-info" data-value="7">${ _('7') }</a>
+                          <a class="btn btn-date btn-info" data-value="15">${ _('15') }</a>
+                          <a class="btn btn-date btn-info" data-value="30">${ _('30') }</a>
+                        </span>
+                        <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('days with status') }</span>
+                        <span class="btn-group" style="float:left;">
+                          <a class="btn btn-status btn-success" data-value='SUCCEEDED'>${ _('Succeeded') }</a>
+                          <a class="btn btn-status btn-warning" data-value='RUNNING'>${ _('Running') }</a>
+                          <a class="btn btn-status btn-danger disable-feedback" data-value='KILLED'>${ _('Killed') }</a>
+                        </span>
+                        <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('submitted') }</span>
+                        <span class="btn-group" style="float:left;">
+                          <a class="btn btn-submitted btn-info" data-value='MANUALLY'>${ _('Manually') }</a>
+                          <a class="btn btn-submitted btn-info" data-value='COORDINATOR'>${ _('Coordinator') }</a>
+                        </span>
+                      </span>
+                    </form>
+
+                    <div style="min-height:200px">
+                      <h1 class="card-heading simple">${ _('Running') }</h1>
+                      <table class="table table-condensed" id="running-table">
+                        <thead>
+                          <tr>
+                            <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
+                            <th width="14%">${ _('Submission') }</th>
+                            <th width="5%">${ _('Status') }</th>
+                            <th width="31%">${ _('Name') }</th>
+                            <th width="7%">${ _('Progress') }</th>
+                            <th width="7%">${ _('Submitter') }</th>
+                            <th width="7%">${ _('Last Modified') }</th>
+                            <th width="23%">${ _('Id') }</th>
+                            <th width="5%">${ _('Parent') }</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><i class="fa fa-2x fa-spinner fa-spin muted"></i></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div>
+                      <h1 class="card-heading simple">${ _('Completed') }</h1>
+                      <table class="table table-condensed" id="completed-table" data-tablescroller-disable="true">
+                        <thead>
+                          <tr>
+                            <th width="15%">${ _('Completion') }</th>
+                            <th width="7%">${ _('Status') }</th>
+                            <th width="31%">${ _('Name') }</th>
+                            <th width="7%">${ _('Duration') }</th>
+                            <th width="10%">${ _('Submitter') }</th>
+                            <th width="25%">${ _('Id') }</th>
+                            <th width="5%">${ _('Parent') }</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><i class="fa fa-2x fa-spinner fa-spin muted"></i></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div id="step2" class="stepDetails hide">
+              <div class="card card-home card-tab card-listcontent">
+                <h2 class="card-heading simple">${ _('Install individual application examples') }</h2>
+                <div class="card-body">
+                    PEDROOOOOOOO
+                </div>
+              </div>
+            </div>  
+          </div>
+        </div>
+      </div>
     </div>
-
-    <span class="pull-right">
-      <span style="padding-right:10px;float:left;margin-top:3px" class="hide-smaller">
-      ${ _('Show only') }
-      </span>
-      <span class="btn-group" style="float:left">
-        <a class="btn btn-date btn-info" data-value="1">${ _('1') }</a>
-        <a class="btn btn-date btn-info" data-value="7">${ _('7') }</a>
-        <a class="btn btn-date btn-info" data-value="15">${ _('15') }</a>
-        <a class="btn btn-date btn-info" data-value="30">${ _('30') }</a>
-      </span>
-      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('days with status') }</span>
-      <span class="btn-group" style="float:left;">
-        <a class="btn btn-status btn-success" data-value='SUCCEEDED'>${ _('Succeeded') }</a>
-        <a class="btn btn-status btn-warning" data-value='RUNNING'>${ _('Running') }</a>
-        <a class="btn btn-status btn-danger disable-feedback" data-value='KILLED'>${ _('Killed') }</a>
-      </span>
-      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('submitted') }</span>
-      <span class="btn-group" style="float:left;">
-        <a class="btn btn-submitted btn-info" data-value='MANUALLY'>${ _('Manually') }</a>
-        <a class="btn btn-submitted btn-info" data-value='COORDINATOR'>${ _('Coordinator') }</a>
-      </span>
-    </span>
- </form>
-
-  <div style="min-height:200px">
-    <h1 class="card-heading simple">${ _('Running') }</h1>
-    <table class="table table-condensed" id="running-table">
-      <thead>
-        <tr>
-          <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
-          <th width="14%">${ _('Submission') }</th>
-          <th width="5%">${ _('Status') }</th>
-          <th width="31%">${ _('Name') }</th>
-          <th width="7%">${ _('Progress') }</th>
-          <th width="7%">${ _('Submitter') }</th>
-          <th width="7%">${ _('Last Modified') }</th>
-          <th width="23%">${ _('Id') }</th>
-          <th width="5%">${ _('Parent') }</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><i class="fa fa-2x fa-spinner fa-spin muted"></i></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      </tbody>
-    </table>
-
   </div>
-
-  <div>
-    <h1 class="card-heading simple">${ _('Completed') }</h1>
-    <table class="table table-condensed" id="completed-table" data-tablescroller-disable="true">
-      <thead>
-        <tr>
-          <th width="15%">${ _('Completion') }</th>
-          <th width="7%">${ _('Status') }</th>
-          <th width="31%">${ _('Name') }</th>
-          <th width="7%">${ _('Duration') }</th>
-          <th width="10%">${ _('Submitter') }</th>
-          <th width="25%">${ _('Id') }</th>
-          <th width="5%">${ _('Parent') }</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><i class="fa fa-2x fa-spinner fa-spin muted"></i></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>
-      </tbody>
-     </table>
-   </div>
-    </p>
-  </div>
-</div>
 </div>
 
 <div id="confirmation" class="modal hide">
@@ -143,23 +168,28 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 </div>
 
 <style type="text/css">
-@media (max-width: 1360px) {
-  .hide-small {
-    display: none;
-  }
-}
-@media (max-width: 1240px) {
-  .hide-smaller {
-    display: none;
-  }
-  .btn-group {
-    margin-left: 10px;
-  }
-}
+    .steps {
+      min-height: 300px;
+    }
+
+    @media (max-width: 1360px) {
+      .hide-small {
+        display: none;
+      }
+    }
+    @media (max-width: 1240px) {
+      .hide-smaller {
+        display: none;
+      }
+      .btn-group {
+        margin-left: 10px;
+      }
+    }
 </style>
 
 <script src="${ static('oozie/js/dashboard-utils.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   var Workflow = function (wf) {
@@ -189,6 +219,29 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       parentUrl: wf.parentUrl,
     }
   }
+
+  var currentStep = "step1";
+
+  routie({
+    "step1":function () {
+      showStep("step1");
+    },
+    "step2":function () {
+      showStep("step2");
+    },    
+  });
+
+  function showStep(step) {
+    currentStep = step;
+    
+    $("a.step").parent().removeClass("active");
+    $("a.step[href=#" + step + "]").parent().addClass("active");
+    if (step == "step4") {
+      $("#lastStep").parent().addClass("active");
+    }
+    $(".stepDetails").hide();
+    $("#" + step).show();
+  };
 
   var refreshRunning;
 
