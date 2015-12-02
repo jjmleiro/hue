@@ -293,20 +293,54 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 
 <script src="${ static('oozie/js/calendar/underscore-min.js') }" type="text/javascript" charset="utf-8"></script>
 <script src="${ static('oozie/js/calendar/calendar.js') }" type="text/javascript" charset="utf-8"></script>
-<script src="${ static('oozie/js/calendar/bootstrap.min.js') }" type="text/javascript" charset="utf-8"></script>
-
+<script src="${ static('oozie/js/calendar/app.js') }" type="text/javascript" charset="utf-8"></script>
 <link rel="stylesheet" href="${ static('oozie/css/calendar/calendar.css') }">
-<link rel="stylesheet" href="${ static('oozie/css/calendar/bootstrap.css') }">
-<link rel="stylesheet" href="${ static('oozie/css/calendar/bootstrap-responsive.css') }">
 
 <script type="text/javascript" charset="utf-8">
+  Date.prototype.currentDay = function() {
+   var yyyy = this.getFullYear().toString();
+   var mm = (this.getMonth()+1).toString(); // getMonth() is zero-based
+   var dd  = this.getDate().toString();
+   return yyyy + '-' + (mm[1]?mm:"0"+mm[0]) + '-' + (dd[1]?dd:"0"+dd[0]); // padding
+  };
+
+  var date = new Date();
+  var options = {
+    events_source: "${ static('oozie/js/calendar/templates/events.json.php') }",
+    //events_source: [];
+    //events_source : "http://vm4:8888/events/",    
+    view: 'month',
+    tmpl_path: "${ static('oozie/js/calendar/templates/') }",
+    tmpl_cache: false,
+    //day: '2013-03-12',
+    day: date.currentDay(),
+    onAfterEventsLoad: function(events) {
+      if(!events) {
+        return;
+      }
+      var list = $('#eventlist');
+      list.html('');
+
+      $.each(events, function(key, val) {
+        $(document.createElement('li'))
+          .html('<a href="' + val.url + '">' + val.title + '</a>')
+          .appendTo(list);
+      });
+    },
+    onAfterViewLoad: function(view) {
+      $('.page-header h3').text(this.getTitle());
+      $('.btn-group button').removeClass('active');
+      $('button[data-calendar-view="' + view + '"]').addClass('active');
+    },
+    classes: {
+      months: {
+        general: 'label'
+      }
+    }
+  };
+
+  var calendar = $('#calendar').calendar(options);
   
-  var calendar = $("#calendar").calendar({
-      tmpl_path: "${ static('oozie/js/calendar/templates/') }",
-      events_source: function () { return []; }
-  });
-  
-  //var calendar = $('#calendar').calendar({events_source: "${ static('oozie/js/calendar/templates/events.json') }"});
   var Workflow = function (wf) {
     return {
       id: wf.id,
