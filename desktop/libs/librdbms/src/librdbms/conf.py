@@ -98,6 +98,8 @@ def config_validator(user):
         res.append((DATABASES[server].NAME, _("Database name should not be empty for the Oracle backend. It should be the SID of your database.")))
       if engine in ('postgresql_psycopg2', 'postgresql'):
         res.append((DATABASES[server].NAME, _("Database name should not be empty for the PostgreSQL backend.")))
+      if engine in ('sqlserver', 'sqlserver_ado'):
+        res.append((DATABASES[server].NAME, _("Database name should not be empty for the SQL Server backend.")))        
 
   return res
 
