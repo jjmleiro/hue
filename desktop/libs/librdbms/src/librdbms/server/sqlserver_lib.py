@@ -43,9 +43,7 @@ class SQLServerClient(BaseRDMSClient):
 
   def __init__(self, *args, **kwargs):
     super(SQLServerClient, self).__init__(*args, **kwargs)
-    # server=str(server), user=str(username)+'@'+str(server), password=password, database=database
-    #self.connection = Database.connect(**self._conn_params)
-    self.connection = Database.connect(server=str(self._conn_params['server']), user=str(self._conn_params['user'])+'@'+str(self._conn_params['server']), password=self._conn_params['password'], database=self._conn_params['database'])
+    self.connection = Database.connect(**self._conn_params)
 
   @property
   def _conn_params(self):
@@ -61,13 +59,30 @@ class SQLServerClient(BaseRDMSClient):
 
     return params
 
+  def use(self, database):    
+    pass
+
+  def execute_statement(self, statement):
+    cursor = self.connection.cursor()
+    cursor.execute(statement)
+    
+    if cursor.description:
+      columns = [column[0] for column in cursor.description]
+    else:
+      columns = []
+    return self.data_table_cls(cursor, columns)
+
   def get_databases(self):
     return [self._conn_params['database']]
 
   def get_tables(self, database, table_names=[]):
-    # Doesn't use database and only retrieves tables for database currently in use.
+    # Doesn't use database and only retrieves tables for database currently in use.    
     cursor = self.connection.cursor()    
-    cursor.execute("SELECT TABLE_NAME FROM '%s'.INFORMATION_SCHEMA.Tables" % database)
-    self.connection.commit()
+    cursor.execute("SELECT table_name FROM %s.information_schema.tables" % database)
     return [row[0] for row in cursor.fetchall()]
 
+  def get_columns(self, database, table):
+    cursor = self.connection.cursor()    
+    cursor.execute("SELECT column_name FROM %s.information_schema.columns WHERE table_name = '%s'" % (database, table))
+    
+    return [row[0] for row in cursor.fetchall()]

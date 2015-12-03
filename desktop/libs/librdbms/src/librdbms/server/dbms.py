@@ -32,10 +32,9 @@ SQLSERVER = 'sqlserver'
 
 
 def get(user, query_server=None):
-  print "SERVER: ",query_server['server_name']
-
   if query_server is None:
     query_server = get_query_server_config()
+    print "111"
 
   if query_server['server_name'] == 'mysql':
     from librdbms.server.mysql_lib import MySQLClient
@@ -53,7 +52,7 @@ def get(user, query_server=None):
     from librdbms.server.oracle_lib import OracleClient
 
     return Rdbms(OracleClient(query_server, user), ORACLE)
-  elif query_server['server_name'] in ('sqlserver','sqlserver_ado'):
+  elif query_server['server_name'] == 'sqlserver':
     from librdbms.server.sqlserver_lib import SQLServerClient
 
     return Rdbms(SQLServerClient(query_server, user), SQLSERVER)
@@ -94,7 +93,7 @@ class Rdbms(object):
   def get_databases(self):
     return self.client.get_databases()
 
-  def get_tables(self, database):
+  def get_tables(self, database):    
     return self.client.get_tables(database)
 
   def get_table(self, database, table_name):
