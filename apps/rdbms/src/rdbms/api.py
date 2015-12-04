@@ -164,6 +164,17 @@ def execute_query(request, design_id=None):
   except RuntimeError, e:
     response['message']= str(e)
 
+  import decimal
+  import uuid
+  for row in response['results']['rows']:
+    for col in response['results']['columns']:
+      if type(row[col]) is decimal.Decimal:
+        row[col] = float(row[col])
+      if type(row[col]) is uuid.UUID:
+        row[col] = str(row[col])
+      if type(row[col]) is unicode:
+        row[col] = row[col].replace("u", "")
+
   return JsonResponse(response, encoder=ResultEncoder)
 
 
