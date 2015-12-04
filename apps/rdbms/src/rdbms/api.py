@@ -171,9 +171,7 @@ def execute_query(request, design_id=None):
       if type(row[col]) is decimal.Decimal:
         row[col] = float(row[col])
       if type(row[col]) is uuid.UUID:
-        row[col] = str(row[col])
-      if type(row[col]) is unicode:
-        row[col] = row[col].replace("u", "")
+        row[col] = str(row[col])      
 
   return JsonResponse(response, encoder=ResultEncoder)
 
