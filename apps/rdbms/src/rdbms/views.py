@@ -33,6 +33,10 @@ from librdbms.design import SQLdesign
 from beeswax import models as beeswax_models
 from beeswax.views import safe_get_design
 
+import csv
+from django.http import HttpResponse
+from rdbms.forms import UploadFileFormHDFS 
+from desktop.lib.exceptions_renderable import PopupException
 
 LOG = logging.getLogger(__name__)
 
@@ -68,7 +72,12 @@ def execute_query(request, design_id=None, query_history_id=None):
   action = request.path
   app_name = get_app_name(request)
   query_type = beeswax_models.SavedQuery.TYPES_MAPPING[app_name]
-  design = safe_get_design(request, query_type, design_id)
+  design = safe_get_design(request, query_type, design_id)  
+
+  if request.method == 'POST':
+    form = UploadFileFormHDFS(request.POST, request.FILES)
+  else:   
+    form = UploadFileFormHDFS()
 
   return render('execute.mako', request, {
     'action': action,
@@ -76,6 +85,7 @@ def execute_query(request, design_id=None, query_history_id=None):
     'design': design,
     'autocomplete_base_url': reverse('rdbms:api_autocomplete_databases', kwargs={}),
     'can_edit_name': design.id and not design.is_auto,
+    'frmHDFS': form
   })
 
 
@@ -138,3 +148,85 @@ def save_design(request, save_form, query_form, type_, design, explicit_save=Fal
     design.doc.get().add_to_history()
 
   return design
+
+def download(request):  
+  response = HttpResponse('')
+  aHeaders = []
+  aData = []
+  aLine = []
+  response = HttpResponse('')
+
+  if request.method == 'POST':
+    aHeaders = request.POST['pHeaders']
+    aData = request.POST['pData']    
+    file_format = 'csv' if 'csv' in request.POST else 'xls' if 'xls' in request.POST else 'json'
+
+    #Output File Format.
+    if file_format in ('csv','xls'):      
+      if file_format == 'csv':
+        contenttype = 'text/csv'
+      else:
+        contenttype = 'application/ms-excel'
+
+      response = HttpResponse(content_type=contenttype)
+      response['Content-Disposition'] = 'attachment; filename=%s_%s.%s' % ('file', file_format, file_format)        
+      writer = csv.writer(response)
+      writer.writerow(json.loads(aHeaders))
+      for element in json.loads(aData):        
+        aLine = []
+        for line in element:
+          if type(line) is unicode:
+            line = line.encode('utf8')
+          aLine.append(line)
+        writer.writerow(aLine)
+
+    if file_format == 'json':            
+      contenttype = 'application/json'
+      response = HttpResponse(aData, content_type=contenttype)
+      response['Content-Disposition'] = 'attachment; filename=%s_%s.%s' % ('file', file_format, file_format)
+
+  return response
+
+def save_file(request):
+  print "111"
+  form = UploadFileFormHDFS(request.POST, request.FILES)
+  print "222"
+  sURL = request.POST['psURL']
+  print "333"
+
+  if request.META.get('upload_failed'):
+    print "444"
+    raise PopupException(request.META.get('upload_failed'))
+
+  if form.is_valid():
+    print "555"
+    uploaded_file = request.FILES['hdfs_file']        
+
+    username = request.user.username
+    sFileNameHDFS = sFileHDFS.name
+    sPathHDFS = "/user/" + username                 
+    sPathHDFS = request.fs.join(sPathHDFS, sFileNameHDFS)  
+    print "PATH: ",sPathHDFS
+    tmp_file = uploaded_file.get_temp_path()
+    print "TEMP: ",tmp_file
+
+    try:
+        # Remove tmp suffix of the file
+        request.fs.do_as_user(username, request.fs.rename, tmp_file, sPathHDFS)
+        print "GRABAR: ",tmp_file
+        return HttpResponseRedirect(sURL)
+    except IOError, ex:
+        already_exists = False
+        try:
+            already_exists = request.fs.exists(sPathHDFS)
+        except Exception:
+          pass
+        if already_exists:
+            msg = _('Destination %(name)s already exists.')  % {'name': sPathHDFS}
+        else:
+            msg = _('Copy to %(name)s failed: %(error)s') % {'name': sPathHDFS, 'error': ex}
+        raise PopupException(msg)
+    
+  else:
+    print "aaa"
+    raise PopupException(_("Error in upload form: %s") % (form.errors,))

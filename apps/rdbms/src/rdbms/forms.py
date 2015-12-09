@@ -17,7 +17,13 @@
 
 from django import forms
 from django.utils.translation import ugettext_lazy as _t
+from django.forms import FileField, CharField, BooleanField, Textarea
+from django.forms.formsets import formset_factory, BaseFormSet, ManagementForm
 
+from desktop.lib import i18n
+from hadoop.fs import normpath
+from django.contrib.auth.models import User, Group
+import logging
 
 class SQLForm(forms.Form):
   query = forms.CharField(label=_t("Query Editor"),
@@ -36,3 +42,37 @@ class SQLForm(forms.Form):
                            choices=(('default', 'default'),),
                            initial=0,
                            widget=forms.widgets.Select(attrs={'class': 'input-medium'}))
+
+class PathField(CharField):
+  def __init__(self, label, help_text=None, **kwargs):
+    kwargs.setdefault('required', True)
+    kwargs.setdefault('min_length', 1)
+    forms.CharField.__init__(self, label=label, help_text=help_text, **kwargs)
+
+  def clean(self, value):
+    return normpath(CharField.clean(self, value))
+
+class UploadFileFormHDFS(forms.Form):
+  op = "uploadHDFS"
+  # The "hdfs" prefix in "hdfs_file" triggers the HDFSfileUploadHandler
+  hdfs_file = FileField(forms.Form, label="Save HDFS File")  
+  
+  #Validation. Topology Name between 5 and 100
+  def clean_topology_name(self):
+     dict = self.cleaned_data
+     hdfs_file = dict.get('hdfs_file')     
+
+     if len(hdfs_file) == 0:
+        raise forms.ValidationError("HDFS File must not be empty")
+ 
+     return hdfs_file
+     
+  #Validation. Class Name between 5 and 100
+  def clean_class_name(self):
+     dict = self.cleaned_data
+     class_name = dict.get('class_name')
+
+     if len(class_name) < 5 or len(class_name) > 100:
+        raise forms.ValidationError("Class Name between 5 and 100 characters")
+ 
+     return class_name

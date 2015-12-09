@@ -23,7 +23,9 @@ urlpatterns = patterns('rdbms.views',
   url(r'^$', 'index', name='index'),
   url(r'^execute/?$', 'execute_query', name='execute_query'),
   url(r'^execute/design/(?P<design_id>\d+)$', 'execute_query', name='execute_design'),
-  url(r'^execute/query/(?P<query_history_id>\d+)$', 'execute_query', name='watch_query_history')
+  url(r'^execute/query/(?P<query_history_id>\d+)$', 'execute_query', name='watch_query_history'),
+  url(r'^download/$', 'download', name='download'),
+  url(r'^save_file/$','save_file', name= "save_file")
 )
 
 # APIs
