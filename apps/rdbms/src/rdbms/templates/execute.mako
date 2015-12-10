@@ -126,6 +126,44 @@ ${ commonheader(_('Query'), app_name, user) | n,unicode }
             </div>
           </div>
         </div>
+
+        <div class="modal hide fade" id="tblSaveFile" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+             ${ csrf_token(request) | n,unicode }
+             <form id="frmSaveFile" method="post" enctype="multipart/form-data" action="/rdbms/save_file/">
+                ${ csrf_token(request) | n,unicode }
+                <div class="modal-content">
+                   <div class="modal-header">
+                      <h3>${ _('Save file to HDFS') } </b></h3>
+                   </div>
+                   <div class="modal-body controls">
+                      ${frmHDFS.as_p()|n}  
+                   </div>
+                   <div class="modal-footer">                            
+                      <input type="hidden" name="psURL" value="${request.get_full_path()}">                  
+                      <button type="button" class="btn btn-default" data-dismiss="modal">${ _('Cancel') }</button>                  
+                      <input type="submit" class="btn btn-primary" value="${ _('Save') }"/>            
+                   </div>
+                </div>   
+             </form>      
+          </div>
+       </div>
+       
+        <div data-bind="css: {'hide': rows().length == 0}" class="hide">          
+          <form id="frmDownload" method="post" enctype="application/json" action="/rdbms/download/">
+              ${ csrf_token(request) | n,unicode }
+              <button type="submit" name="json" title="${ _('Download as JSON') }"><i class="fa fa-file-code-o fa-1x"></i></button>
+              <button type="submit" name="csv" title="${ _('Download as CSV') }"><i class="fa fa-file-text-o"></i></button>
+              <button type="submit" name="xls" title="${ _('Download as XLS') }"><i class="fa fa-file-excel-o fa-1x"></i></button>              
+              <button id="btnSaveFile" title="${ _('Save file to HDFS') }" data-target="#tblSaveFile" data-toggle="modal">
+                <i class="fa fa-arrow-circle-o-up"></i>
+              </button>
+              <input type="hidden" name="pHeaders" id="pHeaders">
+              <input type="hidden" name="pData" id="pData">
+              <input type="hidden" name="pTable" id="pTable">
+          </form>            
+        </div>
+
         <div data-bind="css: {'hide': rows().length == 0}" class="hide">
           <div class="card card-small scrollable">
             <table id="resultTable" class="table table-striped table-condensed resultTable" cellpadding="0" cellspacing="0" data-tablescroller-min-height-disable="true" data-tablescroller-enforce-height="true">
@@ -896,6 +934,18 @@ ${ commonshare() | n,unicode }
         }
       });
       addResults(viewModel, dataTable, index, pageSize);
+      $("#pHeaders").val(JSON.stringify(viewModel.columns()));      
+      
+      var aRows = [];
+      var aData = [];
+      $.each(viewModel.rows.slice(index, index+pageSize), function(row_index, row) {        
+        aRows = [];
+        $.each(viewModel.columns(), function(col_index, col) {
+          aRows.push(row[col]);          
+        });      
+        aData.push(aRows);
+      });            
+      $("#pData").val(JSON.stringify(aData));
       index += pageSize;
 
       $(".resultTable").width($(".resultTable").parent().width());

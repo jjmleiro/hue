@@ -28,6 +28,7 @@ MYSQL = 'mysql'
 POSTGRESQL = 'postgresql'
 SQLITE = 'sqlite'
 ORACLE = 'oracle'
+SQLSERVER = 'sqlserver'
 
 
 def get(user, query_server=None):
@@ -50,7 +51,10 @@ def get(user, query_server=None):
     from librdbms.server.oracle_lib import OracleClient
 
     return Rdbms(OracleClient(query_server, user), ORACLE)
-
+  elif query_server['server_name'] == 'sqlserver':
+    from librdbms.server.sqlserver_lib import SQLServerClient
+     
+    return Rdbms(SQLServerClient(query_server, user), SQLSERVER)
 
 def get_query_server_config(server=None):
   if not server or server not in DATABASES:

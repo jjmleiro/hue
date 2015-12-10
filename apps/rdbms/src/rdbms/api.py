@@ -44,8 +44,6 @@ class ResultEncoder(json.JSONEncoder):
   def default(self, obj):
     if isinstance(obj, datetime.datetime):
       return obj.strftime('%Y-%m-%d %H:%M:%S %Z')
-    elif isinstance(obj, datetime.date):
-      return obj.strftime('%Y-%m-%d %Z')
     return super(ResultEncoder, self).default(obj)
 
 
@@ -56,12 +54,9 @@ def error_handler(view_fn):
     except Http404, e:
       raise e
     except Exception, e:
-      LOG.exception('error in %s' % view_fn)
-
       response = {
         'error': str(e)
       }
-
       return JsonResponse(response, status=500)
   return decorator
 
@@ -168,6 +163,15 @@ def execute_query(request, design_id=None):
       response['errors'] = form.errors
   except RuntimeError, e:
     response['message']= str(e)
+
+  import decimal
+  import uuid
+  for row in response['results']['rows']:
+    for col in response['results']['columns']:
+      if type(row[col]) is decimal.Decimal:
+        row[col] = float(row[col])
+      if type(row[col]) is uuid.UUID:
+        row[col] = str(row[col])
 
   return JsonResponse(response, encoder=ResultEncoder)
 
