@@ -25,8 +25,24 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
 
 <link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
 <style type="text/css">
-  body {
-    background-color: #FFF;
+  @font-face {
+    font-family: Dsignes Light;
+    src: url("${ static('desktop/ext/fonts/keedio/DsignesL.ttf') }");
+  }
+
+  @font-face {
+      font-family: Dsignes Bold;
+      src: url("${ static('desktop/ext/fonts/keedio/DsignesB.ttf') }");
+  }
+
+  body {    
+    font-family: Dsignes Bold;    
+    height: 100%;
+    background: url("${ static('desktop/art/keedio/fondo.png') }") no-repeat center center fixed; 
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
   }
 
   @-webkit-keyframes spinner {
@@ -43,18 +59,17 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 10px;
-    background: #FFF url("${ static('desktop/art/hue-login-logo-ellie.png') }") 50% 2px no-repeat;
+    background: url("${ static('desktop/art/keedio/logo-purple-120.png') }") 50% 2px no-repeat;
     width: 130px;
     height: 130px;
     -webkit-border-radius: 65px;
     -moz-border-radius: 65px;
-    border-radius: 65px;
-    border: 1px solid #EEE;
+    border-radius: 65px;    
   }
 
   @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
     #logo {
-      background: #FFF url("${ static('desktop/art/hue-login-logo-ellie@2x.png') }") 50% 2px no-repeat;
+      background: #FFF url("${ static('desktop/art/keedio/logo-purple.png') }") 50% 2px no-repeat;
       background-size: 114px 114px;
     }
   }
@@ -140,7 +155,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
 
   .well {
     border: none; 
-    background-color: #FFF;
+    background-color: #E5E5E5;
   }
 
   .footer {
@@ -152,7 +167,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   h3 {
-    color: #666;
+    color: #352B5B;
     font-size: 24px;
     font-weight: 400;
     margin-bottom: 20px;
@@ -203,13 +218,13 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
             ${_('Since this is your first time logging in, pick any username and password. Be sure to remember these, as')}
             <strong>${_('they will become your Hue superuser credentials.')}</strong>
             % if is_password_policy_enabled():
-	      <p>${get_password_hint()}</p>
+        <p>${get_password_hint()}</p>
             % endif
           </div>
         %endif
 
         <div class="input-prepend
-          % if backend_names == ['OAuthBackend']:
+          % if backend_name == 'OAuthBackend':
             hide
           % endif
         ">
@@ -220,7 +235,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
         ${ form['username'].errors | n,unicode }
 
         <div class="input-prepend
-          % if 'AllowAllBackend' in backend_names or backend_names == ['OAuthBackend']:
+          % if backend_name in ('AllowAllBackend', 'OAuthBackend'):
             hide
           % endif
         ">
@@ -273,11 +288,11 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
       }, 1000);
     });
 
-    % if 'AllowAllBackend' in backend_names:
+    % if backend_name == 'AllowAllBackend':
       $('#id_password').val('password');
     % endif
 
-    % if backend_names == ['OAuthBackend']:
+    % if backend_name == 'OAuthBackend':
       $("input").css({"display": "block", "margin-left": "auto", "margin-right": "auto"});
       $("input").bind('click', function () {
         window.location.replace('/login/oauth/');
