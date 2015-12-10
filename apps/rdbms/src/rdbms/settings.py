@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 DJANGO_APPS = ['rdbms']
 NICE_NAME = 'RDBMS UI'
 MENU_INDEX = 11
@@ -21,3 +23,8 @@ ICON = 'rdbms/art/icon_rdbms_48.png'
 
 REQUIRES_HADOOP = False
 IS_URL_NAMESPACED = True
+
+PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
+STATIC_ROOT = os.path.join(PROJECT_ROOT, 'static')
+RDBMS_ROOT = os.path.join(STATIC_ROOT, 'rdbms')
+UPLOAD_ROOT = os.path.join(RDBMS_ROOT, 'upload')

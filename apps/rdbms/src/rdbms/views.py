@@ -35,9 +35,14 @@ from beeswax.views import safe_get_design
 
 import csv
 from django.http import HttpResponse
-from rdbms.forms import UploadFileFormHDFS
+from rdbms.forms import UploadFileFormHDFS, UploadFileForm
 from desktop.lib.exceptions_renderable import PopupException
 from django.http import HttpResponseRedirect
+from rdbms import settings
+import os
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+
 
 LOG = logging.getLogger(__name__)
 
@@ -76,9 +81,11 @@ def execute_query(request, design_id=None, query_history_id=None):
   design = safe_get_design(request, query_type, design_id)
 
   if request.method == 'POST':
-    form = UploadFileFormHDFS(request.POST, request.FILES)
+    formHDFS = UploadFileFormHDFS(request.POST, request.FILES)
+    form = UploadFileForm(request.POST, request.FILES)
   else:   
-    form = UploadFileFormHDFS()
+    formHDFS = UploadFileFormHDFS()
+    form = UploadFileForm()
 
   return render('execute.mako', request, {
     'action': action,
@@ -86,7 +93,8 @@ def execute_query(request, design_id=None, query_history_id=None):
     'design': design,
     'autocomplete_base_url': reverse('rdbms:api_autocomplete_databases', kwargs={}),
     'can_edit_name': design.id and not design.is_auto,
-    'frmHDFS': form,
+    'frmHDFS': formHDFS,
+    'frm': form,
   })
 
 
@@ -189,15 +197,32 @@ def download(request):
   return response
 
 def save_file(request):
-  form = UploadFileFormHDFS(request.POST, request.FILES)
+  #form = UploadFileFormHDFS(request.POST, request.FILES)
+  form = UploadFileForm(request.POST, request.FILES)
   sURL = request.POST['psURL']
 
   if request.META.get('upload_failed'):
     raise PopupException(request.META.get('upload_failed'))
 
   if form.is_valid():
-    uploaded_file = request.FILES['hdfs_file']        
+    #uploaded_file = request.FILES['hdfs_file']
+    uploaded_file = request.FILES['file']
 
+    sFileName = uploaded_file.name
+    sPath = settings.UPLOAD_ROOT + '/' + sFileName
+
+    try:        
+      if not os.path.isfile(sPath):
+        path = default_storage.save(settings.UPLOAD_ROOT + '/' + sFileName, ContentFile(uploaded_file.read()))
+        return HttpResponseRedirect(sURL)
+      else:
+        msg = _('Destination file already exists .\n')
+        raise PopupException(msg)
+    except:
+      msg = _('Error saving file.\n')
+      raise PopupException(msg)
+
+    """
     username = request.user.username
     sFileNameHDFS = sFileHDFS.name
     sPathHDFS = "/user/" + username                 
@@ -219,6 +244,6 @@ def save_file(request):
         else:
             msg = _('Copy to %(name)s failed: %(error)s') % {'name': sPathHDFS, 'error': ex}
         raise PopupException(msg)
-    
+    """
   else:
     raise PopupException(_("Error in upload form: %s") % (form.errors,))
