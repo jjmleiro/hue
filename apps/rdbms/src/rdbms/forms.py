@@ -17,6 +17,7 @@
 
 from django import forms
 from django.utils.translation import ugettext_lazy as _t
+from django.contrib.auth.models import User, Group
 from django.forms import FileField, CharField, BooleanField, Textarea
 from django.forms.formsets import formset_factory, BaseFormSet, ManagementForm
 
@@ -42,15 +43,6 @@ class SQLForm(forms.Form):
                            choices=(('default', 'default'),),
                            initial=0,
                            widget=forms.widgets.Select(attrs={'class': 'input-medium'}))
-
-class PathField(CharField):
-  def __init__(self, label, help_text=None, **kwargs):
-    kwargs.setdefault('required', True)
-    kwargs.setdefault('min_length', 1)
-    forms.CharField.__init__(self, label=label, help_text=help_text, **kwargs)
-
-  def clean(self, value):
-    return normpath(CharField.clean(self, value))
 
 class UploadFileFormHDFS(forms.Form):
   op = "uploadHDFS"

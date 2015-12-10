@@ -35,8 +35,9 @@ from beeswax.views import safe_get_design
 
 import csv
 from django.http import HttpResponse
-from rdbms.forms import UploadFileFormHDFS 
+from rdbms.forms import UploadFileFormHDFS
 from desktop.lib.exceptions_renderable import PopupException
+from django.http import HttpResponseRedirect
 
 LOG = logging.getLogger(__name__)
 
@@ -188,32 +189,24 @@ def download(request):
   return response
 
 def save_file(request):
-  print "111"
   form = UploadFileFormHDFS(request.POST, request.FILES)
-  print "222"
   sURL = request.POST['psURL']
-  print "333"
 
   if request.META.get('upload_failed'):
-    print "444"
     raise PopupException(request.META.get('upload_failed'))
 
   if form.is_valid():
-    print "555"
     uploaded_file = request.FILES['hdfs_file']        
 
     username = request.user.username
     sFileNameHDFS = sFileHDFS.name
     sPathHDFS = "/user/" + username                 
-    sPathHDFS = request.fs.join(sPathHDFS, sFileNameHDFS)  
-    print "PATH: ",sPathHDFS
+    sPathHDFS = request.fs.join(sPathHDFS, sFileNameHDFS)      
     tmp_file = uploaded_file.get_temp_path()
-    print "TEMP: ",tmp_file
 
     try:
         # Remove tmp suffix of the file
         request.fs.do_as_user(username, request.fs.rename, tmp_file, sPathHDFS)
-        print "GRABAR: ",tmp_file
         return HttpResponseRedirect(sURL)
     except IOError, ex:
         already_exists = False
@@ -228,5 +221,4 @@ def save_file(request):
         raise PopupException(msg)
     
   else:
-    print "aaa"
     raise PopupException(_("Error in upload form: %s") % (form.errors,))
