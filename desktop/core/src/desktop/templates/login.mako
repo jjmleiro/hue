@@ -24,8 +24,23 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
 
 <link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
 <style type="text/css">
-  body {
-    background-color: #FFF;
+  @font-face {
+    font-family: Dsignes Light;
+    src: url("/static/ext/fonts/keedio/DsignesL.ttf");
+  }
+  @font-face {
+    font-family: Dsignes Bold;
+    src: url("/static/ext/fonts/keedio/DsignesB.ttf");
+  }
+
+  body {    
+    font-family: Dsignes Bold;    
+    height: 100%;
+    background: url("/static/art/keedio/fondo.png") no-repeat center center fixed; 
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
   }
 
   @-webkit-keyframes spinner {
@@ -42,18 +57,17 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 10px;
-    background: #FFF url("/static/art/hue-login-logo-ellie.png") 50% 2px no-repeat;
-    width: 130px;
-    height: 130px;
+    background: url("/static/art/keedio/logo-purple.png") 50% 2px no-repeat;
+    width: 120px;
+    height: 120px;
     -webkit-border-radius: 65px;
     -moz-border-radius: 65px;
     border-radius: 65px;
-    border: 1px solid #EEE;
   }
 
   @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
     #logo {
-      background: #FFF url("/static/art/hue-login-logo-ellie@2x.png") 50% 2px no-repeat;
+      background: #FFF url("/static/art/keedio/logo-purple.png") 50% 2px no-repeat;
       background-size: 114px 114px;
     }
   }
@@ -152,7 +166,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   h3 {
-    color: #666;
+    color: #352B5B;
     font-size: 24px;
     font-weight: 400;
     margin-bottom: 20px;
