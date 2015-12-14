@@ -23,20 +23,31 @@
 ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
 
 <link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
-<style type="text/css">
+<style type="text/css">  
   @font-face {
-    font-family: Dsignes Light;
-    src: url("/static/ext/fonts/keedio/DsignesL.ttf");
+    font-family: OpenSansLight;
+    src: url("/static/ext/fonts/isban/OpenSans-Light.ttf");
   }
+
   @font-face {
-    font-family: Dsignes Bold;
-    src: url("/static/ext/fonts/keedio/DsignesB.ttf");
+    font-family: OpenSansRegular;
+    src: url("/static/ext/fonts/isban/OpenSans-Regular.ttf");
+  }
+
+  @font-face {
+    font-family: OpenSansSemiBold;
+    src: url("/static/ext/fonts/isban/OpenSans-Semibold.ttf");
+  }
+
+  @font-face {
+    font-family: OpenSansBold;
+    src: url("/static/ext/fonts/isban/OpenSans-Bold.ttf");
   }
 
   body {    
-    font-family: Dsignes Bold;    
+    font-family: OpenSansRegular;
     height: 100%;
-    background: url("/static/art/keedio/fondo.png") no-repeat center center fixed; 
+    background: url("/static/art/isban/fondo.png") no-repeat center center fixed; 
     -webkit-background-size: cover;
     -moz-background-size: cover;
     -o-background-size: cover;
@@ -57,17 +68,14 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 10px;
-    background: url("/static/art/keedio/logo-purple.png") 50% 2px no-repeat;
-    width: 120px;
-    height: 120px;
-    -webkit-border-radius: 65px;
-    -moz-border-radius: 65px;
-    border-radius: 65px;
+    background: url("/static/art/isban/logo-principal.png") 50% 2px no-repeat;
+    width: 360px;
+    height: 114px;
   }
 
   @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
     #logo {
-      background: #FFF url("/static/art/keedio/logo-purple.png") 50% 2px no-repeat;
+      background: #FFF url("/static/art/isban/logo-principal-185.png") 50% 2px no-repeat;
       background-size: 114px 114px;
     }
   }
@@ -104,16 +112,16 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   .login-content .input-prepend.error input, .login-content .input-prepend.error .add-on {
-    border-top-color: #dd4b39;
-    border-bottom-color: #dd4b39;
+    border-top-color: #444444;
+    border-bottom-color: #444444;
   }
 
   .login-content .input-prepend.error input {
-    border-right-color: #dd4b39;
+    border-right-color: #444444;
   }
 
   .login-content .input-prepend.error .add-on {
-    border-left-color: #dd4b39;
+    border-left-color: #444444;
   }
 
   .login-content input[type='submit'] {
@@ -154,7 +162,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   .well {
     border: 1px solid #D8D8D8;
     border-radius: 3px 3px 3px 3px;
-    background-color: #F7F7F7;
+    background-color: #C2C2C2;
   }
 
   .footer {
@@ -166,7 +174,8 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   h3 {
-    color: #352B5B;
+    font-family: OpenSansBold;
+    color: #191919;
     font-size: 24px;
     font-weight: 400;
     margin-bottom: 20px;

@@ -358,7 +358,7 @@ code {
 }
 
 .table-striped tr td {
-  color: #55A08E;
+  color: #EC0000;
   font-weight: bold;
 }
 
@@ -1417,7 +1417,7 @@ a#advanced-btn:hover {
   position: fixed;
   top: 0;
   width: 100%;
-  background-color: #352B5B;
+  background-color: #B30000;
   height: 28px;
   z-index: 1033;
   min-width: 740px;
@@ -1459,7 +1459,7 @@ a#advanced-btn:hover {
 }
 
 .navigator .nav-pills > li > a {
-  color: #87BAAC;
+  color: #FFFFFF;
   font-weight: bold;
   margin-bottom: 2px;
   margin-top: 2px;
@@ -1477,18 +1477,18 @@ a#advanced-btn:hover {
 .navigator .dropdown-menu > li > a {
   padding-left: 5px;
   padding-right: 30px;
-  color: #352B5B; 
+  color: #B30000; 
 }
 
 .navigator .dropdown-menu > li > a:hover {
   padding-left: 5px;
   padding-right: 30px;
-  color: #55A08E;
+  color: #EC0000;
 }
 
 .navigator .dropdown-menu > li > a > img {
   padding-right: 6px;
-  color: #352B5B;   
+  color: #B30000;   
 }
 
 .navigator .nav-pills > li.dropdown > a {
@@ -1512,13 +1512,13 @@ a#advanced-btn:hover {
   font-size: 20px;
   padding-top: 13px;
   padding-left: 0;
-  color: #352B5B;
+  color: #B30000;
   cursor: pointer;
 }
 
 .currentApp a {
   font-size: 20px !important;
-  color: #352B5B !important;
+  color: #B30000 !important;
   padding: 0 !important;
   margin-top: -4px !important;
   border: none !important;
@@ -1526,7 +1526,7 @@ a#advanced-btn:hover {
 }
 
 .currentApp a:focus, .currentApp a:hover {
-  color: #666484 !important;
+  color: #CC0000 !important;
 }
 
 .currentApp img {
@@ -2066,19 +2066,29 @@ pre {
  ************************************************************************************************** */
 
 @font-face {
-  font-family: Dsignes Light;
-  src: url('../ext/fonts/keedio/DsignesL.ttf');
+  font-family: OpenSansLight;
+  src: url('../ext/fonts/isban/OpenSans-Light.ttf');
 }
 
 @font-face {
-    font-family: Dsignes Bold;
-    src: url('../ext/fonts/keedio/DsignesB.ttf');
+  font-family: OpenSansRegular;
+  src: url('../ext/fonts/isban/OpenSans-Regular.ttf');
+}
+
+@font-face {
+  font-family: OpenSansSemiBold;
+  src: url('../ext/fonts/isban/OpenSans-Semibold.ttf');
+}
+
+@font-face {
+  font-family: OpenSansBold;
+  src: url('../ext/fonts/isban/OpenSans-Bold.ttf');
 }
 
 body {    
-  font-family: Dsignes Bold;    
+  font-family: OpenSansRegular;
   height: 100%; 
-  background: url('../art/keedio/fondo.png') no-repeat center center fixed; 
+  background: url('../art/isban/fondo.png') no-repeat center center fixed; 
   -webkit-background-size: cover;
   -moz-background-size: cover;
   -o-background-size: cover;
@@ -2086,38 +2096,38 @@ body {
 }
 
 .btn-primary {
-  background: #352B5B;
+  background: #B30000;
   color: #FFFFFF;
-  font-family: Dsignes Bold;
+  font-family: OpenSansRegular;
 }
 
 .btn-primary:hover, .btn-primary:focus, .btn-primary:active, 
 .btn-primary.active, .open > .dropdown-toggle.btn-primary {
-  background: #666484;
+  background: #CC0000;
   color: #FFFFFF;      
 }
 
 .btn-primary:disabled,
 .btn-primary[disabled] {
-  background: #837D93;
+  background: #990000;
   color: #FFFFFF;
 }
 
 .step {
-  color: #55A08E;
+  color: #EC0000;
 }
 
 .step:active {
-  color: #352B5B;
+  color: #B30000;
 }
 
 .step:hover {
-  color: #666484;
+  color: #CC0000;
 }
 
 .card .card-heading.simple{
   font-size:20px;
   font-weight:300;
-  color:#352B5B;
+  color:#B30000;
   border-bottom:1px 
-  solid #e5e5e5}
+  solid #DDDDDD}
