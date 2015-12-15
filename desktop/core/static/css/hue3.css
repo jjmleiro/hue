@@ -1417,7 +1417,7 @@ a#advanced-btn:hover {
   position: fixed;
   top: 0;
   width: 100%;
-  background-color: #B30000;
+  background-color: #EC0000;
   height: 28px;
   z-index: 1033;
   min-width: 740px;
@@ -2088,12 +2088,7 @@ pre {
 
 body {    
   font-family: OpenSansRegular;
-  height: 100%; 
-  background: url('../art/isban/fondo.png') no-repeat center center fixed; 
-  -webkit-background-size: cover;
-  -moz-background-size: cover;
-  -o-background-size: cover;
-  background-size: cover;
+  height: 100%;  
 }
 
 .btn-primary {
@@ -2148,6 +2143,33 @@ body {
 .btn-info[disabled] {
   background: #A4E1E4;
   color: #FFFFFF;
+}
+
+.btn-login {
+  background: #FFFFFF;
+  color: #EC0000;
+  border-radius: 40px;
+  -webkit-border-radius: 40px;
+  -moz-border-radius: 40px;
+  font-family: OpenSansRegular;
+}
+
+.btn-login:hover, .btn-login:focus, .btn-login:active, 
+.btn-login.active, .open > .dropdown-toggle.btn-login {
+  background: #CC0000;
+  color: #FFFFFF;
+  border-radius: 40px;
+  -webkit-border-radius: 40px;
+  -moz-border-radius: 40px;      
+}
+
+.btn-login:disabled,
+.btn-login[disabled] {
+  background: #990000;
+  color: #FFFFFF;
+  border-radius: 40px;
+  -webkit-border-radius: 40px;
+  -moz-border-radius: 40px;
 }
 
 .step {
