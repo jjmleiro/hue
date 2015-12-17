@@ -358,7 +358,7 @@ code {
 }
 
 .table-striped tr td {
-  color: #EC0000;
+  color: #333333;
   font-weight: bold;
 }
 
@@ -1719,8 +1719,13 @@ html.modal-open {
 }
 
 .brand img {
+  width: 110px;
+  height: 20px;
+  margin-top: -6px;
+  /*
   width: 60px;
   height: 16px;
+  */
 }
 
 /*********************************************************
@@ -2172,16 +2177,36 @@ body {
   -moz-border-radius: 40px;
 }
 
-.step {
-  color: #EC0000;
+.nav-tabs > li > a {
+  color: #444444;
+  background-color: #DDDDDD;
+  border-top-left-radius: 5px;
+  -webkit-border-top-left-radius: 5px;
+  -moz-border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  -webkit-border-top-right-radius: 5px;
+  -moz-border-top-right-radius: 5px;
 }
-
-.step:active {
-  color: #B30000;
+.nav-tabs > .active > a {
+  color: #F0F0F0;
+  background-color: #444444;
+  border-top-left-radius: 5px;
+  -webkit-border-top-left-radius: 5px;
+  -moz-border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  -webkit-border-top-right-radius: 5px;
+  -moz-border-top-right-radius: 5px;
 }
-
-.step:hover {
-  color: #CC0000;
+.nav-tabs > .active > a:hover, 
+.nav-tabs > li > a:hover {
+  color: #444444;
+  background-color: #C2C2C2;
+  border-top-left-radius: 5px;
+  -webkit-border-top-left-radius: 5px;
+  -moz-border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  -webkit-border-top-right-radius: 5px;
+  -moz-border-top-right-radius: 5px;
 }
 
 .card .card-heading.simple{
