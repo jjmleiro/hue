@@ -2,6 +2,8 @@
 .DS_Store
 ._*
 
+sftp-config.json
+
 # Python compiled files
 *.pyc
 *.pyo
