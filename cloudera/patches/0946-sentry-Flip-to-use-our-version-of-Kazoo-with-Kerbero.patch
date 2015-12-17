@@ -1,0 +1,40 @@
+From 57ac6dad05ea4fa26fb85eb73e961916bbacd39f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 26 Feb 2015 15:02:54 -0800
+Subject: [PATCH 0946/1173] [sentry] Flip to use our version of Kazoo with
+ Kerberos support
+
+---
+ desktop/libs/libsentry/src/libsentry/api.py |   14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/desktop/libs/libsentry/src/libsentry/api.py b/desktop/libs/libsentry/src/libsentry/api.py
+index bf02197..08627eb 100644
+--- a/desktop/libs/libsentry/src/libsentry/api.py
++++ b/desktop/libs/libsentry/src/libsentry/api.py
+@@ -251,12 +251,18 @@ def _get_server_properties():
+ 
+     try:
+       if _api_cache is None:
+-        zk = KazooClient(hosts=get_sentry_server_ha_zookeeper_quorum(), read_only=True)
+ 
+         if get_sentry_server_ha_has_security():
+-          # TODO zk.add_kerb
+-          # TODO get principal name PRINCIPAL_NAME.get()
+-          from zookeeper.conf import PRINCIPAL_NAME
++          try:
++            from zookeeper.conf import CLUSTERS
++            sasl_server_principal = CLUSTERS.get()['default'].PRINCIPAL_NAME.get()
++          except Exception, e:
++            LOG.error("Could not get principal name from ZooKeeper app config: %s. Using 'zookeeper' as principal name." % e)
++            sasl_server_principal = 'zookeeper'
++        else:
++          sasl_server_principal = None
++
++        zk = KazooClient(hosts=get_sentry_server_ha_zookeeper_quorum(), read_only=True, sasl_server_principal=sasl_server_principal)
+ 
+         zk.start()
+ 
+-- 
+1.7.9.5
+

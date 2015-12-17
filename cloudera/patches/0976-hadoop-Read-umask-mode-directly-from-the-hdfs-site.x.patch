@@ -1,0 +1,136 @@
+From 278f25f4863a893f3e8637f309461c565340eaad Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 3 Mar 2015 11:53:00 -0800
+Subject: [PATCH 0976/1173] [hadoop] Read umask mode directly from the
+ hdfs-site.xml
+
+---
+ desktop/conf.dist/hue.ini                    |    3 ---
+ desktop/conf/pseudo-distributed.ini.tmpl     |    3 ---
+ desktop/libs/hadoop/src/hadoop/conf.py       |    9 ---------
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    4 ++--
+ desktop/libs/hadoop/src/hadoop/hdfs_site.py  |   18 ++++++++++++++----
+ 5 files changed, 16 insertions(+), 21 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 03fd325..67810be 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -654,9 +654,6 @@
+       # Change this if your HDFS cluster is Kerberos-secured
+       ## security_enabled=false
+ 
+-      # Default umask for file and directory creation, specified in an octal value.
+-      ## umask=022
+-
+       # Directory of the Hadoop configuration
+       ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
+ 
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index c6e7459..c1143fd 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -657,9 +657,6 @@
+       # Change this if your HDFS cluster is Kerberos-secured
+       ## security_enabled=false
+ 
+-      # Default umask for file and directory creation, specified in an octal value.
+-      ## umask=022
+-
+       # Directory of the Hadoop configuration
+       ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index 2e4466f..4474d5f 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -40,13 +40,6 @@ def find_file_recursive(desired_glob, root):
+   return f
+ 
+ 
+-def coerce_umask(umask):
+-  if len(umask) < 4:
+-    umask = "1" + umask
+-
+-  return int(umask, 8)
+-
+-
+ UPLOAD_CHUNK_SIZE = Config(
+   key="upload_chunk_size",
+   help="Size, in bytes, of the 'chunks' Django should store into memory and feed into the handler. Default is 64MB.",
+@@ -76,8 +69,6 @@ HDFS_CLUSTERS = UnspecifiedConfigSection(
+                               default=False, type=coerce_bool),
+       TEMP_DIR=Config("temp_dir", help="HDFS directory for temporary files",
+                       default='/tmp', type=str),
+-      UMASK=Config("umask", help="Default umask for file and directory creation, specified in an octal value",
+-                   default='022', type=coerce_umask),
+       HADOOP_CONF_DIR = Config(
+         key="hadoop_conf_dir",
+         default=os.environ.get("HADOOP_CONF_DIR", "/etc/hadoop/conf"),
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index 0ff53e5..b81b441 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -34,7 +34,7 @@ from hadoop.fs.hadoopfs import Hdfs
+ from hadoop.fs.exceptions import WebHdfsException
+ from hadoop.fs.webhdfs_types import WebHdfsStat, WebHdfsContentSummary
+ from hadoop.conf import UPLOAD_CHUNK_SIZE
+-from hadoop.hdfs_site import get_nn_sentry_prefixes
++from hadoop.hdfs_site import get_nn_sentry_prefixes, get_umask_mode
+ 
+ import hadoop.conf
+ import desktop.conf
+@@ -86,7 +86,7 @@ class WebHdfs(Hdfs):
+                logical_name=hdfs_config.LOGICAL_NAME.get(),
+                security_enabled=hdfs_config.SECURITY_ENABLED.get(),
+                temp_dir=hdfs_config.TEMP_DIR.get(),
+-               umask=hdfs_config.UMASK.get())
++               umask=get_umask_mode())
+ 
+   def __str__(self):
+     return "WebHdfs at %s" % self._url
+diff --git a/desktop/libs/hadoop/src/hadoop/hdfs_site.py b/desktop/libs/hadoop/src/hadoop/hdfs_site.py
+index a0dcfec..1b1840c 100644
+--- a/desktop/libs/hadoop/src/hadoop/hdfs_site.py
++++ b/desktop/libs/hadoop/src/hadoop/hdfs_site.py
+@@ -27,8 +27,11 @@ LOG = logging.getLogger(__name__)
+ 
+ _HDFS_SITE_DICT = None
+ 
++
++_CNF_NN_PERMISSIONS_UMASK_MODE = 'fs.permissions.umask-mode'
+ _CNF_NN_SENTRY_PREFIX = 'sentry.authorization-provider.hdfs-path-prefixes'
+ 
++
+ def reset():
+   global _HDFS_SITE_DICT
+   _HDFS_SITE_DICT = None
+@@ -40,6 +43,17 @@ def get_conf():
+   return _HDFS_SITE_DICT
+ 
+ 
++def get_umask_mode():
++  umask = get_conf().get(_CNF_NN_PERMISSIONS_UMASK_MODE, '022')
++  if len(umask) < 4:
++    umask = "1" + umask
++
++  return int(umask, 8)
++
++def get_nn_sentry_prefixes():
++  return get_conf().get(_CNF_NN_SENTRY_PREFIX, '')
++
++
+ def _parse_hdfs_site():
+   global _HDFS_SITE_DICT
+   hdfs_site_path = ''
+@@ -57,7 +71,3 @@ def _parse_hdfs_site():
+     data = ""
+ 
+   _HDFS_SITE_DICT = confparse.ConfParse(data)
+-
+-
+-def get_nn_sentry_prefixes():
+-  return get_conf().get(_CNF_NN_SENTRY_PREFIX, '')
+-- 
+1.7.9.5
+

@@ -1,0 +1,119 @@
+From 28f87423f885ed6c77edaaad7e27d71dc67cac5e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 16:18:13 -0800
+Subject: [PATCH 0619/1173] [spark] Fix the creation methods
+
+---
+ .../server/resources/ExecuteStatementRequest.java  |   15 +++++++++
+ .../sparker/server/resources/SessionResource.java  |   32 ++++++++------------
+ 2 files changed, 28 insertions(+), 19 deletions(-)
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
+new file mode 100644
+index 0000000..6cf91a0
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
+@@ -0,0 +1,15 @@
++package com.cloudera.hue.sparker.server.resources;
++
++import org.hibernate.validator.constraints.NotEmpty;
++
++/**
++ * Created by erickt on 11/25/14.
++ */
++public class ExecuteStatementRequest {
++    @NotEmpty
++    private String statement;
++
++    public String getStatement() {
++        return statement;
++    }
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index 675e7dd..7a4ea15 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -8,6 +8,7 @@ import com.codahale.metrics.annotation.Timed;
+ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+ import org.hibernate.validator.constraints.NotEmpty;
+ 
++import javax.servlet.http.HttpServletRequest;
+ import javax.validation.Valid;
+ import javax.ws.rs.DELETE;
+ import javax.ws.rs.GET;
+@@ -17,10 +18,12 @@ import javax.ws.rs.PathParam;
+ import javax.ws.rs.Produces;
+ import javax.ws.rs.QueryParam;
+ import javax.ws.rs.WebApplicationException;
++import javax.ws.rs.core.Context;
+ import javax.ws.rs.core.MediaType;
+ import javax.ws.rs.core.Response;
+ import java.io.IOException;
+ import java.net.URI;
++import java.net.URISyntaxException;
+ import java.util.Collections;
+ import java.util.List;
+ import java.util.concurrent.TimeoutException;
+@@ -46,7 +49,8 @@ public class SessionResource {
+ 
+     @POST
+     @Timed
+-    public String createSession(@QueryParam("lang") String language) throws IOException, InterruptedException {
++    public Response createSession(@QueryParam("lang") String language,
++                                  @Context HttpServletRequest request) throws IOException, InterruptedException, URISyntaxException {
+         int sessionType;
+ 
+         if (language == null) {
+@@ -65,7 +69,8 @@ public class SessionResource {
+ 
+         Session session = sessionManager.create(sessionType);
+ 
+-        return session.getId();
++        URI location = new URI("/" + session.getId());
++        return Response.created(location).build();
+     }
+ 
+     @Path("/{id}")
+@@ -95,14 +100,16 @@ public class SessionResource {
+     @Path("/{id}")
+     @POST
+     @Timed
+-    public Response executeStatement(@PathParam("id") String id, @Valid ExecuteStatementRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
++    public Response executeStatement(@PathParam("id") String id,
++                                     @Valid ExecuteStatementRequest body,
++                                     @Context HttpServletRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
+         Session session = sessionManager.get(id);
+ 
+         // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
+-        Cell cell = session.executeStatement(request.getStatement());
++        Cell cell = session.executeStatement(body.getStatement());
+ 
+-        URI location = new URI("/sessions/" + session.getId() + "/cells/" + cell.getId());
+-        return new ResponseBuilderImpl().status(Response.Status.SEE_OTHER).contentLocation(location).build();
++        URI location = new URI("/cells/" + cell.getId());
++        return Response.created(location).build();
+     }
+ 
+     @Path("/{id}")
+@@ -112,17 +119,4 @@ public class SessionResource {
+         sessionManager.close(id);
+         return Response.noContent().build();
+     }
+-
+-    private class ExecuteStatementRequest {
+-        @NotEmpty
+-        private String statement;
+-
+-        public ExecuteStatementRequest(String statement) {
+-            this.statement = statement;
+-        }
+-
+-        public String getStatement() {
+-            return statement;
+-        }
+-    }
+ }
+-- 
+1.7.9.5
+

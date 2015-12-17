@@ -1,0 +1,146 @@
+From ef8e8a3b5cbaf1ede1f522174800b8baf2a03552 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 16 Dec 2014 17:00:14 -0800
+Subject: [PATCH 0338/1173] [oozie] Generate XML of Coordinator with datasets
+
+---
+ apps/oozie/src/oozie/models2.py                    |   19 +++++++++----------
+ .../templates/editor/gen2/coordinator.xml.mako     |    4 ++--
+ apps/oozie/static/js/coordinator-editor.ko.js      |   17 +++++++++++++----
+ apps/oozie/static/js/workflow-editor.ko.js         |    7 +++++++
+ 4 files changed, 31 insertions(+), 16 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 529f040..e9aaaf8 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1240,7 +1240,7 @@ class Coordinator():
+  
+   @property
+   def data(self):
+-    self._data['properties']['start'] = datetime.today()
++    self._data['properties']['start'] = datetime.today() # TODO
+     self._data['properties']['end'] = datetime.today() + timedelta(days=3)    
+ 
+     if self.document is not None:
+@@ -1310,11 +1310,11 @@ class Dataset():
+ 
+   def __init__(self, data=None, json_data=None):
+     if json_data is not None:
+-      self.data = json.loads(json_data)
++      self._data = json.loads(json_data)
+     elif data is not None:
+-      self.data = data
++      self._data = data
+     else:
+-      self.data = {
++      self._data = {
+           'name': 'dataset',
+           'frequency_number': 1,
+           'frequency_unit': 'days',
+@@ -1330,7 +1330,11 @@ class Dataset():
+       
+   @property
+   def data(self):
+-    return self.data      
++    
++    self._data['start'] = datetime.today() # TODO
++    self._data['name'] = self._data['workflow_variable'] # Clean-up
++
++    return self._data      
+       
+   @property
+   def frequency(self):
+@@ -1369,8 +1373,3 @@ class Dataset():
+   def is_advanced_end_instance(self):
+     return not self.is_int(self.data['advanced_end_instance'])
+ 
+-
+-
+-      
+-      
+-      
+\ No newline at end of file
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index ae0912b..a2d6ec3 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -80,9 +80,9 @@
+   % if coord.datasets:
+   <datasets>
+     % for dataset in coord.datasets:
+-    <dataset name="${ dataset['name'] }" frequency="${ dataset.data['frequency'] }"
++    <dataset name="${ dataset.data['name'] }" frequency="${ dataset.frequency }"
+              initial-instance="${ dataset.start_utc }" timezone="${ dataset.data['timezone'] }">
+-      <uri-template>${ smart_path(dataset.data['uri'], mapping) }</uri-template>
++      <uri-template>${ smart_path(dataset.data['dataset_variable'], mapping) }</uri-template>
+       % if dataset.data['done_flag'] is not None:
+       <done-flag>${ dataset.data['done_flag'] }</done-flag>
+       % endif
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 3f760ac..ac9e309 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -41,9 +41,8 @@ var Coordinator = function (vm, coordinator) {
+   self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "");
+ 
+   self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
+-  
+   self.variables = ko.mapping.fromJS(typeof coordinator.variables != "undefined" && coordinator.variables != null ? coordinator.variables : []);
+-  //self.variables = ko.observableArray([]);
++
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
+ 
+   self.properties.workflow.subscribe(function(newVal) {
+@@ -72,8 +71,8 @@ var Coordinator = function (vm, coordinator) {
+        'instance_choice': 'default', // is_advanced_start_instance, start_instance, is_advanced_end_instance, end_instance
+        'frequency_number': 1,
+        'frequency_unit': 'DAYS',
+-       'start': null,
+-       'name': '',
++       'start': new Date(),
++
+        'shared_dataset_uuid': '' // If reusing a shared dataset
+     };
+ 
+@@ -122,6 +121,9 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   };
+ 
+   self.gen_xml = function () {
++	$(".jHueNotify").hide();
++	logGA('gen_xml');
++
+     $.post("/oozie/editor/coordinator/gen_xml/", {
+         "coordinator": ko.mapping.toJSON(self.coordinator)
+     }, function (data) {
+@@ -161,3 +163,10 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+     });
+   };
+ };
++
++
++function logGA(page) {
++  if (typeof trackOnGA == 'function') {
++    trackOnGA('oozie/editor/coordinator/' + page);
++  }
++}
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index fc73a77..3567a5d 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -990,3 +990,10 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.draggableKillNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
+ };
++
++
++function logGA(page) {
++  if (typeof trackOnGA == 'function') {
++    trackOnGA('oozie/editor/workflow' + page);
++  }
++}
+\ No newline at end of file
+-- 
+1.7.9.5
+

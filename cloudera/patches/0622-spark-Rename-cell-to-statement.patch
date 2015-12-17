@@ -1,0 +1,478 @@
+From 17597da00fff0f2e955111cd29f172ac14f2a01a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 8 Dec 2014 17:17:47 -0800
+Subject: [PATCH 0622/1173] [spark] Rename cell to statement
+
+---
+ .../cloudera/hue/sparker/server/SparkerApp.java    |    4 +-
+ .../hue/sparker/server/resources/CellResource.java |   53 ---------------
+ .../sparker/server/resources/SessionResource.java  |   17 +++--
+ .../server/resources/StatementResource.java        |   47 +++++++++++++
+ .../cloudera/hue/sparker/server/sessions/Cell.java |   70 --------------------
+ .../hue/sparker/server/sessions/Session.java       |   12 ++--
+ .../hue/sparker/server/sessions/SparkSession.java  |   30 ++++-----
+ .../hue/sparker/server/sessions/Statement.java     |   70 ++++++++++++++++++++
+ 8 files changed, 150 insertions(+), 153 deletions(-)
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+index de75208..c015a85 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+@@ -1,6 +1,6 @@
+ package com.cloudera.hue.sparker.server;
+ 
+-import com.cloudera.hue.sparker.server.resources.CellResource;
++import com.cloudera.hue.sparker.server.resources.StatementResource;
+ import com.cloudera.hue.sparker.server.resources.SessionResource;
+ import com.cloudera.hue.sparker.server.sessions.SessionManager;
+ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+@@ -26,7 +26,7 @@ public class SparkerApp extends Application<SparkerConfiguration> {
+     public void run(SparkerConfiguration sparkerConfiguration, Environment environment) throws Exception {
+         final SessionManager sessionManager = new SessionManager();
+         environment.jersey().register(new SessionResource(sessionManager));
+-        environment.jersey().register(new CellResource(sessionManager));
++        environment.jersey().register(new StatementResource(sessionManager));
+         environment.jersey().register(new SessionManagerExceptionMapper());
+     }
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
+deleted file mode 100644
+index 848ebc7..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
++++ /dev/null
+@@ -1,53 +0,0 @@
+-package com.cloudera.hue.sparker.server.resources;
+-
+-import com.cloudera.hue.sparker.server.sessions.Cell;
+-import com.cloudera.hue.sparker.server.sessions.Session;
+-import com.cloudera.hue.sparker.server.sessions.SessionManager;
+-import com.codahale.metrics.annotation.Timed;
+-
+-import javax.ws.rs.*;
+-import javax.ws.rs.core.MediaType;
+-import java.util.List;
+-
+-@Path("/sessions/{sessionId}/cells")
+-@Produces(MediaType.APPLICATION_JSON)
+-public class CellResource {
+-
+-    private final SessionManager sessionManager;
+-
+-    public CellResource(SessionManager sessionManager) {
+-        this.sessionManager = sessionManager;
+-    }
+-
+-    @GET
+-    @Timed
+-    public List<Cell> getCells(@PathParam("sessionId") String sessionId,
+-                               @QueryParam("from") Integer fromCell,
+-                               @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        List<Cell> cells = session.getCells();
+-
+-        if (fromCell != null || limit != null) {
+-            if (fromCell == null) {
+-                fromCell = 0;
+-            }
+-
+-            if (limit == null) {
+-                limit = cells.size();
+-            }
+-
+-            cells = cells.subList(fromCell, fromCell + limit);
+-        }
+-
+-        return cells;
+-    }
+-
+-    @Path("/{cellId}")
+-    @GET
+-    @Timed
+-    public Cell getCell(@PathParam("sessionId") String sessionId, @PathParam("cellId") int cellId) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        return session.getCell(cellId);
+-    }
+-
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index ab87ab5..df3736e 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -1,12 +1,11 @@
+ package com.cloudera.hue.sparker.server.resources;
+ 
+-import com.cloudera.hue.sparker.server.sessions.Cell;
++import com.cloudera.hue.sparker.server.sessions.Statement;
+ import com.cloudera.hue.sparker.server.sessions.ClosedSessionException;
+ import com.cloudera.hue.sparker.server.sessions.Session;
+ import com.cloudera.hue.sparker.server.sessions.SessionManager;
+ import com.codahale.metrics.annotation.Timed;
+ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+-import org.hibernate.validator.constraints.NotEmpty;
+ 
+ import javax.servlet.http.HttpServletRequest;
+ import javax.validation.Valid;
+@@ -76,11 +75,11 @@ public class SessionResource {
+     @Path("/{id}")
+     @GET
+     @Timed
+-    public List<Cell> getSession(@PathParam("id") String id,
++    public List<Statement> getSession(@PathParam("id") String id,
+                                  @QueryParam("from") Integer fromCell,
+                                  @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+         Session session = sessionManager.get(id);
+-        List<Cell> cells = session.getCells();
++        List<Statement> statements = session.getStatements();
+ 
+         if (fromCell != null || limit != null) {
+             if (fromCell == null) {
+@@ -88,13 +87,13 @@ public class SessionResource {
+             }
+ 
+             if (limit == null) {
+-                limit = cells.size();
++                limit = statements.size();
+             }
+ 
+-            cells = cells.subList(fromCell, fromCell + limit);
++            statements = statements.subList(fromCell, fromCell + limit);
+         }
+ 
+-        return cells;
++        return statements;
+     }
+ 
+     @Path("/{id}")
+@@ -106,9 +105,9 @@ public class SessionResource {
+         Session session = sessionManager.get(id);
+ 
+         // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
+-        Cell cell = session.executeStatement(body.getStatement());
++        Statement statement = session.executeStatement(body.getStatement());
+ 
+-        URI location = new URI("/cells/" + cell.getId());
++        URI location = new URI("/cells/" + statement.getId());
+         return Response.created(location).build();
+     }
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
+new file mode 100644
+index 0000000..16969a2
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
+@@ -0,0 +1,47 @@
++package com.cloudera.hue.sparker.server.resources;
++
++import com.cloudera.hue.sparker.server.sessions.Session;
++import com.cloudera.hue.sparker.server.sessions.SessionManager;
++import com.cloudera.hue.sparker.server.sessions.Statement;
++import com.codahale.metrics.annotation.Timed;
++
++import javax.ws.rs.*;
++import javax.ws.rs.core.MediaType;
++import java.util.List;
++
++@Path("/sessions/{sessionId}/statements")
++@Produces(MediaType.APPLICATION_JSON)
++public class StatementResource {
++
++    private final SessionManager sessionManager;
++
++    public StatementResource(SessionManager sessionManager) {
++        this.sessionManager = sessionManager;
++    }
++
++    @GET
++    @Timed
++    public List<Statement> getStatements(@PathParam("sessionId") String sessionId,
++                                         @QueryParam("from") Integer fromStatement,
++                                         @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
++        Session session = sessionManager.get(sessionId);
++        List<Statement> statements;
++
++        if (fromStatement == null && limit == null) {
++            statements = session.getStatements();
++        } else {
++            statements = session.getStatementRange(fromStatement, fromStatement + limit);
++        }
++
++        return statements;
++    }
++
++    @Path("/{statementId}")
++    @GET
++    @Timed
++    public Statement getStatement(@PathParam("sessionId") String sessionId, @PathParam("statementId") int statementId) throws SessionManager.SessionNotFound, Session.StatementNotFound {
++        Session session = sessionManager.get(sessionId);
++        return session.getStatement(statementId);
++    }
++
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
+deleted file mode 100644
+index 21db189..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
++++ /dev/null
+@@ -1,70 +0,0 @@
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-import com.fasterxml.jackson.annotation.JsonProperty;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-public class Cell {
+-
+-    public enum State {
+-        NOT_READY,
+-        READY,
+-        INCOMPLETE,
+-        RUNNING,
+-        COMPLETE,
+-    }
+-
+-    int id;
+-    State state;
+-    final List<String> input = new ArrayList<String>();
+-    final List<String> output = new ArrayList<String>();
+-
+-    final List<String> error = new ArrayList<String>();
+-
+-    public Cell(int id) {
+-        this.id = id;
+-        this.state = State.COMPLETE;
+-    }
+-
+-    @JsonProperty
+-    public int getId() {
+-        return id;
+-    }
+-
+-    @JsonProperty("state")
+-    public State getState() {
+-        return state;
+-    }
+-
+-    public void setState(State state) {
+-        this.state = state;
+-    }
+-
+-    @JsonProperty("input")
+-    public List<String> getInput() {
+-        return input;
+-    }
+-
+-    public void addInput(String input) {
+-        this.input.add(input);
+-    }
+-
+-    @JsonProperty("output")
+-    public List<String> getOutput() {
+-        return output;
+-    }
+-
+-    public void addOutput(String output) {
+-        this.output.add(output);
+-    }
+-
+-    @JsonProperty("error")
+-    public List<String> getError() {
+-        return error;
+-    }
+-
+-    public void addError(String error) {
+-        this.error.add(error);
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+index 0d8f057..7e0b57a 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+@@ -30,17 +30,21 @@ public interface Session {
+     String getId();
+ 
+     @JsonProperty
+-    List<Cell> getCells();
++    List<Statement> getStatements();
+ 
+-    List<Cell> getCellRange(int fromIndex, int toIndex);
++    List<Statement> getStatementRange(Integer fromIndex, Integer toIndex);
+ 
+-    Cell getCell(int cellId);
++    Statement getStatement(int statementId) throws StatementNotFound;
+ 
+     @JsonProperty
+     public long getLastActivity();
+ 
+-    public Cell executeStatement(String statement) throws Exception, ClosedSessionException;
++    public Statement executeStatement(String statement) throws Exception, ClosedSessionException;
+ 
+     public void close() throws IOException, InterruptedException, TimeoutException;
++
++    public static class StatementNotFound extends Throwable {
++
++    }
+ }
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+index b88e227..28551ed 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+@@ -58,7 +58,7 @@ public class SparkSession implements Session {
+     private final Process process;
+     private final Writer writer;
+     private final BufferedReader reader;
+-    private final List<Cell> cells = new ArrayList<Cell>();
++    private final List<Statement> statements = new ArrayList<Statement>();
+     private final ObjectMapper objectMapper = new ObjectMapper();
+ 
+     private boolean isClosed = false;
+@@ -93,36 +93,36 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
+-    synchronized public List<Cell> getCells() {
+-        return Lists.newArrayList(cells);
++    synchronized public List<Statement> getStatements() {
++        return Lists.newArrayList(statements);
+     }
+ 
+     @Override
+-    synchronized public List<Cell> getCellRange(int fromIndex, int toIndex) {
+-        return cells.subList(fromIndex, toIndex);
++    synchronized public List<Statement> getStatementRange(Integer fromIndex, Integer toIndex) {
++        return statements.subList(fromIndex, toIndex);
+     }
+ 
+     @Override
+-    synchronized public Cell getCell(int index) {
+-        return cells.get(index);
++    synchronized public Statement getStatement(int index) {
++        return statements.get(index);
+     }
+ 
+     @Override
+-    synchronized public Cell executeStatement(String statement) throws IOException, ClosedSessionException, InterruptedException {
++    synchronized public Statement executeStatement(String statementStr) throws IOException, ClosedSessionException, InterruptedException {
+         if (isClosed) {
+             throw new ClosedSessionException();
+         }
+ 
+         touchLastActivity();
+ 
+-        Cell cell = new Cell(cells.size());
+-        cells.add(cell);
++        Statement statement = new Statement(statements.size());
++        statements.add(statement);
+ 
+-        cell.addInput(statement);
++        statement.addInput(statementStr);
+ 
+         ObjectNode request = objectMapper.createObjectNode();
+         request.put("type", "stdin");
+-        request.put("statement", statement);
++        request.put("statement", statementStr);
+ 
+         writer.write(request.toString());
+         writer.write("\n");
+@@ -141,14 +141,14 @@ public class SparkSession implements Session {
+         JsonNode response = objectMapper.readTree(line);
+ 
+         if (response.has("stdout")) {
+-            cell.addOutput(response.get("stdout").asText());
++            statement.addOutput(response.get("stdout").asText());
+         }
+ 
+         if (response.has("stderr")) {
+-            cell.addOutput(response.get("stderr").asText());
++            statement.addOutput(response.get("stderr").asText());
+         }
+ 
+-        return cell;
++        return statement;
+     }
+ 
+     @Override
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
+new file mode 100644
+index 0000000..a44e811
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
+@@ -0,0 +1,70 @@
++package com.cloudera.hue.sparker.server.sessions;
++
++import com.fasterxml.jackson.annotation.JsonProperty;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class Statement {
++
++    public enum State {
++        NOT_READY,
++        READY,
++        INCOMPLETE,
++        RUNNING,
++        COMPLETE,
++    }
++
++    int id;
++    State state;
++    final List<String> input = new ArrayList<String>();
++    final List<String> output = new ArrayList<String>();
++
++    final List<String> error = new ArrayList<String>();
++
++    public Statement(int id) {
++        this.id = id;
++        this.state = State.COMPLETE;
++    }
++
++    @JsonProperty
++    public int getId() {
++        return id;
++    }
++
++    @JsonProperty("state")
++    public State getState() {
++        return state;
++    }
++
++    public void setState(State state) {
++        this.state = state;
++    }
++
++    @JsonProperty("input")
++    public List<String> getInput() {
++        return input;
++    }
++
++    public void addInput(String input) {
++        this.input.add(input);
++    }
++
++    @JsonProperty("output")
++    public List<String> getOutput() {
++        return output;
++    }
++
++    public void addOutput(String output) {
++        this.output.add(output);
++    }
++
++    @JsonProperty("error")
++    public List<String> getError() {
++        return error;
++    }
++
++    public void addError(String error) {
++        this.error.add(error);
++    }
++}
+-- 
+1.7.9.5
+

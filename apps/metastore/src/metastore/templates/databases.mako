@@ -82,6 +82,7 @@ ${ components.menubar() }
 
 <div id="dropDatabase" class="modal hide fade">
   <form id="dropDatabaseForm" action="${ url('metastore:drop_database') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="dropDatabaseMessage">${_('Confirm action')}</h3>
@@ -96,9 +97,9 @@ ${ components.menubar() }
   </form>
 </div>
 
-<link rel="stylesheet" href="/metastore/static/css/metastore.css" type="text/css">
+<link rel="stylesheet" href="${ static('metastore/css/metastore.css') }" type="text/css">
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {

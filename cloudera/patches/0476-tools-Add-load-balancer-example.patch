@@ -1,0 +1,959 @@
+From e609bcae482bd2c4ad161e3579dd17898b21ceb4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 20 Jan 2015 16:47:13 -0800
+Subject: [PATCH 0476/1173] [tools] Add load balancer example
+
+---
+ tools/load-balancer/LICENSE.txt                    |  202 ++++++++++++++
+ tools/load-balancer/README.md                      |   29 ++
+ tools/load-balancer/bin/haproxy-wrapper            |  108 +++++++
+ tools/load-balancer/bin/monitor-hue-lb             |  294 ++++++++++++++++++++
+ tools/load-balancer/bin/supervisorctl              |   21 ++
+ tools/load-balancer/bin/supervisord                |   24 ++
+ tools/load-balancer/etc/haproxy-hue-server.conf.in |    1 +
+ tools/load-balancer/etc/haproxy-hue.conf.in        |   12 +
+ tools/load-balancer/etc/haproxy.conf               |   21 ++
+ tools/load-balancer/etc/hue-lb.toml                |   14 +
+ tools/load-balancer/etc/nginx-hue-server.conf.in   |    1 +
+ tools/load-balancer/etc/nginx-hue.conf.in          |    5 +
+ tools/load-balancer/etc/nginx.conf                 |   26 ++
+ tools/load-balancer/etc/supervisor.d/haproxy.conf  |    5 +
+ .../etc/supervisor.d/monitor-hue-lb.conf           |    3 +
+ .../etc/supervisor.d/monitor-hue-lb.conf.example   |    3 +
+ tools/load-balancer/etc/supervisor.d/nginx.conf    |    4 +
+ tools/load-balancer/etc/supervisord.conf           |   20 ++
+ tools/load-balancer/requirements.txt               |    3 +
+ 19 files changed, 796 insertions(+)
+ create mode 100644 tools/load-balancer/LICENSE.txt
+ create mode 100644 tools/load-balancer/README.md
+ create mode 100755 tools/load-balancer/bin/haproxy-wrapper
+ create mode 100755 tools/load-balancer/bin/monitor-hue-lb
+ create mode 100755 tools/load-balancer/bin/supervisorctl
+ create mode 100755 tools/load-balancer/bin/supervisord
+ create mode 100644 tools/load-balancer/etc/haproxy-hue-server.conf.in
+ create mode 100644 tools/load-balancer/etc/haproxy-hue.conf.in
+ create mode 100644 tools/load-balancer/etc/haproxy.conf
+ create mode 100644 tools/load-balancer/etc/hue-lb.toml
+ create mode 100644 tools/load-balancer/etc/nginx-hue-server.conf.in
+ create mode 100644 tools/load-balancer/etc/nginx-hue.conf.in
+ create mode 100644 tools/load-balancer/etc/nginx.conf
+ create mode 100644 tools/load-balancer/etc/supervisor.d/haproxy.conf
+ create mode 100644 tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf
+ create mode 100644 tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf.example
+ create mode 100644 tools/load-balancer/etc/supervisor.d/nginx.conf
+ create mode 100644 tools/load-balancer/etc/supervisord.conf
+ create mode 100644 tools/load-balancer/requirements.txt
+
+diff --git a/tools/load-balancer/LICENSE.txt b/tools/load-balancer/LICENSE.txt
+new file mode 100644
+index 0000000..d645695
+--- /dev/null
++++ b/tools/load-balancer/LICENSE.txt
+@@ -0,0 +1,202 @@
++
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++   1. Definitions.
++
++      "License" shall mean the terms and conditions for use, reproduction,
++      and distribution as defined by Sections 1 through 9 of this document.
++
++      "Licensor" shall mean the copyright owner or entity authorized by
++      the copyright owner that is granting the License.
++
++      "Legal Entity" shall mean the union of the acting entity and all
++      other entities that control, are controlled by, or are under common
++      control with that entity. For the purposes of this definition,
++      "control" means (i) the power, direct or indirect, to cause the
++      direction or management of such entity, whether by contract or
++      otherwise, or (ii) ownership of fifty percent (50%) or more of the
++      outstanding shares, or (iii) beneficial ownership of such entity.
++
++      "You" (or "Your") shall mean an individual or Legal Entity
++      exercising permissions granted by this License.
++
++      "Source" form shall mean the preferred form for making modifications,
++      including but not limited to software source code, documentation
++      source, and configuration files.
++
++      "Object" form shall mean any form resulting from mechanical
++      transformation or translation of a Source form, including but
++      not limited to compiled object code, generated documentation,
++      and conversions to other media types.
++
++      "Work" shall mean the work of authorship, whether in Source or
++      Object form, made available under the License, as indicated by a
++      copyright notice that is included in or attached to the work
++      (an example is provided in the Appendix below).
++
++      "Derivative Works" shall mean any work, whether in Source or Object
++      form, that is based on (or derived from) the Work and for which the
++      editorial revisions, annotations, elaborations, or other modifications
++      represent, as a whole, an original work of authorship. For the purposes
++      of this License, Derivative Works shall not include works that remain
++      separable from, or merely link (or bind by name) to the interfaces of,
++      the Work and Derivative Works thereof.
++
++      "Contribution" shall mean any work of authorship, including
++      the original version of the Work and any modifications or additions
++      to that Work or Derivative Works thereof, that is intentionally
++      submitted to Licensor for inclusion in the Work by the copyright owner
++      or by an individual or Legal Entity authorized to submit on behalf of
++      the copyright owner. For the purposes of this definition, "submitted"
++      means any form of electronic, verbal, or written communication sent
++      to the Licensor or its representatives, including but not limited to
++      communication on electronic mailing lists, source code control systems,
++      and issue tracking systems that are managed by, or on behalf of, the
++      Licensor for the purpose of discussing and improving the Work, but
++      excluding communication that is conspicuously marked or otherwise
++      designated in writing by the copyright owner as "Not a Contribution."
++
++      "Contributor" shall mean Licensor and any individual or Legal Entity
++      on behalf of whom a Contribution has been received by Licensor and
++      subsequently incorporated within the Work.
++
++   2. Grant of Copyright License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      copyright license to reproduce, prepare Derivative Works of,
++      publicly display, publicly perform, sublicense, and distribute the
++      Work and such Derivative Works in Source or Object form.
++
++   3. Grant of Patent License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      (except as stated in this section) patent license to make, have made,
++      use, offer to sell, sell, import, and otherwise transfer the Work,
++      where such license applies only to those patent claims licensable
++      by such Contributor that are necessarily infringed by their
++      Contribution(s) alone or by combination of their Contribution(s)
++      with the Work to which such Contribution(s) was submitted. If You
++      institute patent litigation against any entity (including a
++      cross-claim or counterclaim in a lawsuit) alleging that the Work
++      or a Contribution incorporated within the Work constitutes direct
++      or contributory patent infringement, then any patent licenses
++      granted to You under this License for that Work shall terminate
++      as of the date such litigation is filed.
++
++   4. Redistribution. You may reproduce and distribute copies of the
++      Work or Derivative Works thereof in any medium, with or without
++      modifications, and in Source or Object form, provided that You
++      meet the following conditions:
++
++      (a) You must give any other recipients of the Work or
++          Derivative Works a copy of this License; and
++
++      (b) You must cause any modified files to carry prominent notices
++          stating that You changed the files; and
++
++      (c) You must retain, in the Source form of any Derivative Works
++          that You distribute, all copyright, patent, trademark, and
++          attribution notices from the Source form of the Work,
++          excluding those notices that do not pertain to any part of
++          the Derivative Works; and
++
++      (d) If the Work includes a "NOTICE" text file as part of its
++          distribution, then any Derivative Works that You distribute must
++          include a readable copy of the attribution notices contained
++          within such NOTICE file, excluding those notices that do not
++          pertain to any part of the Derivative Works, in at least one
++          of the following places: within a NOTICE text file distributed
++          as part of the Derivative Works; within the Source form or
++          documentation, if provided along with the Derivative Works; or,
++          within a display generated by the Derivative Works, if and
++          wherever such third-party notices normally appear. The contents
++          of the NOTICE file are for informational purposes only and
++          do not modify the License. You may add Your own attribution
++          notices within Derivative Works that You distribute, alongside
++          or as an addendum to the NOTICE text from the Work, provided
++          that such additional attribution notices cannot be construed
++          as modifying the License.
++
++      You may add Your own copyright statement to Your modifications and
++      may provide additional or different license terms and conditions
++      for use, reproduction, or distribution of Your modifications, or
++      for any such Derivative Works as a whole, provided Your use,
++      reproduction, and distribution of the Work otherwise complies with
++      the conditions stated in this License.
++
++   5. Submission of Contributions. Unless You explicitly state otherwise,
++      any Contribution intentionally submitted for inclusion in the Work
++      by You to the Licensor shall be under the terms and conditions of
++      this License, without any additional terms or conditions.
++      Notwithstanding the above, nothing herein shall supersede or modify
++      the terms of any separate license agreement you may have executed
++      with Licensor regarding such Contributions.
++
++   6. Trademarks. This License does not grant permission to use the trade
++      names, trademarks, service marks, or product names of the Licensor,
++      except as required for reasonable and customary use in describing the
++      origin of the Work and reproducing the content of the NOTICE file.
++
++   7. Disclaimer of Warranty. Unless required by applicable law or
++      agreed to in writing, Licensor provides the Work (and each
++      Contributor provides its Contributions) on an "AS IS" BASIS,
++      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++      implied, including, without limitation, any warranties or conditions
++      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++      PARTICULAR PURPOSE. You are solely responsible for determining the
++      appropriateness of using or redistributing the Work and assume any
++      risks associated with Your exercise of permissions under this License.
++
++   8. Limitation of Liability. In no event and under no legal theory,
++      whether in tort (including negligence), contract, or otherwise,
++      unless required by applicable law (such as deliberate and grossly
++      negligent acts) or agreed to in writing, shall any Contributor be
++      liable to You for damages, including any direct, indirect, special,
++      incidental, or consequential damages of any character arising as a
++      result of this License or out of the use or inability to use the
++      Work (including but not limited to damages for loss of goodwill,
++      work stoppage, computer failure or malfunction, or any and all
++      other commercial damages or losses), even if such Contributor
++      has been advised of the possibility of such damages.
++
++   9. Accepting Warranty or Additional Liability. While redistributing
++      the Work or Derivative Works thereof, You may choose to offer,
++      and charge a fee for, acceptance of support, warranty, indemnity,
++      or other liability obligations and/or rights consistent with this
++      License. However, in accepting such obligations, You may act only
++      on Your own behalf and on Your sole responsibility, not on behalf
++      of any other Contributor, and only if You agree to indemnify,
++      defend, and hold each Contributor harmless for any liability
++      incurred by, or claims asserted against, such Contributor by reason
++      of your accepting any such warranty or additional liability.
++
++   END OF TERMS AND CONDITIONS
++
++   APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++   Copyright [yyyy] [name of copyright owner]
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
+diff --git a/tools/load-balancer/README.md b/tools/load-balancer/README.md
+new file mode 100644
+index 0000000..c2cdb3a
+--- /dev/null
++++ b/tools/load-balancer/README.md
+@@ -0,0 +1,29 @@
++This is for managing a load balancer (only nginx is supported at the moment) in
++front of Hue. Every 60 seconds it asks Cloudera if there has been any changes
++to the number of Hue servers. If so, it signals the the load balancer to add or
++remove those machines from the pool. To use it, you first must copy and edit
++
++* `etc/nginx.conf.example` -> `etc/nginx.conf`
++* `etc/monitor-hue-lb.conf.example` -> `etc/monitor-hue-lb.conf`
++
++Then, some dependencies must be installed with:
++
++```
++% pip install -r requirements.txt
++```
++
++If you want to use virtualenv, you can do:
++
++```
++% virtualenv build
++% export PATH=$PATH:build/`pwd`/bin/activate
++```
++
++Finally, to start the load balancer, run:
++
++```
++% ./bin/supervisord
++```
++
++By default the load balancer is setup on `http://localhost:8000`, so access
++that URL and see if it works for you.
+diff --git a/tools/load-balancer/bin/haproxy-wrapper b/tools/load-balancer/bin/haproxy-wrapper
+new file mode 100755
+index 0000000..5339585
+--- /dev/null
++++ b/tools/load-balancer/bin/haproxy-wrapper
+@@ -0,0 +1,108 @@
++#!/usr/bin/env python
++
++#   Copyright 2014 Cloudera, Inc.
++#
++#   Licensed under the Apache License, Version 2.0 (the "License");
++#   you may not use this file except in compliance with the License.
++#   You may obtain a copy of the License at
++#
++#       http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS,
++#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++#   See the License for the specific language governing permissions and
++#   limitations under the License.
++
++import os
++import signal
++import subprocess
++import sys
++import errno
++
++pidfile = None
++
++def read_pidfile():
++    if pidfile is not None:
++        try:
++            f = open(pidfile)
++        except IOError:
++            pass
++        else:
++            try:
++                return [int(pid) for pid in f.readlines()]
++            finally:
++                f.close()
++
++    return []
++
++def handle_signal(sig, frame):
++    if pidfile is not None:
++        for pid in read_pidfile():
++            os.kill(pid, sig)
++
++def handle_sigusr2(sig, frame):
++    child_pids = read_pidfile()
++    spawn_haproxy(child_pids)
++
++def handle_sigchld(sig, frame):
++    pass
++
++def spawn_haproxy(child_pids):
++    args = sys.argv[1:]
++
++    # Start haproxy in systemd daemon mode, which leaves the parent process still running.
++    args.append('-Ds')
++
++    # send a soft-stop to any processes still open.
++    if child_pids:
++        args.append('-sf')
++        args.extend(str(pid) for pid in child_pids)
++
++    return subprocess.Popen(args)
++
++def main():
++    global pidfile
++
++    it = iter(sys.argv)
++
++    # Extract the pidfile from the arguments.
++    pidfile = None
++    while True:
++        try:
++            arg = next(it)
++        except StopIteration:
++            break
++
++        if arg == '-p':
++            pidfile = next(it)
++
++    signal.signal(signal.SIGHUP, handle_signal)
++    signal.signal(signal.SIGINT, handle_signal)
++    signal.signal(signal.SIGQUIT, handle_signal)
++    signal.signal(signal.SIGTERM, handle_signal)
++    signal.signal(signal.SIGUSR1, handle_signal)
++    signal.signal(signal.SIGUSR2, handle_sigusr2)
++    signal.signal(signal.SIGCHLD, handle_sigchld)
++
++    spawn_haproxy([])
++
++    while True:
++        # we could be re-executed, so we want to wait for all child processes,
++        # not just the haproxy.
++        try:
++            (pid, status) = os.waitpid(-1, 0)
++        except OSError, e:
++            # Ignore interrupts
++            if e.errno == errno.EINTR:
++                continue
++            elif e.errno == errno.ECHILD:
++                # No more children to reap
++                break
++            else:
++                raise e
++
++    return os.WEXITSTATUS(status)
++
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/tools/load-balancer/bin/monitor-hue-lb b/tools/load-balancer/bin/monitor-hue-lb
+new file mode 100755
+index 0000000..d3c1b3a
+--- /dev/null
++++ b/tools/load-balancer/bin/monitor-hue-lb
+@@ -0,0 +1,294 @@
++#!/usr/bin/env python
++
++#   Copyright 2014 Cloudera, Inc.
++#
++#   Licensed under the Apache License, Version 2.0 (the "License");
++#   you may not use this file except in compliance with the License.
++#   You may obtain a copy of the License at
++#
++#       http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS,
++#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++#   See the License for the specific language governing permissions and
++#   limitations under the License.
++
++import getpass
++import optparse
++import os
++import signal
++import sys
++import toml
++
++from cm_api.api_client import ApiResource
++from supervisor import childutils
++
++# ------------------------------------------------------------------------------
++
++class HueServer(object):
++    def __init__(self, address, state):
++        self.address = address
++        self.state = state
++
++
++    def __hash__(self):
++        return hash((self.address, self.state))
++
++
++    def __str__(self):
++        return '%s (%s)' % (self.address, self.state)
++
++
++    def __eq__(self, other):
++        return isinstance(other, HueServer) and \
++                self.address == other.address and \
++                self.state == other.state
++
++
++    def __cmp__(self, other):
++        return cmp(
++                (self.address, self.state),
++                (other.address, other.state))
++
++# ------------------------------------------------------------------------------
++
++class MonitorHue(object):
++    def __init__(
++            self,
++            cm_client,
++            stdin=sys.stdin,
++            stdout=sys.stdout,
++            stderr=sys.stderr):
++        self.cm_client = cm_client
++        self.stdin = stdin
++        self.stdout = stdout
++        self.stderr = stderr
++
++        self.hue_servers = None
++        self.listeners = []
++
++
++    def run_forever(self):
++        self.tick()
++
++        while True:
++            headers, payload = childutils.listener.wait(self.stdin, self.stdout)
++
++            # ignore non-tick events.
++            if not headers['eventname'].startswith('TICK'):
++                childutils.listener.ok(self.stdout)
++                continue
++
++            try:
++                self.tick()
++            finally:
++                childutils.listener.ok(self.stdout)
++
++
++    def tick(self):
++        """Update the load balancer if any Hue servers have been added or removed"""
++
++        hue_servers = self.get_hue_servers()
++
++        # Don't do anything if we've already processed this set of hue servers.
++        if self.hue_servers == hue_servers:
++            return
++
++        self.hue_servers = hue_servers
++
++        print >> sys.stderr, 'updating server list:'
++        for server in sorted(hue_servers):
++            print >> sys.stderr, '  %s' % server
++
++        for listener in self.listeners:
++            listener.update(hue_servers)
++
++
++    def get_hue_servers(self):
++        """Fetch all the known hue servers"""
++
++        hue_servers = set()
++
++        for cluster in self.cm_client.get_all_clusters():
++            for service in cluster.get_all_services():
++                if service.type == 'HUE':
++                    for role in service.get_all_roles():
++                        host = self.cm_client.get_host(role.hostRef.hostId)
++                        hostname = host.hostname
++
++                        config = role.get_config(view='full')
++                        port = config['hue_http_port']
++                        port = (port.value is None and port.default) or port.value
++
++                        address = '%s:%s' % (hostname, port)
++
++                        hue_servers.add(HueServer(address, role.roleState))
++
++        return hue_servers
++
++# ------------------------------------------------------------------------------
++
++class ConfigListener(object):
++    def __init__(self, rpc, config, process_names):
++        self.rpc = rpc
++        self.config = config
++        self.process_names = process_names
++
++        self.config_file = self.config['config_file']
++
++        with open(self.config['config_template']) as f:
++            self.config_template = f.read()
++
++        with open(self.config['server_template']) as f:
++            self.server_template = f.read()
++
++
++    def update(self, hue_servers):
++        processes = self.rpc.supervisor.getAllProcessInfo()
++
++        config = self.expand_config_template(hue_servers)
++
++        with open(self.config_file, 'w') as f:
++            print >> f, config
++
++        for process in processes:
++            # Ignore down processes.
++            if not process['pid']:
++                continue
++
++            # Ignore processes we aren't monitoring.
++            if process['name'] not in self.process_names:
++                continue
++
++            self.reload_process_config(process)
++
++
++    def expand_config_template(self, hue_servers):
++        config_servers = []
++
++        for index, server in enumerate(hue_servers):
++            config_servers.append(self.expand_server_template(index, server))
++
++        return self.config_template % {
++            'servers': '\n'.join(config_servers)
++        }
++
++
++    def expand_server_template(self, index, server):
++        raise NotImplementedError
++
++
++    def reload_process(self, process):
++        raise NotImplementedError
++
++# ------------------------------------------------------------------------------
++
++class HAProxyListener(ConfigListener):
++    def expand_server_template(self, index, server):
++        """Expand the HAProxy server line"""
++
++        return self.server_template % {
++            'index': index,
++            'address': server.address,
++        }
++
++
++    def reload_process_config(self, process):
++        """Let haproxy-wrapper know the config file has changed."""
++
++        os.kill(process['pid'], signal.SIGUSR2)
++
++# ------------------------------------------------------------------------------
++
++class NginxListener(ConfigListener):
++    def expand_server_template(self, index, server):
++        """Expand the Nginx server line"""
++
++        config_server = self.server_template % {
++            'address': server.address,
++        }
++
++        # Let nginx know if this backend is offline.
++        if server.state == 'STOPPED':
++            config_server += ' down'
++
++        return config_server + ';'
++
++
++    def reload_process_config(self, process):
++        """Let nginx know the config file has changed."""
++
++        os.kill(process['pid'], signal.SIGHUP)
++
++# ------------------------------------------------------------------------------
++
++def main(argv):
++    parser = optparse.OptionParser()
++
++    parser.add_option('-c', '--config_file',
++                      help='config file')
++    parser.add_option('--haproxy',
++                      default=[],
++                      type='str',
++                      action='append',
++                      help='monitor this haproxy process')
++    parser.add_option('--nginx',
++                      default=[],
++                      type='str',
++                      action='append',
++                      help='monitor this haproxy process')
++
++    options, args = parser.parse_args(argv[1:])
++
++    if options.config_file is None:
++        options.config_file = 'etc/hue-lb.toml'
++
++    try:
++        with open(options.config_file) as f:
++            config = toml.load(f)
++    except IOError, e:
++        print >> sys.stderr, 'error opening %s: %s' % (options.config_file, e)
++        return 1
++
++    try:
++        hostname = config['cloudera-manager']['hostname']
++    except KeyError:
++        hostname = 'localhost'
++
++    try:
++        username = config['cloudera-manager']['username']
++    except KeyError:
++        username = 'admin'
++
++    try:
++        password = config['cloudera-manager']['password']
++    except KeyError:
++        password = 'admin'
++
++    if len(options.haproxy) == 0 and len(options.nginx) == 0:
++        print >> sys.stderr, 'no processes specified'
++        return 1
++
++    client = ApiResource(hostname, username=username, password=password)
++
++    monitor = MonitorHue(client)
++
++    rpc = childutils.getRPCInterface(os.environ)
++
++    if len(options.haproxy) != 0:
++        listener = HAProxyListener(rpc, config['haproxy'], options.haproxy)
++        monitor.listeners.append(listener)
++
++    if len(options.nginx) != 0:
++        listener = NginxListener(rpc, config['nginx'], options.nginx)
++        monitor.listeners.append(listener)
++
++    monitor.run_forever()
++
++    return 0
++
++# ------------------------------------------------------------------------------
++
++if __name__ == '__main__':
++    sys.exit(main(sys.argv))
+diff --git a/tools/load-balancer/bin/supervisorctl b/tools/load-balancer/bin/supervisorctl
+new file mode 100755
+index 0000000..a90b012
+--- /dev/null
++++ b/tools/load-balancer/bin/supervisorctl
+@@ -0,0 +1,21 @@
++#!/bin/sh
++
++#   Copyright 2014 Cloudera, Inc.
++#
++#   Licensed under the Apache License, Version 2.0 (the "License");
++#   you may not use this file except in compliance with the License.
++#   You may obtain a copy of the License at
++#
++#       http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS,
++#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++#   See the License for the specific language governing permissions and
++#   limitations under the License.
++
++set -e
++
++cd `dirname $0`/..
++
++exec supervisorctl -c etc/supervisord.conf "$@"
+diff --git a/tools/load-balancer/bin/supervisord b/tools/load-balancer/bin/supervisord
+new file mode 100755
+index 0000000..e117e79
+--- /dev/null
++++ b/tools/load-balancer/bin/supervisord
+@@ -0,0 +1,24 @@
++#!/bin/sh
++
++#   Copyright 2014 Cloudera, Inc.
++#
++#   Licensed under the Apache License, Version 2.0 (the "License");
++#   you may not use this file except in compliance with the License.
++#   You may obtain a copy of the License at
++#
++#       http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS,
++#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++#   See the License for the specific language governing permissions and
++#   limitations under the License.
++
++set -e
++
++cd `dirname $0`/..
++
++mkdir -p logs
++mkdir -p var
++
++exec supervisord -c etc/supervisord.conf "$@"
+diff --git a/tools/load-balancer/etc/haproxy-hue-server.conf.in b/tools/load-balancer/etc/haproxy-hue-server.conf.in
+new file mode 100644
+index 0000000..26334e0
+--- /dev/null
++++ b/tools/load-balancer/etc/haproxy-hue-server.conf.in
+@@ -0,0 +1 @@
++    server node-%(index)s %(address)s cookie cookie-%(index)s check
+diff --git a/tools/load-balancer/etc/haproxy-hue.conf.in b/tools/load-balancer/etc/haproxy-hue.conf.in
+new file mode 100644
+index 0000000..bac18da
+--- /dev/null
++++ b/tools/load-balancer/etc/haproxy-hue.conf.in
+@@ -0,0 +1,12 @@
++backend hue-backend
++    balance source
++
++    # work around the backend being slow
++    timeout server 120s
++
++    option httpclose
++    option forwardfor
++    option httpchk HEAD /desktop/debug/is_alive
++    http-check expect status 200
++
++%(servers)s
+diff --git a/tools/load-balancer/etc/haproxy.conf b/tools/load-balancer/etc/haproxy.conf
+new file mode 100644
+index 0000000..ab466ad
+--- /dev/null
++++ b/tools/load-balancer/etc/haproxy.conf
+@@ -0,0 +1,21 @@
++global
++    nbproc 1
++    maxconn 100
++    log 127.0.0.1 local6 debug
++
++defaults
++    mode http
++    retries 3
++    timeout connect 5s
++    timeout client 10s
++    timeout server 10s
++
++frontend hue-frontend 127.0.0.1:8000
++    mode http
++    timeout client 120s
++
++    option forwardfor
++    option http-server-close
++    #option http-pretend-keepalive
++
++    default_backend hue-backend
+diff --git a/tools/load-balancer/etc/hue-lb.toml b/tools/load-balancer/etc/hue-lb.toml
+new file mode 100644
+index 0000000..4cdc78e
+--- /dev/null
++++ b/tools/load-balancer/etc/hue-lb.toml
+@@ -0,0 +1,14 @@
++[cloudera-manager]
++hostname = "localhost"
++username = "admin"
++password = "admin"
++
++[nginx]
++config_file = "var/nginx-hue.conf"
++config_template = "etc/nginx-hue.conf.in"
++server_template = "etc/nginx-hue-server.conf.in"
++
++[haproxy]
++config_file = "var/haproxy-hue.conf"
++config_template = "etc/haproxy-hue.conf.in"
++server_template = "etc/haproxy-hue-server.conf.in"
+diff --git a/tools/load-balancer/etc/nginx-hue-server.conf.in b/tools/load-balancer/etc/nginx-hue-server.conf.in
+new file mode 100644
+index 0000000..1bc2d10
+--- /dev/null
++++ b/tools/load-balancer/etc/nginx-hue-server.conf.in
+@@ -0,0 +1 @@
++  server %(address)s max_fails=3
+diff --git a/tools/load-balancer/etc/nginx-hue.conf.in b/tools/load-balancer/etc/nginx-hue.conf.in
+new file mode 100644
+index 0000000..51d317b
+--- /dev/null
++++ b/tools/load-balancer/etc/nginx-hue.conf.in
+@@ -0,0 +1,5 @@
++upstream hue {
++	ip_hash;
++
++%(servers)s
++}
+diff --git a/tools/load-balancer/etc/nginx.conf b/tools/load-balancer/etc/nginx.conf
+new file mode 100644
+index 0000000..f4d629a
+--- /dev/null
++++ b/tools/load-balancer/etc/nginx.conf
+@@ -0,0 +1,26 @@
++daemon off;
++worker_processes 1;
++
++error_log logs/nginx_error.log;
++
++events {
++    worker_connections  1024;
++}
++
++http {
++    sendfile on;
++
++    access_log logs/nginx_access.log;
++
++    server {
++        listen 8001;
++        server_name localhost;
++        charset utf-8;
++
++        location / {
++            proxy_pass http://hue;
++        }
++    }
++
++    include ../var/nginx-hue.conf;
++}
+diff --git a/tools/load-balancer/etc/supervisor.d/haproxy.conf b/tools/load-balancer/etc/supervisor.d/haproxy.conf
+new file mode 100644
+index 0000000..e29d2cb
+--- /dev/null
++++ b/tools/load-balancer/etc/supervisor.d/haproxy.conf
+@@ -0,0 +1,5 @@
++[program:haproxy]
++command=bin/haproxy-wrapper haproxy -p var/haproxy.pid -f etc/haproxy.conf -f var/haproxy-hue.conf
++autostart=true
++autorestart=true
++stopsignal=USR1
+diff --git a/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf b/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf
+new file mode 100644
+index 0000000..6b94513
+--- /dev/null
++++ b/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf
+@@ -0,0 +1,3 @@
++[eventlistener:monitor-hue-lb]
++command=%(here)s/../bin/monitor-hue-lb --nginx nginx --haproxy haproxy
++events=TICK_60
+diff --git a/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf.example b/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf.example
+new file mode 100644
+index 0000000..6b94513
+--- /dev/null
++++ b/tools/load-balancer/etc/supervisor.d/monitor-hue-lb.conf.example
+@@ -0,0 +1,3 @@
++[eventlistener:monitor-hue-lb]
++command=%(here)s/../bin/monitor-hue-lb --nginx nginx --haproxy haproxy
++events=TICK_60
+diff --git a/tools/load-balancer/etc/supervisor.d/nginx.conf b/tools/load-balancer/etc/supervisor.d/nginx.conf
+new file mode 100644
+index 0000000..fabe7d6
+--- /dev/null
++++ b/tools/load-balancer/etc/supervisor.d/nginx.conf
+@@ -0,0 +1,4 @@
++[program:nginx]
++command=nginx -p %(here)s/.. -c etc/nginx.conf
++autostart=true
++autorestart=false
+diff --git a/tools/load-balancer/etc/supervisord.conf b/tools/load-balancer/etc/supervisord.conf
+new file mode 100644
+index 0000000..94b458d
+--- /dev/null
++++ b/tools/load-balancer/etc/supervisord.conf
+@@ -0,0 +1,20 @@
++[inet_http_server]
++port = 127.0.0.1:9001
++
++[supervisord]
++logfile = logs/supervisord.log
++logfile_maxbytes = 50MB
++logfile_backups = 5
++loglevel = info
++pidfile = var/supervisord.pid
++minfds = 1024
++childlogdir = logs
++
++[rpcinterface:supervisor]
++supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
++
++[supervisorctl]
++serverurl = http://127.0.0.1:9001
++
++[include]
++files = supervisor.d/*.conf
+diff --git a/tools/load-balancer/requirements.txt b/tools/load-balancer/requirements.txt
+new file mode 100644
+index 0000000..da2277a
+--- /dev/null
++++ b/tools/load-balancer/requirements.txt
+@@ -0,0 +1,3 @@
++supervisor
++cm-api
++toml
+-- 
+1.7.9.5
+

@@ -1,0 +1,159 @@
+From c819c26984fff0f396a0c3a7fd3920c0ad23a661 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 25 Feb 2015 13:09:16 +0100
+Subject: [PATCH 0906/1173] [oozie] Code formatting of static files
+
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |   11 ----------
+ apps/oozie/static/css/common-editor.css            |   22 ++++++++++----------
+ apps/oozie/static/css/workflow-editor.css          |    5 +++--
+ apps/oozie/static/js/dashboard-utils.js            |    2 +-
+ apps/oozie/static/js/workflow-editor.utils.js      |   12 +++++------
+ 5 files changed, 21 insertions(+), 31 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index f88fdb0..6771ca8 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -213,17 +213,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ </div>
+ 
+ 
+-<div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && oozieColumns().length == 0">
+-  <div style="float:left; padding-top: 90px; margin-right: 20px; text-align: center; width: 260px">${ _('Click on the pencil to get started with your dashboard!') }</div>
+-  <img src="/static/art/hint_arrow.png" />
+-</div>
+-
+-<div id="emptyDashboardEditing" data-bind="fadeVisible: isEditing() && oozieColumns().length == 0 && previewColumns() == ''">
+-  <div style="float:right; padding-top: 90px; margin-left: 20px; text-align: center; width: 260px">${ _('Pick an index and Click on a layout to start your dashboard!') }</div>
+-  <img src="/static/art/hint_arrow_horiz_flipped.png" />
+-</div>
+-
+-
+ ${ workflow.render() }
+ 
+ 
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+index ac159af..8af529e 100644
+--- a/apps/oozie/static/css/common-editor.css
++++ b/apps/oozie/static/css/common-editor.css
+@@ -36,7 +36,7 @@
+ }
+ 
+ .editable-empty, .editable-empty:hover {
+-  color: #666!important;
++  color: #666 !important;
+   opacity: .55;
+ }
+ 
+@@ -90,20 +90,20 @@ input[type="text"].filechooser-input.input-xlarge {
+   vertical-align: middle;
+   cursor: pointer;
+   background-color: #f9f9f9;
+-  background-image: -moz-linear-gradient(top,#fff,#f1f1f1);
+-  background-image: -webkit-gradient(linear,0 0,0 100%,from(#fff),to(#f1f1f1));
+-  background-image: -webkit-linear-gradient(top,#fff,#f1f1f1);
+-  background-image: -o-linear-gradient(top,#fff,#f1f1f1);
+-  background-image: linear-gradient(to bottom,#fff,#f1f1f1);
++  background-image: -moz-linear-gradient(top, #fff, #f1f1f1);
++  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#fff), to(#f1f1f1));
++  background-image: -webkit-linear-gradient(top, #fff, #f1f1f1);
++  background-image: -o-linear-gradient(top, #fff, #f1f1f1);
++  background-image: linear-gradient(to bottom, #fff, #f1f1f1);
+   background-repeat: repeat-x;
+-  border: 1px solid rgba(0,0,0,0.1);
++  border: 1px solid rgba(0, 0, 0, 0.1);
+   border-color: #f1f1f1 #f1f1f1 #cbcbcb;
+-  border-color: rgba(0,0,0,0.1) rgba(0,0,0,0.1) rgba(0,0,0,0.25);
+-  border-color: rgba(0,0,0,0.1);
++  border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);
++  border-color: rgba(0, 0, 0, 0.1);
+   -webkit-border-radius: 2px;
+   -moz-border-radius: 2px;
+   border-radius: 2px;
+-  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffffff',endColorstr='#fff1f1f1',GradientType=0);
++  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffffff', endColorstr='#fff1f1f1', GradientType=0);
+   filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);
+   -webkit-box-shadow: none;
+   -moz-box-shadow: none;
+@@ -163,5 +163,5 @@ ul.with-margin li {
+ }
+ 
+ .submit-modal .dropdown-menu {
+-  box-shadow: 0 5px 10px rgba(0,0,0,0.2) !important;
++  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2) !important;
+ }
+\ No newline at end of file
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 3b91201..1dc0f1f 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -32,6 +32,7 @@
+   text-align: center;
+   padding: 4px;
+ }
++
+ .drop-target-dragging {
+   background-color: #F0F0F0;
+   border-color: #DDD;
+@@ -203,8 +204,8 @@
+ }
+ 
+ .readonly .drop-target-side {
+-  min-height: 10px!important;
+-  height: 10px!important;
++  min-height: 10px !important;
++  height: 10px !important;
+ }
+ 
+ textarea {
+diff --git a/apps/oozie/static/js/dashboard-utils.js b/apps/oozie/static/js/dashboard-utils.js
+index d10cbb0..226d48a 100644
+--- a/apps/oozie/static/js/dashboard-utils.js
++++ b/apps/oozie/static/js/dashboard-utils.js
+@@ -86,7 +86,7 @@ var PersistedButtonsFilters = function (oSettings, aData, iDataIndex) {
+ 
+     var _statusColumn = aData[aData.length - 1];
+     if (statuses.length == 1) {
+-      if(statuses[0] == 'MANUALLY') {
++      if (statuses[0] == 'MANUALLY') {
+         submittedByFilter = _statusColumn == null;
+       } else {
+         submittedByFilter = _statusColumn != null;
+diff --git a/apps/oozie/static/js/workflow-editor.utils.js b/apps/oozie/static/js/workflow-editor.utils.js
+index 68cfdc7..38230d6 100644
+--- a/apps/oozie/static/js/workflow-editor.utils.js
++++ b/apps/oozie/static/js/workflow-editor.utils.js
+@@ -63,9 +63,9 @@ function drawArrows() {
+   $("canvas").remove();
+   if (viewModel.oozieColumns()[0].rows().length > 3) {
+     var _links = viewModel.workflow.linkMapping();
+-    Object.keys(_links).forEach(function(id) {
++    Object.keys(_links).forEach(function (id) {
+       if (_links[id].length > 0) {
+-        _links[id].forEach(function(nextId) {
++        _links[id].forEach(function (nextId) {
+           linkWidgets(id, nextId);
+         });
+       }
+@@ -93,13 +93,13 @@ function toggleProperties(widget) {
+ }
+ 
+ var _linkMappingTimeout = -1;
+-$(document).on("drawArrows", function(){
++$(document).on("drawArrows", function () {
+   window.clearTimeout(_linkMappingTimeout);
+-  if (typeof renderChangeables != 'undefined'){
+-  	_linkMappingTimeout = window.setTimeout(renderChangeables, 25);	
++  if (typeof renderChangeables != 'undefined') {
++    _linkMappingTimeout = window.setTimeout(renderChangeables, 25);
+   }
+ });
+ 
+-$(document).on("removeArrows", function(){
++$(document).on("removeArrows", function () {
+   $("canvas").remove();
+ });
+-- 
+1.7.9.5
+

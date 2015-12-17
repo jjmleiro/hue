@@ -1,0 +1,28 @@
+From 33d14373f8a9fa822e0074841270d41ad3de594d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 4 Feb 2015 14:27:08 +0100
+Subject: [PATCH 0753/1173] [spark] Unified tooltip for discrete bar chart and
+ numeric bar chart
+
+---
+ .../static/js/nv.d3.growingDiscreteBarChart.js     |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/static/js/nv.d3.growingDiscreteBarChart.js b/desktop/core/static/js/nv.d3.growingDiscreteBarChart.js
+index efa0adc..9a54228 100644
+--- a/desktop/core/static/js/nv.d3.growingDiscreteBarChart.js
++++ b/desktop/core/static/js/nv.d3.growingDiscreteBarChart.js
+@@ -35,8 +35,8 @@ nv.models.growingDiscreteBarChart = function() {
+     , staggerLabels = false
+     , tooltips = true
+     , tooltip = function(key, x, y, e, graph) {
+-        return '<h3>' + x + '</h3>' +
+-               '<p>' +  y + '</p>'
++        return '<h3>' + key + '</h3>' +
++               '<p>' +  y + ' on ' + x + '</p>'
+       }
+     , x
+     , y
+-- 
+1.7.9.5
+

@@ -1,0 +1,129 @@
+From 3e8694d9952dfa1ff22e49aa4d2edfb5cb3eb7fe Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 9 Mar 2015 11:57:30 +0100
+Subject: [PATCH 1007/1173] [oozie] Fixed action buttons with non selected
+ items and bundle submission
+
+---
+ .../templates/editor2/list_editor_bundles.mako     |   15 ++++++++-------
+ .../editor2/list_editor_coordinators.mako          |    8 ++++----
+ .../templates/editor2/list_editor_workflows.mako   |    8 ++++----
+ 3 files changed, 16 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+index 98a05d1..7e16b02 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+@@ -38,23 +38,23 @@ ${ layout.menubar(section='bundles', is_editor=True) }
+ 
+     <%def name="actions()">
+       <div class="btn-toolbar" style="display: inline; vertical-align: middle">
+-        <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
++        <a data-bind="click: function(e){ oneSelected() ? showSubmitPopup(e) : void(0) }, css: {'btn': true, 'disabled': ! oneSelected()}">
+           <i class="fa fa-play"></i> ${ _('Submit') }
+         </a>
+ 
+         <span style="padding-right:40px"></span>
+ 
+-        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: function(e){ oneSelected() ? prepareShareModal(e) : void(0) },
+           attr: {'data-original-title': '${ _("Share") } ' + name},
+           css: {'disabled': ! oneSelected(), 'btn': true}">
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
++        <a data-bind="click: function(e){ atLeastOneSelectedNoV1() ? copy(e) : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+-        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
++        <a data-bind="click: function() { atLeastOneSelected() ? $('#deleteWf').modal('show') : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
+ 
+@@ -176,13 +176,14 @@ ${ commonshare() | n,unicode }
+     self.datatable = null;
+ 
+     self.showSubmitPopup = function () {
++      var _url = "";
+       if (self.selectedJobs()[0].uuid()) {
+-        var base_url = "/oozie/editor/bundle/submit/" + self.selectedJobs()[0].id();
++        _url = "/oozie/editor/bundle/submit/" + self.selectedJobs()[0].id();
+       } else {
+-        var base_url = "/oozie/submit_bundle/" + self.selectedJobs()[0].object_id();
++        _url = "/oozie/submit_bundle/" + self.selectedJobs()[0].object_id();
+       }
+ 
+-      $.get(url, {
++      $.get(_url, {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+index 074ea90..9dfdcac 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+@@ -38,23 +38,23 @@ ${ layout.menubar(section='coordinators', is_editor=True) }
+ 
+     <%def name="actions()">
+       <div class="btn-toolbar" style="display: inline; vertical-align: middle">
+-        <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
++        <a data-bind="click: function(e){ oneSelected() ? showSubmitPopup(e) : void(0) }, css: {'btn': true, 'disabled': ! oneSelected()}">
+           <i class="fa fa-play"></i> ${ _('Submit') }
+         </a>
+ 
+         <span style="padding-right:40px"></span>
+ 
+-        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: function(e){ oneSelected() ? prepareShareModal(e) : void(0) },
+           attr: {'data-original-title': '${ _("Share") } ' + name},
+           css: {'disabled': ! oneSelected(), 'btn': true}">
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
++        <a data-bind="click: function(e){ atLeastOneSelectedNoV1() ? copy(e) : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+-        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
++        <a data-bind="click: function() { atLeastOneSelected() ? $('#deleteWf').modal('show') : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+index 562d6dd..9ccd0ee 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+@@ -39,23 +39,23 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+ 
+     <%def name="actions()">
+       <div class="btn-toolbar" style="display: inline; vertical-align: middle">
+-        <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
++        <a data-bind="click: function(e){ oneSelected() ? showSubmitPopup(e) : void(0) } , css: {'btn': true, 'disabled': ! oneSelected()}">
+           <i class="fa fa-play"></i> ${ _('Submit') }
+         </a>
+ 
+         <span style="padding-right:40px"></span>
+ 
+-        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: function(e){ oneSelected() ? prepareShareModal(e) : void(0) },
+           attr: {'data-original-title': '${ _("Share") } ' + name},
+           css: {'disabled': ! oneSelected(), 'btn': true}">
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
++        <a data-bind="click: function(e) { atLeastOneSelectedNoV1() ? copy(e) : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+-        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
++        <a data-bind="click: function() { atLeastOneSelected() ? $('#deleteWf').modal('show') : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
+ 
+-- 
+1.7.9.5
+

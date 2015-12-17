@@ -1,0 +1,1226 @@
+From 72db4eea307f344e7af6dd04f354599589e78c8f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 17 Dec 2014 18:06:48 -0800
+Subject: [PATCH 0634/1173] [spark] Initial version of sparker-yarn working
+
+---
+ apps/spark/java/pom.xml                            |   13 +-
+ apps/spark/java/sparker-repl/pom.xml               |   10 +
+ .../java/sparker-repl/src/main/assembly/dist.xml   |   37 ++
+ .../cloudera/hue/sparker/repl/yarn/Client.scala    |  266 ------------
+ .../cloudera/hue/sparker/repl/yarn/YarnJob.scala   |    9 -
+ .../java/sparker-yarn/src/main/assembly/dist.xml   |   51 +++
+ .../java/sparker-yarn/src/main/bash/run-am.sh      |   21 +
+ .../java/sparker-yarn/src/main/bash/run-class.sh   |   36 ++
+ .../java/sparker-yarn/src/main/bash/run-job.sh     |   19 +
+ .../src/main/resources/log4j.properties            |   30 ++
+ .../com/cloudera/hue/sparker/yarn/AppMaster.scala  |   49 +++
+ .../com/cloudera/hue/sparker/yarn/Client.scala     |  424 ++++++++++++++++++++
+ .../com/cloudera/hue/sparker/yarn/Logging.scala    |   28 ++
+ .../com/cloudera/hue/sparker/yarn/YarnJob.scala    |    9 +
+ apps/spark/java/src/main/assembly/dist.xml         |   65 +++
+ 15 files changed, 790 insertions(+), 277 deletions(-)
+ create mode 100644 apps/spark/java/sparker-repl/src/main/assembly/dist.xml
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/Client.scala
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/YarnJob.scala
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
+ create mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
+ create mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
+ create mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
+ create mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
+ create mode 100644 apps/spark/java/src/main/assembly/dist.xml
+
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index a7f3420..2550584 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -32,8 +32,8 @@
+     <packaging>pom</packaging>
+     <version>3.7.0-SNAPSHOT</version>
+ 
+-    <name>Spark Main</name>
+-    <description>Spark Main</description>
++    <name>sparker-main</name>
++    <description>sparker-main</description>
+ 
+     <licenses>
+         <license>
+@@ -212,6 +212,15 @@
+                     <target>1.6</target>
+                 </configuration>
+             </plugin>
++
++            <plugin>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
++                <configuration>
++                    <descriptor>src/main/assembly/dist.xml</descriptor>
++                </configuration>
++            </plugin>
++
+             <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+index 652593f..2f452f6 100644
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -94,6 +94,7 @@
+                 </configuration>
+             </plugin>
+ 
++            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-dependency-plugin</artifactId>
+@@ -128,6 +129,15 @@
+                     </archive>
+                 </configuration>
+             </plugin>
++            -->
++
++            <plugin>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
++                <configuration>
++                    <descriptor>src/main/assembly/dist.xml</descriptor>
++                </configuration>
++            </plugin>
+ 
+             <!--
+             <plugin>
+diff --git a/apps/spark/java/sparker-repl/src/main/assembly/dist.xml b/apps/spark/java/sparker-repl/src/main/assembly/dist.xml
+new file mode 100644
+index 0000000..d5801f5
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/assembly/dist.xml
+@@ -0,0 +1,37 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++        </dependencySet>
++    </dependencySets>
++
++    <fileSets>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/Client.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/Client.scala
+deleted file mode 100644
+index 5ed1cca..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/Client.scala
++++ /dev/null
+@@ -1,266 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import java.util.Collections
+-
+-import org.apache.hadoop.fs.Path
+-import org.apache.hadoop.yarn.api.records._
+-import org.apache.hadoop.yarn.client.api.YarnClient
+-import org.apache.hadoop.yarn.conf.YarnConfiguration
+-import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
+-
+-import scala.collection.JavaConversions._
+-
+-class Client {
+-  def main(args: Array[String]) = {
+-
+-    val packagePath = new Path(args(1))
+-
+-    val yarnConf = new YarnConfiguration()
+-    val yarnClient = YarnClient.createYarnClient()
+-    yarnClient.init(yarnConf)
+-    yarnClient.start
+-
+-    try {
+-      submitApplication(yarnClient, yarnConf, packagePath, List("echo hi"))
+-    } finally {
+-      yarnClient.close()
+-    }
+-  }
+-
+-  def submitApplication(yarnClient: YarnClient, yarnConf: YarnConfiguration, packagePath: Path, cmds: List[String]) = {
+-    val app = yarnClient.createApplication()
+-    val newAppResponse = app.getNewApplicationResponse
+-
+-    val appId = newAppResponse.getApplicationId
+-
+-    val appContext = app.getApplicationSubmissionContext
+-    val containerCtx = Records.newRecord(classOf[ContainerLaunchContext])
+-    val resource = Records.newRecord(classOf[Resource])
+-    val packageResource = Records.newRecord(classOf[LocalResource])
+-
+-    appContext.setApplicationName(appId.toString)
+-
+-    val packageUrl = ConverterUtils.getYarnUrlFromPath(packagePath)
+-    val fileStatus = packagePath.getFileSystem(yarnConf).getFileStatus(packagePath)
+-
+-    packageResource.setResource(packageUrl)
+-    packageResource.setSize(fileStatus.getLen)
+-    packageResource.setTimestamp(fileStatus.getModificationTime)
+-    packageResource.setType(LocalResourceType.ARCHIVE)
+-    packageResource.setVisibility(LocalResourceVisibility.APPLICATION)
+-
+-    resource.setMemory(256)
+-    resource.setVirtualCores(1)
+-    appContext.setResource(resource)
+-
+-    containerCtx.setCommands(cmds)
+-    containerCtx.setLocalResources(Collections.singletonMap("__package", packageResource))
+-    appContext.setApplicationId(appId)
+-    appContext.setAMContainerSpec(containerCtx)
+-    appContext.setApplicationType("sparker")
+-    yarnClient.submitApplication(appContext)
+-  }
+-}
+-
+-
+-/*
+-object Client {
+-
+-  def main(args: Array[String]) = {
+-    val jarPath = new Path(args(1))
+-
+-    val yarnConf = new YarnConfiguration()
+-    val yarnClient = YarnClient.createYarnClient()
+-
+-    yarnClient.init(yarnConf)
+-    yarnClient.start()
+-
+-    try {
+-      val app = yarnClient.createApplication()
+-      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
+-      amContainer.setCommands(
+-        Collections.singletonList(
+-          "$JAVA_HOME/bin/java" +
+-            " com.cloudera.hue.sparker.repl.yarn.ApplicationMaster" +
+-            " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
+-            " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"))
+-
+-      val appMasterJar: LocalResource = Records.newRecord(Class[LocalResource])
+-      setupAppMasterJar(jarPath, appMasterJar)
+-      amContainer.setLocalResources(
+-        Collections.singletonMap("foo.jar", appMasterJar)
+-      )
+-
+-      val appMasterEnv: Map[String, String] = Map()
+-      setupAppMasterEnv(appMasterEnv)
+-      amContainer.setEnvironment(appMasterEnv)
+-
+-      val capability: Resource = Records.newRecord(Class[Resource])
+-      capability.setMemory(256)
+-      capability.setVirtualCores(1)
+-
+-      val appContext = app.getApplicationSubmissionContext
+-      appContext.setApplicationName("foo")
+-      appContext.setAMContainerSpec(amContainer)
+-      appContext.setResource(capability)
+-      appContext.setQueue("default")
+-
+-      val appId = appContext.getApplicationId
+-      yarnClient.submitApplication(appContext)
+-
+-      var appReport = yarnClient.getApplicationReport(appId)
+-      var appState = appReport.getYarnApplicationState()
+-
+-      while (
+-        appState != YarnApplicationState.FINISHED &&
+-        appState != YarnApplicationState.KILLED &&
+-        appState != YarnApplicationState.FAILED
+-      ) {
+-        Thread.sleep(100)
+-        appReport = yarnClient.getApplicationReport(appId)
+-        appState = appReport.getYarnApplicationState
+-      }
+-
+-    } finally {
+-      yarnClient.close()
+-    }
+-  }
+-
+-  private def setupAppMasterJar(value: Path, resource: LocalResource) = {
+-
+-  }
+-
+-  private def setupAppMasterEnv(conf: YarnConfiguration, appMasterEnv: Map[String, String]) = {
+-    var classpaths = conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH)
+-
+-    if (classpaths == null) {
+-      classpaths = YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH
+-    }
+-
+-    classpaths.foreach {
+-      c => {
+-        Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(), c.trim())
+-      }
+-    }
+-
+-    Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(),
+-      Environment.PWD.$() + File.separator + "*"
+-    )
+-  }
+-
+-
+-    /*
+-
+-    try {
+-      val appContext = yarnClient.createApplication.getApplicationSubmissionContext
+-      val appId = appContext.getApplicationId
+-
+-      val appName = "sparker-repl"
+-      val amPriority = 0
+-      val amQueue = "default"
+-
+-      appContext.setApplicationName(appName)
+-
+-      val priority: Priority = Records.newRecord(Class[Priority])
+-      priority.setPriority(amPriority)
+-      appContext.setPriority(priority)
+-
+-      appContext.setQueue(amQueue)
+-
+-      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
+-      appContext.setAMContainerSpec(amContainer)
+-
+-      appContext.setUnmanagedAM(true)
+-
+-      yarnClient.submitApplication(appContext)
+-
+-      var appReport = monitorApplication(
+-        appId,
+-        util.EnumSet.of(
+-          YarnApplicationState.ACCEPTED,
+-          YarnApplicationState.KILLED,
+-          YarnApplicationState.FAILED,
+-          YarnApplicationState.FINISHED
+-        ))
+-
+-      if (appReport.getYarnApplicationState == YarnApplicationState.ACCEPTED) {
+-        val attemptReport = monitorCurrentAppAttempt(appId, YarnApplicationAttemptState.LAUNCHED)
+-        val attemptId = attemptReport.getApplicationAttemptId
+-
+-        launchAM(yarnClient, attemptId)
+-
+-        appReport = monitorApplication(
+-          appId,
+-          util.EnumSet.of(
+-            YarnApplicationState.KILLED,
+-            YarnApplicationState.FAILED,
+-            YarnApplicationState.FINISHED
+-          )
+-        )
+-      }
+-
+-      val appState = appReport.getYarnApplicationState
+-      val appStatus = appReport.getFinalApplicationStatus
+-
+-      if (YarnApplicationState.FINISHED == appState && FinalApplicationStatus.SUCCEEDED == appStatus) {
+-        0
+-      } else {
+-        1
+-      }
+-    } finally {
+-      yarnClient.close()
+-    }
+-  }
+-    */
+-
+-  /*
+-  private def launchAM(rmClient: YarnClient, attemptId: ApplicationAttemptId): Unit = {
+-    val credentials = new Credentials();
+-    val token = rmClient.getAMRMToken(attemptId.getApplicationId)
+-    credentials.addToken(token.getService, token)
+-    val tokenFile = File.createTempFile("unmanagedAMRMToken", "", new File(System.getProperty("user.dir")));
+-    //try {
+-      FileUtil.chmod(tokenFile.getAbsolutePath, "600")
+-    //}
+-
+-    tokenFile.deleteOnExit()
+-    val os = new DataOutputStream(new FileOutputStream(tokenFile, true))
+-    credentials.writeTokenStorageToStream(os)
+-    os.close()
+-
+-    val envAMList = List()
+-    var setClasspath = false
+-    val classpath = null
+-
+-    sys.env.foreach {
+-      case(key, value) => {
+-      var value: String = value
+-        if (key == "CLASSPATH") {
+-          setClasspath = true
+-          if (classpath != null) {
+-            value = value + File.pathSeparator + classpath
+-          }
+-        }
+-        envAMList +: (key + "=" + value)
+-      }
+-    }
+-
+-    if (!setClasspath && classpath != null) {
+-      envAMList +: ("CLASSPATH=" + classpath)
+-    }
+-
+-
+-  }
+-
+-  private def monitorApplication(appId: ApplicationId, attemptState: util.EnumSet[YarnApplicationState]): ApplicationReport = {
+-    null
+-  }
+-
+-  private def monitorCurrentAppAttempt(appId: ApplicationId, attemptState: YarnApplicationAttemptState): ApplicationAttemptReport = {
+-    null
+-  }
+-  */
+-
+-
+-}
+-*/
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/YarnJob.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/YarnJob.scala
+deleted file mode 100644
+index 34ab79f..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/yarn/YarnJob.scala
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import org.apache.hadoop.conf.Configuration
+-
+-class YarnJob(config: Configuration) {
+-
+-  val client = new Client()
+-
+-}
+diff --git a/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml b/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
+new file mode 100644
+index 0000000..0150506
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
+@@ -0,0 +1,51 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++            <!--
++            <excludes>
++                <exclude>commons-lang:commons-lang</exclude>
++                <exclude>log4j:log4j</exclude>
++            </excludes>
++            -->
++        </dependencySet>
++    </dependencySets>
++
++    <fileSets>
++        <fileSet>
++            <directory>${basedir}/src/main/bash</directory>
++            <outputDirectory>/bin</outputDirectory>
++            <fileMode>0744</fileMode>
++            <includes>
++                <include>*</include>
++            </includes>
++        </fileSet>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
+new file mode 100755
+index 0000000..a598fa3
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#   http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++
++[[ $JAVA_OPTS != *-server* ]] && export JAVA_OPTS="$JAVA_OPTS -server"
++
++exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.AppMaster $@
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
+new file mode 100755
+index 0000000..d59e9f2
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
+@@ -0,0 +1,36 @@
++#!/bin/bash
++
++home_dir=`pwd`
++base_dir=$(dirname $0)/..
++cd $base_dir
++base_dir=`pwd`
++cd $home_dir
++
++HADOOP_YARN_HOME="${HADOOP_YARN_HOME:-$HOME/.sparker}"
++HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-$HADOOP_YARN_HOME/conf}"
++CLASSPATH=$HADOOP_CONF_DIR
++
++for file in $base_dir/lib/*.[jw]ar;
++do
++  CLASSPATH=$CLASSPATH:$file
++done
++
++if [ -z "$JAVA_HOME" ]; then
++  JAVA="java"
++else
++  JAVA="$JAVA_HOME/bin/java"
++fi
++
++# Try and use 64-bit mode if available in JVM_OPTS
++function check_and_enable_64_bit_mode {
++  `$JAVA -d64 -version`
++  if [ $? -eq 0 ] ; then
++    JAVA_OPTS="$JAVA_OPTS -d64"
++  fi
++}
++
++# Check if 64 bit is set. If not - try and set it if it's supported
++[[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
++
++echo $JAVA $JAVA_OPTS -cp $CLASSPATH $@
++exec $JAVA $JAVA_OPTS -cp $CLASSPATH $@
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
+new file mode 100755
+index 0000000..bd3a98d
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
+@@ -0,0 +1,19 @@
++#!/bin/bash
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#   http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++
++exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.Client $@
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties b/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
+new file mode 100644
+index 0000000..6efb3c5
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
+@@ -0,0 +1,30 @@
++#
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++
++log4j.appender.stdout=org.apache.log4j.ConsoleAppender
++log4j.appender.stdout.Target=System.err
++log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
++log4j.appender.stdout.layout.ConversionPattern=%d{ISO8601} %-5p %c{1} - %m%n
++
++log4j.rootLogger=INFO, stdout
++
++# Switching off most of Apache DS logqing which is QUITE verbose
++log4j.logger.org.apache.directory=OFF
++log4j.logger.org.apache.directory.server.kerberos=INFO, stdout
++log4j.additivity.org.apache.directory=false
++log4j.logger.net.sf.ehcache=INFO, stdout
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
+new file mode 100644
+index 0000000..b0966f0
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
+@@ -0,0 +1,49 @@
++package com.cloudera.hue.sparker.yarn
++
++import org.apache.hadoop.net.NetUtils
++import org.apache.hadoop.yarn.api.ApplicationConstants
++import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
++import org.apache.hadoop.yarn.client.api.AMRMClient
++import org.apache.hadoop.yarn.conf.YarnConfiguration
++import org.apache.hadoop.yarn.util.ConverterUtils
++
++object AppMaster extends Logging {
++
++  def main(args: Array[String]): Unit = {
++    val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
++    info("got container id: %s" format containerIdString)
++    val containerId = ConverterUtils.toContainerId(containerIdString)
++
++    val appAttemptId = containerId.getApplicationAttemptId
++    info("got app attempt id: %s" format containerIdString)
++
++    val nodeHostString = System.getenv(ApplicationConstants.Environment.NM_HOST.toString)
++    info("got node manager host: %s" format nodeHostString)
++
++    val nodePortString = System.getenv(ApplicationConstants.Environment.NM_PORT.toString)
++    info("got node manager port: %s" format nodeHostString)
++
++    val yarnConfig = new YarnConfiguration
++    val amRMClient = AMRMClient.createAMRMClient()
++    amRMClient.init(yarnConfig)
++    amRMClient.start()
++
++    val appMasterHostname = NetUtils.getHostname
++    val appMasterRpcPort = -1
++    val appMasterTrackingUrl = ""
++
++    val response = amRMClient.registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl)
++
++    val maxMem = response.getMaximumResourceCapability.getMemory
++    info("max mem capacity on this cluster: %s" format maxMem)
++
++    val maxVCores = response.getMaximumResourceCapability.getVirtualCores
++    info("max vcore capacity on this cluster: %s" format maxMem)
++
++    val appStatus = FinalApplicationStatus.SUCCEEDED
++    val appMessage = "wee"
++    amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
++    amRMClient.stop()
++  }
++
++}
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
+new file mode 100644
+index 0000000..d00dee0
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
+@@ -0,0 +1,424 @@
++package com.cloudera.hue.sparker.yarn
++
++import org.apache.hadoop.fs.{FileSystem, Path}
++import org.apache.hadoop.yarn.api.ApplicationConstants
++import org.apache.hadoop.yarn.api.ApplicationConstants.Environment
++import org.apache.hadoop.yarn.api.records._
++import org.apache.hadoop.yarn.client.api.YarnClient
++import org.apache.hadoop.yarn.conf.YarnConfiguration
++import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
++import org.slf4j.LoggerFactory
++
++import scala.collection.JavaConversions._
++
++object Client extends Logging {
++
++  def main(args: Array[String]): Unit = {
++    println(args.length)
++    args.foreach(println(_))
++
++    val packagePath = new Path(args(1))
++
++    val yarnConf = new YarnConfiguration()
++    val client = new Client(yarnConf)
++
++    try {
++      val job = client.submitApplication(
++        packagePath,
++        List(
++          "__package/bin/run-am.sh 1>%s/stdout 2>%s/stderr" format (
++            ApplicationConstants.LOG_DIR_EXPANSION_VAR,
++            ApplicationConstants.LOG_DIR_EXPANSION_VAR
++          )
++        /*
++          "/bin/pwd " +
++            " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
++            " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr;",
++          "/bin/ls " +
++            " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
++            " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr;",
++          "/bin/echo hi" +
++          " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
++          " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
++          */
++        )
++      )
++
++      info("waiting for job to start")
++
++      job.waitForStatus(Running(), 500) match {
++        case Some(Running()) => {
++          info("job started successfully")
++        }
++        case Some(appStatus) => {
++          warn("unable to start job successfully. job has status %s" format appStatus)
++        }
++        case None => {
++          warn("timed out waiting for job to start")
++        }
++      }
++
++      job.waitForFinish(100000) match {
++        case Some(SuccessfulFinish()) => {
++          info("job finished successfully")
++        }
++        case Some(appStatus) => {
++          info("job finished unsuccessfully %s" format appStatus)
++        }
++        case None => {
++          info("timed out")
++        }
++      }
++
++    } finally {
++      client.close()
++    }
++  }
++}
++
++class Client(yarnConf: YarnConfiguration) {
++
++  import Client._
++
++  val yarnClient = YarnClient.createYarnClient()
++  yarnClient.init(yarnConf)
++  yarnClient.start()
++
++  def submitApplication(packagePath: Path, cmds: List[String]): Job = {
++    val app = yarnClient.createApplication()
++    val newAppResponse = app.getNewApplicationResponse
++
++    val appId = newAppResponse.getApplicationId
++
++    info("preparing to submit %s" format appId)
++
++    val appContext = app.getApplicationSubmissionContext
++    appContext.setApplicationName(appId.toString)
++
++    val containerCtx = Records.newRecord(classOf[ContainerLaunchContext])
++    val resource = Records.newRecord(classOf[Resource])
++
++    info("Copy app master jar from local filesystem and add to the local environment")
++    /*
++    val localResources = Map(
++      "app" => uploadLocalResource()
++    )
++    Map
++
++
++    addToLocalResources(fs, appMasterJar, appMasterJarPath, appId, localResources, null)
++    */
++
++    val packageResource = Records.newRecord(classOf[LocalResource])
++
++    val packageUrl = ConverterUtils.getYarnUrlFromPath(packagePath)
++    val fileStatus = packagePath.getFileSystem(yarnConf).getFileStatus(packagePath)
++
++    packageResource.setResource(packageUrl)
++    info("set package url to %s for %s" format (packageUrl, appId))
++    packageResource.setSize(fileStatus.getLen)
++    info("set package size to %s for %s" format (fileStatus.getLen, appId))
++    packageResource.setTimestamp(fileStatus.getModificationTime)
++    packageResource.setType(LocalResourceType.ARCHIVE)
++    packageResource.setVisibility(LocalResourceVisibility.APPLICATION)
++
++    resource.setMemory(256)
++    resource.setVirtualCores(1)
++    appContext.setResource(resource)
++
++    containerCtx.setCommands(cmds)
++    containerCtx.setLocalResources(Map("__package" -> packageResource))
++
++    appContext.setApplicationId(appId)
++    appContext.setAMContainerSpec(containerCtx)
++    appContext.setApplicationType("sparker")
++
++    info("submitting application request for %s" format appId)
++
++    yarnClient.submitApplication(appContext)
++
++    new Job(yarnClient, appId)
++  }
++
++  def close(): Unit = {
++    yarnClient.close()
++  }
++
++  private def addToLocalResources(fs: FileSystem, fileSrcPath: String, fileDstPath: String, appId: String): LocalResource = {
++    val appName = "sparker"
++    val suffix = appName + "/" + appId + "/" + fileDstPath
++
++    val dst = new Path(fs.getHomeDirectory, suffix)
++
++    fs.copyFromLocalFile(new Path(fileSrcPath), dst)
++
++    val srcFileStatus = fs.getFileStatus(dst)
++    LocalResource.newInstance(
++      ConverterUtils.getYarnUrlFromURI(dst.toUri),
++      LocalResourceType.FILE,
++      LocalResourceVisibility.APPLICATION,
++      srcFileStatus.getLen,
++      srcFileStatus.getModificationTime
++    )
++  }
++}
++
++class Job(client: YarnClient, appId: ApplicationId) {
++
++  def waitForFinish(timeoutMs: Long): Option[ApplicationStatus] = {
++    val startTimeMs = System.currentTimeMillis()
++
++    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
++      val status = getStatus()
++      status match {
++        case SuccessfulFinish() | UnsuccessfulFinish() => {
++          return Some(status)
++        }
++        case _ =>
++      }
++
++      Thread.sleep(1000)
++    }
++
++    None
++  }
++
++  def waitForStatus(status: ApplicationStatus, timeoutMs: Long): Option[ApplicationStatus] = {
++    val startTimeMs = System.currentTimeMillis()
++
++    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
++      if (getStatus() == status) {
++        return Some(status)
++      }
++
++      Thread.sleep(1000)
++    }
++
++    None
++  }
++
++  private def getStatus(): ApplicationStatus = {
++    val statusResponse = client.getApplicationReport(appId)
++    convertState(statusResponse.getYarnApplicationState, statusResponse.getFinalApplicationStatus)
++  }
++
++  private def convertState(state: YarnApplicationState, status: FinalApplicationStatus): ApplicationStatus = {
++    (state, status) match {
++      case (YarnApplicationState.FINISHED, FinalApplicationStatus.SUCCEEDED) => SuccessfulFinish()
++      case (YarnApplicationState.KILLED, _) | (YarnApplicationState.FAILED, _) => UnsuccessfulFinish()
++      case (YarnApplicationState.NEW, _) | (YarnApplicationState.SUBMITTED, _) => New()
++      case _ => Running()
++    }
++  }
++}
++
++trait ApplicationStatus
++case class New() extends ApplicationStatus
++case class Running() extends ApplicationStatus
++case class SuccessfulFinish() extends ApplicationStatus
++case class UnsuccessfulFinish() extends ApplicationStatus
++
++
++
++
++/*
++object Client {
++
++  def main(args: Array[String]) = {
++    val jarPath = new Path(args(1))
++
++    val yarnConf = new YarnConfiguration()
++    val yarnClient = YarnClient.createYarnClient()
++
++    yarnClient.init(yarnConf)
++    yarnClient.start()
++
++    try {
++      val app = yarnClient.createApplication()
++      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
++      amContainer.setCommands(
++        Collections.singletonList(
++          "$JAVA_HOME/bin/java" +
++            " com.cloudera.hue.sparker.repl.yarn.ApplicationMaster" +
++            " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
++            " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"))
++
++      val appMasterJar: LocalResource = Records.newRecord(Class[LocalResource])
++      setupAppMasterJar(jarPath, appMasterJar)
++      amContainer.setLocalResources(
++        Collections.singletonMap("foo.jar", appMasterJar)
++      )
++
++      val appMasterEnv: Map[String, String] = Map()
++      setupAppMasterEnv(appMasterEnv)
++      amContainer.setEnvironment(appMasterEnv)
++
++      val capability: Resource = Records.newRecord(Class[Resource])
++      capability.setMemory(256)
++      capability.setVirtualCores(1)
++
++      val appContext = app.getApplicationSubmissionContext
++      appContext.setApplicationName("foo")
++      appContext.setAMContainerSpec(amContainer)
++      appContext.setResource(capability)
++      appContext.setQueue("default")
++
++      val appId = appContext.getApplicationId
++      yarnClient.submitApplication(appContext)
++
++      var appReport = yarnClient.getApplicationReport(appId)
++      var appState = appReport.getYarnApplicationState()
++
++      while (
++        appState != YarnApplicationState.FINISHED &&
++        appState != YarnApplicationState.KILLED &&
++        appState != YarnApplicationState.FAILED
++      ) {
++        Thread.sleep(100)
++        appReport = yarnClient.getApplicationReport(appId)
++        appState = appReport.getYarnApplicationState
++      }
++
++    } finally {
++      yarnClient.close()
++    }
++  }
++
++  private def setupAppMasterJar(value: Path, resource: LocalResource) = {
++
++  }
++
++  private def setupAppMasterEnv(conf: YarnConfiguration, appMasterEnv: Map[String, String]) = {
++    var classpaths = conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH)
++
++    if (classpaths == null) {
++      classpaths = YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH
++    }
++
++    classpaths.foreach {
++      c => {
++        Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(), c.trim())
++      }
++    }
++
++    Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(),
++      Environment.PWD.$() + File.separator + "*"
++    )
++  }
++
++
++    /*
++
++    try {
++      val appContext = yarnClient.createApplication.getApplicationSubmissionContext
++      val appId = appContext.getApplicationId
++
++      val appName = "sparker-repl"
++      val amPriority = 0
++      val amQueue = "default"
++
++      appContext.setApplicationName(appName)
++
++      val priority: Priority = Records.newRecord(Class[Priority])
++      priority.setPriority(amPriority)
++      appContext.setPriority(priority)
++
++      appContext.setQueue(amQueue)
++
++      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
++      appContext.setAMContainerSpec(amContainer)
++
++      appContext.setUnmanagedAM(true)
++
++      yarnClient.submitApplication(appContext)
++
++      var appReport = monitorApplication(
++        appId,
++        util.EnumSet.of(
++          YarnApplicationState.ACCEPTED,
++          YarnApplicationState.KILLED,
++          YarnApplicationState.FAILED,
++          YarnApplicationState.FINISHED
++        ))
++
++      if (appReport.getYarnApplicationState == YarnApplicationState.ACCEPTED) {
++        val attemptReport = monitorCurrentAppAttempt(appId, YarnApplicationAttemptState.LAUNCHED)
++        val attemptId = attemptReport.getApplicationAttemptId
++
++        launchAM(yarnClient, attemptId)
++
++        appReport = monitorApplication(
++          appId,
++          util.EnumSet.of(
++            YarnApplicationState.KILLED,
++            YarnApplicationState.FAILED,
++            YarnApplicationState.FINISHED
++          )
++        )
++      }
++
++      val appState = appReport.getYarnApplicationState
++      val appStatus = appReport.getFinalApplicationStatus
++
++      if (YarnApplicationState.FINISHED == appState && FinalApplicationStatus.SUCCEEDED == appStatus) {
++        0
++      } else {
++        1
++      }
++    } finally {
++      yarnClient.close()
++    }
++  }
++    */
++
++  /*
++  private def launchAM(rmClient: YarnClient, attemptId: ApplicationAttemptId): Unit = {
++    val credentials = new Credentials();
++    val token = rmClient.getAMRMToken(attemptId.getApplicationId)
++    credentials.addToken(token.getService, token)
++    val tokenFile = File.createTempFile("unmanagedAMRMToken", "", new File(System.getProperty("user.dir")));
++    //try {
++      FileUtil.chmod(tokenFile.getAbsolutePath, "600")
++    //}
++
++    tokenFile.deleteOnExit()
++    val os = new DataOutputStream(new FileOutputStream(tokenFile, true))
++    credentials.writeTokenStorageToStream(os)
++    os.close()
++
++    val envAMList = List()
++    var setClasspath = false
++    val classpath = null
++
++    sys.env.foreach {
++      case(key, value) => {
++      var value: String = value
++        if (key == "CLASSPATH") {
++          setClasspath = true
++          if (classpath != null) {
++            value = value + File.pathSeparator + classpath
++          }
++        }
++        envAMList +: (key + "=" + value)
++      }
++    }
++
++    if (!setClasspath && classpath != null) {
++      envAMList +: ("CLASSPATH=" + classpath)
++    }
++
++
++  }
++
++  private def monitorApplication(appId: ApplicationId, attemptState: util.EnumSet[YarnApplicationState]): ApplicationReport = {
++    null
++  }
++
++  private def monitorCurrentAppAttempt(appId: ApplicationId, attemptState: YarnApplicationAttemptState): ApplicationAttemptReport = {
++    null
++  }
++  */
++
++
++}
++*/
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
+new file mode 100644
+index 0000000..16b344b
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
+@@ -0,0 +1,28 @@
++package com.cloudera.hue.sparker.yarn
++
++import org.slf4j.LoggerFactory
++
++trait Logging {
++  val loggerName = this.getClass.getName
++  lazy val logger = LoggerFactory.getLogger(loggerName)
++
++  def debug(message: => Any) = {
++    if (logger.isDebugEnabled) {
++      logger.debug(message.toString)
++    }
++  }
++
++  def info(message: => Any) = {
++    if (logger.isInfoEnabled) {
++      logger.info(message.toString)
++    }
++  }
++
++  def warn(message: => Any) = {
++    logger.warn(message.toString)
++  }
++
++  def error(message: => Any) = {
++    logger.error(message.toString)
++  }
++}
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
+new file mode 100644
+index 0000000..9c96ae6
+--- /dev/null
++++ b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
+@@ -0,0 +1,9 @@
++package com.cloudera.hue.sparker.yarn
++
++import org.apache.hadoop.conf.Configuration
++
++class YarnJob(config: Configuration) {
++
++  //val client = new Client
++
++}
+diff --git a/apps/spark/java/src/main/assembly/dist.xml b/apps/spark/java/src/main/assembly/dist.xml
+new file mode 100644
+index 0000000..07c7464
+--- /dev/null
++++ b/apps/spark/java/src/main/assembly/dist.xml
+@@ -0,0 +1,65 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++            <!--
++            <excludes>
++                <exclude>commons-lang:commons-lang</exclude>
++                <exclude>log4j:log4j</exclude>
++            </excludes>
++            -->
++        </dependencySet>
++    </dependencySets>
++
++    <moduleSets>
++        <moduleSet>
++            <includes>
++                <!--
++                <include>com.cloudera.hue.sparker:sparker-repl</include>
++                <include>com.cloudera.hue.sparker:sparker-server</include>
++                -->
++                <include>com.cloudera.hue.sparker:sparker-yarn</include>
++            </includes>
++        </moduleSet>
++    </moduleSets>
++
++    <!--
++    <fileSets>
++        <fileSet>
++            <directory>${basedir}/src/main/bash</directory>
++            <outputDirectory>/bin</outputDirectory>
++            <fileMode>0744</fileMode>
++            <includes>
++                <include>*</include>
++            </includes>
++        </fileSet>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++    -->
++</assembly>
+\ No newline at end of file
+-- 
+1.7.9.5
+

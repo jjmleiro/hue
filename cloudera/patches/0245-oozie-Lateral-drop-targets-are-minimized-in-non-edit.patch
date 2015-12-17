@@ -1,0 +1,59 @@
+From 2e47d7ee37e53b2735df1a48822220055751e50a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 10:24:51 +0100
+Subject: [PATCH 0245/1173] [oozie] Lateral drop targets are minimized in non
+ editing mode
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    6 +++---
+ apps/oozie/static/css/workflow-editor.css          |    9 +++++++++
+ 2 files changed, 12 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 2a8f908..b42b7f9 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -212,10 +212,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ <script type="text/html" id="internal-row-template">
+   <div class="container-fluid">
+     <div class="row-fluid">
+-      <div class="span1">
++      <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+         <div data-bind="visible: $root.isEditing(), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+-      <div class="span10">
++      <div  data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+         <div data-bind="visible: columns().length == 0, css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+           sortable: { template: 'widget-template', data: widgets, allowDrop: enableOozieDrop, isEnabled: enableOozieDrop,
+           options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
+@@ -230,7 +230,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+           </div>
+         </div>
+       </div>
+-      <div class="span1">
++      <div  data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+         <div data-bind="visible: $root.isEditing(), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+     </div>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 02f9391..1645378 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -313,4 +313,13 @@ em {
+ 
+ .drop-target-side {
+   min-height: 100px;
++}
++
++.dashboard .row-fluid .span10.readonly {
++  width: 100%;
++  margin-left: 0;
++}
++
++.dashboard .row-fluid .span1.readonly {
++  width: 0;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

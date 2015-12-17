@@ -1,0 +1,38 @@
+From 49eec0500e0fa332895d83aa6ee2880f9fa5cd4b Mon Sep 17 00:00:00 2001
+From: Luca Natali <lucan@amazon.com>
+Date: Tue, 4 Nov 2014 19:07:15 +0000
+Subject: [PATCH 0177/1173] HUE-2510 [pig] Ensure that CSRF cookie is loaded
+ in the editor
+
+If the CSRF cookie is not present, then AJAX calls are not accepted,
+which caused Hue to return a 403 statue code.
+
+The fix ensures that the cookie is set when the Pig editor page is loaded.
+---
+ apps/pig/src/pig/views.py |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/pig/src/pig/views.py b/apps/pig/src/pig/views.py
+index 400289b..0d55178 100644
+--- a/apps/pig/src/pig/views.py
++++ b/apps/pig/src/pig/views.py
+@@ -21,6 +21,7 @@ import logging
+ from django.core.urlresolvers import reverse
+ from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
++from django.views.decorators.csrf import ensure_csrf_cookie
+ from django.views.decorators.http import require_http_methods
+ 
+ from desktop.lib.django_util import render
+@@ -39,7 +40,7 @@ from pig.models import get_workflow_output, hdfs_link, PigScript,\
+ 
+ LOG = logging.getLogger(__name__)
+ 
+-
++@ensure_csrf_cookie
+ def app(request):
+   return render('app.mako', request, {
+     'autocomplete_base_url': reverse('beeswax:api_autocomplete_databases', kwargs={}),
+-- 
+1.7.9.5
+

@@ -1,0 +1,82 @@
+From 940ddc0159659fe09da08326e0a1fdceb4a20451 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 25 Feb 2015 16:34:07 +0100
+Subject: [PATCH 0908/1173] HUE-2585 [impala] Display further errors when no
+ line is specified in the error message
+
+Improved displaying of errors
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   12 ++++--------
+ apps/beeswax/static/js/beeswax.vm.js            |   12 ++++++++++++
+ 2 files changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 5c994cb..d5508ab 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -249,7 +249,7 @@ ${layout.menubar(section='query')}
+         <div class="tab-content">
+           <div id="queryPane">
+ 
+-            <div data-bind="css: {'hide': design.errors().length == 0}" class="alert alert-error">
++            <div data-bind="css: {'hide': design.errors().length == 0 || design.inlineErrors().length > 0}" class="alert alert-error">
+               <!-- ko if: $root.getQueryErrors().length > 0 -->
+               <p><strong>${_('Please provide a query')}</strong></p>
+               <!-- /ko -->
+@@ -262,7 +262,7 @@ ${layout.menubar(section='query')}
+               <!-- /ko -->
+             </div>
+ 
+-            <div data-bind="css: {'hide': design.watch.errors().length == 0}" class="alert alert-error">
++            <div data-bind="css: {'hide': design.watch.errors().length == 0 || design.watch.inlineErrors().length > 0}" class="alert alert-error">
+               <p><strong>${_('Your query has the following error(s):')}</strong></p>
+ 
+               <div data-bind="foreach: design.watch.errors">
+@@ -2128,8 +2128,8 @@ $(document).on('error.query', function () {
+ 
+   // Move error to codeMirror if we know the line number
+   $.each($(".queryErrorMessage"), function(index, el) {
+-    var err = $(el).text().toLowerCase();
+-    var firstPos = err.indexOf("line");
++    var err = $(el).text();
++    var firstPos = err.toLowerCase().indexOf("line");
+     if (firstPos > -1) {
+       selectedLine = $.trim(err.substring(err.indexOf(" ", firstPos), err.indexOf(":", firstPos))) * 1;
+       errorWidgets.push(
+@@ -2145,10 +2145,6 @@ $(document).on('error.query', function () {
+     }
+   });
+ 
+-  if ($(".queryErrorMessage:hidden").length == $(".queryErrorMessage").length) {
+-    $(".queryErrorMessage").parent().parent().hide();
+-  }
+-
+   reinitializeTableExtenders();
+ });
+ 
+diff --git a/apps/beeswax/static/js/beeswax.vm.js b/apps/beeswax/static/js/beeswax.vm.js
+index b15a52a..d98d4b9 100644
+--- a/apps/beeswax/static/js/beeswax.vm.js
++++ b/apps/beeswax/static/js/beeswax.vm.js
+@@ -74,6 +74,18 @@ function BeeswaxViewModel(server) {
+ 
+   self.design = ko.mapping.fromJS(DESIGN_DEFAULTS);
+ 
++  self.design.inlineErrors = ko.computed(function() {
++    return ko.utils.arrayFilter(self.design.errors(), function(err) {
++        return err.toLowerCase().indexOf("line") > -1;
++    });
++  });
++
++  self.design.watch.inlineErrors = ko.computed(function() {
++    return ko.utils.arrayFilter(self.design.watch.errors(), function(err) {
++        return err.toLowerCase().indexOf("line") > -1;
++    });
++  });
++
+   self.chartType = ko.observable("bars");
+   self.chartSorting = ko.observable("none");
+   self.chartData = ko.observableArray();
+-- 
+1.7.9.5
+

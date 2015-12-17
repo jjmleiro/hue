@@ -1,0 +1,26 @@
+From b20ac779e65b445c007b8629f5e550ad4aae3873 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Mar 2015 16:08:48 -0700
+Subject: [PATCH 1141/1173] [oozie] Fix fetching parameters from action for
+ submission popup
+
+---
+ apps/oozie/src/oozie/models2.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index a5de87c..c13cf48 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -354,7 +354,7 @@ class Node():
+     return 'editor2/gen/workflow-%s.xml.mako' % self.data['type']
+ 
+   def find_parameters(self):
+-    return find_parameters(self) + find_parameters(self, ['sla']) if self.sla_enabled else []
++    return find_parameters(self) + (find_parameters(self, ['sla']) if self.sla_enabled else [])
+ 
+ 
+ class Action(object):
+-- 
+1.7.9.5
+

@@ -1,0 +1,116 @@
+From a6843f0c53a55d3e2041e3e3187f9abc4226c2dd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 16 Mar 2015 17:07:30 -0500
+Subject: [PATCH 1097/1173] [spark] Support for change snippet type on edit
+ mode
+
+---
+ apps/spark/src/spark/static/spark/css/spark.css |   13 +++++
+ apps/spark/src/spark/templates/editor.mako      |   66 ++++++++++++-----------
+ 2 files changed, 49 insertions(+), 30 deletions(-)
+
+diff --git a/apps/spark/src/spark/static/spark/css/spark.css b/apps/spark/src/spark/static/spark/css/spark.css
+index 1bf2f18..ca7c9db 100644
+--- a/apps/spark/src/spark/static/spark/css/spark.css
++++ b/apps/spark/src/spark/static/spark/css/spark.css
+@@ -310,4 +310,17 @@ h1.empty {
+   .CodeMirror {
+     border: none;
+   }
++}
++
++.widget-type.dropdown a.dropdown-toggle {
++  padding-left: 0;
++  padding-right: 0;
++}
++
++.widget-type.dropdown .dropdown-toggle .caret {
++  margin-top: 0;
++}
++
++.no-underline:hover {
++  text-decoration: none!important;
+ }
+\ No newline at end of file
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 9459919..b5ad7ec 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -292,38 +292,44 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <a href="javascript:void(0)" data-bind="click: expand, visible: size() < 12"><i class="fa fa-step-forward"></i></a>
+           &nbsp;
+         </span>
+-
+-        <!-- ko if: type() == 'text' -->
+-        <i class="fa fa-header snippet-icon"></i><sup style="color: #338bb8; margin-left: -2px">${ _('Text') }</sup>
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'hive' -->
+-        <img src="${ static('beeswax/art/icon_beeswax_48.png') }" class="snippet-icon">
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'impala' -->
+-        <img src="${ static('impala/art/icon_impala_48.png') }" class="snippet-icon">
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'scala' -->
+-        <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">scala</sup>
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'python' -->
+-        <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">python</sup>
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'sql' -->
+-        <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">sql</sup>
+-        <!-- /ko -->
+-
+-        <!-- ko if: type() == 'pig' -->
+-        <img src="${ static('pig/art/icon_pig_48.png') }" class="snippet-icon">
+-        <!-- /ko -->
+-
++        <div class="dropdown inline widget-type">
++          <a class="dropdown-toggle no-underline" data-toggle="dropdown" href="javascript:void(0)">
++            <!-- ko if: type() == 'text' -->
++            <i class="fa fa-header snippet-icon"></i><sup style="color: #338bb8; margin-left: -2px">${ _('Text') }</sup>
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'hive' -->
++            <img src="${ static('beeswax/art/icon_beeswax_48.png') }" class="snippet-icon">
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'impala' -->
++            <img src="${ static('impala/art/icon_impala_48.png') }" class="snippet-icon">
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'scala' -->
++            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">scala</sup>
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'python' -->
++            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">python</sup>
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'sql' -->
++            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">sql</sup>
++            <!-- /ko -->
++
++            <!-- ko if: type() == 'pig' -->
++            <img src="${ static('pig/art/icon_pig_48.png') }" class="snippet-icon">
++            <!-- /ko -->
++            <b class="caret" data-bind="visible: $root.isEditing()"></b>
++          </a>
++          <ul class="dropdown-menu" data-bind="foreach: $root.availableSnippets">
++            <li><a class="pointer" data-bind="click: function(){ $parent.type($data.type()); }, text: name"></a></li>
++          </ul>
++        </div>
+ 
+         <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+-        <div class="inline pull-right">          
++        <div class="inline pull-right">
+           <a href="javascript:void(0)" data-bind="visible: $root.isEditing, click: function(){ remove($parent, $data); window.setTimeout(redrawFixedHeaders, 100);}"><i class="fa fa-times"></i></a>
+         </div>
+       </h2>
+-- 
+1.7.9.5
+

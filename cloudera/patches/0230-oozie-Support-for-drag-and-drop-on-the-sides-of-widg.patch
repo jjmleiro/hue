@@ -1,0 +1,147 @@
+From 7e3697b4e8e1feeb785a62fd9720a8877a2c5526 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 4 Nov 2014 01:35:54 +0100
+Subject: [PATCH 0230/1173] [oozie] Support for drag and drop on the sides of
+ widgets
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   10 +++----
+ apps/oozie/static/js/workflow-editor.ko.js         |   29 ++++++++++++++++++++
+ desktop/core/static/js/ko.layout.js                |   15 ++++++----
+ 3 files changed, 44 insertions(+), 10 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index c4b050a..f169719 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -29,7 +29,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <%def name="widgets()">
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableHiveAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                    options: {'start': function(event, ui){$root.setCurrentDraggedWidget(draggableHiveAction()); lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
+          title="${_('Hive Script')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon"></a>
+@@ -37,7 +37,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div data-bind="css: { 'draggable-widget': true},
+                     draggable: {data: draggablePigAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                    options: {'start': function(event, ui){$root.setCurrentDraggedWidget(draggablePigAction()); lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                         'stop': function(event, ui){$('.card-body').slideDown('fast'); }}}"
+          title="${_('Pig Script')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><img src="/oozie/static/art/icon_pig_48.png" class="app-icon"></a>
+@@ -45,7 +45,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableJavaAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                    options: {'start': function(event, ui){$root.setCurrentDraggedWidget(draggableJavaAction()); lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
+          title="${_('Java program')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-file-code-o"></i></a>
+@@ -235,7 +235,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <div class="container-fluid">
+     <div class="row-fluid">
+       <div class="span1">
+-        <div data-bind="css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ console.log('dropped'); $data.addEmptyColumn(); } }"></div>
++        <div data-bind="css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div class="span10">
+         <div data-bind="visible: columns().length == 0, css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+@@ -253,7 +253,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+       <div class="span1">
+-        <div data-bind="css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ console.log('dropped'); $data.addEmptyColumn(); } }"></div>
++        <div data-bind="css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+     </div>
+   </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index c8e90f4..fd2a80c 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -206,6 +206,35 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.selectedSubWorkflow = ko.observable();
+ 
+ 
++  self.currentlyDraggedWidget = null;
++  self.isDragging = ko.observable(false);
++
++  self.setCurrentDraggedWidget = function (widget) {
++    self.currentlyDraggedWidget = widget;
++  }
++
++  self.addDraggedWidget = function (row, atBeginning) {
++    if (self.currentlyDraggedWidget != null) {
++      var _w = new Widget({
++        size: self.currentlyDraggedWidget.size(),
++        id: UUID(),
++        name: self.currentlyDraggedWidget.name(),
++        widgetType: self.currentlyDraggedWidget.widgetType(),
++        properties: self.currentlyDraggedWidget.properties(),
++        offset: self.currentlyDraggedWidget.offset(),
++        loading: true,
++        vm: self
++      });
++
++      var _col = row.addEmptyColumn(atBeginning);
++      var _row = new Row([_w], self);
++      _col.addRow(_row);
++
++      self.currentlyDraggedWidget = null;
++      return _w;
++    }
++  }
++
+   self.getWidgetById = function (widget_id) {
+     var _widget = null;
+     $.each(self.columns(), function (i, col) {
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index 89a8971..c5766e4 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -93,9 +93,9 @@ var Row = function (widgets, vm, columns) {
+     self.widgets.push(widget);
+   };
+ 
+-  self.addEmptyColumn = function () {
++  self.addEmptyColumn = function (atBeginning) {
+     if (self.columns().length == 0){
+-      var _col = self.addColumn(null);
++      var _col = self.addColumn(null, atBeginning);
+       if (self.widgets().length > 0){
+         var _row = _col.addEmptyRow();
+         self.widgets().forEach(function(widget){
+@@ -104,10 +104,10 @@ var Row = function (widgets, vm, columns) {
+         self.widgets([]);
+       }
+     }
+-    return self.addColumn(null);
++    return self.addColumn(null, atBeginning);
+   };
+ 
+-  self.addColumn = function (column) {
++  self.addColumn = function (column, atBeginning) {
+     if (typeof column == "undefined" || column == null) {
+       var _size = Math.max(1, Math.floor(12 / (self.columns().length + 1)));
+       column = new Column(_size, []); // Hacky but needed when a new row is deleted
+@@ -115,7 +115,12 @@ var Row = function (widgets, vm, columns) {
+         col.size(_size);
+       });
+     }
+-    self.columns.push(column);
++    if (typeof atBeginning == "undefined" || atBeginning == null || ! atBeginning) {
++      self.columns.push(column);
++    }
++    else {
++      self.columns.unshift(column);
++    }
+     return column;
+   };
+ 
+-- 
+1.7.9.5
+

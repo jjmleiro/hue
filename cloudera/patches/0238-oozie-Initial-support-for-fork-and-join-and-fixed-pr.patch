@@ -1,0 +1,131 @@
+From 070cf646c0e725d4129767a5f2cc184a4b7ce96a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 4 Nov 2014 19:15:23 +0100
+Subject: [PATCH 0238/1173] [oozie] Initial support for fork and join and
+ fixed predecessor
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   31 ++++++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |   50 ++++++++++++++++++++
+ 2 files changed, 81 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index ff2359a..bcc292c 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -266,6 +266,37 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="fork-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      I AM A FORK
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++<script type="text/html" id="join-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      FIN.
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="start-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 26b2ea9..70309ce 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -264,6 +264,28 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.addDraggedWidget = function (row, atBeginning) {
+     if (self.currentlyDraggedWidget != null) {
++      var _parentCol = self.getRowParentColumn(row.id());
++      var _rowIdx = 0;
++      $.each(_parentCol.rows(), function (i, irow) {
++        if (irow.id() == row.id()) {
++          _rowIdx = i;
++        }
++      });
++
++      var _forkRow = _parentCol.addEmptyRow(false, _rowIdx);
++      var _fork = new Widget({
++        size: 12,
++        id: UUID(),
++        name: "fork",
++        widgetType: "fork-widget",
++        properties: {},
++        offset: 0,
++        loading: true,
++        vm: self
++      });
++
++      _forkRow.widgets([_fork]);
++
+       var _w = new Widget({
+         size: self.currentlyDraggedWidget.size(),
+         id: UUID(),
+@@ -279,6 +301,20 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       var _row = new Row([_w], self);
+       _col.addRow(_row);
+ 
++      var _joinRow = _parentCol.addEmptyRow(false, _rowIdx + 2);
++      var _join = new Widget({
++        size: 12,
++        id: UUID(),
++        name: "join",
++        widgetType: "join-widget",
++        properties: {},
++        offset: 0,
++        loading: true,
++        vm: self
++      });
++
++      _joinRow.widgets([_join]);
++
+       self.currentlyDraggedWidget = null;
+       return _w;
+     }
+@@ -363,6 +399,20 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     if (_prevRow != null) {
+       return _prevRow.widgets()[0];
+     }
++    else {
++      var _parentRow = self.getColumnParentRow(_col.id());
++      var _parentColumn = self.getRowParentColumn(_parentRow.id());
++      var _prevParentRow = null;
++      for (var i = 0; i < _parentColumn.rows().length; i++) {
++        if (_parentColumn.rows()[i].id() == _parentRow.id()) {
++          break;
++        }
++        _prevParentRow = _parentColumn.rows()[i];
++      }
++      if (_prevParentRow != null) {
++        return _prevParentRow.widgets()[0];
++      }
++    }
+     return null;
+   }
+ 
+-- 
+1.7.9.5
+

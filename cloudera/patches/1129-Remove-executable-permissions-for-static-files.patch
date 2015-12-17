@@ -1,0 +1,155 @@
+From 3760080455a1d85147de5ccea918df033288ac32 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 19 Mar 2015 16:00:42 -0700
+Subject: [PATCH 1129/1173] Remove executable permissions for static files
+
+---
+ .../static/desktop/ext/chosen/chosen-sprite.png    |  Bin 646 -> 646 bytes
+ .../static/desktop/ext/chosen/chosen-sprite@2x.png |  Bin 872 -> 872 bytes
+ .../desktop/ext/fonts/fontawesome-webfont.eot      |  Bin 56006 -> 56006 bytes
+ .../desktop/ext/fonts/fontawesome-webfont.ttf      |  Bin 112160 -> 112160 bytes
+ .../desktop/ext/fonts/fontawesome-webfont.woff     |  Bin 65452 -> 65452 bytes
+ .../static/desktop/ext/fonts/huecharts-regular.eot |  Bin 2587 -> 2587 bytes
+ .../static/desktop/ext/fonts/huecharts-regular.ttf |  Bin 4612 -> 4612 bytes
+ .../desktop/ext/fonts/huecharts-regular.woff       |  Bin 2856 -> 2856 bytes
+ .../desktop/ext/fonts/huefiletypes-regular.eot     |  Bin 2252 -> 2252 bytes
+ .../desktop/ext/fonts/huefiletypes-regular.ttf     |  Bin 4332 -> 4332 bytes
+ .../desktop/ext/fonts/huefiletypes-regular.woff    |  Bin 2456 -> 2456 bytes
+ .../static/desktop/help/images/feedback.gif        |  Bin 1149 -> 1149 bytes
+ 12 files changed, 0 insertions(+), 0 deletions(-)
+ mode change 100755 => 100644 apps/beeswax/babel.cfg
+ mode change 100755 => 100644 apps/filebrowser/babel.cfg
+ mode change 100755 => 100644 apps/metastore/babel.cfg
+ mode change 100755 => 100644 apps/security/babel.cfg
+ mode change 100755 => 100644 apps/useradmin/babel.cfg
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite.png
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite@2x.png
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/chosen/chosen.jquery.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/chosen/chosen.min.css
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/css/bootstrap-select.css
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/css/nv.d3.min.css
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.eot
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.svg
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.ttf
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.woff
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.eot
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.svg
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.ttf
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.woff
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.eot
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.svg
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.ttf
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.woff
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/bootstrap-better-typeahead.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.cookie.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.hotkeys.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.total-storage.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.visible.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/knockout-sortable.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/ext/js/less-1.7.0.min.js
+ mode change 100755 => 100644 desktop/core/src/desktop/static/desktop/help/images/feedback.gif
+ mode change 100755 => 100644 desktop/libs/hadoop/src/hadoop/test_data/sample_conf.xml
+
+diff --git a/apps/beeswax/babel.cfg b/apps/beeswax/babel.cfg
+old mode 100755
+new mode 100644
+diff --git a/apps/filebrowser/babel.cfg b/apps/filebrowser/babel.cfg
+old mode 100755
+new mode 100644
+diff --git a/apps/metastore/babel.cfg b/apps/metastore/babel.cfg
+old mode 100755
+new mode 100644
+diff --git a/apps/security/babel.cfg b/apps/security/babel.cfg
+old mode 100755
+new mode 100644
+diff --git a/apps/useradmin/babel.cfg b/apps/useradmin/babel.cfg
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite.png b/desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite.png
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite@2x.png b/desktop/core/src/desktop/static/desktop/ext/chosen/chosen-sprite@2x.png
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/chosen/chosen.jquery.min.js b/desktop/core/src/desktop/static/desktop/ext/chosen/chosen.jquery.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/chosen/chosen.min.css b/desktop/core/src/desktop/static/desktop/ext/chosen/chosen.min.css
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/css/bootstrap-select.css b/desktop/core/src/desktop/static/desktop/ext/css/bootstrap-select.css
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css b/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/css/nv.d3.min.css b/desktop/core/src/desktop/static/desktop/ext/css/nv.d3.min.css
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.eot b/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.eot
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.svg b/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.svg
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.ttf b/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.ttf
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.woff b/desktop/core/src/desktop/static/desktop/ext/fonts/fontawesome-webfont.woff
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.eot b/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.eot
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.svg b/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.svg
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.ttf b/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.ttf
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.woff b/desktop/core/src/desktop/static/desktop/ext/fonts/huecharts-regular.woff
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.eot b/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.eot
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.svg b/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.svg
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.ttf b/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.ttf
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.woff b/desktop/core/src/desktop/static/desktop/ext/fonts/huefiletypes-regular.woff
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/bootstrap-better-typeahead.min.js b/desktop/core/src/desktop/static/desktop/ext/js/bootstrap-better-typeahead.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.cookie.js b/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.cookie.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.hotkeys.js b/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.hotkeys.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.total-storage.min.js b/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.total-storage.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.visible.min.js b/desktop/core/src/desktop/static/desktop/ext/js/jquery/plugins/jquery.visible.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/knockout-sortable.min.js b/desktop/core/src/desktop/static/desktop/ext/js/knockout-sortable.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/ext/js/less-1.7.0.min.js b/desktop/core/src/desktop/static/desktop/ext/js/less-1.7.0.min.js
+old mode 100755
+new mode 100644
+diff --git a/desktop/core/src/desktop/static/desktop/help/images/feedback.gif b/desktop/core/src/desktop/static/desktop/help/images/feedback.gif
+old mode 100755
+new mode 100644
+diff --git a/desktop/libs/hadoop/src/hadoop/test_data/sample_conf.xml b/desktop/libs/hadoop/src/hadoop/test_data/sample_conf.xml
+old mode 100755
+new mode 100644
+-- 
+1.7.9.5
+

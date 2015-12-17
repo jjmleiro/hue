@@ -1,0 +1,2394 @@
+From 07bffe411148b0f558371e355dd51d8f3d479c5c Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 10:41:29 -0800
+Subject: [PATCH 0872/1173] [livy] Rearchitect livy to use shaded jar and the
+ system spark
+
+---
+ apps/spark/Makefile                                |   67 +++----
+ apps/spark/java/bin/livy-repl                      |   10 +-
+ apps/spark/java/bin/livy-server                    |    6 +-
+ apps/spark/java/bin/livy-yarn-client               |    2 +-
+ apps/spark/java/livy-assembly/pom.xml              |  102 +++++++++++
+ apps/spark/java/livy-core/pom.xml                  |   55 +-----
+ .../scala/com/cloudera/hue/livy/WebServer.scala    |   22 ++-
+ apps/spark/java/livy-repl/pom.xml                  |  112 +++---------
+ .../livy-repl/src/main/resources/fake_shell.py     |   19 +-
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |   53 +++++-
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |    6 +
+ .../hue/livy/repl/python/PythonSession.scala       |   41 ++++-
+ .../hue/livy/repl/scala/SparkSession.scala         |    1 -
+ .../livy/repl/scala/interpreter/Interpreter.scala  |    4 +-
+ .../cloudera/hue/livy/repl/PythonSessionSpec.scala |    4 +-
+ apps/spark/java/livy-server/pom.xml                |  111 +++---------
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |   27 ++-
+ .../cloudera/hue/livy/server/SessionFactory.scala  |   11 +-
+ .../com/cloudera/hue/livy/server/WebApp.scala      |   25 ++-
+ .../hue/livy/server/sessions/ProcessSession.scala  |   52 ++----
+ .../hue/livy/server/sessions/Session.scala         |    7 +
+ .../hue/livy/server/sessions/ThreadSession.scala   |    6 +
+ .../hue/livy/server/sessions/WebSession.scala      |   37 +++-
+ .../hue/livy/server/sessions/YarnSession.scala     |   55 ++----
+ apps/spark/java/livy-yarn/pom.xml                  |  148 ++--------------
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |   90 ----------
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |  180 +++++++------------
+ .../scala/com/cloudera/hue/livy/yarn/YarnJob.scala |    9 -
+ apps/spark/java/pom.xml                            |  187 ++++++++++++++++++--
+ apps/spark/src/spark/conf.py                       |   11 ++
+ .../src/spark/management/commands/livy_server.py   |   20 +--
+ maven/pom.xml                                      |    2 +-
+ 32 files changed, 717 insertions(+), 765 deletions(-)
+ create mode 100644 apps/spark/java/livy-assembly/pom.xml
+ delete mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+ delete mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
+
+diff --git a/apps/spark/Makefile b/apps/spark/Makefile
+index 6a8d5f6..f313af6 100644
+--- a/apps/spark/Makefile
++++ b/apps/spark/Makefile
+@@ -23,34 +23,39 @@ endif
+ APP_NAME = spark
+ include $(ROOT)/Makefile.sdk
+ 
+-#SPARK_ROOT := $(realpath .)
+-#BLD_DIR_SPARK = $(SPARK_ROOT)/java/target
+-#SPARK_JAVA_LIB = $(SPARK_ROOT)/java-lib
+-#
+-#SPARK := $(SPARK_JAVA_LIB)/SparkServer.jar
+-#SPARK_JAVA_DIR := $(SPARK_ROOT)/java
+-#
+-#HAVE_JAVA_SRC = $(wildcard $(SPARK_JAVA_DIR))
+-#
+-#compile: $(SPARK)
+-#
+-#ifneq (,$(HAVE_JAVA_SRC))
+-#
+-#clean::
+-#	rm -Rf $(SPARK_JAVA_LIB)
+-#	cd $(SPARK_JAVA_DIR) && mvn clean $(MAVEN_OPTIONS) || :
+-#
+-#$(SPARK): $(shell find $(SPARK_JAVA_DIR) -type f)
+-#	@echo "--- Building Desktop spark"
+-#	cd $(SPARK_JAVA_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
+-#
+-#else
+-#$(SPARK):
+-#	$(error Cannot build spark jars without source)
+-#endif
+-#
+-#BDIST_EXCLUDES += \
+-#	--exclude=java
+-#
+-#SDIST_EXCLUDES += \
+-#	--exclude=java-lib
++SPARK_ROOT := $(realpath .)
++JAVA_LIB = $(SPARK_ROOT)/java-lib
++
++LIVY_DIR = $(SPARK_ROOT)/java
++LIVY_TARGET_DIR = $(LIVY_DIR)/livy-assembly/target/scala-2.10
++LIVY_ASSEMBLY = livy-assembly-3.7.0-SNAPSHOT.jar
++LIVY = $(JAVA_LIB)/$(LIVY_ASSEMBLY)
++
++HAVE_JAVA_SRC = $(wildcard $(LIVY_DIR))
++
++compile: $(LIVY)
++
++ifneq (,$(HAVE_JAVA_SRC))
++
++clean::
++	rm -Rf $(JAVA_LIB)
++	cd $(LIVY_DIR) && mvn clean $(MAVEN_OPTIONS) || :
++
++$(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY): $(shell find $(LIVY_DIR) -type f)
++	@echo "--- Building Desktop spark"
++	cd $(LIVY_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
++
++$(LIVY): $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY)
++	mkdir -p $(JAVA_LIB)
++	cp $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY) $(LIVY)
++
++else
++$(LIVY):
++	$(error Cannot build spark jars without source)
++endif
++
++BDIST_EXCLUDES += \
++	--exclude=java
++
++SDIST_EXCLUDES += \
++	--exclude=java-lib
+diff --git a/apps/spark/java/bin/livy-repl b/apps/spark/java/bin/livy-repl
+index f120cfc..0a52e44 100755
+--- a/apps/spark/java/bin/livy-repl
++++ b/apps/spark/java/bin/livy-repl
+@@ -22,8 +22,10 @@ set -e
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
+ cd $LIVY_HOME
+ 
+-CLASSPATH="$LIVY_HOME/livy-repl/target/lib/*:$LIVY_HOME/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar:$CLASSPATH"
++source ./bin/setup-classpath
+ 
+-exec java \
+-	-cp "$CLASSPATH" \
+-	com.cloudera.hue.livy.repl.Main "$@"
++exec spark-submit \
++	--driver-java-options "$LIVY_REPL_JAVA_OPTS" \
++	--class com.cloudera.hue.livy.repl.Main \
++	"$ASSEMBLY_JAR" \
++	"$@"
+diff --git a/apps/spark/java/bin/livy-server b/apps/spark/java/bin/livy-server
+index 8acef59..064cc97 100755
+--- a/apps/spark/java/bin/livy-server
++++ b/apps/spark/java/bin/livy-server
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/bin/sh
+ # Licensed to Cloudera, Inc. under one
+ # or more contributor license agreements.  See the NOTICE file
+ # distributed with this work for additional information
+@@ -22,9 +22,9 @@ set -e
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
+ cd $LIVY_HOME
+ 
+-CLASSPATH="$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar:$CLASSPATH"
++source ./bin/setup-classpath
+ 
+ exec java \
+-	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 \
++	$LIVY_SERVER_JAVA_OPTS \
+ 	-cp "$CLASSPATH" \
+ 	com.cloudera.hue.livy.server.Main "$@"
+diff --git a/apps/spark/java/bin/livy-yarn-client b/apps/spark/java/bin/livy-yarn-client
+index 925a65f..7427613 100755
+--- a/apps/spark/java/bin/livy-yarn-client
++++ b/apps/spark/java/bin/livy-yarn-client
+@@ -25,4 +25,4 @@ CLASSPATH="$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/liv
+ 
+ exec java \
+ 	-cp "$CLASSPATH" \
+-	com.cloudera.hue.livy.yarn.Client "$@"
++	com.cloudera.hue.livy.yarn.Main "$@"
+diff --git a/apps/spark/java/livy-assembly/pom.xml b/apps/spark/java/livy-assembly/pom.xml
+new file mode 100644
+index 0000000..dadc9c2
+--- /dev/null
++++ b/apps/spark/java/livy-assembly/pom.xml
+@@ -0,0 +1,102 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.livy</groupId>
++        <artifactId>livy-main</artifactId>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
++        <relativePath>../pom.xml</relativePath>
++    </parent>
++
++    <artifactId>livy-assembly_2.10</artifactId>
++    <name>Livy Project Assembly</name>
++    <packaging>pom</packaging>
++
++    <properties>
++        <livy.jar.dir>scala-${scala.binary.version}</livy.jar.dir>
++        <livy.jar.basename>livy-assembly-${project.version}.jar</livy.jar.basename>
++        <livy.jar>${project.build.directory}/${livy.jar.dir}/${livy.jar.basename}</livy.jar>
++    </properties>
++
++    <dependencies>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-repl_${scala.binary.version}</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-yarn_${scala.binary.version}</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-server_${scala.binary.version}</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++    </dependencies>
++
++    <build>
++        <plugins>
++
++          <plugin>
++              <groupId>org.apache.maven.plugins</groupId>
++              <artifactId>maven-deploy-plugin</artifactId>
++              <configuration>
++                  <skip>true</skip>
++              </configuration>
++          </plugin>
++
++          <plugin>
++              <groupId>org.apache.maven.plugins</groupId>
++              <artifactId>maven-install-plugin</artifactId>
++              <configuration>
++                  <skip>true</skip>
++              </configuration>
++          </plugin>
++
++          <plugin>
++              <groupId>org.apache.maven.plugins</groupId>
++              <artifactId>maven-shade-plugin</artifactId>
++
++              <configuration>
++                  <shadedArtifactAttached>false</shadedArtifactAttached>
++                  <outputFile>${livy.jar}</outputFile>
++                  <artifactSet>
++                      <includes>
++                          <include>*:*</include>
++                      </includes>
++                  </artifactSet>
++                  <filters>
++                      <filter>
++                          <artifact>*:*</artifact>
++                          <excludes>
++                              <exclude>org/datanucleus/**</exclude>
++                              <exclude>META-INF/*.SF</exclude>
++                              <exclude>META-INF/*.DSA</exclude>
++                              <exclude>META-INF/*.RSA</exclude>
++                          </excludes>
++                      </filter>
++                  </filters>
++              </configuration>
++
++              <executions>
++                  <execution>
++                      <phase>package</phase>
++                      <goals>
++                          <goal>shade</goal>
++                      </goals>
++                  </execution>
++              </executions>
++          </plugin>
++
++        </plugins>
++    </build>
++
++</project>
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index 13aecc7..67a5e07 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -6,11 +6,11 @@
+     <parent>
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+-        <relativePath>../pom.xml</relativePath>
+         <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
++        <relativePath>../pom.xml</relativePath>
+     </parent>
+ 
+-    <artifactId>livy-core</artifactId>
++    <artifactId>livy-core_2.10</artifactId>
+     <packaging>jar</packaging>
+ 
+     <dependencies>
+@@ -18,103 +18,60 @@
+         <dependency>
+             <groupId>ch.qos.logback</groupId>
+             <artifactId>logback-classic</artifactId>
+-            <version>${logback.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>ch.qos.logback</groupId>
+             <artifactId>logback-access</artifactId>
+-            <version>${logback.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+             <artifactId>jetty-server</artifactId>
+-            <version>${jetty.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+             <artifactId>jetty-webapp</artifactId>
+-            <version>${jetty.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>${scalatra.version}</version>
++            <artifactId>scalatra_${scala.binary.version}</artifactId>
+             <exclusions>
+                 <exclusion>
+                     <groupId>com.typesafe.akka</groupId>
+-                    <artifactId>akka-actor_2.10</artifactId>
++                    <artifactId>akka-actor_${scala.binary.version}</artifactId>
+                 </exclusion>
+             </exclusions>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-jetty_2.10</artifactId>
+-            <version>${scalatra.version}</version>
++            <artifactId>scalatra-jetty_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-scalatest_2.10</artifactId>
+-            <version>${scalatra.version}</version>
++            <artifactId>scalatra-scalatest_${scala.binary.version}</artifactId>
+             <scope>test</scope>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra-json_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s_2.10</artifactId>
+-            <version>${json4s.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>${json4s.version}</version>
+         </dependency>
+ 
+     </dependencies>
+ 
+-    <build>
+-        <plugins>
+-
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <version>2.15.2</version>
+-                <executions>
+-                    <execution>
+-                        <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-        </plugins>
+-    </build>
+-
+-    <reporting>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </reporting>
+-
+ </project>
+-
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+index 3a1ef3a..8cdcdd1 100644
+--- a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy
+ 
+-import javax.servlet.{Servlet, ServletContextListener}
++import java.net.{InetAddress, InetSocketAddress}
++import javax.servlet.ServletContextListener
+ 
+ import ch.qos.logback.access.jetty.RequestLogImpl
+ import org.eclipse.jetty.server.Server
+@@ -11,8 +12,10 @@ import org.scalatra.servlet.AsyncSupport
+ 
+ import scala.concurrent.ExecutionContext
+ 
+-class WebServer(var port: Int) extends Logging {
+-  val server = new Server(port)
++class WebServer(var host: String, var port: Int) extends Logging {
++  val address = new InetSocketAddress(host, port)
++  val server = new Server(address)
++
+   server.setGracefulShutdown(1000)
+   server.setStopAtShutdown(true)
+ 
+@@ -40,13 +43,16 @@ class WebServer(var port: Int) extends Logging {
+     context.addEventListener(listener)
+   }
+ 
+-  def addServlet(servlet: Servlet) = {
+-
+-  }
+-
+   def start() = {
+     server.start()
+-    port = server.getConnectors()(0).getLocalPort
++
++    val connector = server.getConnectors()(0)
++
++    host = connector.getHost
++    if (host == "0.0.0.0") {
++      host = InetAddress.getLocalHost.getHostAddress
++    }
++    port = connector.getLocalPort
+ 
+     info("Starting server on %s" format port)
+   }
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 52fb887..7840a07 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -10,64 +10,58 @@
+         <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <artifactId>livy-repl</artifactId>
++    <artifactId>livy-repl_2.10</artifactId>
+     <packaging>jar</packaging>
+ 
+-    <properties>
+-        <PermGen>64m</PermGen>
+-        <MaxPermGen>512m</MaxPermGen>
+-    </properties>
+-
+     <dependencies>
+ 
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-core</artifactId>
++            <artifactId>livy-core_${scala.binary.version}</artifactId>
+             <version>${project.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-repl_2.10</artifactId>
++            <artifactId>spark-core_${scala.binary.version}</artifactId>
++            <version>${spark.version}</version>
++            <scope>provided</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-repl_${scala.binary.version}</artifactId>
+             <version>${spark.version}</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>org.eclipse.jetty</groupId>
+-                    <artifactId>jetty-server</artifactId>
+-                </exclusion>
+-
+-                <exclusion>
+-                    <groupId>org.eclipse.jetty</groupId>
+-                    <artifactId>jetty-util</artifactId>
+-                </exclusion>
+-            </exclusions>
++            <scope>provided</scope>
++
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+-            <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>${json4s.version}</version>
++            <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-scalatest_2.10</artifactId>
+-            <version>${scalatra.version}</version>
++            <artifactId>scalatra-scalatest_${scala.binary.version}</artifactId>
+             <scope>test</scope>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>org.apache.hadoop</groupId>
+-            <artifactId>hadoop-yarn-client</artifactId>
+-            <version>${hadoop.version}</version>
++            <groupId>net.sf.py4j</groupId>
++            <artifactId>py4j</artifactId>
++            <version>0.8.2.1</version>
+             <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>org.apache.hadoop</groupId>
+-            <artifactId>hadoop-yarn-api</artifactId>
+-            <version>${hadoop.version}</version>
+-            <scope>provided</scope>
++            <groupId>net.databinder.dispatch</groupId>
++            <artifactId>dispatch-core_${scala.binary.version}</artifactId>
++        </dependency>
++
++        <dependency>
++            <groupId>net.databinder.dispatch</groupId>
++            <artifactId>dispatch-json4s-jackson_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+     </dependencies>
+@@ -76,44 +70,8 @@
+         <plugins>
+ 
+             <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <version>2.15.2</version>
+-                <executions>
+-                    <execution>
+-                        <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-dependency-plugin</artifactId>
+-                <version>2.9</version>
+-                <executions>
+-                    <execution>
+-                        <id>copy-dependencies</id>
+-                        <phase>prepare-package</phase>
+-                        <goals>
+-                            <goal>copy-dependencies</goal>
+-                        </goals>
+-                        <configuration>
+-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+-                            <overWriteReleases>false</overWriteReleases>
+-                            <overWriteSnapshots>false</overWriteSnapshots>
+-                            <overWriteIfNewer>true</overWriteIfNewer>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-jar-plugin</artifactId>
+-                <version>2.5</version>
+                 <configuration>
+                     <archive>
+                         <manifest>
+@@ -125,33 +83,21 @@
+                 </configuration>
+             </plugin>
+ 
+-            <!-- disable surefire -->
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-surefire-plugin</artifactId>
+-                <version>2.7</version>
+-                <configuration>
+-                    <skipTests>true</skipTests>
+-                </configuration>
+             </plugin>
+-            <!-- enable scalatest -->
++
+             <plugin>
+                 <groupId>org.scalatest</groupId>
+                 <artifactId>scalatest-maven-plugin</artifactId>
+                 <version>1.0</version>
+                 <configuration>
+-                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+-                    <junitxml>.</junitxml>
+-                    <filereports>WDF TestSuite.txt</filereports>
++                    <systemProperties>
++                        <spark.master>local</spark.master>
++                        <spark.driver.allowMultipleContexts>true</spark.driver.allowMultipleContexts>
++                    </systemProperties>
+                 </configuration>
+-                <executions>
+-                    <execution>
+-                        <id>test</id>
+-                        <goals>
+-                            <goal>test</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+             </plugin>
+ 
+         </plugins>
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+index 555296b..90cf7e7 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -4,7 +4,6 @@ import datetime
+ import decimal
+ import json
+ import logging
+-import os
+ import sys
+ import traceback
+ 
+@@ -257,21 +256,19 @@ sys.stdin = fake_stdin
+ sys.stdout = fake_stdout
+ sys.stderr = fake_stderr
+ 
+-print >> sys_stdout, 'READY'
+-sys_stdout.flush()
+-
+ try:
+-    # Load any startup files
+-    try:
+-        startup = os.environ['PYTHONSTARTUP']
+-    except KeyError:
+-        pass
+-    else:
+-        execfile(startup, global_dict)
++    # Load spark into the context
++    exec 'from pyspark.shell import sc' in global_dict
++
++    print >> sys_stderr, fake_stdout.getvalue()
++    print >> sys_stderr, fake_stderr.getvalue()
+ 
+     fake_stdout.truncate(0)
+     fake_stderr.truncate(0)
+ 
++    print >> sys_stdout, 'READY'
++    sys_stdout.flush()
++
+     while True:
+         line = sys_stdin.readline()
+ 
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index ba79c59..b37e4d4 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -5,22 +5,38 @@ import javax.servlet.ServletContext
+ import com.cloudera.hue.livy.repl.python.PythonSession
+ import com.cloudera.hue.livy.repl.scala.SparkSession
+ import com.cloudera.hue.livy.{Logging, WebServer}
++import dispatch._
++import org.json4s.jackson.Serialization.write
++import org.json4s.{DefaultFormats, Formats}
+ import org.scalatra.LifeCycle
+ import org.scalatra.servlet.ScalatraListener
+ 
+-import _root_.scala.concurrent.Await
+-import _root_.scala.concurrent.duration.Duration
++import _root_.scala.concurrent.duration._
++import _root_.scala.concurrent.{Await, ExecutionContext}
+ 
+ object Main extends Logging {
+ 
+-  val SESSION_KIND = "livy-repl.session.kind"
++  protected implicit def executor: ExecutionContext = ExecutionContext.global
++  protected implicit def jsonFormats: Formats = DefaultFormats
++
++  val SESSION_KIND = "livy.repl.session.kind"
+   val PYTHON_SESSION = "python"
+   val PYSPARK_SESSION = "pyspark"
+   val SCALA_SESSION = "scala"
+   val SPARK_SESSION = "spark"
+ 
+   def main(args: Array[String]): Unit = {
+-    val port = sys.env.getOrElse("PORT", "8999").toInt
++
++    val host = Option(System.getProperty("livy.repl.host"))
++      .orElse(sys.env.get("LIVY_HOST"))
++      .getOrElse("0.0.0.0")
++
++    val port = Option(System.getProperty("livy.repl.port"))
++      .orElse(sys.env.get("LIVY_PORT"))
++      .getOrElse("8999").toInt
++
++    val callbackUrl = Option(System.getProperty("livy.repl.callback-url"))
++      .orElse(sys.env.get("LIVY_CALLBACK_URL"))
+ 
+     if (args.length != 1) {
+       println("Must specify either `python`/`pyspark`/`scala/`spark` for the session kind")
+@@ -36,7 +52,7 @@ object Main extends Logging {
+         sys.exit(1)
+     }
+ 
+-    val server = new WebServer(port)
++    val server = new WebServer(host, port)
+ 
+     server.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+     server.context.addEventListener(new ScalatraListener)
+@@ -44,9 +60,32 @@ object Main extends Logging {
+     server.context.setInitParameter(SESSION_KIND, session_kind)
+ 
+     server.start()
+-    println("Starting livy-repl on port %s" format server.port)
+ 
+-    server.join()
++    try {
++      println("Starting livy-repl on port %s" format server.port)
++
++      // See if we want to notify someone that we've started on a url
++      callbackUrl.foreach { case callbackUrl_ =>
++        info(f"Notifying $callbackUrl_ that we're up")
++
++        var req = url(callbackUrl_).setContentType("application/json", "UTF-8")
++        req = req << write(Map(
++          "url" -> s"http://${server.host}:${server.port}"
++        ))
++
++        val rep = Http(req OK as.String)
++        rep.onFailure { case _ => server.stop() }
++
++        Await.result(rep, 10 seconds)
++      }
++
++    } finally {
++      server.join()
++      server.stop()
++
++      // Make sure to close all our outstanding http requests.
++      Http.shutdown()
++    }
+   }
+ }
+ 
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index 03275d6..b4fe554 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -55,6 +55,12 @@ class WebApp(session: Session) extends ScalatraServlet with FutureSupport with J
+     }
+   }
+ 
++  delete("/") {
++    session.close().onComplete { _ =>
++      System.exit(0)
++    }
++  }
++
+   error {
+     case e: JsonParseException => BadRequest(e.getMessage)
+     case e: MappingException => BadRequest(e.getMessage)
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+index e490ffc..2b714ef 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+@@ -5,12 +5,16 @@ import java.lang.ProcessBuilder.Redirect
+ import java.nio.file.Files
+ import java.util.concurrent.SynchronousQueue
+ 
++import com.cloudera.hue.livy.Utils
+ import com.cloudera.hue.livy.repl.Session
++import org.apache.spark.SparkContext
+ import org.json4s.jackson.JsonMethods._
+ import org.json4s.jackson.Serialization.write
+ import org.json4s.{DefaultFormats, JValue}
++import py4j.GatewayServer
+ 
+ import scala.annotation.tailrec
++import scala.collection.JavaConversions._
+ import scala.collection.mutable.ArrayBuffer
+ import scala.concurrent.{ExecutionContext, Future, Promise}
+ 
+@@ -23,13 +27,41 @@ object PythonSession {
+     create(createFakePySpark().toString)
+   }
+ 
++  private def pythonPath = {
++    val pythonPath = new ArrayBuffer[String]
++    pythonPath ++= Utils.jarOfClass(classOf[SparkContext])
++    pythonPath
++  }
++
+   private def create(driver: String) = {
++    val pythonExec = sys.env.getOrElse("PYSPARK_DRIVER_PYTHON", "python")
++
++    val gatewayServer = new GatewayServer(null, 0)
++    gatewayServer.start()
++
++    val builder = new ProcessBuilder(Seq(
++      pythonExec,
++      createFakeShell().toString
++    ))
++
++    val env = builder.environment()
++    env.put("PYTHONPATH", pythonPath.mkString(File.pathSeparator))
++    env.put("PYTHONUNBUFFERED", "YES")
++    env.put("PYSPARK_GATEWAY_PORT", "" + gatewayServer.getListeningPort)
++    env.put("SPARK_HOME", sys.env.getOrElse("SPARK_HOME", "."))
++
++    builder.redirectError(Redirect.INHERIT)
++
++    val process = builder.start()
++
++    /*
+     val fakeShell = createFakeShell()
+     val pb = new ProcessBuilder(driver, fakeShell.toString)
+     pb.redirectError(Redirect.INHERIT)
+     val process = pb.start()
++    */
+ 
+-    new PythonSession(process)
++    new PythonSession(process, gatewayServer)
+   }
+ 
+   private def createFakeShell(): File = {
+@@ -77,7 +109,7 @@ object PythonSession {
+   }
+ }
+ 
+-private class PythonSession(process: Process) extends Session {
++private class PythonSession(process: Process, gatewayServer: GatewayServer) extends Session {
+   private implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+   implicit val formats = DefaultFormats
+@@ -180,7 +212,10 @@ private class PythonSession(process: Process) extends Session {
+         synchronized {
+           val promise = Promise[Unit]()
+           queue.put(ShutdownRequest(promise))
+-          promise.future.map({ case () => thread.join() })
++          promise.future.map({ case () =>
++            thread.join()
++            gatewayServer.shutdown()
++          })
+         }
+     }
+   }
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+index 6e409e7..3948a0f 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+@@ -1,6 +1,5 @@
+ package com.cloudera.hue.livy.repl.scala
+ 
+-import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.repl.Session
+ import com.cloudera.hue.livy.repl.scala.interpreter.Interpreter
+ import org.json4s.jackson.JsonMethods._
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+index 02a1093..624c8b6 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+@@ -27,7 +27,7 @@ class Interpreter {
+   // We start up the ILoop in it's own class loader because the SparkILoop store
+   // itself in a global variable.
+   private val iloop = {
+-    val classLoader = new ClassLoader {}
++    val classLoader = new ILoopClassLoader(classOf[Interpreter].getClassLoader)
+     val cls = classLoader.loadClass(classOf[ILoop].getName)
+     val constructor = cls.getConstructor(classOf[SynchronousQueue[Request]])
+     constructor.newInstance(queue).asInstanceOf[ILoop]
+@@ -59,6 +59,8 @@ class Interpreter {
+   }
+ }
+ 
++private class ILoopClassLoader(classLoader: ClassLoader) extends ClassLoader(classLoader) { }
++
+ private sealed trait Request
+ private case class ExecuteRequest(code: String, promise: Promise[ExecuteResponse]) extends Request
+ private case class ShutdownRequest(promise: Promise[Unit]) extends Request
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+index 9d21adc..5009656 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+@@ -1,8 +1,8 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import com.cloudera.hue.livy.repl.python.PythonSession
+-import org.json4s.{DefaultFormats, Extraction}
+-import org.scalatest._
++import org.json4s.{Extraction, DefaultFormats}
++import org.scalatest.{BeforeAndAfter, FunSpec}
+ import org.scalatest.matchers.ShouldMatchers
+ 
+ import _root_.scala.concurrent.Await
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index 5632f8d..268be42 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -27,116 +27,63 @@
+         <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <artifactId>livy-server</artifactId>
++    <artifactId>livy-server_2.10</artifactId>
+     <packaging>jar</packaging>
+ 
+     <dependencies>
+ 
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-core</artifactId>
++            <artifactId>livy-core_${scala.binary.version}</artifactId>
+             <version>${project.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-yarn</artifactId>
++            <artifactId>livy-repl_${scala.binary.version}</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-yarn_${scala.binary.version}</artifactId>
+             <version>${project.version}</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>org.eclipse.jetty</groupId>
+-                    <artifactId>jetty-server</artifactId>
+-                </exclusion>
+-            </exclusions>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+-            <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>${json4s.version}</version>
++            <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+         <dependency>
+             <groupId>net.databinder.dispatch</groupId>
+-            <artifactId>dispatch-core_2.10</artifactId>
+-            <version>${dispatch.version}</version>
++            <artifactId>dispatch-core_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+         <dependency>
+             <groupId>net.databinder.dispatch</groupId>
+-            <artifactId>dispatch-json4s-jackson_2.10</artifactId>
+-            <version>${dispatch.version}</version>
++            <artifactId>dispatch-json4s-jackson_${scala.binary.version}</artifactId>
+         </dependency>
+ 
+-    </dependencies>
+-
+-    <build>
+-        <plugins>
+-
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <version>2.15.2</version>
+-                <executions>
+-                    <execution>
+-                        <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-dependency-plugin</artifactId>
+-                <version>2.9</version>
+-                <executions>
+-                    <execution>
+-                        <id>copy-dependencies</id>
+-                        <phase>prepare-package</phase>
+-                        <goals>
+-                            <goal>copy-dependencies</goal>
+-                        </goals>
+-                        <configuration>
+-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+-                            <overWriteReleases>false</overWriteReleases>
+-                            <overWriteSnapshots>false</overWriteSnapshots>
+-                            <overWriteIfNewer>true</overWriteIfNewer>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-jar-plugin</artifactId>
+-                <version>2.5</version>
+-                <configuration>
+-                    <archive>
+-                        <manifest>
+-                            <addClasspath>true</addClasspath>
+-                            <classpathPrefix>lib/</classpathPrefix>
+-                            <mainClass>com.cloudera.hue.livy.server.Main</mainClass>
+-                        </manifest>
+-                    </archive>
+-                </configuration>
+-            </plugin>
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-common</artifactId>
++            <scope>provided</scope>
++        </dependency>
+ 
+-        </plugins>
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-client</artifactId>
++            <scope>provided</scope>
++        </dependency>
+ 
+-    </build>
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-api</artifactId>
++            <version>${hadoop.version}</version>
++            <scope>provided</scope>
++        </dependency>
+ 
+-    <reporting>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </reporting>
++    </dependencies>
+ 
+ </project>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index d1d13cc..1ec1f92 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -2,7 +2,7 @@ package com.cloudera.hue.livy.server
+ 
+ import javax.servlet.ServletContext
+ 
+-import com.cloudera.hue.livy.WebServer
++import com.cloudera.hue.livy.{LivyConf, WebServer}
+ import org.scalatra._
+ import org.scalatra.servlet.ScalatraListener
+ 
+@@ -14,6 +14,11 @@ object Main {
+   val YARN_SESSION = "yarn"
+ 
+   def main(args: Array[String]): Unit = {
++    val host = Option(System.getProperty("livy.server.host"))
++      .getOrElse("0.0.0.0")
++
++    val port = Option(System.getProperty("livy.server.port"))
++      .getOrElse("8998").toInt
+ 
+     if (args.length != 1) {
+       println("Must specify either `thread`, `process`, or `yarn` for the session kind")
+@@ -29,9 +34,7 @@ object Main {
+         sys.exit(1)
+     }
+ 
+-    val port = sys.env.getOrElse("PORT", "8998").toInt
+-    val server = new WebServer(port)
+-
++    val server = new WebServer(host, port)
+ 
+     server.context.setResourceBase("src/main/com/cloudera/hue/livy/server")
+     server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+@@ -39,8 +42,16 @@ object Main {
+     server.context.setInitParameter(SESSION_KIND, session_kind)
+ 
+     server.start()
+-    server.join()
+-    server.stop()
++
++    try {
++      System.setProperty("livy.server.callback-url", f"http://${server.host}:${server.port}")
++    } finally {
++      server.join()
++      server.stop()
++
++      // Make sure to close all our outstanding http requests.
++      dispatch.Http.shutdown()
++    }
+   }
+ }
+ 
+@@ -49,10 +60,12 @@ class ScalatraBootstrap extends LifeCycle {
+   var sessionManager: SessionManager = null
+ 
+   override def init(context: ServletContext): Unit = {
++    val livyConf = new LivyConf()
++
+     val sessionFactory = context.getInitParameter(Main.SESSION_KIND) match {
+       case Main.THREAD_SESSION => new ThreadSessionFactory
+       case Main.PROCESS_SESSION => new ProcessSessionFactory
+-      case Main.YARN_SESSION => new YarnSessionFactory
++      case Main.YARN_SESSION => new YarnSessionFactory(livyConf)
+     }
+ 
+     sessionManager = new SessionManager(sessionFactory)
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index dc49b80..7850053 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -2,9 +2,9 @@ package com.cloudera.hue.livy.server
+ 
+ import java.util.UUID
+ 
++import com.cloudera.hue.livy.LivyConf
+ import com.cloudera.hue.livy.server.sessions._
+ import com.cloudera.hue.livy.yarn.Client
+-import org.apache.hadoop.yarn.conf.YarnConfiguration
+ 
+ import scala.concurrent.{ExecutionContext, Future}
+ 
+@@ -38,12 +38,9 @@ class ProcessSessionFactory extends SessionFactory {
+   }
+ }
+ 
+-class YarnSessionFactory extends SessionFactory {
++class YarnSessionFactory(livyConf: LivyConf) extends SessionFactory {
+ 
+-  val yarnConf = new YarnConfiguration()
+-  yarnConf.set("yarn.resourcemanager.am.max-attempts", "1")
+-
+-  val client = new Client(yarnConf)
++  val client = new Client(livyConf)
+ 
+   override def createSession(lang: String): Future[Session] = {
+     val id = UUID.randomUUID().toString
+@@ -53,4 +50,4 @@ class YarnSessionFactory extends SessionFactory {
+   override def close(): Unit = {
+     client.close()
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 5ae3e77..0cedd2c 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.server
+ 
++import java.net.URL
++
+ import com.cloudera.hue.livy.Logging
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.sessions.Session
+@@ -16,6 +18,8 @@ object WebApp extends Logging {
+   case class CreateSessionRequest(lang: String)
+ }
+ 
++case class CallbackRequest(url: String)
++
+ class WebApp(sessionManager: SessionManager)
+   extends ScalatraServlet
+   with FutureSupport
+@@ -63,12 +67,27 @@ class WebApp(sessionManager: SessionManager)
+     new AsyncResult { val is = rep }
+   }
+ 
++  post("/sessions/:sessionId/callback") {
++    val callback = parsedBody.extract[CallbackRequest]
++
++    sessionManager.get(params("sessionId")) match {
++      case Some(session) =>
++        if (session.state == Session.Starting()) {
++          session.url = new URL(callback.url)
++          Accepted()
++        } else {
++          BadRequest("Session is in wrong state")
++        }
++      case None => NotFound("Session not found")
++    }
++  }
++
+   post("/sessions/:sessionId/stop") {
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+         val future = session.stop()
+ 
+-        new AsyncResult() { val is = for { _ <- future } yield NoContent }
++        new AsyncResult() { val is = for { _ <- future } yield NoContent() }
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -81,7 +100,7 @@ class WebApp(sessionManager: SessionManager)
+         } yield Accepted()
+ 
+         // FIXME: this is silently eating exceptions.
+-        new AsyncResult() { val is = for { _ <- future } yield NoContent }
++        new AsyncResult() { val is = for { _ <- future } yield NoContent() }
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -91,7 +110,7 @@ class WebApp(sessionManager: SessionManager)
+       _ <- sessionManager.delete(params("sessionId"))
+     } yield Accepted()
+ 
+-    new AsyncResult() { val is = for { _ <- future } yield NoContent }
++    new AsyncResult() { val is = for { _ <- future } yield NoContent() }
+   }
+ 
+   get("/sessions/:sessionId/statements") {
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+index b21ff5a..57bd60e 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+ import java.lang.ProcessBuilder.Redirect
++import java.net.URL
+ 
+ import com.cloudera.hue.livy.Logging
+ import com.cloudera.hue.livy.server.sessions.Session.SessionFailedToStart
+@@ -14,56 +15,27 @@ object ProcessSession extends Logging {
+   val LIVY_REPL = LIVY_HOME + "/bin/livy-repl"
+ 
+   def create(id: String, lang: String): Session = {
+-    val (process, port) = startProcess(lang)
+-    new ProcessSession(id, process, port)
++    val process = startProcess(id, lang)
++    new ProcessSession(id, process)
+   }
+ 
+   // Loop until we've started a process with a valid port.
+-  private def startProcess(lang: String): (Process, Int) = {
+-    val regex = """Starting livy-repl on port (\d+)""".r
++  private def startProcess(id: String, lang: String): Process = {
++    val pb = new ProcessBuilder(LIVY_REPL, lang)
+ 
+-    @tailrec
+-    def parsePort(lines: Iterator[String]): Option[Int] = {
+-      if (lines.hasNext) {
+-        val line = lines.next()
+-        info("shell output: %s" format line)
++    val callbackUrl = System.getProperty("livy.server.callback-url")
++    pb.environment().put("LIVY_CALLBACK_URL", f"$callbackUrl/sessions/$id/callback")
++    pb.environment().put("LIVY_PORT", "0")
+ 
+-        line match {
+-          case regex(port_) => Some(port_.toInt)
+-          case _ => parsePort(lines)
+-        }
+-      } else {
+-        None
+-      }
+-    }
+-
+-    def startProcess(lang: String): (Process, Int) = {
+-      val pb = new ProcessBuilder(LIVY_REPL, lang)
+-      pb.environment().put("PORT", "0")
+-      pb.redirectError(Redirect.INHERIT)
+-      val process = pb.start()
++    pb.redirectOutput(Redirect.INHERIT)
++    pb.redirectError(Redirect.INHERIT)
+ 
+-      val source = Source.fromInputStream(process.getInputStream)
+-      val lines = source.getLines()
+-
+-      parsePort(lines) match {
+-        case Some(port) => {
+-          source.close()
+-          process.getInputStream.close()
+-          (process, port)
+-        }
+-        case None =>
+-          // Make sure to reap the process.
+-          process.waitFor()
+-          throw new SessionFailedToStart("Couldn't start livy-repl")
+-      }
+-    }
++    pb.start()
+ 
+-    startProcess(lang)
+   }
+ }
+ 
+-private class ProcessSession(id: String, process: Process, port: Int) extends WebSession(id, "localhost", port) {
++private class ProcessSession(id: String, process: Process) extends WebSession(id) {
+ 
+   override def stop(): Future[Unit] = {
+     super.stop() andThen { case r =>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+index 68ea19e..911be72 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
++import java.net.URL
++
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
+ 
+@@ -10,6 +12,7 @@ object Session {
+   case class Starting() extends State
+   case class Idle() extends State
+   case class Busy() extends State
++  case class Error() extends State
+   case class Dead() extends State
+ 
+   class SessionFailedToStart(msg: String) extends Exception(msg)
+@@ -26,6 +29,10 @@ trait Session {
+ 
+   def state: State
+ 
++  def url: Option[URL]
++
++  def url_=(url: URL)
++
+   def executeStatement(content: ExecuteRequest): Statement
+ 
+   def statement(statementId: Int): Option[Statement]
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+index 39f8287..e15f642 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
++import java.net.URL
++
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.repl
+ import com.cloudera.hue.livy.repl.python.PythonSession
+@@ -41,6 +43,10 @@ private class ThreadSession(val id: String, session: com.cloudera.hue.livy.repl.
+     }
+   }
+ 
++  override def url: Option[URL] = None
++
++  override def url_=(url: URL): Unit = {}
++
+   override def executeStatement(content: ExecuteRequest): Statement = {
+     val statement = new Statement(executedStatements, content, session.execute(content.code))
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index f0f08fb..a816a0b 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
++import java.net.URL
++
+ import com.cloudera.hue.livy._
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
+@@ -12,18 +14,33 @@ import scala.annotation.tailrec
+ import scala.collection.mutable.ArrayBuffer
+ import scala.concurrent.{Future, _}
+ 
+-abstract class WebSession(val id: String, hostname: String, port: Int) extends Session with Logging {
++class WebSession(val id: String) extends Session with Logging {
+ 
+   protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+   protected implicit def jsonFormats: Formats = DefaultFormats
+ 
++  protected[this] var _state: State = Starting()
++
+   private[this] var _lastActivity = Long.MaxValue
+-  private[this] var _state: State = Idle()
+-  private[this] val svc = host(hostname, port)
++  private[this] var _url: Option[URL] = None
+ 
+   private[this] var executedStatements = 0
+   private[this] var statements_ = new ArrayBuffer[Statement]
+ 
++  override def url: Option[URL] = _url
++
++  override def url_=(url: URL) = {
++    ensureState(Session.Starting(), {
++      _state = Idle()
++      _url = Some(url)
++    })
++  }
++
++  private def svc = {
++    val url = _url.head
++    dispatch.url(url.toString)
++  }
++
+   override def lastActivity: Long = _lastActivity
+ 
+   override def state: State = _state
+@@ -57,9 +74,7 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+   override def statements(): Seq[Statement] = statements_.toSeq
+ 
+   override def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement] = {
+-    ensureRunning {
+-      statements_.slice(fromIndex, toIndex).toSeq
+-    }
++    statements_.slice(fromIndex, toIndex).toSeq
+   }
+ 
+   override def interrupt(): Future[Unit] = {
+@@ -87,7 +102,7 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+           Future {
+             waitForStateChangeFrom(Busy(), { stop() })
+           }
+-        case Dead() =>
++        case Error() | Dead() =>
+           Future.successful(Unit)
+       }
+     }
+@@ -111,9 +126,9 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+     _lastActivity = System.currentTimeMillis()
+   }
+ 
+-  private def ensureIdle[A](f: => A) = {
++  private def ensureState[A](state: State, f: => A) = {
+     synchronized {
+-      if (_state == Idle()) {
++      if (_state == state) {
+         f
+       } else {
+         throw new IllegalStateException("Session is in state %s" format _state)
+@@ -121,6 +136,10 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+     }
+   }
+ 
++  private def ensureIdle[A](f: => A) = {
++    ensureState(Idle(), f)
++  }
++
+   private def ensureRunning[A](f: => A) = {
+     synchronized {
+       _state match {
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
+index 4f1fc50..113c4c2 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
+@@ -1,54 +1,37 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+ import com.cloudera.hue.livy.yarn.{Client, Job}
+-import org.apache.hadoop.fs.Path
+-import org.apache.hadoop.yarn.api.ApplicationConstants
+ 
+-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, TimeoutException}
++import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
++import scala.concurrent.duration._
+ 
+ object YarnSession {
+-  private val LIVY_YARN_PACKAGE = System.getenv("LIVY_YARN_PACKAGE")
+-
+   protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+ 
+   def create(client: Client, id: String, lang: String): Future[Session] = {
+-    val packagePath = new Path(LIVY_YARN_PACKAGE)
+-
+-    val job = client.submitApplication(
+-      "livy " + lang,
+-      packagePath,
+-      List(
+-        "__package/bin/run-am.sh %s 1>%s/stdout 2>%s/stderr" format (
+-          lang,
+-          ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+-          ApplicationConstants.LOG_DIR_EXPANSION_VAR
+-          )
+-      )
+-    )
+-
+-    Future {
+-      var x = job.waitForRPC(100000)
+-
+-      println("x: %s" format x)
++    val callbackUrl = System.getProperty("livy.server.callback-url")
++    val job = client.submitApplication(id, lang, callbackUrl)
+ 
+-      x match {
+-        case Some((hostname, port)) =>
+-          new YarnSession(id, job, hostname, port)
+-        case None =>
+-          throw new TimeoutException()
+-      }
+-    }
++    Future.successful(new YarnSession(id, job))
+   }
+ }
+ 
+-private class YarnSession(id: String, job: Job, hostname: String, port: Int)
+-  extends WebSession(id, hostname, port) {
++private class YarnSession(id: String, job: Future[Job]) extends WebSession(id) {
++  job.onFailure { case _ =>
++    _state = Session.Error()
++  }
+ 
+   override def stop(): Future[Unit] = {
+-    super.stop() andThen { case r =>
+-      job.waitForFinish(10000)
+-      r
++    super.stop().andThen {
++      case _ =>
++        try {
++          val job_ = Await.result(job, 1 second)
++          job_.waitForFinish(10000)
++        } catch {
++          case e: Throwable =>
++            _state = Session.Error()
++            throw e
++        }
+     }
+   }
+-
+ }
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 14bc232..711b083 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -10,7 +10,7 @@
+         <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <artifactId>livy-yarn</artifactId>
++    <artifactId>livy-yarn_2.10</artifactId>
+     <packaging>jar</packaging>
+ 
+     <properties>
+@@ -23,66 +23,37 @@
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-common</artifactId>
+-            <version>${hadoop.version}</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>javax.servlet</groupId>
+-                    <artifactId>servlet-api</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>org.mortbay.jetty</groupId>
+-                    <artifactId>jetty</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>org.mortbay.jetty</groupId>
+-                    <artifactId>jetty-util</artifactId>
+-                </exclusion>
+-                <exclusion>
+-                    <groupId>org.slf4j</groupId>
+-                    <artifactId>slf4j-log4j12</artifactId>
+-                </exclusion>
+-            </exclusions>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-client</artifactId>
+-            <version>${hadoop.version}</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>javax.servlet</groupId>
+-                    <artifactId>servlet-api</artifactId>
+-                </exclusion>
+-            </exclusions>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.hadoop</groupId>
+-            <artifactId>hadoop-yarn-api</artifactId>
+-            <version>${hadoop.version}</version>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>org.scala-lang</groupId>
+-            <artifactId>scala-library</artifactId>
+-            <version>${scala.version}</version>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-core_${scala.binary.version}</artifactId>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-webapp</artifactId>
+-            <version>8.1.14.v20131031</version>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-yarn_${scala.binary.version}</artifactId>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-core</artifactId>
+-            <version>${project.version}</version>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-api</artifactId>
++            <version>${hadoop.version}</version>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-repl</artifactId>
++            <artifactId>livy-repl_${scala.binary.version}</artifactId>
+             <version>${project.version}</version>
+             <exclusions>
+                 <exclusion>
+@@ -92,97 +63,6 @@
+             </exclusions>
+         </dependency>
+ 
+-        <dependency>
+-            <groupId>ch.qos.logback</groupId>
+-            <artifactId>logback-classic</artifactId>
+-            <version>${logback.version}</version>
+-        </dependency>
+-
+     </dependencies>
+ 
+-    <build>
+-        <plugins>
+-
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <version>2.15.2</version>
+-                <executions>
+-                    <execution>
+-                        <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <artifactId>maven-assembly-plugin</artifactId>
+-                <version>2.4</version>
+-                <executions>
+-                    <execution>
+-                        <id>make-bundles</id>
+-                        <goals>
+-                            <goal>single</goal>
+-                        </goals>
+-                        <phase>package</phase>
+-                        <configuration>
+-                            <descriptors>
+-                                <descriptor>src/main/assembly/dist.xml</descriptor>
+-                            </descriptors>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-dependency-plugin</artifactId>
+-                <executions>
+-                    <execution>
+-                        <id>copy-dependencies</id>
+-                        <phase>prepare-package</phase>
+-                        <goals>
+-                            <goal>copy-dependencies</goal>
+-                        </goals>
+-                        <configuration>
+-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+-                            <overWriteReleases>false</overWriteReleases>
+-                            <overWriteSnapshots>false</overWriteSnapshots>
+-                            <overWriteIfNewer>true</overWriteIfNewer>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-jar-plugin</artifactId>
+-                <configuration>
+-                    <archive>
+-                        <manifest>
+-                            <addClasspath>true</addClasspath>
+-                            <classpathPrefix>lib/</classpathPrefix>
+-                            <mainClass>com.cloudera.hue.livy.yarn.Client</mainClass>
+-                        </manifest>
+-                    </archive>
+-                </configuration>
+-            </plugin>
+-
+-        </plugins>
+-    </build>
+-
+-    <reporting>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </reporting>
+-
+ </project>
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+deleted file mode 100644
+index 6cd7e48..0000000
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ /dev/null
+@@ -1,90 +0,0 @@
+-package com.cloudera.hue.livy.yarn
+-
+-import com.cloudera.hue.livy.repl.ScalatraBootstrap
+-import com.cloudera.hue.livy.{WebServer, Logging}
+-import org.apache.hadoop.yarn.api.ApplicationConstants
+-import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+-import org.apache.hadoop.yarn.client.api.AMRMClient
+-import org.apache.hadoop.yarn.conf.YarnConfiguration
+-import org.apache.hadoop.yarn.util.ConverterUtils
+-import org.apache.spark.repl.Main
+-import org.scalatra.servlet.ScalatraListener
+-
+-object AppMaster extends Logging {
+-
+-  val SESSION_KIND = "livy-repl.session.kind"
+-
+-  def main(args: Array[String]): Unit = {
+-    val lang = args(0)
+-
+-    val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
+-    info("got container id: %s" format containerIdString)
+-    val containerId = ConverterUtils.toContainerId(containerIdString)
+-
+-    val appAttemptId = containerId.getApplicationAttemptId
+-    info("got app attempt id: %s" format containerIdString)
+-
+-    val nodeHostString = System.getenv(ApplicationConstants.Environment.NM_HOST.toString)
+-    info("got node manager host: %s" format nodeHostString)
+-
+-    val nodePortString = System.getenv(ApplicationConstants.Environment.NM_PORT.toString)
+-    info("got node manager port: %s" format nodePortString)
+-
+-    val yarnConfig = new YarnConfiguration()
+-    val service = new AppMasterService(yarnConfig, nodeHostString, lang)
+-    service.run()
+-  }
+-
+-}
+-
+-class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String, lang: String) extends Logging {
+-  val webServer = new WebServer(0)
+-  val amRMClient = AMRMClient.createAMRMClient()
+-  amRMClient.init(yarnConfig)
+-
+-  webServer.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-  webServer.context.addEventListener(new ScalatraListener)
+-  webServer.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+-  webServer.context.setInitParameter(AppMaster.SESSION_KIND, lang)
+-
+-  def run(): Unit = {
+-    webServer.start()
+-    try {
+-      amRMClient.start()
+-
+-      try {
+-        // Now that the server is up and running register it with YARN.
+-        val response = amRMClient.registerApplicationMaster(nodeHostString, webServer.port, "%s:%s" format(nodeHostString, webServer.port))
+-
+-        val maxMem = response.getMaximumResourceCapability.getMemory
+-        info("max mem capacity on this cluster: %s" format maxMem)
+-
+-        val maxVCores = response.getMaximumResourceCapability.getVirtualCores
+-        info("max vcore capacity on this cluster: %s" format maxMem)
+-
+-        var isShutdown = false
+-
+-        while (!isShutdown) {
+-          try {
+-            Thread.sleep(1000)
+-          } catch {
+-            case e: InterruptedException => {
+-              isShutdown = true
+-            }
+-          }
+-        }
+-      } finally {
+-        val appStatus = FinalApplicationStatus.SUCCEEDED
+-        val appMessage = "wee"
+-
+-        amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
+-        amRMClient.stop()
+-      }
+-    } finally {
+-      webServer.stop()
+-    }
+-  }
+-}
+-
+-
+-
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index a25fc21..5d5fac6 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -1,151 +1,95 @@
+ package com.cloudera.hue.livy.yarn
+ 
+-import com.cloudera.hue.livy.Logging
+-import org.apache.hadoop.fs.{FileSystem, Path}
+-import org.apache.hadoop.yarn.api.ApplicationConstants
+-import org.apache.hadoop.yarn.api.records._
++import java.io.{BufferedReader, InputStreamReader}
++import java.lang.ProcessBuilder.Redirect
++
++import com.cloudera.hue.livy.{LivyConf, Logging, Utils}
++import org.apache.hadoop.yarn.api.records.{ApplicationId, FinalApplicationStatus, YarnApplicationState}
+ import org.apache.hadoop.yarn.client.api.YarnClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+-import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
++import org.apache.hadoop.yarn.util.ConverterUtils
+ 
+-import scala.collection.JavaConversions._
++import scala.annotation.tailrec
++import scala.concurrent.{ExecutionContext, Future}
+ 
+ object Client extends Logging {
+-
+-  def main(args: Array[String]): Unit = {
+-    val packagePath = new Path(args(0))
+-    val lang = args(1)
+-
+-    val yarnConf = new YarnConfiguration()
+-    yarnConf.set("yarn.resourcemanager.am.max-attempts", "1")
+-
+-    val client = new Client(yarnConf)
+-
+-    try {
+-      val job = client.submitApplication(
+-        "livy " + lang,
+-        packagePath,
+-        List(
+-          "__package/bin/run-am.sh %s 1>%s/stdout 2>%s/stderr" format (
+-            lang,
+-            ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+-            ApplicationConstants.LOG_DIR_EXPANSION_VAR
+-          )
+-        )
+-      )
+-
+-      info("waiting for job to start")
+-
+-      job.waitForStatus(Running(), 100000) match {
+-        case Some(Running()) => {
+-          info("job started successfully on %s:%s" format(job.getHost, job.getPort))
+-        }
+-        case Some(appStatus) => {
+-          warn("unable to start job successfully. job has status %s" format appStatus)
+-        }
+-        case None => {
+-          warn("timed out waiting for job to start")
+-        }
+-      }
+-
+-    } finally {
+-      client.close()
++  private val LIVY_JAR = "__livy__.jar"
++  private val CONF_LIVY_JAR = "livy.yarn.jar"
++  private val LOCAL_SCHEME = "local"
++  private lazy val regex = """Application report for (\w+)""".r.unanchored
++
++  private def livyJar(conf: LivyConf) = {
++    if (conf.contains(CONF_LIVY_JAR)) {
++      conf.get(CONF_LIVY_JAR)
++    } else {
++      Utils.jarOfClass(classOf[Client]).head
+     }
+   }
+ }
+ 
+-class Client(yarnConf: YarnConfiguration) {
++class FailedToSubmitApplication extends Exception
+ 
++class Client(livyConf: LivyConf) extends Logging {
+   import com.cloudera.hue.livy.yarn.Client._
+ 
++  protected implicit def executor: ExecutionContext = ExecutionContext.global
++
++  val yarnConf = new YarnConfiguration()
+   val yarnClient = YarnClient.createYarnClient()
+   yarnClient.init(yarnConf)
+   yarnClient.start()
+ 
+-  def submitApplication(name: String, packagePath: Path, cmds: List[String]): Job = {
+-    val app = yarnClient.createApplication()
+-    val newAppResponse = app.getNewApplicationResponse
+-
+-    val appId = newAppResponse.getApplicationId
+-
+-    info("preparing to submit %s" format appId)
+-
+-    val appContext = app.getApplicationSubmissionContext
+-    appContext.setApplicationName(name)
+-
+-    val containerCtx = Records.newRecord(classOf[ContainerLaunchContext])
+-    val resource = Records.newRecord(classOf[Resource])
+-
+-    info("Copy app master jar from local filesystem and add to the local environment")
++  def submitApplication(id: String, lang: String, callbackUrl: String): Future[Job] = {
++    Future {
++      val url = f"$callbackUrl/sessions/$id/callback"
++
++      val builder: ProcessBuilder = new ProcessBuilder(
++        "spark-submit",
++        "--master", "yarn-cluster",
++        "--class", "com.cloudera.hue.livy.repl.Main",
++        "--driver-java-options", f"-Dlivy.repl.callback-url=$url -Dlivy.repl.port=0",
++        Utils.jarOfClass(classOf[Client]).head,
++        lang
++      )
+ 
+-    val packageResource = Records.newRecord(classOf[LocalResource])
++      builder.redirectOutput(Redirect.PIPE)
++      builder.redirectErrorStream(true)
+ 
+-    val packageUrl = ConverterUtils.getYarnUrlFromPath(packagePath)
+-    val fileStatus = packagePath.getFileSystem(yarnConf).getFileStatus(packagePath)
++      val process = builder.start()
+ 
+-    packageResource.setResource(packageUrl)
+-    info("set package url to %s for %s" format (packageUrl, appId))
+-    packageResource.setSize(fileStatus.getLen)
+-    info("set package size to %s for %s" format (fileStatus.getLen, appId))
+-    packageResource.setTimestamp(fileStatus.getModificationTime)
+-    packageResource.setType(LocalResourceType.ARCHIVE)
+-    packageResource.setVisibility(LocalResourceVisibility.APPLICATION)
++      val stdout = new BufferedReader(new InputStreamReader(process.getInputStream), 1)
+ 
+-    resource.setMemory(256)
+-    resource.setVirtualCores(1)
+-    appContext.setResource(resource)
++      val applicationId = parseApplicationId(stdout).getOrElse(throw new FailedToSubmitApplication)
+ 
+-    containerCtx.setCommands(cmds)
+-    containerCtx.setLocalResources(Map("__package" -> packageResource))
++      // Application has been submitted, so we don't need to keep the process around anymore.
++      stdout.close()
++      process.destroy()
+ 
+-    // FIXME: Spark needs the `MASTER` environment passed through to run on YARN. This needs a better approach.
+-    val master = System.getenv("MASTER")
+-    if (master != null) {
+-      containerCtx.getEnvironment()("MASTER") = master
++      new Job(yarnClient, ConverterUtils.toApplicationId(applicationId))
+     }
+-
+-    // FIXME: Spark needs the `SPARK_HOME` environment passed through to run on YARN. This needs a better approach.
+-    val spark_home = System.getenv("SPARK_HOME")
+-    if (spark_home != null) {
+-      containerCtx.getEnvironment()("SPARK_HOME") = spark_home
+-    }
+-
+-    appContext.setApplicationId(appId)
+-    appContext.setAMContainerSpec(containerCtx)
+-    appContext.setApplicationType("livy")
+-
+-    info("submitting application request for %s" format appId)
+-
+-    yarnClient.submitApplication(appContext)
+-
+-    new Job(yarnClient, appId)
+   }
+ 
+-  def close(): Unit = {
++  def close() = {
+     yarnClient.close()
+   }
+ 
+-  private def addToLocalResources(fs: FileSystem, fileSrcPath: String, fileDstPath: String, appId: String): LocalResource = {
+-    val appName = "livy"
+-    val suffix = appName + "/" + appId + "/" + fileDstPath
+-
+-    val dst = new Path(fs.getHomeDirectory, suffix)
+-
+-    fs.copyFromLocalFile(new Path(fileSrcPath), dst)
++  @tailrec
++  private def parseApplicationId(stdout: BufferedReader): Option[String] = {
++    Option(stdout.readLine()) match {
++      case Some(line) =>
++        info(f"shell output: $line")
+ 
+-    val srcFileStatus = fs.getFileStatus(dst)
+-    LocalResource.newInstance(
+-      ConverterUtils.getYarnUrlFromURI(dst.toUri),
+-      LocalResourceType.FILE,
+-      LocalResourceVisibility.APPLICATION,
+-      srcFileStatus.getLen,
+-      srcFileStatus.getModificationTime
+-    )
++        line match {
++          case regex(applicationId) => Some(applicationId)
++          case _ => parseApplicationId(stdout)
++        }
++      case None =>
++        None
++    }
+   }
+ }
+ 
+-class Job(client: YarnClient, appId: ApplicationId) {
+-
++class Job(yarnClient: YarnClient, appId: ApplicationId) {
+   def waitForFinish(timeoutMs: Long): Option[ApplicationStatus] = {
+     val startTimeMs = System.currentTimeMillis()
+ 
+@@ -184,7 +128,7 @@ class Job(client: YarnClient, appId: ApplicationId) {
+     val startTimeMs = System.currentTimeMillis()
+ 
+     while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
+-      val statusResponse = client.getApplicationReport(appId)
++      val statusResponse = yarnClient.getApplicationReport(appId)
+ 
+       (statusResponse.getHost, statusResponse.getRpcPort) match {
+         case ("N/A", _) | (_, -1) =>
+@@ -196,17 +140,17 @@ class Job(client: YarnClient, appId: ApplicationId) {
+   }
+ 
+   def getHost: String = {
+-    val statusResponse = client.getApplicationReport(appId)
++    val statusResponse = yarnClient.getApplicationReport(appId)
+     statusResponse.getHost
+   }
+ 
+   def getPort: Int = {
+-    val statusResponse = client.getApplicationReport(appId)
++    val statusResponse = yarnClient.getApplicationReport(appId)
+     statusResponse.getRpcPort
+   }
+ 
+   private def getStatus: ApplicationStatus = {
+-    val statusResponse = client.getApplicationReport(appId)
++    val statusResponse = yarnClient.getApplicationReport(appId)
+     convertState(statusResponse.getYarnApplicationState, statusResponse.getFinalApplicationStatus)
+   }
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
+deleted file mode 100644
+index 583d40d..0000000
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package com.cloudera.hue.livy.yarn
+-
+-import org.apache.hadoop.conf.Configuration
+-
+-class YarnJob(config: Configuration) {
+-
+-  //val client = new Client
+-
+-}
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 76bd5e7..f8a48ac 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -53,6 +53,7 @@
+         <json4s.version>3.2.11</json4s.version>
+         <logback.version>1.1.2</logback.version>
+         <scala.version>2.10.3</scala.version>
++        <scala.binary.version>2.10</scala.binary.version>
+         <scalatra.version>2.2.1</scalatra.version>
+         <dispatch.version>0.11.2</dispatch.version>
+     </properties>
+@@ -60,10 +61,120 @@
+     <modules>
+         <module>livy-core</module>
+         <module>livy-repl</module>
+-        <module>livy-server</module>
+         <module>livy-yarn</module>
++        <module>livy-server</module>
++        <module>livy-assembly</module>
+     </modules>
+ 
++    <dependencyManagement>
++        <dependencies>
++
++            <dependency>
++                <groupId>ch.qos.logback</groupId>
++                <artifactId>logback-classic</artifactId>
++                <version>${logback.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>ch.qos.logback</groupId>
++                <artifactId>logback-access</artifactId>
++                <version>${logback.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-server</artifactId>
++                <version>${jetty.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-webapp</artifactId>
++                <version>${jetty.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.scalatra</groupId>
++                <artifactId>scalatra_${scala.binary.version}</artifactId>
++                <version>${scalatra.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.scalatra</groupId>
++                <artifactId>scalatra-jetty_${scala.binary.version}</artifactId>
++                <version>${scalatra.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.scalatra</groupId>
++                <artifactId>scalatra-scalatest_${scala.binary.version}</artifactId>
++                <version>${scalatra.version}</version>
++                <scope>test</scope>
++            </dependency>
++
++            <dependency>
++                <groupId>org.scalatra</groupId>
++                <artifactId>scalatra-json_${scala.binary.version}</artifactId>
++                <version>${scalatra.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.json4s</groupId>
++                <artifactId>json4s_${scala.binary.version}</artifactId>
++                <version>${json4s.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.json4s</groupId>
++                <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
++                <version>${json4s.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.hadoop</groupId>
++                <artifactId>hadoop-common</artifactId>
++                <version>${hadoop.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.hadoop</groupId>
++                <artifactId>hadoop-yarn-client</artifactId>
++                <version>${hadoop.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.hadoop</groupId>
++                <artifactId>hadoop-yarn-api</artifactId>
++                <version>${hadoop.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.spark</groupId>
++                <artifactId>spark-core_${scala.binary.version}</artifactId>
++                <version>${spark.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.spark</groupId>
++                <artifactId>spark-yarn_${scala.binary.version}</artifactId>
++                <version>${spark.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>net.databinder.dispatch</groupId>
++                <artifactId>dispatch-core_${scala.binary.version}</artifactId>
++                <version>${dispatch.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>net.databinder.dispatch</groupId>
++                <artifactId>dispatch-json4s-jackson_${scala.binary.version}</artifactId>
++                <version>${dispatch.version}</version>
++            </dependency>
++
++        </dependencies>
++    </dependencyManagement>
++
+     <build>
+         <pluginManagement>
+             <plugins>
+@@ -138,6 +249,63 @@
+                     <version>2.4.0</version>
+                 </plugin>
+ 
++                <plugin>
++                    <groupId>net.alchim31.maven</groupId>
++                    <artifactId>scala-maven-plugin</artifactId>
++                    <version>3.2.0</version>
++                    <executions>
++                        <execution>
++                            <goals>
++                                <goal>compile</goal>
++                                <goal>testCompile</goal>
++                            </goals>
++                        </execution>
++                    </executions>
++                    <configuration>
++                        <scalaVersion>${scala.version}</scalaVersion>
++                    </configuration>
++                </plugin>
++
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-install-plugin</artifactId>
++                    <version>2.3.1</version>
++                </plugin>
++
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-shade-plugin</artifactId>
++                    <version>2.2</version>
++                </plugin>
++
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-surefire-plugin</artifactId>
++                    <version>2.7</version>
++                    <configuration>
++                        <skipTests>true</skipTests>
++                    </configuration>
++                </plugin>
++
++                <plugin>
++                    <groupId>org.scalatest</groupId>
++                    <artifactId>scalatest-maven-plugin</artifactId>
++                    <version>1.0</version>
++                    <configuration>
++                        <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
++                        <junitxml>.</junitxml>
++                        <filereports>WDF TestSuite.txt</filereports>
++                    </configuration>
++                    <executions>
++                        <execution>
++                            <id>test</id>
++                            <goals>
++                                <goal>test</goal>
++                            </goals>
++                        </execution>
++                    </executions>
++                </plugin>
++
+             </plugins>
+         </pluginManagement>
+ 
+@@ -193,20 +361,13 @@
+                 </configuration>
+             </plugin>
+ 
+-        </plugins>
+-
+-    </build>
+-
+-    <reporting>
+-        <plugins>
+             <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
++                <groupId>net.alchim31.maven</groupId>
++                <artifactId>scala-maven-plugin</artifactId>
+             </plugin>
++
+         </plugins>
+-    </reporting>
++
++    </build>
+ 
+ </project>
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 73c5b5c..241b409 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -16,6 +16,7 @@
+ # limitations under the License.
+ 
+ import json
++import os
+ import sys
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+@@ -47,6 +48,16 @@ LANGUAGES = Config(
+   ]"""
+ )
+ 
++LIVY_SESSION_KIND = Config(
++  key="livy_session_kind",
++  help=_t("Configure livy to start with thread, process, or yarn workers"),
++  default="thread")
++
++LIVY_ASSEMBLY_JAR = Config(
++  key="livy_assembly_jar",
++  help=_t("Path to livy-assembly.jar"),
++  private=True,
++  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-SNAPSHOT.jar"))
+ 
+ def get_spark_status(user):
+   from spark.job_server_api import get_api
+diff --git a/apps/spark/src/spark/management/commands/livy_server.py b/apps/spark/src/spark/management/commands/livy_server.py
+index fb5cff8..3e2824a 100644
+--- a/apps/spark/src/spark/management/commands/livy_server.py
++++ b/apps/spark/src/spark/management/commands/livy_server.py
+@@ -35,26 +35,22 @@ class Command(BaseCommand):
+ 
+     def handle(self, *args, **kwargs):
+         if not args:
+-          session_kind = 'thread'
++            session_kind = spark.conf.LIVY_SESSION_KIND.get()
+         else:
+-          session_kind = args[0].lower()
++            session_kind = args[0].lower()
+ 
++        jar = spark.conf.LIVY_ASSEMBLY_JAR.get()
+         env = os.environ.copy()
++        classpath = jar + os.path.pathsep + env.get('CLASSPATH', '')
+ 
+         args = [
+-          os.path.join(
+-            os.path.dirname(__file__),
+-            "..",
+-            "..",
+-            "..",
+-            "..",
+             "java",
+-            "bin",
+-            "livy-server"),
+-          session_kind,
++            "-cp", classpath,
++            "com.cloudera.hue.livy.server.Main",
++            session_kind,
+         ]
+ 
+         LOG.info("Executing %r (%r) (%r)" % (bin, args, env))
+ 
+         # Use exec, so that this takes only one process.
+-        os.execve(args[0], args, env)
++        os.execvpe(args[0], args, env)
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 677228e..472e08c 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -50,7 +50,7 @@
+     include the spark-repl.
+     <spark.version>${cdh.spark.version}</spark.version>
+     -->
+-    <spark.version>1.1.0</spark.version>
++    <spark.version>1.2.1</spark.version>
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+     <thrift.version>0.9.0</thrift.version>
+-- 
+1.7.9.5
+

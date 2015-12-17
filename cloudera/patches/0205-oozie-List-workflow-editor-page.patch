@@ -1,0 +1,318 @@
+From 01c9f47ebca5421f5c9b018c9548250104d1250c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 15 Oct 2014 21:26:58 -0400
+Subject: [PATCH 0205/1173] [oozie] List workflow editor page
+
+---
+ apps/oozie/src/oozie/models2.py                    |   56 +++++++++++++
+ .../templates/editor/list_editor_workflows.mako    |   44 ++++++++++
+ .../oozie/templates/editor/workflow_editor.mako    |   37 +++++++++
+ apps/oozie/src/oozie/urls.py                       |    7 +-
+ apps/oozie/src/oozie/views/editor2.py              |   86 ++++++++++++++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |    8 +-
+ 6 files changed, 232 insertions(+), 6 deletions(-)
+ create mode 100644 apps/oozie/src/oozie/models2.py
+ create mode 100644 apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+ create mode 100644 apps/oozie/src/oozie/views/editor2.py
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+new file mode 100644
+index 0000000..b0840f7
+--- /dev/null
++++ b/apps/oozie/src/oozie/models2.py
+@@ -0,0 +1,56 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import json
++import logging
++
++from django.utils.translation import ugettext as _
++
++from desktop.models import Document2
++
++
++LOG = logging.getLogger(__name__)
++
++
++class Workflow():
++  
++  def __init__(self, data=None, document=None):
++    self.document = document
++
++    if document is not None:
++      self.data = document.data
++    elif data is not None:
++      self.data = data
++    else:
++      self.data = json.dumps({
++          'layout': [
++              {"size":12,"rows":[{"widgets":[]}],"drops":["temp"],"klass":"card card-home card-column span2"}
++          ],
++           'workflow': {}
++      })
++      
++  def get_json(self):
++    _data = self.get_data()
++
++    if self.document is not None:
++      _data['workflow']['id'] = self.document.id  
++
++    return json.dumps(_data)
++ 
++  def get_data(self):
++    return json.loads(self.data)
++
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+new file mode 100644
+index 0000000..4db6d63
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -0,0 +1,44 @@
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  from desktop.views import commonheader, commonfooter
++  from django.utils.translation import ugettext as _
++%>
++<%namespace name="actionbar" file="../actionbar.mako" />
++<%namespace name="layout" file="../navigation-bar.mako" />
++<%namespace name="utils" file="../utils.inc.mako" />
++
++${ commonheader(_("Workflows"), "oozie", user) | n,unicode }
++${ layout.menubar(section='workflows') }
++
++
++<div class="container-fluid">
++  <div class="card card-small">
++  <h1 class="card-heading simple">${ _('Workflow Manager') }</h1>
++
++  % for workflow in workflows:
++    <div>
++      <a href="${ url('oozie:edit_workflow') }?workflow=${ workflow.id }">
++        ${ workflow.name }
++      </a>
++    </div>
++  % endfor
++
++  </div>
++</div>
++
++${commonfooter(messages) | n,unicode}
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index ea22f9f..5ff39de 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -85,6 +85,43 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ ${ dashboard.layout_skeleton() }
+ 
+ 
++<script type="text/html" id="hive-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Hive') }</a></li>
++        <li><a href="#files" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++        </div>
++        <div class="tab-pane" id="files">
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="pig-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 0f5f09c..884527c 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -70,9 +70,10 @@ urlpatterns = patterns(
+ urlpatterns += patterns(
+   'oozie.views.editor2',
+ 
+-  url(r'^editor/workflow/$', 'edit_workflow', name='edit_workflow'),
+-  url(r'^editor/workflow/new$', 'new_workflow', name='new_workflow'),
+-  url(r'^editor/workflow/save$', 'save_workflow', name='save_workflow'),
++  url(r'^editor/workflow/list/$', 'list_editor_workflows', name='list_editor_workflows'),
++  url(r'^editor/workflow/edit/$', 'edit_workflow', name='edit_workflow'),
++  url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),
++  url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+new file mode 100644
+index 0000000..80eb437
+--- /dev/null
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -0,0 +1,86 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import json
++import logging
++
++from django.core.urlresolvers import reverse
++from django.http import HttpResponse
++from django.shortcuts import redirect
++from django.utils.translation import ugettext as _
++
++from desktop.lib.django_util import render
++from desktop.models import Document2
++
++from oozie.models2 import Workflow
++
++
++LOG = logging.getLogger(__name__)
++
++
++
++def list_editor_workflows(request):
++  workflows = Document2.objects.filter(type='oozie-workflow2', owner=request.user)
++
++  return render('editor/list_editor_workflows.mako', request, {
++      'workflows': workflows
++  })
++
++
++def edit_workflow(request):
++
++  workflow_id = request.GET.get('workflow')
++  
++  if workflow_id:
++    workflow = Workflow(document=Document2.objects.get(id=workflow_id)) # Todo perms
++  else:
++    workflow = Workflow()
++  
++  workflow_data = workflow.get_data()
++
++  return render('editor/workflow_editor.mako', request, {
++      'layout_json': json.dumps(workflow_data['layout']),
++      'workflow_json': json.dumps(workflow_data['workflow'])
++  })
++
++
++def new_workflow(request):
++  return edit_workflow(request)
++
++
++def save_workflow(request):
++  response = {'status': -1}
++
++  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  layout = json.loads(request.POST.get('layout', '{}'))
++
++  name = 'test'
++
++  if workflow.get('id'):
++    workflow_doc = Document2.objects.get(id=workflow['id'])
++  else:      
++    workflow_doc = Document2.objects.create(name=name, type='oozie-workflow2', owner=request.user)
++
++  workflow_doc.update_data({'workflow': workflow})
++  workflow_doc.update_data({'layout': layout})
++  workflow_doc.name = name
++  workflow_doc.save()
++  response['status'] = 0
++  response['id'] = workflow_doc.id
++  response['message'] = _('Page saved !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 2345ca7..a625b46 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -82,10 +82,12 @@ var Workflow = function (vm, workflow) {
+   
+ 
+   self.addNode = function(widget) {
+-    if (self.nodes().length == 0) {
++	// Todo get parent cell, link nodes...
++	  
++    //if (self.nodes().length == 0) {
+       var node = new Node(ko.mapping.toJS(widget));
+       self.nodes.push(node);
+-    }
++    //}
+   }
+   
+   self.getNodeById = function (node_id) {
+@@ -134,7 +136,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+   }
+ 
+   self.save = function () {
+-    $.post("/oozie/editor/workflow/save", {        
++    $.post("/oozie/editor/workflow/save/", {        
+         "layout": ko.mapping.toJSON(self.columns),
+         "workflow": ko.mapping.toJSON(self.workflow)
+     }, function (data) {
+-- 
+1.7.9.5
+

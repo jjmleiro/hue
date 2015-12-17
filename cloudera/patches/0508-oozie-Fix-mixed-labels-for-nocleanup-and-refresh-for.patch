@@ -1,0 +1,39 @@
+From 98658f1518860ece15825dc895394c59ffe87412 Mon Sep 17 00:00:00 2001
+From: Jakub Kukul <jakub@mbr-targeting.com>
+Date: Fri, 30 Jan 2015 14:15:51 +0100
+Subject: [PATCH 0508/1173] [oozie] Fix mixed labels for 'nocleanup' and
+ 'refresh' form options
+
+---
+ apps/oozie/src/oozie/forms.py |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/forms.py b/apps/oozie/src/oozie/forms.py
+index 2828762..cb12e05 100644
+--- a/apps/oozie/src/oozie/forms.py
++++ b/apps/oozie/src/oozie/forms.py
+@@ -466,8 +466,8 @@ class RerunForm(forms.Form):
+ 
+ 
+ class RerunCoordForm(forms.Form):
+-  refresh = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
+-  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
++  refresh = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
++  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
+   actions = forms.MultipleChoiceField(required=True)
+ 
+   def __init__(self, *args, **kwargs):
+@@ -479,8 +479,8 @@ class RerunCoordForm(forms.Form):
+ 
+ 
+ class RerunBundleForm(forms.Form):
+-  refresh = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
+-  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
++  refresh = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
++  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
+   coordinators = forms.MultipleChoiceField(required=True)
+   start = forms.SplitDateTimeField(input_time_formats=[TIME_FORMAT], required=False, initial=datetime.today(),
+                                    widget=SplitDateTimeWidget(attrs={'class': 'input-small', 'id': 'rerun_start'},
+-- 
+1.7.9.5
+

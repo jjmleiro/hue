@@ -1,0 +1,42 @@
+From ab9a134e764e6f00e7ad2717d78c23b5d9856650 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 24 Feb 2015 14:55:24 +0100
+Subject: [PATCH 0900/1173] [oozie] Improved submit modal autosizing
+
+---
+ .../oozie/templates/editor2/submit_job_popup.mako  |    2 +-
+ apps/oozie/static/js/editor2-utils.js              |    3 +--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako b/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
+index a7fc2c3..1f86577 100644
+--- a/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
++++ b/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
+@@ -99,7 +99,7 @@
+     z-index: 4999;
+   }
+   #param-container input[type="text"].filechooser-input.input-xlarge {
+-    width: 430px;
++    width: 450px;
+   }
+   #param-container .control-group {
+     float: left;
+diff --git a/apps/oozie/static/js/editor2-utils.js b/apps/oozie/static/js/editor2-utils.js
+index eca255a..8fcfa39 100644
+--- a/apps/oozie/static/js/editor2-utils.js
++++ b/apps/oozie/static/js/editor2-utils.js
+@@ -19,9 +19,8 @@ $(document).ready(function () {
+     $('.submit-modal').html(data);
+     $('.submit-modal').modal('show');
+     var _sel = $('.submit-form .control-group[rel!="popover"]:visible');
+-    console.log(_sel.length)
+     if (_sel.length > 0) {
+-      $('.submit-modal .modal-body').height(_sel.length * 65 + 100);
++      $('.submit-modal .modal-body').height($('.submit-modal .modal-body').height() + 60);
+     }
+   });
+ });
+\ No newline at end of file
+-- 
+1.7.9.5
+

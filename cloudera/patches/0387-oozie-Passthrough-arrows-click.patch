@@ -1,0 +1,27 @@
+From 71435686a56196009a3c66db5de28252c926246e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 31 Dec 2014 12:00:45 +0100
+Subject: [PATCH 0387/1173] [oozie] Passthrough arrows click
+
+---
+ apps/oozie/static/css/workflow-editor.css |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 6430ec4..8254037 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -516,4 +516,8 @@ em {
+ 
+ #addActionDemiModal input, #addActionDemiModal select {
+   margin-bottom: 0;
+-} 
+\ No newline at end of file
++}
++
++canvas {
++  pointer-events: none;
++}
+-- 
+1.7.9.5
+

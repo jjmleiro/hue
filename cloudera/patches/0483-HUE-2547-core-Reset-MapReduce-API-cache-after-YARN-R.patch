@@ -1,0 +1,26 @@
+From 49c0f69a9c85baeedd7cc53f1041b543686f4331 Mon Sep 17 00:00:00 2001
+From: Piotr Ackermann <piotr.ackermann@allegrogroup.com>
+Date: Wed, 21 Jan 2015 12:09:22 +0100
+Subject: [PATCH 0483/1173] HUE-2547 [core] Reset MapReduce API cache after
+ YARN RM switch
+
+---
+ desktop/libs/hadoop/src/hadoop/cluster.py |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/cluster.py b/desktop/libs/hadoop/src/hadoop/cluster.py
+index 32e6274..0b8bc82 100644
+--- a/desktop/libs/hadoop/src/hadoop/cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/cluster.py
+@@ -188,6 +188,8 @@ def get_next_ha_yarncluster():
+             LOG.warn('Picking RM HA: %s' % name)
+             from hadoop.yarn import resource_manager_api
+             resource_manager_api._api_cache = None # Reset cache
++            from hadoop.yarn import mapreduce_api
++            mapreduce_api._api_cache = None
+             return (config, rm)
+           else:
+             LOG.info('RM %s is not RUNNING, skipping it: %s' % (name, cluster_info))
+-- 
+1.7.9.5
+

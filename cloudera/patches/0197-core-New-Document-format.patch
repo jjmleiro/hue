@@ -1,0 +1,64 @@
+From 0d932bcf3bd2694cc8a625da76fa20a433bd2622 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 10 Oct 2014 10:51:30 -0700
+Subject: [PATCH 0197/1173] [core] New Document format
+
+---
+ desktop/core/src/desktop/models.py |   37 ++++++++++++++++++++++++++++++++++--
+ 1 file changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 252f3ad..775a14c 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -16,6 +16,8 @@
+ # limitations under the License.
+ 
+ import logging
++import uuid
++
+ from itertools import chain
+ 
+ from django.db import models
+@@ -584,5 +586,36 @@ class DocumentPermission(models.Model):
+   unique_together = ('doc', 'perms')
+ 
+ 
+-# HistoryTable
+-# VersionTable
++
++class Document2Manager(models.Manager):
++  def get_by_natural_key(self, uuid):
++    return self.get(uuid=uuid)
++
++
++def uuid_default():
++    return uuid.uuid4().hex
++
++
++class Document2(models.Model):    
++  owner = models.ForeignKey(auth_models.User, db_index=True, verbose_name=_t('Owner'), help_text=_t('Creator.'), related_name='doc_owner')
++  name = models.CharField(default='', max_length=255)
++  description = models.TextField(default='')
++  uuid = models.CharField(default=uuid_default, max_length=32, db_index=True)
++  type = models.CharField(default='', max_length=32, db_index=True, help_text=_t('Type of document, e.g. Hive query, Oozie workflow, Search Dashboard...'))
++
++  data = models.TextField(default='{}')
++  extra = models.TextField(default='{}')
++
++  last_modified = models.DateTimeField(auto_now=True, db_index=True, verbose_name=_t('Time last modified'))
++  version = models.SmallIntegerField(default=1, verbose_name=_t('Document version'), db_index=True) 
++  is_history = models.BooleanField(default=False, db_index=True)
++
++  tags = models.ManyToManyField('self', db_index=True)
++  dependencies = models.ManyToManyField('self', db_index=True)
++  
++  objects = Document2Manager()
++  unique_together = ('uuid', 'version', 'is_history')
++  
++  def natural_key(self):
++    return self.uuid
++  
+-- 
+1.7.9.5
+

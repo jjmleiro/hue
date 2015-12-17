@@ -1,0 +1,72 @@
+From 752618355a01a0ef0eb6d0199edca4c355383590 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 26 Feb 2015 14:46:26 +0100
+Subject: [PATCH 0928/1173] [search] Fix Leaflet map z-index and edit form
+
+---
+ apps/search/src/search/templates/search.mako       |   10 ++++++----
+ .../static/desktop/css/common_dashboard.css        |   18 +++++++++++++++++-
+ 2 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 37f39c8..cfdd039 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -1109,14 +1109,16 @@ ${ dashboard.layout_skeleton() }
+ 
+ <script type="text/html" id="leafletmap-widget">
+   <div class="row-fluid">
+-    <div data-bind="visible: $root.isEditing" style="margin-top: 10px; margin-bottom: 20px; text-align: center">
+-      ${_('Latitude')}
++    <div data-bind="visible: $root.isEditing" style="margin-top: 10px; margin-bottom: 20px;" class="leaflet-align">
++      ${_('Latitude')}<div class="break-on-small-column"></div>
+       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.latitudeField, optionsCaption: '${ _('Choose...') }'"></select>
+       &nbsp;&nbsp;
+-      ${_('Longitude')}
++      <div class="break-on-small-column"></div>
++      ${_('Longitude')}<div class="break-on-small-column"></div>
+       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.longitudeField, optionsCaption: '${ _('Choose...') }'"></select>
+       &nbsp;&nbsp;
+-      ${_('Label')}
++      <div class="break-on-small-column"></div>
++      ${_('Label')}<div class="break-on-small-column"></div>
+       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.labelField, optionsCaption: '${ _('Choose...') }'"></select>
+     </div>
+ 
+diff --git a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+index 165327e..4f32927 100644
+--- a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
++++ b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+@@ -78,7 +78,7 @@
+   top: 70px;
+   position: fixed;
+   width: 100%;
+-  z-index: 1000;
++  z-index: 1001;
+ }
+ 
+ .row-header {
+@@ -392,3 +392,19 @@ body.modal-open {
+   font-weight: bold;
+   margin-bottom: 3px;
+ }
++
++.break-on-small-column {
++  display: none;
++}
++
++.card-column.span2 .break-on-small-column {
++  display: block;
++}
++
++.leaflet-align {
++  text-align: center;
++}
++
++.card-column.span2 .leaflet-align {
++  text-align: left;
++}
+\ No newline at end of file
+-- 
+1.7.9.5
+

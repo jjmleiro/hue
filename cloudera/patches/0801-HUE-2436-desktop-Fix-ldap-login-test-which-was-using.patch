@@ -1,0 +1,26 @@
+From 1b18cfade0801ac48f5861c4ed1578643a5217ce Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 14:32:20 -0800
+Subject: [PATCH 0801/1173] HUE-2436 [desktop] Fix ldap login test, which was
+ using an invalid username
+
+---
+ desktop/core/src/desktop/auth/views_test.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/auth/views_test.py b/desktop/core/src/desktop/auth/views_test.py
+index d0a1c62..a26ff51 100644
+--- a/desktop/core/src/desktop/auth/views_test.py
++++ b/desktop/core/src/desktop/auth/views_test.py
+@@ -134,7 +134,7 @@ class TestLdapLogin(PseudoHdfsTestBase):
+     fs.do_as_superuser(fs.create, "/user/ldap2")
+ 
+     response = self.c.post('/accounts/login/', {
+-        'username':" ldap2",
++        'username': "ldap2",
+         'password': "ldap2"
+     }, follow=True)
+     assert_equal(200, response.status_code, "Expected ok status.")
+-- 
+1.7.9.5
+

@@ -1,0 +1,257 @@
+From ff299bbbf47de46130b28101c4027ce48b6c82c2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 19 Nov 2014 14:07:08 -0800
+Subject: [PATCH 0295/1173] [oozie] Support for basic Decision node
+
+Support adding node to decision
+Provide condition to jump
+Unlink from the delete Join
+Support deleting a decision node with a single node
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   66 +++++++++++---------
+ apps/oozie/static/js/workflow-editor.ko.js         |   58 +++++++++--------
+ 2 files changed, 66 insertions(+), 58 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f85c21f..cad9c5a 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -357,7 +357,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <!-- ko if: children().length == 1 -->
+-      Then --> <span data-bind="text: children()[0]['to']" /></span>
++      Then --> <span data-bind="text: children()[0]['to']"></span>
+       <!-- /ko -->
+     </div>
+   </div>
+@@ -365,6 +365,43 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="decision-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++    
++    <div>
++      To:
++      <span data-bind="foreach: children">
++        <span data-bind="text: $data['to']"></span> if <input data-bind="value: $data['decision']" />
++      </span>
++      <span data-bind="text: properties.default['to']"></span> by default
++      <a>${ _('Jump to another node') } <i class="fa fa-plus"></i></a>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="kill-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <input type="text" data-bind="value: properties.message" />
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="start-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+@@ -1001,33 +1038,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <!-- /ko -->
+ </script>
+ 
+-<script type="text/html" id="decision-widget">
+-  <!-- ko if: $root.workflow.getNodeById(id()) -->
+-  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+-    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+-      <input type="text" data-bind="value: id" />
+-      <input type="text" data-bind="value: name" />
+-    </div>
+-  </div>
+-  <!-- /ko -->
+-</script>
+-
+-
+-<script type="text/html" id="kill-widget">
+-  <!-- ko if: $root.workflow.getNodeById(id()) -->
+-  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+-    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+-      <input type="text" data-bind="value: id" />
+-      <input type="text" data-bind="value: name" />
+-    </div>
+-
+-    <div>
+-      <input type="text" data-bind="value: properties.message" />
+-    </div>
+-  </div>
+-  <!-- /ko -->
+-</script>
+-
+ 
+ <div id="addActionDemiModal" class="demi-modal hide" data-backdrop="false">
+   <div class="modal-body">
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index fe1f7a1..7b0cc96 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -197,7 +197,7 @@ var Workflow = function (vm, workflow) {
+           var node = new Node(_node);
+         }
+ 
+-        // Add to list of nodes
++        // Add to list of nodes before end
+         var end = self.nodes.pop();
+         self.nodes.push(node);
+         self.nodes.push(end);
+@@ -211,6 +211,7 @@ var Workflow = function (vm, workflow) {
+ 
+         	vm.currentlyCreatedJoin.properties['fork_id'] = vm.currentlyCreatedFork.id;
+             vm.currentlyCreatedFork.properties['join_id'] = vm.currentlyCreatedJoin.id;
++            vm.currentlyCreatedFork.properties['default'] = {'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'};
+         	  
+             var fork = new Node(vm.currentlyCreatedFork);
+             var join = new Node(vm.currentlyCreatedJoin);
+@@ -219,8 +220,8 @@ var Workflow = function (vm, workflow) {
+             
+             var afterParentId = ko.mapping.toJS(forkParent.get_link('to')).to;
+             var afterParent = self.getNodeById(afterParentId);
+-            fork.children.push({'to': afterParentId});
+-            fork.children.push({'to': node.id()});
++            fork.children.push({'to': afterParentId, 'condition': ''});
++            fork.children.push({'to': node.id(), 'condition': ''});
+             
+             forkParent.get_link('to')['to'] = fork.id();
+             
+@@ -256,7 +257,7 @@ var Workflow = function (vm, workflow) {
+           } else if (parentWidget.widgetType() == 'fork-widget') {
+             var child = vm.getWidgetSuccessor(node.id());
+             parent.remove_link('to', child.id());            
+-            parent.children.push({'to': node.id()});
++            parent.children.push({'to': node.id(), 'condition': ''});
+ 
+   	        node.set_link('to', child.id());
+   	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+@@ -281,14 +282,18 @@ var Workflow = function (vm, workflow) {
+   
+   self.removeNode = function(node_id) {
+ 	var node = self.getNodeById(node_id);
+-	var parent = self.getParents(node_id); // Beware, support only one parent
+-	
++	var parents = self.getParents(node_id);
++	var parent = null;
++
+     var childLink = node.get_link('to');
+     var childId = ko.mapping.toJS(childLink)['to'];
+ 
+-    parent.remove_link('to', node_id);
+-    parent.children.unshift({'to': childId});
+-
++    $.each(parents, function(index, _parent) {
++      _parent.remove_link('to', node_id);
++      _parent.children.unshift({'to': childId});
++      parent = _parent;
++    });
++    
+     self.nodes.remove(node);
+     
+     // If need to remove fork
+@@ -300,13 +305,13 @@ var Workflow = function (vm, workflow) {
+     	if (fork.children().length == 2) {    	  
+           // Link top to above and delete fork
+     	  fork.remove_link('to', childId);
+-    	  var forkParent = self.getParents(fork.id());
++    	  var forkParent = self.getParents(fork.id())[0];
+     	  forkParent.set_link('to', ko.mapping.toJS(fork.get_link('to'))['to']); // Only link
+ 
+     	  self.nodes.remove(fork);
+ 
+     	  // Link bottom to child of join
+-    	  var beboreJoin = self.getParents(childId);
++    	  var beboreJoin = self.getParents(childId)[0];
+     	  var joinChildId = ko.mapping.toJS(join.get_link('to'))['to'];
+     	  beboreJoin.set_link('to', joinChildId);
+ 
+@@ -315,9 +320,11 @@ var Workflow = function (vm, workflow) {
+     	  parent.remove_link('to', childId);
+     	}
+       }
++    } else if (parent.type() == 'decision-widget') {
++      parent.remove_link('to', childId);
+     }
+   };
+-  
++
+   self.moveNode = function(widget) {
+     var node = self.getNodeById(widget.id());
+     self.movedNode = node;
+@@ -328,18 +335,17 @@ var Workflow = function (vm, workflow) {
+     self.movedNode = null;
+   };
+   
+-  self.getParents = function(node_id) { // Only one for now
+-    var _node = null;
++  self.getParents = function(node_id) { // Join nodes can have multiple parents
++    var _nodes = [];
+     $.each(self.nodes(), function (index, node) {
+       $.each(node.children(), function(index, link) {
+     	var _link = ko.mapping.toJS(link);
+         if ('to' in _link && _link.to == node_id) {
+-          _node = node;
+-          return false;
++          _nodes.push(node);
+         }  
+       })
+     });
+-    return _node;  
++    return _nodes;
+   };
+ 
+   self.getNodeById = function (node_id) {
+@@ -868,7 +874,11 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       while (_next.widgets().length == 0){
+         _next = self.getNextRow(_next);
+       }
+-      self.removeWidgetById(_next.widgets()[0].id()); // remove the join
++
++      // Remove the join
++      self.workflow.removeNode(_next.widgets()[0].id());
++      self.removeWidgetById(_next.widgets()[0].id());
++
+       widget.widgetType("decision-widget");
+       node.type("decision-widget");
+       var _newName = "decision-" + node.id().slice(0, 4);
+@@ -878,18 +888,6 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     }
+   }
+ 
+-  self.convertToFork = function (widget, node) {
+-
+-    if (widget.widgetType() == "decision-widget"){
+-      widget.widgetType("fork-widget");
+-      node.type("fork-widget");
+-      var _newName = "fork-" + node.id().slice(0, 4);
+-      node.name(_newName);
+-      widget.name(_newName);
+-      $(document).trigger("drawArrows");
+-    }
+-  }
+-
+   self.save = function () {
+     $.post("/oozie/editor/workflow/save/", {
+         "layout": ko.mapping.toJSON(self.columns),
+-- 
+1.7.9.5
+

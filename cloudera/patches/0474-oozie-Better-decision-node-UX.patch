@@ -1,0 +1,191 @@
+From d5fda426fefd7254429033a7d6e3d026abf69772 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 20 Jan 2015 14:51:29 -0800
+Subject: [PATCH 0474/1173] [oozie] Better decision node UX
+
+---
+ apps/oozie/src/oozie/models2.py                    |   14 ++++-----
+ .../oozie/templates/editor/coordinator_editor.mako |    3 +-
+ .../oozie/templates/editor/workflow_editor.mako    |   33 ++++++++++++++------
+ desktop/core/static/js/ko.hue-bindings.js          |    4 +--
+ 4 files changed, 34 insertions(+), 20 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index aa5d607..61e779d 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -533,8 +533,8 @@ class HiveAction(Action):
+      'hive_xml': { 
+           'name': 'hive_xml',
+           'label': _('Hive XML'),
+-          'value': [],
+-          'help_text': _('Refer to a hive-site.xml renamed hive-conf.xml'),
++          'value': '',
++          'help_text': _('Refer to a hive-site.xml for connecting to Hive'),
+           'type': ''
+      }
+   }
+@@ -608,7 +608,7 @@ class HiveServer2Action(Action):
+      'job_xml': { 
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml'),
+           'type': ''
+      }
+@@ -700,7 +700,7 @@ class SqoopAction(Action):
+      'job_xml': { 
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml'),
+           'type': ''
+      }
+@@ -753,7 +753,7 @@ class MapReduceAction(Action):
+      'job_xml': { 
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml'),
+           'type': ''
+      }
+@@ -830,7 +830,7 @@ class ShellAction(Action):
+      'job_xml': { 
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml'),
+           'type': ''
+      }
+@@ -1017,7 +1017,7 @@ class StreamingAction(Action):
+      'job_xml': { 
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml')
+      }
+   }
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 0fbdb34..eaaedd8 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -115,11 +115,10 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+         <form class="form-horizontal">
+           <div class="control-group" data-bind="visible: ! coordinator.properties.cron_advanced()">
+-            <label class="control-label">${ _('Crontab') }</label>
+             <div class="controls" id="jqCron-container">
+               <div id="jqCron-instance" style="margin-top: 5px; display: inline-block"></div>
+               <label class="checkbox" style="display: inline-block; margin-top: 5px">
+-                <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
++                <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced syntax') }
+               </label>
+             </div>
+           </div>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 2528244..881ce60 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -143,7 +143,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+ 
+-    <span data-bind="visible: workflow.isDirty" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++    <span data-bind="visible: workflow.isDirty() || workflow.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
+ 
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+@@ -385,7 +385,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <a class="widget-icon"><i class="fa fa-stop"></i></a>
+       <!-- /ko -->
+ 
+-      <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
++      <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
+ 
+       <!-- ko if: widgetType() == 'decision-widget' -->
+         <div class="inline pull-right" data-bind="visible: $root.isEditing() && $root.workflow.getNodeById(id()) && $root.workflow.getNodeById(id()).children().length <= 1 && ! oozieExpanded() && ! ooziePropertiesExpanded()">
+@@ -449,17 +449,31 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <div class="big-icon" data-bind="visible: ! $root.isEditing()"><i class="fa fa-magic"></i></div>
+ 
+     <div data-bind="visible: $root.isEditing" style="padding: 10px">
++      <a class="custom-popover pull-right" href="javascript:void(0)" target="_blank" data-trigger="click" data-toggle="popover" data-placement="right" rel="popover" 
++        data-html="true" data-content="<strong>${ _('Examples of predicates:') }</strong><br/>${'${'} fs:fileSize(secondjobOutputDir) gt 10 * GB }
++                <br/>
++                ${"${"} hadoop:counters('secondjob')[RECORDS][REDUCE_OUT] lt 1000000 }
++                <br/>
++                <a href='http://oozie.apache.org/docs/4.1.0/WorkflowFunctionalSpec.html#a4.2_Expression_Language_Functions'>${ _('Click for more') }</a>">
++          <i class="fa fa-question-circle" title="${ _('Click for more info') }"></i>
++      </a>    
+       <ul data-bind="foreach: children" class="unstyled">
+-        <li>${ _('To') }
+-        <select data-bind="options: $root.workflow.nodeIds,
++        <li>
++          ${ _('If') } <input type="text" data-bind="value: $data['condition']" />
++          ${ _('go to') }
++          <select data-bind="options: $root.workflow.nodeIds,
+                      optionsText: function(item) {return $root.workflow.nodeNamesMapping()[item]; },
+                      value: $data['to']
+                      ">
+-        </select>
+-        ${ _('if') } <input type="text" data-bind="value: $data['condition']" />
++          </select>
++          <a class="pointer" data-bind="click: function(){ $parent.children.remove(this);}">
++            <i class="fa fa-minus"></i>
++          </a>
+         </li>
+       </ul>
+-      <a data-bind="click: function(){  children.push({'to': '', 'condition': ''});}">${ _('Jump to another node') } <i class="fa fa-plus"></i></a>
++      <a class="pointer" data-bind="click: function(){ children.push({'to': '', 'condition': ''});}">
++        ${ _('Jump to another node') } <i class="fa fa-plus"></i>
++      </a>
+     </div>
+   </div>
+   <!-- /ko -->
+@@ -1669,11 +1683,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <!-- ko if: type() == 'distcp' -->
+           ${ _('Source') }
+           <input type="text" class="filechooser-input" data-bind="value: value()[0].value, valueUpdate:'afterkeydown', filechooser: value()[0].value, filechooserOptions: globalFilechooserOptions" placeholder="${ _('e.g. ${nameNode1}/path/to/input.txt') }">
++          </br>
+           ${ _('Destination') }
+           <input type="text" class="filechooser-input" data-bind="value: value()[1].value, valueUpdate:'afterkeydown', filechooser: value()[1].value, filechooserOptions: globalFilechooserOptions" placeholder="${ _('e.g. ${nameNode2}/path/to/output.txt') }">
+           <!-- /ko -->
+ 
+-          <!-- ko if: ['jar_path', 'script_path', 'mapper', 'reducer'].indexOf(name()) != -1 &&  value().length > 0 -->
++          <!-- ko if: ['jar_path', 'script_path', 'mapper', 'reducer', 'hive_xml'].indexOf(name()) != -1 &&  value().length > 0 -->
+             <span data-bind='template: { name: "common-fs-link", data: {path: value(), with_label: false}}'></span>
+           <!-- /ko -->
+           <!-- ko if: name() == 'workflow' && $root.getSubWorkflow(value())-->
+@@ -2074,7 +2089,7 @@ ${ dashboard.import_bindings() }
+     });
+ 
+     $.jHueScrollUp();
+-
++    $(".custom-popover").popover();
+   });
+ 
+ </script>
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index ce11afe..b170acc 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -332,10 +332,10 @@ ko.bindingHandlers.daterangepicker = {
+             '<span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span>' +
+             '<input type="text" class="input-large form-control start-date-custom" />' +
+             '</div>' +
+-            '<a class="custom-popover" href="javascript:void(0)" data-trigger="click" data-toggle="popover" data-placement="right" rel="popover" data-html="true"' +
++            '<a class="custom-popover" href="javascript:void(0)" data-trigger="hover" data-toggle="popover" data-placement="right" rel="popover" data-html="true"' +
+             '       title="' + KO_DATERANGEPICKER_LABELS.CUSTOM_POPOVER_TITLE + '"' +
+             '       data-content="' + KO_DATERANGEPICKER_LABELS.CUSTOM_POPOVER_CONTENT + '">' +
+-            '<i class="fa fa-question-circle"></i>' +
++            '&nbsp;&nbsp;<i class="fa fa-question-circle"></i>' +
+             ' </a>' +
+             '</div>' +
+             '<div class="facet-field-cnt custom">' +
+-- 
+1.7.9.5
+

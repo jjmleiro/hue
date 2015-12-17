@@ -1,0 +1,30 @@
+From 2de1a1a16133110d30d44a9c91e4e35c415a7e0a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 12 Feb 2015 09:06:09 -0800
+Subject: [PATCH 0835/1173] [maven] Fix the base mr2 hadoop version
+
+---
+ maven/pom.xml |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 6577aae..677228e 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -44,7 +44,12 @@
+ 
+   <properties>
+     <hadoop-mr1.version>${cdh.mr1.version}</hadoop-mr1.version>
+-    <hadoop.version>2.5.0-cdh5.3.0-SNAPSHOT</hadoop.version>
++    <hadoop.version>${cdh.hadoop.version}</hadoop.version>
++    <!--
++    FIXME: We can't use the upstream version yet because spark-1.2.0 does not
++    include the spark-repl.
++    <spark.version>${cdh.spark.version}</spark.version>
++    -->
+     <spark.version>1.1.0</spark.version>
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+-- 
+1.7.9.5
+

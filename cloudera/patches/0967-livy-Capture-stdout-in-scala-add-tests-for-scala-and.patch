@@ -1,0 +1,104 @@
+From 66628b36301e01185b433260b9d1ceb8a1ac164a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 3 Mar 2015 10:34:01 -0800
+Subject: [PATCH 0967/1173] [livy] Capture stdout in scala, add tests for
+ scala and python
+
+---
+ .../livy/repl/scala/interpreter/Interpreter.scala  |   28 +++++++++++---------
+ .../cloudera/hue/livy/repl/PythonSessionSpec.scala |   13 +++++++++
+ .../cloudera/hue/livy/repl/SparkSessionSpec.scala  |   13 +++++++++
+ 3 files changed, 41 insertions(+), 13 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+index e5c52a1..469b4b6 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+@@ -62,23 +62,25 @@ class Interpreter {
+ 
+       _state = Interpreter.Busy()
+ 
+-      val result = sparkIMain.interpret(code) match {
+-        case Results.Success =>
+-          val output = outputStream.toString("UTF-8").trim
+-          outputStream.reset()
++      val result = scala.Console.withOut(outputStream) {
++        sparkIMain.interpret(code) match {
++          case Results.Success =>
++            val output = outputStream.toString("UTF-8").trim
++            outputStream.reset()
+ 
+-          ExecuteComplete(executeCount - 1, output)
++            ExecuteComplete(executeCount - 1, output)
+ 
+-        case Results.Incomplete =>
+-          val output = outputStream.toString("UTF-8").trim
+-          outputStream.reset()
++          case Results.Incomplete =>
++            val output = outputStream.toString("UTF-8").trim
++            outputStream.reset()
+ 
+-          ExecuteIncomplete(executeCount - 1, output)
++            ExecuteIncomplete(executeCount - 1, output)
+ 
+-        case Results.Error =>
+-          val output = outputStream.toString("UTF-8").trim
+-          outputStream.reset()
+-          ExecuteError(executeCount - 1, output)
++          case Results.Error =>
++            val output = outputStream.toString("UTF-8").trim
++            outputStream.reset()
++            ExecuteError(executeCount - 1, output)
++        }
+       }
+ 
+       _state = Interpreter.Idle()
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+index 5009656..815cea7 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+@@ -97,5 +97,18 @@ class PythonSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter
+ 
+       result should equal (expectedResult)
+     }
++
++    it("should capture stdout") {
++      val result = Await.result(session.execute("""print 'Hello World'"""), Duration.Inf)
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "ok",
++        "execution_count" -> 0,
++        "data" -> Map(
++          "text/plain" -> "Hello World"
++        )
++      ))
++
++      result should equal (expectedResult)
++    }
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+index a9a163d..bb89aa1 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+@@ -79,5 +79,18 @@ class SparkSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter {
+ 
+       result should equal (expectedResult)
+     }
++
++    it("should capture stdout") {
++      val result = Await.result(session.execute("""println("Hello World")"""), Duration.Inf)
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "ok",
++        "execution_count" -> 0,
++        "data" -> Map(
++          "text/plain" -> "Hello World"
++        )
++      ))
++
++      result should equal (expectedResult)
++    }
+   }
+  }
+-- 
+1.7.9.5
+

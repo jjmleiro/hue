@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Utilities for Thrift
 
 import Queue
 import logging
@@ -32,7 +31,9 @@ from thrift.transport.TTransport import TBufferedTransport, TFramedTransport, TM
                                         TTransportException
 from thrift.protocol.TBinaryProtocol import TBinaryProtocol
 from thrift.protocol.TMultiplexedProtocol import TMultiplexedProtocol
+
 from desktop.lib.python_util import create_synchronous_io_multiplexer
+from desktop.lib.thrift_.http_client import THttpClient
 from desktop.lib.thrift_sasl import TSaslClientTransport
 from desktop.lib.exceptions import StructuredException, StructuredThriftTransportException
 
@@ -45,6 +46,7 @@ MAX_RECURSION_DEPTH = 50
 # depends on the number of millis the call took.
 WARN_LEVEL_CALL_DURATION_MS = 5000
 INFO_LEVEL_CALL_DURATION_MS = 1000
+
 
 class LifoQueue(Queue.Queue):
     '''
@@ -67,6 +69,7 @@ class LifoQueue(Queue.Queue):
     def _get(self):
         return self.queue.pop()
 
+
 class ConnectionConfig(object):
   """ Struct-like class encapsulating the configuration of a Thrift client. """
   def __init__(self, klass, host, port, service_name,
@@ -75,14 +78,16 @@ class ConnectionConfig(object):
                kerberos_principal="thrift",
                mechanism='GSSAPI',
                username='hue',
-	             password='hue',
+               password='hue',
                ca_certs=None,
                keyfile=None,
                certfile=None,
                validate=False,
                timeout_seconds=45,
                transport='buffered',
-               multiple=False):
+               multiple=False,
+               transport_mode='socket',
+               http_url=''):
     """
     @param klass The thrift client class
     @param host Host to connect to
@@ -103,6 +108,8 @@ class ConnectionConfig(object):
     @param timeout_seconds Timeout for thrift calls
     @param transport string representation of thrift transport to use
     @param multiple Whether Use MultiplexedProtocol
+    @param transport_mode Can be socket or http
+    @param Url used when using http transport mode
     """
     self.klass = klass
     self.host = host
@@ -121,10 +128,13 @@ class ConnectionConfig(object):
     self.timeout_seconds = timeout_seconds
     self.transport = transport
     self.multiple = multiple
+    self.transport_mode = transport_mode
+    self.http_url = http_url
 
   def __str__(self):
     return ', '.join(map(str, [self.klass, self.host, self.port, self.service_name, self.use_sasl, self.kerberos_principal, self.timeout_seconds,
-                               self.mechanism, self.username, self.use_ssl, self.ca_certs, self.keyfile, self.certfile, self.validate, self.transport, self.multiple]))
+                               self.mechanism, self.username, self.use_ssl, self.ca_certs, self.keyfile, self.certfile, self.validate, self.transport,
+                               self.multiple, self.transport_mode, self.http_url]))
 
 class ConnectionPooler(object):
   """
@@ -148,8 +158,7 @@ class ConnectionPooler(object):
     self.poolsize = poolsize
     self.dictlock = threading.Lock()
 
-  def get_client(self, conf,
-                 get_client_timeout=None):
+  def get_client(self, conf, get_client_timeout=None):
     """
     Could block while we wait for the pool to become non-empty.
 
@@ -238,30 +247,40 @@ def connect_to_thrift(conf):
 
   Returns a tuple of (service, protocol, transport)
   """
-  if conf.use_ssl:
-    sock = TSSLSocket(conf.host, conf.port, validate=conf.validate, ca_certs=conf.ca_certs, keyfile=conf.keyfile, certfile=conf.certfile)
+  if conf.transport_mode == 'http':
+    mode = THttpClient(conf.http_url)
   else:
-    sock = TSocket(conf.host, conf.port)
+    if conf.use_ssl:
+      mode = TSSLSocket(conf.host, conf.port, validate=conf.validate, ca_certs=conf.ca_certs, keyfile=conf.keyfile, certfile=conf.certfile)
+    else:
+      mode = TSocket(conf.host, conf.port)
+
   if conf.timeout_seconds:
     # Thrift trivia: You can do this after the fact with
     # _grab_transport_from_wrapper(self.wrapped.transport).setTimeout(seconds*1000)
-    sock.setTimeout(conf.timeout_seconds * 1000.0)
-  if conf.use_sasl:
+    mode.setTimeout(conf.timeout_seconds * 1000.0)
+
+  if conf.transport_mode == 'http':
+    if conf.use_sasl and conf.mechanism != 'PLAIN':
+      mode.set_kerberos_auth()
+    else:
+      mode.set_basic_auth(conf.username, conf.password)
+
+  if conf.transport_mode == 'socket' and conf.use_sasl:
     def sasl_factory():
       saslc = sasl.Client()
       saslc.setAttr("host", str(conf.host))
       saslc.setAttr("service", str(conf.kerberos_principal))
       if conf.mechanism == 'PLAIN':
         saslc.setAttr("username", str(conf.username))
-	saslc.setAttr("password", str(conf.password)) # defaults to hue for a non-empty string unless using ldap
+        saslc.setAttr("password", str(conf.password)) # Defaults to 'hue' for a non-empty string unless using LDAP
       saslc.init()
       return saslc
-
-    transport = TSaslClientTransport(sasl_factory, conf.mechanism, sock)
+    transport = TSaslClientTransport(sasl_factory, conf.mechanism, mode)
   elif conf.transport == 'framed':
-    transport = TFramedTransport(sock)
+    transport = TFramedTransport(mode)
   else:
-    transport = TBufferedTransport(sock)
+    transport = TBufferedTransport(mode)
 
   protocol = TBinaryProtocol(transport)
   if conf.multiple:
@@ -293,57 +312,73 @@ class PooledClient(object):
   def __init__(self, conf):
     self.conf = conf
 
-  def __getattr__(self, attr):
-    if attr in self.__dict__:
-      return self.__dict__[attr]
+  def __getattr__(self, attr_name):
+    if attr_name in self.__dict__:
+      return self.__dict__[attr_name]
 
     # Fetch the thrift client from the pool
     superclient = _connection_pool.get_client(self.conf)
-    res = getattr(superclient, attr)
 
-    if not callable(res):
-      # It's a simple attribute. We can put the superclient back in the pool.
-      _connection_pool.return_client(self.conf, superclient)
-      return res
-    else:
-      # It's gonna be a thrift call. Add wrapping logic to reopen the transport,
-      # and return the connection to the pool when done.
-      def wrapper(*args, **kwargs):
+    # Fetch the attribute. If it's callable, wrap it in a wrapper that re-gets
+    # the client.
+    try:
+      attr = getattr(superclient, attr_name)
+
+      if callable(attr):
+        return self._wrap_callable(attr_name)
+      else:
+        return attr
+    finally:
+      self._return_client(superclient)
+
+  def _wrap_callable(self, attr_name):
+    # It's gonna be a thrift call. Add wrapping logic to reopen the transport,
+    # and return the connection to the pool when done.
+    def wrapper(*args, **kwargs):
+      superclient = _connection_pool.get_client(self.conf)
+
+      try:
+        attr = getattr(superclient, attr_name)
+
         try:
-          try:
-            # Poke it to see if it's closed on the other end. This can happen if a connection
-            # sits in the connection pool longer than the read timeout of the server.
-            sock = _grab_transport_from_wrapper(superclient.transport).handle
-            if sock and create_synchronous_io_multiplexer().read([sock]):
-              # the socket is readable, meaning there is either data from a previous call
-              # (i.e our protocol is out of sync), or the connection was shut down on the
-              # remote side. Either way, we need to reopen the connection.
-              # If the socket was closed remotely, btw, socket.read() will return
-              # an empty string.  This is a fairly normal condition, btw, since
-              # there are timeouts on both the server and client sides.
-              superclient.transport.close()
-              superclient.transport.open()
+          # Poke it to see if it's closed on the other end. This can happen if a connection
+          # sits in the connection pool longer than the read timeout of the server.
+          sock = self.conf.transport_mode != 'http' and _grab_transport_from_wrapper(superclient.transport).handle
+          if sock and create_synchronous_io_multiplexer().read([sock]):
+            # the socket is readable, meaning there is either data from a previous call
+            # (i.e our protocol is out of sync), or the connection was shut down on the
+            # remote side. Either way, we need to reopen the connection.
+            # If the socket was closed remotely, btw, socket.read() will return
+            # an empty string.  This is a fairly normal condition, btw, since
+            # there are timeouts on both the server and client sides.
+            superclient.transport.close()
+            superclient.transport.open()
 
-            superclient.set_timeout(self.conf.timeout_seconds)
-            return res(*args, **kwargs)
-          except TApplicationException, e:
-            # Unknown thrift exception... typically IO errors
-            logging.info("Thrift saw an application exception: " + str(e), exc_info=False)
-            raise StructuredException('THRIFTAPPLICATION', str(e), data=None, error_code=502)
-          except socket.error, e:
-            logging.info("Thrift saw a socket error: " + str(e), exc_info=False)
-            raise StructuredException('THRIFTSOCKET', str(e), data=None, error_code=502)
-          except TTransportException, e:
-            logging.info("Thrift saw a transport exception: " + str(e), exc_info=False)
-            raise StructuredThriftTransportException(e, error_code=502)
-          except Exception, e:
-            # Stack tends to be only noisy here.
-            logging.info("Thrift saw exception: " + str(e), exc_info=False)
-            raise
-        finally:
-          _connection_pool.return_client(self.conf, superclient)
-      wrapper.attr = attr # Save the name of the attribute as it is replaced by 'wrapper'
-      return wrapper
+          superclient.set_timeout(self.conf.timeout_seconds)
+
+          return attr(*args, **kwargs)
+        except TApplicationException, e:
+          # Unknown thrift exception... typically IO errors
+          logging.info("Thrift saw an application exception: " + str(e), exc_info=False)
+          raise StructuredException('THRIFTAPPLICATION', str(e), data=None, error_code=502)
+        except socket.error, e:
+          logging.info("Thrift saw a socket error: " + str(e), exc_info=False)
+          raise StructuredException('THRIFTSOCKET', str(e), data=None, error_code=502)
+        except TTransportException, e:
+          logging.info("Thrift saw a transport exception: " + str(e), exc_info=False)
+          raise StructuredThriftTransportException(e, error_code=502)
+        except Exception, e:
+          # Stack tends to be only noisy here.
+          logging.info("Thrift saw exception: " + str(e), exc_info=False)
+          raise
+      finally:
+        self._return_client(superclient)
+    wrapper.attr = attr_name # Save the name of the attribute as it is replaced by 'wrapper'
+
+    return wrapper
+
+  def _return_client(self, superclient):
+    _connection_pool.return_client(self.conf, superclient)
 
 
 class SuperClient(object):

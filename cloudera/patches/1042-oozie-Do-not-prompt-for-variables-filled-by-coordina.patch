@@ -1,0 +1,27 @@
+From c51c56632565c3040eb2aa52c12b4da4ba9b14e6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 11 Mar 2015 13:41:01 -0700
+Subject: [PATCH 1042/1173] [oozie] Do not prompt for variables filled by
+ coordinator datasets
+
+---
+ apps/oozie/src/oozie/models2.py |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index ab17e96..167f591 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1667,7 +1667,8 @@ class Coordinator(Job):
+       params.add(param)
+ 
+     for param in find_json_parameters(self.data['variables']):
+-      params.add(param)
++      if param not in ('MINUTE', 'HOUR', 'DAY', 'MONTH', 'YEAR') and not param.startswith('coord:'):
++        params.add(param)
+ 
+     if self.sla_enabled:
+       for param in find_json_parameters(self.sla):
+-- 
+1.7.9.5
+

@@ -1,0 +1,80 @@
+From fc2b0ebf82d7c1bcda98c936c3c008578ce60da6 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 15 Oct 2014 14:46:40 -0700
+Subject: [PATCH 0048/1173] [HUE-2411] limit fetching autocomplete users and
+ groups to 2000
+
+This works around a bug in the frontend that fetches and caches the
+users and groups for autocomplete text input areas. Eventually this
+should be replaced with a query to the backend.
+---
+ apps/useradmin/src/useradmin/views.py        |    3 +++
+ desktop/core/src/desktop/templates/home.mako |   10 +++++-----
+ 2 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/views.py b/apps/useradmin/src/useradmin/views.py
+index 1a72e8f..84a3f9e 100644
+--- a/apps/useradmin/src/useradmin/views.py
++++ b/apps/useradmin/src/useradmin/views.py
+@@ -86,6 +86,9 @@ def list_for_autocomplete(request):
+     if request.GET.get('only_mygroups'):
+       groups = request.user.groups.all()
+ 
++    users = users[:2000]
++    groups = groups[:2000]
++
+     response = {
+       'users': massage_users_for_json(users, extended_user_object),
+       'groups': massage_groups_for_json(groups)
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index 84109ca..ed893e6 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -343,7 +343,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+           <h4 class="muted" style="margin-top:0px">${_('Read')}</h4>
+           <div data-bind="visible: (selectedDoc().perms.read.users.length == 0 && selectedDoc().perms.read.groups.length == 0)">${_('The document is not shared for read.')}</div>
+           <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.users">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
++            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id, username)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
+           </ul>
+           <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.groups">
+             <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupReadShare"> <i class="fa fa-times"></i></li>
+@@ -354,7 +354,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+           <h4 class="muted" style="margin-top:0px">${_('Read and Modify')}</h4>
+           <div data-bind="visible: (selectedDoc().perms.write.users.length == 0 && selectedDoc().perms.write.groups.length == 0)">${_('The document is not shared for read and modify.')}</div>
+           <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.users">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
++            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id, username)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
+           </ul>
+           <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.groups">
+             <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupWriteShare"> <i class="fa fa-times"></i></li>
+@@ -397,7 +397,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+   var JSON_TAGS = ${ json_tags | n,unicode };
+   var JSON_DOCS = ${ json_documents | n,unicode };
+ 
+-  function prettifyUsername(userId) {
++  function prettifyUsername(userId, username) {
+     var _user = null;
+     for (var i = 0; i < JSON_USERS_GROUPS.users.length; i++) {
+       if (JSON_USERS_GROUPS.users[i].id == userId) {
+@@ -407,7 +407,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+     if (_user != null) {
+       return (_user.first_name != "" ? _user.first_name + " " : "") + (_user.last_name != "" ? _user.last_name + " " : "") + ((_user.first_name != "" || _user.last_name != "") ? "(" : "") + _user.username + ((_user.first_name != "" || _user.last_name != "") ? ")" : "");
+     }
+-    return "";
++    return username;
+   }
+ 
+   $(document).ready(function () {
+@@ -421,7 +421,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+       map = {};
+ 
+       $.each(JSON_USERS_GROUPS.users, function (i, user) {
+-        var _display = prettifyUsername(user.id);
++        var _display = prettifyUsername(user.id, user.id);
+         map[_display] = user;
+         dropdown.push(_display);
+       });
+-- 
+1.7.9.5
+

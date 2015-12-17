@@ -1,0 +1,92 @@
+From aad85a74aa5269b5fda7b79522a3d9df9c75e02d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 6 Mar 2015 17:20:26 -0800
+Subject: [PATCH 1005/1173] [libsentry] Handle HA exception more properly
+
+Bubble up errors in case of timeout
+---
+ desktop/libs/libsentry/src/libsentry/api.py    |   22 +++++++++++++---------
+ desktop/libs/libsentry/src/libsentry/client.py |   11 ++++++++---
+ 2 files changed, 21 insertions(+), 12 deletions(-)
+
+diff --git a/desktop/libs/libsentry/src/libsentry/api.py b/desktop/libs/libsentry/src/libsentry/api.py
+index 08627eb..9fc2c12 100644
+--- a/desktop/libs/libsentry/src/libsentry/api.py
++++ b/desktop/libs/libsentry/src/libsentry/api.py
+@@ -45,16 +45,20 @@ def ha_error_handler(func):
+     while retries > 0:
+       try:
+         return func(*args, **kwargs)
+-      except:
+-        # Right now retries on any Thrift error and pull a fresh list of servers from ZooKeeper
+-        LOG.info('Retrying fetching an available client in ZooKeeper.')
+-        global _api_cache
+-        _api_cache = None
+-        time.sleep(1)
++      except SentryException, e:
++        raise e
++      except Exception, e:
+         retries -= 1
+-        args[0].client = _get_client(args[0].client.username)
+-      else:
+-        retries = 0
++        if not get_sentry_server_ha_enabled() or retries == 0:
++          raise e
++        else:
++          # Right now retries on any error and pull a fresh list of servers from ZooKeeper
++          LOG.info('Retrying fetching an available client in ZooKeeper.')
++          global _api_cache
++          _api_cache = None
++          time.sleep(1)
++          args[0].client = _get_client(args[0].client.username)
++          LOG.info('Picked %s' % args[0].client)
+ 
+   return decorator
+ 
+diff --git a/desktop/libs/libsentry/src/libsentry/client.py b/desktop/libs/libsentry/src/libsentry/client.py
+index 3bb0971..911307b 100644
+--- a/desktop/libs/libsentry/src/libsentry/client.py
++++ b/desktop/libs/libsentry/src/libsentry/client.py
+@@ -58,8 +58,10 @@ class SentryClient(object):
+ 
+   def __init__(self, host, port, username):
+     self.username = username
++    self.host = host
++    self.port = port
+     self.security = self._get_security()
+-    
++
+     self.client = thrift_util.get_client(
+         SentryPolicyService.Client,
+         host,
+@@ -73,6 +75,9 @@ class SentryClient(object):
+         mechanism=self.security['mechanism']
+     )
+ 
++  def __str__(self):
++    return ', '.join(map(str, [self.host, self.port, self.username, self.security]))
++
+ 
+   def _get_security(self):
+     principal = get_sentry_server_principal()
+@@ -82,7 +87,7 @@ class SentryClient(object):
+       kerberos_principal_short_name = None
+     use_sasl = get_sentry_server_authentication() == 'KERBEROS'
+     mechanism = SentryClient.SENTRY_MECHANISMS[get_sentry_server_authentication()]
+-    
++
+     return {
+         'kerberos_principal_short_name': kerberos_principal_short_name,
+         'use_sasl': use_sasl,
+@@ -172,7 +177,7 @@ class SentryClient(object):
+   def list_sentry_privileges_by_authorizable(self, authorizableSet, groups=None, roleSet=None):
+     authorizableSet = [TSentryAuthorizable(**authorizable) for authorizable in authorizableSet]
+     if roleSet is not None:
+-      roleSet = TSentryActiveRoleSet(**roleSet)    
++      roleSet = TSentryActiveRoleSet(**roleSet)
+ 
+     request = TListSentryPrivilegesByAuthRequest(requestorUserName=self.username, authorizableSet=authorizableSet, groups=groups, roleSet=roleSet)
+     return self.client.list_sentry_privileges_by_authorizable(request)
+-- 
+1.7.9.5
+

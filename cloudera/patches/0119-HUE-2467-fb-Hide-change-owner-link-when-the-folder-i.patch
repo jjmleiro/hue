@@ -1,0 +1,29 @@
+From 41b6d331fe8aff5b5754dcbf6062dfe387c1dffc Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 18 Nov 2014 20:59:34 +0100
+Subject: [PATCH 0119/1173] HUE-2467 [fb] Hide change owner link when the
+ folder is Sentry managed
+
+Modified accordingly change group and permissions
+---
+ .../filebrowser/templates/listdir_components.mako  |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index fc20ca2..7b7df30 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -465,8 +465,8 @@ from django.utils.translation import ugettext as _
+       </td>
+       <td>
+         %if is_fs_superuser:
+-        <span data-bind="text: stats.user, visible: ! selected()"></span>
+-        <a href="#" rel="tooltip" title="${_('Change owner')}" data-original-title="${_('Change owner')}" data-bind="text: stats.user, visible: ! $root.inTrash() && selected(), click: $root.changeOwner, enable: $root.selectedFiles().length > 0"></a>
++        <span data-bind="text: stats.user, visible: ! selected() || $root.isCurrentDirSentryManaged()"></span>
++        <a href="#" rel="tooltip" title="${_('Change owner')}" data-original-title="${_('Change owner')}" data-bind="text: stats.user, visible: ! $root.inTrash() && selected() && ! $root.isCurrentDirSentryManaged(), click: $root.changeOwner, enable: $root.selectedFiles().length > 0"></a>
+         %else:
+         <span data-bind="text: stats.user"></span>
+         %endif
+-- 
+1.7.9.5
+

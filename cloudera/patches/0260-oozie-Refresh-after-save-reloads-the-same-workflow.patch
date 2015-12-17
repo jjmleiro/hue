@@ -1,0 +1,32 @@
+From 9343a0b1b9380194ccace816a36ec7ed50d9dd7e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 6 Nov 2014 10:58:44 +0100
+Subject: [PATCH 0260/1173] [oozie] Refresh after save reloads the same
+ workflow
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index a894e34..dbaf0c8 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -23,6 +23,14 @@ from django.utils.translation import ugettext as _
+ 
+ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
++<script type="text/javascript">
++  if (window.location.hash != "") {
++    if (window.location.hash.indexOf("workflow") > -1) {
++      location.href = "/oozie/editor/workflow/edit/?" + window.location.hash.substr(1);
++    }
++  }
++</script>
++
+ 
+ <%dashboard:layout_toolbar>
+   <%def name="skipLayout()"></%def>
+-- 
+1.7.9.5
+

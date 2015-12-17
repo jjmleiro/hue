@@ -1,0 +1,70 @@
+From 8c325c9d0b17a74d3a598e0a19b8ea9ba9f365e7 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 22 Jan 2015 17:23:08 -0800
+Subject: [PATCH 0504/1173] [beeswax] Truncate database design name to 64
+ characters to avoid overflow
+
+---
+ apps/beeswax/src/beeswax/tests.py |   20 ++++++++++++++++++++
+ apps/beeswax/src/beeswax/views.py |    1 +
+ apps/rdbms/src/rdbms/views.py     |    1 +
+ 3 files changed, 22 insertions(+)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index 96981eb..769bdd7 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -2099,6 +2099,26 @@ class TestWithMockedServer(object):
+     assert_equal('test_save_design desc', saved_design.doc.get().description)
+     assert_false(saved_design.doc.get().is_historic())
+ 
++    # Save design with len(name) = 64
++    response = _make_query(self.client, 'SELECT', submission_type='Save',
++                name='test_character_limit', desc='test_character_limit desc')
++    content = json.loads(response.content)
++    design_id = content['design_id']
++
++    design = SavedQuery.objects.get(id=design_id)
++    design_obj = hql_query('SELECT')
++
++    # Save query
++    saved_design = _save_design(user=self.user, design=design, type_=HQL, design_obj=design_obj,
++                                explicit_save=True, name='This__design__name__contains___sixty__five___characters___exactly', desc='test_save_design desc')
++    len_after = len(saved_design.name)
++    assert_equal(len_after, 64)
++    saved_design = _save_design(user=self.user, design=design, type_=HQL, design_obj=design_obj,
++                                explicit_save=False, name='This__design__name__contains___sixty__five___characters___exactly', desc='test_save_design desc')
++    # Above design name is already 64 characters, so saved_design name shouldn't exceed the limit
++    len_after = len(saved_design.name)
++    assert_equal(len_after, 64)
++
+   def test_get_history_xss(self):
+     sql = 'SELECT count(sample_07.salary) FROM sample_07;"><iFrAME>src="javascript:alert(\'Hue has an xss\');"></iFraME>'
+     sql_escaped = 'SELECT count(sample_07.salary) FROM sample_07;&quot;&gt;&lt;iFrAME&gt;src=&quot;javascript:alert(&#39;Hue has an xss&#39;);&quot;&gt;&lt;/iFraME&gt;'
+diff --git a/apps/beeswax/src/beeswax/views.py b/apps/beeswax/src/beeswax/views.py
+index 22bfc25..f5aee91 100644
+--- a/apps/beeswax/src/beeswax/views.py
++++ b/apps/beeswax/src/beeswax/views.py
+@@ -121,6 +121,7 @@ def _save_design(user, design, type_, design_obj, explicit_save, name=None, desc
+       design.name = models.SavedQuery.DEFAULT_NEW_DESIGN_NAME
+     design.is_auto = True
+ 
++  design.name = design.name[:64]
+   design.type = type_
+   design.data = new_data
+ 
+diff --git a/apps/rdbms/src/rdbms/views.py b/apps/rdbms/src/rdbms/views.py
+index 905775e..0e8d3e5 100644
+--- a/apps/rdbms/src/rdbms/views.py
++++ b/apps/rdbms/src/rdbms/views.py
+@@ -121,6 +121,7 @@ def save_design(request, save_form, query_form, type_, design, explicit_save=Fal
+       design.name = beeswax_models.SavedQuery.DEFAULT_NEW_DESIGN_NAME
+     design.is_auto = True
+ 
++  design.name = design.name[:64]
+   design.type = type_
+   design.data = new_data
+ 
+-- 
+1.7.9.5
+

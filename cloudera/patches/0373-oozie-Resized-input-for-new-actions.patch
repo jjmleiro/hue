@@ -1,0 +1,54 @@
+From 6986bb011b57dd6fb33262cd5f6ffd53ee121045 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 30 Dec 2014 13:13:15 +0100
+Subject: [PATCH 0373/1173] [oozie] Resized input for new actions
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    8 ++++++--
+ apps/oozie/static/css/workflow-editor.css          |    4 ++++
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 57063ed..d2910f2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -391,6 +391,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <a class="widget-icon"><i class="fa fa-files-o"></i></a>
+       <!-- /ko -->
+ 
++      <!-- ko if: widgetType() == 'kill-widget' -->
++      <a class="widget-icon"><i class="fa fa-stop"></i></a>
++      <!-- /ko -->
++
+       <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+ 
+       <!-- ko if: widgetType() == 'decision-widget' -->
+@@ -1491,10 +1495,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <input type="text" class="filechooser-input" data-bind="value: value, filechooser: value, attr: { placeholder: help_text }">
+           <!-- /ko -->
+           <!-- ko if: type == 'text' -->
+-          <input data-bind="value: value" class="input-xxlarge"/>
++          <input data-bind="value: value" class="input-xlarge"/>
+           <!-- /ko -->          
+           <!-- ko if: type == 'textarea' -->
+-          <input data-bind="value: value" class="input-xxlarge"/>
++          <input data-bind="value: value" class="input-xlarge"/>
+           <!-- /ko -->
+           <!-- ko if: type == 'workflow' -->
+           <select data-bind="options: $root.addActionWorkflows, optionsText: 'name', value: $root.selectedSubWorkflow"></select>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 00ad031..6430ec4 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -513,3 +513,7 @@ em {
+   border: 1px solid #d8d8d8;
+   border-top: none;
+ }
++
++#addActionDemiModal input, #addActionDemiModal select {
++  margin-bottom: 0;
++} 
+\ No newline at end of file
+-- 
+1.7.9.5
+

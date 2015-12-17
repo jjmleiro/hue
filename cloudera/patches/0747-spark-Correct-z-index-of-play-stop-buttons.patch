@@ -1,0 +1,25 @@
+From e7d2df407908949f1346940bdd50ab8bad8f1d0e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 4 Feb 2015 14:00:40 +0100
+Subject: [PATCH 0747/1173] [spark] Correct z-index of play/stop buttons
+
+---
+ apps/spark/static/css/spark.css |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index be69021..c4ce4db 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -75,7 +75,7 @@
+   position: absolute;
+   margin-top: -30px;
+   margin-left: 0;
+-  z-index: 10000;
++  z-index: 999;
+   border-left: none;
+   border-right: none;
+   width: 14px;
+-- 
+1.7.9.5
+

@@ -1,0 +1,25 @@
+From 07c083de8046db5f1226fd9e81e5e818d1cf4b8a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Mar 2015 16:27:47 -0700
+Subject: [PATCH 1131/1173] [oozie] Fix workflow actions with files
+
+---
+ .../oozie/templates/editor2/common_workflow.mako   |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index 57be4a8..711f0fa 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -449,7 +449,7 @@
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.files">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions hdfsAutocomplete: value"/>
++      <input type="text" class="filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: value"/>
+       <span data-bind='template: { name: "common-fs-link", data: { path: value(), with_label: false} }'></span>
+       <a href="#" data-bind="click: function(){ $parent.properties.files.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+-- 
+1.7.9.5
+

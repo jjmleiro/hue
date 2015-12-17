@@ -1,0 +1,36 @@
+From 97b161b8d0845284beddf37b645b8f09075c2cc8 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 16 Oct 2014 11:54:59 +0200
+Subject: [PATCH 0049/1173] HUE-2414 [search] Timeline chart breaks when
+ there's no extraSeries defined
+
+Fixed KO js error
+---
+ apps/search/src/search/templates/search.mako |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 31ceb6b..bfb2fc9 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -721,7 +721,7 @@ ${ dashboard.layout_skeleton() }
+     <div style="padding-bottom: 10px; text-align: right; padding-right: 20px" data-bind="visible: counts.length > 0">
+       <span data-bind="visible: ! $root.isEditing(), with: $root.collection.getFacetById($parent.id())">
+         <span class="facet-field-label">${ _('Interval') }</span>
+-        <input data-bind="value: properties.gap"></input>
++        <input type="text" data-bind="value: properties.gap" />
+       </span>
+       <span class="facet-field-label">${ _('Zoom') }</span>
+       <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+@@ -729,7 +729,7 @@ ${ dashboard.layout_skeleton() }
+       <select class="input-medium" data-bind="options: $root.query.multiqs, optionsValue: 'id', optionsText: 'label', value: $root.query.selectedMultiq"></select>
+     </div>
+ 
+-    <div data-bind="timelineChart: {datum: {counts: counts, extraSeries: extraSeries, widget_id: $parent.id(), label: label}, stacked: $root.collection.getFacetById($parent.id()).properties.stacked(), field: field, label: label, transformer: timelineChartDataTransformer,
++    <div data-bind="timelineChart: {datum: {counts: counts, extraSeries: (typeof extraSeries != 'undefined' ? extraSeries : []), widget_id: $parent.id(), label: label}, stacked: $root.collection.getFacetById($parent.id()).properties.stacked(), field: field, label: label, transformer: timelineChartDataTransformer,
+       fqs: $root.query.fqs,
+       onSelectRange: function(from, to){ viewModel.collection.selectTimelineFacet({from: from, to: to, cat: field, widget_id: $parent.id()}) },
+       onStateChange: function(state){ $root.collection.getFacetById($parent.id()).properties.stacked(state.stacked); },
+-- 
+1.7.9.5
+

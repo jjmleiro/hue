@@ -15,21 +15,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
 import sys
 
 from django.utils.translation import ugettext_lazy as _t, ugettext as _
 
-from desktop.lib.conf import Config
+from desktop.lib.conf import Config, coerce_bool
 from spark.settings import NICE_NAME
 
 
-JOB_SERVER_URL = Config(
-  key="server_url",
-  help=_t("URL of the Spark Job Server."),
-  default="http://localhost:8090/"
+def coerce_json(j):
+  return json.loads(j)
+
+
+LANGUAGES = Config(
+  key="languages",
+  help=_t("List of available types of snippets."),
+  type=coerce_json,
+  default="""[
+      {"name": "Scala", "type": "scala"},
+      {"name": "Python", "type": "python"},
+      {"name": "Impala SQL", "type": "impala"},
+      {"name": "Hive SQL", "type": "hive"},
+      {"name": "Text", "type": "text"}
+  ]"""
 )
 
+LIVY_ASSEMBLY_JAR = Config(
+  key="livy_assembly_jar",
+  help=_t("Path to livy-assembly.jar"),
+  private=True,
+  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-cdh5.4.1.jar"))
 
+LIVY_SERVER_HOST = Config(
+  key="livy_server_host",
+  help=_t("Host address of the Livy Server."),
+  default="0.0.0.0")
+
+LIVY_SERVER_PORT = Config(
+  key="livy_server_port",
+  help=_t("Port of the Livy Server."),
+  default="8998")
+
+LIVY_SERVER_SESSION_KIND = Config(
+  key="livy_server_session_kind",
+  help=_t("Configure livy to start with process, thread, or yarn workers"),
+  default="process")
+
+LIVY_YARN_JAR = Config(
+  key="livy_yarn_jar",
+  help=_t("Path to livy-assembly.jar inside HDFS"),
+  private=True)
+
+START_LIVY_SERVER = Config(
+  key="start_livy_server",
+  help=_t("Experimental option to launch livy"),
+  default=False,
+  type=coerce_bool,
+  private=True)
+
+def get_livy_server_url():
+  return 'http://%s:%s' % (LIVY_SERVER_HOST.get(), LIVY_SERVER_PORT.get())
 
 def get_spark_status(user):
   from spark.job_server_api import get_api
@@ -37,10 +84,8 @@ def get_spark_status(user):
 
   try:
     if not 'test' in sys.argv: # Avoid tests hanging
-      status = str(get_api(user).get_status())
-  except ValueError:
-    # No json returned
-    status = 'OK'
+      get_api(user).get_status()
+      status = 'OK'
   except:
     pass
 
@@ -53,6 +98,6 @@ def config_validator(user):
   status = get_spark_status(user)
 
   if status != 'OK':
-    res.append((NICE_NAME, _("The app won't work without a running Job Server")))
+    res.append((NICE_NAME, _("The app won't work without a running Livy Spark Server")))
 
   return res

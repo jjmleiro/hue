@@ -1,0 +1,36 @@
+From cc0db1167f1a649780c4239f9cd62650c13381a4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 28 Jan 2015 08:26:48 +0800
+Subject: [PATCH 0710/1173] [livy] Fix reporting internal errors to users
+
+---
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |    1 -
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    1 -
+ 2 files changed, 2 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index bf36e29..dc941e6 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -74,6 +74,5 @@ class WebApp(session: Session) extends ScalatraServlet with FutureSupport with J
+     case e =>
+       WebApp.error("internal error", e)
+       InternalServerError(e.toString)
+-      halt(500)
+   }
+ }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 62f87eb..c3135e3 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -133,7 +133,6 @@ class WebApp(sessionManager: SessionManager)
+     case e =>
+       WebApp.error("internal error", e)
+       InternalServerError(e.toString)
+-      halt(500)
+   }
+ 
+   private def formatSession(session: Session) = {
+-- 
+1.7.9.5
+

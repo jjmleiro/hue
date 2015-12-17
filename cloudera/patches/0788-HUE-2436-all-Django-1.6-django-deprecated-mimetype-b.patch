@@ -1,0 +1,2539 @@
+From 37022ec5fa19cf62fb20b4f1fa1ddea559978515 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 15 Jan 2015 21:49:33 -0800
+Subject: [PATCH 0788/1173] HUE-2436 [all] Django-1.6: django deprecated
+ mimetype, backported JsonResponse from 1.7
+
+---
+ apps/about/src/about/views.py                 |    5 +--
+ apps/beeswax/src/beeswax/api.py               |   49 ++++++++++++------------
+ apps/beeswax/src/beeswax/views.py             |    7 ++--
+ apps/filebrowser/src/filebrowser/views.py     |    9 +++--
+ apps/hbase/src/hbase/api.py                   |    1 -
+ apps/hbase/src/hbase/views.py                 |   11 ++++--
+ apps/impala/src/impala/dashboards.py          |   15 ++++----
+ apps/impala/src/impala/views.py               |    5 +--
+ apps/jobbrowser/src/jobbrowser/views.py       |   19 +++++-----
+ apps/metastore/src/metastore/views.py         |    7 ++--
+ apps/oozie/src/oozie/models.py                |    2 -
+ apps/oozie/src/oozie/views/api.py             |   17 +++++----
+ apps/oozie/src/oozie/views/dashboard.py       |   29 +++++++-------
+ apps/oozie/src/oozie/views/editor.py          |   28 +++++++-------
+ apps/oozie/src/oozie/views/editor2.py         |   35 +++++++++--------
+ apps/pig/src/pig/views.py                     |   19 +++++-----
+ apps/proxy/src/proxy/views.py                 |    2 +-
+ apps/rdbms/src/rdbms/api.py                   |   23 ++++++------
+ apps/rdbms/src/rdbms/tests.py                 |    2 +-
+ apps/search/src/search/views.py               |   40 ++++++++++----------
+ apps/security/src/security/api/hdfs.py        |   18 +++++----
+ apps/security/src/security/api/hive.py        |   28 +++++++-------
+ apps/spark/src/spark/api.py                   |   15 ++++----
+ apps/spark/src/spark/decorators.py            |    9 +++--
+ apps/sqoop/src/sqoop/api/autocomplete.py      |    5 ++-
+ apps/sqoop/src/sqoop/api/connector.py         |    6 +--
+ apps/sqoop/src/sqoop/api/decorators.py        |    1 -
+ apps/sqoop/src/sqoop/api/driver.py            |    4 +-
+ apps/sqoop/src/sqoop/api/job.py               |   20 +++++-----
+ apps/sqoop/src/sqoop/api/link.py              |   14 +++----
+ apps/sqoop/src/sqoop/api/submission.py        |    4 +-
+ apps/useradmin/src/useradmin/views.py         |    5 ++-
+ apps/zookeeper/src/zookeeper/views.py         |    6 +--
+ desktop/core/src/desktop/api.py               |   14 +++----
+ desktop/core/src/desktop/api2.py              |    4 +-
+ desktop/core/src/desktop/api_tests.py         |    1 -
+ desktop/core/src/desktop/lib/django_util.py   |   50 ++++++++++++++++++-------
+ desktop/core/src/desktop/lib/export_csvxls.py |    6 +--
+ desktop/core/src/desktop/views.py             |    4 +-
+ desktop/libs/indexer/src/indexer/api.py       |   18 ++++-----
+ desktop/libs/indexer/src/indexer/views.py     |    5 +--
+ 41 files changed, 294 insertions(+), 268 deletions(-)
+
+diff --git a/apps/about/src/about/views.py b/apps/about/src/about/views.py
+index fea0eb8..cb12232 100644
+--- a/apps/about/src/about/views.py
++++ b/apps/about/src/about/views.py
+@@ -19,11 +19,10 @@ import json
+ import logging
+ 
+ from django.conf import settings
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+ from desktop import appmanager
+-from desktop.lib.django_util import render, login_notrequired
++from desktop.lib.django_util import JsonResponse, render, login_notrequired
+ from desktop.log.access import access_log_level
+ from desktop.models import Settings
+ from desktop.views import collect_usage
+@@ -66,4 +65,4 @@ def update_preferences(request):
+   else:
+     response['data'] = _('POST request required.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/beeswax/src/beeswax/api.py b/apps/beeswax/src/beeswax/api.py
+index 83c570e..59082d1 100644
+--- a/apps/beeswax/src/beeswax/api.py
++++ b/apps/beeswax/src/beeswax/api.py
+@@ -21,13 +21,14 @@ import re
+ 
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+-from django.http import HttpResponse, Http404
++from django.http import Http404
+ from django.utils.translation import ugettext as _
+ 
+ from thrift.transport.TTransport import TTransportException
+ from desktop.context_processors import get_app_name
+-from desktop.lib.i18n import force_unicode
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.i18n import force_unicode
+ from jobsub.parameterization import substitute_variables
+ 
+ import beeswax.models
+@@ -74,7 +75,7 @@ def error_handler(view_fn):
+         response['status'] = 2 # Frontend will not display this type of error
+         LOG.warn('error_handler silencing the exception: %s' % e)
+ 
+-      return HttpResponse(json.dumps(response), mimetype="application/json", status=200)
++      return JsonResponse(response)
+   return decorator
+ 
+ 
+@@ -106,7 +107,7 @@ def autocomplete(request, database=None, table=None):
+     response['code'] = 500
+     response['error'] = e.message
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -127,7 +128,7 @@ def parameters(request, design_id=None):
+     response['parameters'] = []
+     response['status']= 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -150,7 +151,7 @@ def execute_directly(request, query, design, query_server, tablename=None, **kwa
+     'is_redacted': history_obj.is_redacted
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -207,7 +208,7 @@ def watch_query_refresh_json(request, id):
+   else:
+     result['status'] = 0
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ def massage_job_urls_for_json(jobs):
+   massaged_jobs = []
+@@ -239,7 +240,7 @@ def close_operation(request, query_history_id):
+     except Exception, e:
+       response['message'] = unicode(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -252,7 +253,7 @@ def explain_directly(request, query, design, query_server):
+     'statement': query.get_query_statement(0),
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -296,10 +297,10 @@ def execute(request, design_id=None):
+               db = dbms.get(request.user, query_server)
+               error_message, log = expand_exception(ex, db)
+               response['message'] = error_message
+-              return HttpResponse(json.dumps(response), mimetype="application/json")
++              return JsonResponse(response)
+           else:
+             response['errors'] = parameterization_form.errors
+-            return HttpResponse(json.dumps(response), mimetype="application/json")
++            return JsonResponse(response)
+ 
+       # Non-parameterized query
+       query = HQLdesign(query_form, query_type=query_type)
+@@ -318,7 +319,7 @@ def execute(request, design_id=None):
+   except RuntimeError, e:
+     response['message']= str(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -349,7 +350,7 @@ def save_query_design(request, design_id=None):
+   except RuntimeError, e:
+     response['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -364,7 +365,7 @@ def fetch_saved_design(request, design_id):
+   design = safe_get_design(request, query_type, design_id)
+ 
+   response['design'] = design_to_dict(design)
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @error_handler
+ def fetch_query_history(request, query_history_id):
+@@ -376,7 +377,7 @@ def fetch_query_history(request, query_history_id):
+   query = authorized_get_query_history(request, query_history_id, must_exist=True)
+ 
+   response['query_history'] = query_history_to_dict(request, query)
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @error_handler
+ def cancel_query(request, query_history_id):
+@@ -394,7 +395,7 @@ def cancel_query(request, query_history_id):
+     except Exception, e:
+       response['message'] = unicode(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -417,7 +418,7 @@ def save_results_hdfs_directory(request, query_history_id):
+     if not query_history.is_success():
+       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
+       response['status'] = -1
+-      return HttpResponse(json.dumps(response), mimetype="application/json")
++      return JsonResponse(response)
+ 
+     db = dbms.get(request.user, query_history.get_query_server_config())
+ 
+@@ -443,7 +444,7 @@ def save_results_hdfs_directory(request, query_history_id):
+       response['status'] = 1
+       response['errors'] = form.errors
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -466,7 +467,7 @@ def save_results_hdfs_file(request, query_history_id):
+     if not query_history.is_success():
+       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
+       response['status'] = -1
+-      return HttpResponse(json.dumps(response), mimetype="application/json")
++      return JsonResponse(response)
+ 
+     db = dbms.get(request.user, query_history.get_query_server_config())
+ 
+@@ -484,7 +485,7 @@ def save_results_hdfs_file(request, query_history_id):
+       except Exception, ex:
+         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
+         response['status'] = -2
+-        return HttpResponse(json.dumps(response), mimetype="application/json")
++        return JsonResponse(response)
+ 
+       try:
+         if overwrite and request.fs.exists(target_file):
+@@ -509,7 +510,7 @@ def save_results_hdfs_file(request, query_history_id):
+       response['status'] = 1
+       response['errors'] = form.errors
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -532,7 +533,7 @@ def save_results_hive_table(request, query_history_id):
+     if not query_history.is_success():
+       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
+       response['status'] = -1
+-      return HttpResponse(json.dumps(response), mimetype="application/json")
++      return JsonResponse(response)
+ 
+     db = dbms.get(request.user, query_history.get_query_server_config())
+     database = query_history.design.get_design().query.get('database', 'default')
+@@ -547,7 +548,7 @@ def save_results_hive_table(request, query_history_id):
+       except Exception, ex:
+         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
+         response['status'] = -2
+-        return HttpResponse(json.dumps(response), mimetype="application/json")
++        return JsonResponse(response)
+ 
+       try:
+         query_history = db.create_table_as_a_select(request, query_history, form.target_database, form.cleaned_data['target_table'], result_meta)
+@@ -566,7 +567,7 @@ def save_results_hive_table(request, query_history_id):
+       response['status'] = 1
+       response['errors'] = form.errors
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def design_to_dict(design):
+diff --git a/apps/beeswax/src/beeswax/views.py b/apps/beeswax/src/beeswax/views.py
+index a49d629..d240c6d 100644
+--- a/apps/beeswax/src/beeswax/views.py
++++ b/apps/beeswax/src/beeswax/views.py
+@@ -35,6 +35,7 @@ from django.core.urlresolvers import reverse
+ from desktop.appmanager import get_apps_dict
+ from desktop.context_processors import get_app_name
+ from desktop.lib.paginator import Paginator
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.django_util import copy_query_dict, format_preserving_redirect, render
+ from desktop.lib.django_util import login_notrequired, get_desktop_uri_prefix
+ from desktop.lib.exceptions_renderable import PopupException
+@@ -326,7 +327,7 @@ def list_query_history(request):
+     resp = {
+       'queries': [massage_query_history_for_json(app_name, query_history) for query_history in page.object_list]
+     }
+-    return HttpResponse(json.dumps(resp), mimetype="application/json")
++    return JsonResponse(resp)
+ 
+ 
+   return render('list_history.mako', request, {
+@@ -549,7 +550,7 @@ def view_results(request, id, first_row=0):
+     del context['save_form']
+   if 'query' in context:
+     del context['query']
+-  return HttpResponse(json.dumps(context), mimetype="application/json")
++  return JsonResponse(context)
+ 
+ 
+ def configuration(request):
+@@ -581,7 +582,7 @@ def install_examples(request):
+   else:
+     response['message'] = _('A POST request is required.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @login_notrequired
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index f9ec68b..4f37c16 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -50,6 +50,7 @@ from avro import datafile, io
+ from desktop.lib import i18n, paginator
+ from desktop.lib.conf import coerce_bool
+ from desktop.lib.django_util import make_absolute, render, render_json, format_preserving_redirect
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions_renderable import PopupException
+ from hadoop.fs.hadoopfs import Hdfs
+ from hadoop.fs.exceptions import WebHdfsException
+@@ -126,7 +127,7 @@ def download(request, path):
+     if not request.fs.isfile(path):
+         raise PopupException(_("'%(path)s' is not a file.") % {'path': path})
+ 
+-    mimetype = mimetypes.guess_type(path)[0] or 'application/octet-stream'
++    content_type = mimetypes.guess_type(path)[0] or 'application/octet-stream'
+     stats = request.fs.stats(path)
+     mtime = stats['mtime']
+     size = stats['size']
+@@ -136,7 +137,7 @@ def download(request, path):
+     # but tricky to do here.
+     fh = request.fs.open(path)
+ 
+-    response = HttpResponse(_file_reader(fh), mimetype=mimetype)
++    response = HttpResponse(_file_reader(fh), content_type=content_type)
+     response["Last-Modified"] = http_date(stats['mtime'])
+     response["Content-Length"] = stats['size']
+     response['Content-Disposition'] = request.GET.get('disposition', 'attachment')
+@@ -176,7 +177,7 @@ def view(request, path):
+           exception = {
+             'error': msg
+           }
+-          return render_json(exception)
++          return JsonResponse(exception)
+         else:
+           raise PopupException(msg , detail=e)
+ 
+@@ -498,7 +499,7 @@ def stat(request, path):
+     if not request.fs.exists(path):
+         raise Http404(_("File not found: %(path)s") % {'path': escape(path)})
+     stats = request.fs.stats(path)
+-    return render_json(_massage_stats(request, stats))
++    return JsonResponse(_massage_stats(request, stats))
+ 
+ 
+ def display(request, path):
+diff --git a/apps/hbase/src/hbase/api.py b/apps/hbase/src/hbase/api.py
+index c75f23f..6fdc7c0 100644
+--- a/apps/hbase/src/hbase/api.py
++++ b/apps/hbase/src/hbase/api.py
+@@ -21,7 +21,6 @@ import re
+ import csv
+ 
+ from django.core.urlresolvers import reverse
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ from django.utils.encoding import smart_str
+ 
+diff --git a/apps/hbase/src/hbase/views.py b/apps/hbase/src/hbase/views.py
+index e4e65f7..a636ab5 100644
+--- a/apps/hbase/src/hbase/views.py
++++ b/apps/hbase/src/hbase/views.py
+@@ -25,10 +25,9 @@ import urllib
+ 
+ from avro import datafile, io
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ 
+ from hbase import conf
+ from hbase.settings import DJANGO_APPS
+@@ -119,7 +118,11 @@ def api_dump(response):
+             cleaned[key] = clean(value)
+       return cleaned
+ 
+-  return HttpResponse(json.dumps({ 'data': clean(response), 'truncated': True, 'limit': trunc_limit }), content_type="application/json")
++  return JsonResponse({
++    'data': clean(response),
++    'truncated': True,
++    'limit': trunc_limit,
++    })
+ 
+ 
+ def install_examples(request):
+@@ -135,4 +138,4 @@ def install_examples(request):
+       LOG.exception(e)
+       result['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+diff --git a/apps/impala/src/impala/dashboards.py b/apps/impala/src/impala/dashboards.py
+index 71df4a1..048e188 100644
+--- a/apps/impala/src/impala/dashboards.py
++++ b/apps/impala/src/impala/dashboards.py
+@@ -21,12 +21,11 @@ import json
+ 
+ from math import log
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.context_processors import get_app_name
+-from desktop.lib.django_util import render
+-from desktop.models import Document2 
++from desktop.lib.django_util import JsonResponse, render
++from desktop.models import Document2
+ 
+ from beeswax.design import hql_query
+ from beeswax.server import dbms
+@@ -133,7 +132,7 @@ def query(request):
+     result['status'] = 0
+     db.close(handle)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def new_facet(request):
+@@ -151,7 +150,7 @@ def new_facet(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def new_search(request):
+@@ -189,7 +188,7 @@ def save(request):
+ 
+     if dashboard.get('id'):
+       dashboard_doc = Document2.objects.get(id=dashboard['id'])
+-    else:      
++    else:
+       dashboard_doc = Document2.objects.create(name=name, type='impala-dashboard', owner=request.user)
+ 
+     dashboard_doc.update_data({'dashboard': dashboard})
+@@ -202,7 +201,7 @@ def save(request):
+   else:
+     response['message'] = _('There is no dashboard to search.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def get_fields(request):
+@@ -218,7 +217,7 @@ def get_fields(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json") 
++  return JsonResponse(result)
+ 
+ 
+ def _round_number_range(n):
+diff --git a/apps/impala/src/impala/views.py b/apps/impala/src/impala/views.py
+index 5ef861f..f6ae504 100644
+--- a/apps/impala/src/impala/views.py
++++ b/apps/impala/src/impala/views.py
+@@ -22,8 +22,7 @@
+ import logging
+ import json
+ 
+-from django.http import HttpResponse
+-
++from desktop.lib.django_util import JsonResponse
+ from desktop.context_processors import get_app_name
+ 
+ from beeswax.server import dbms
+@@ -52,4 +51,4 @@ def refresh_tables(request):
+     except Exception, e:
+       response['message'] = str(e)    
+   
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/jobbrowser/src/jobbrowser/views.py b/apps/jobbrowser/src/jobbrowser/views.py
+index 0819675..421bac3 100644
+--- a/apps/jobbrowser/src/jobbrowser/views.py
++++ b/apps/jobbrowser/src/jobbrowser/views.py
+@@ -24,7 +24,7 @@ import urlparse
+ from urllib import quote_plus
+ from lxml import html
+ 
+-from django.http import HttpResponseRedirect, HttpResponse
++from django.http import HttpResponseRedirect
+ from django.utils.functional import wraps
+ from django.utils.translation import ugettext as _
+ from django.core.urlresolvers import reverse
+@@ -32,7 +32,8 @@ from django.core.urlresolvers import reverse
+ from desktop.log.access import access_warn, access_log_level
+ from desktop.lib.rest.http_client import RestException
+ from desktop.lib.rest.resource import Resource
+-from desktop.lib.django_util import render_json, render, copy_query_dict, encode_json_for_js
++from desktop.lib.django_util import JsonResponse, render_json, render, copy_query_dict
++from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.lib.exceptions import MessageException
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.views import register_status_bar_view
+@@ -84,7 +85,7 @@ def job_not_assigned(request, jobid, path):
+     except Exception, e:
+       result['message'] = _('Error polling job %s: %s') % (jobid, e)
+ 
+-    return HttpResponse(encode_json_for_js(result), mimetype="application/json")
++    return JsonResponse(result, encoder=JSONEncoderForHTML)
+   else:
+     return render('job_not_assigned.mako', request, {'jobid': jobid, 'path': path})
+ 
+@@ -107,7 +108,7 @@ def jobs(request):
+       else:
+         raise ex
+     json_jobs  = [massage_job_for_json(job, request) for job in jobs]
+-    return HttpResponse(encode_json_for_js(json_jobs), mimetype="application/json")
++    return JsonResponse(json_jobs, encoder=JSONEncoderForHTML)
+ 
+   return render('jobs.mako', request, {
+     'request': request,
+@@ -174,7 +175,7 @@ def single_spark_job(request, job):
+     json_job = {
+       'job': massage_job_for_json(job, request)
+     }
+-    return HttpResponse(encode_json_for_js(json_job), mimetype="application/json")
++    return JsonResponse(json_job, encoder=JSONEncoderForHTML)
+   else:
+     return render('job.mako', request, {
+       'request': request,
+@@ -202,7 +203,7 @@ def single_job(request, job):
+       'failedTasks': json_failed_tasks,
+       'recentTasks': json_recent_tasks
+     }
+-    return HttpResponse(encode_json_for_js(json_job), mimetype="application/json")
++    return JsonResponse(json_job, encoder=JSONEncoderForHTML)
+ 
+   return render('job.mako', request, {
+     'request': request,
+@@ -239,7 +240,7 @@ def kill_job(request, job):
+       if request.REQUEST.get("next"):
+         return HttpResponseRedirect(request.REQUEST.get("next"))
+       elif request.REQUEST.get("format") == "json":
+-        return HttpResponse(encode_json_for_js({'status': 0}), mimetype="application/json")
++        return JsonResponse({'status': 0}, encoder=JSONEncoderForHTML)
+       else:
+         raise MessageException("Job Killed")
+     time.sleep(1)
+@@ -280,7 +281,7 @@ def job_attempt_logs_json(request, job, attempt_index=0, name='syslog', offset=0
+ 
+   response = {'log': log}
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ 
+@@ -434,7 +435,7 @@ def single_task_attempt_logs(request, job, taskid, attemptid):
+       "logs": logs,
+       "isRunning": job.status.lower() in ('running', 'pending', 'prep')
+     }
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+   else:
+     return render("attempt_logs.mako", request, context)
+ 
+diff --git a/apps/metastore/src/metastore/views.py b/apps/metastore/src/metastore/views.py
+index 3934adb..8d32518 100644
+--- a/apps/metastore/src/metastore/views.py
++++ b/apps/metastore/src/metastore/views.py
+@@ -18,14 +18,13 @@
+ import json
+ import logging
+ 
+-from django.http import HttpResponse
+ from django.shortcuts import redirect
+ from django.utils.functional import wraps
+ from django.utils.translation import ugettext as _
+ from django.core.urlresolvers import reverse
+ 
+ from desktop.context_processors import get_app_name
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ 
+ from beeswax.design import hql_query
+@@ -257,7 +256,7 @@ def load_table(request, database, table):
+                  }, force_template=True).content
+     response['data'] = popup
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def describe_partitions(request, database, table):
+@@ -306,7 +305,7 @@ def analyze_table(request, database, table, column=None):
+   else:
+     response['message'] = _('A POST request is required')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def has_write_access(user):
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index a01b66d..330035f 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -2010,8 +2010,6 @@ _STD_PROPERTIES = [
+   'mapred.queue.default.acl-administer-jobs',
+ ]
+ 
+-_STD_PROPERTIES_JSON = json.dumps(_STD_PROPERTIES)
+-
+ ACTION_TYPES = {
+   Mapreduce.node_type: Mapreduce,
+   Streaming.node_type: Streaming,
+diff --git a/apps/oozie/src/oozie/views/api.py b/apps/oozie/src/oozie/views/api.py
+index 68e4882..f3d6875 100644
+--- a/apps/oozie/src/oozie/views/api.py
++++ b/apps/oozie/src/oozie/views/api.py
+@@ -19,9 +19,10 @@ import json
+ import logging
+ import sys
+ 
+-from django.http import HttpResponse, Http404
++from django.http import Http404
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document
+@@ -29,7 +30,7 @@ from desktop.models import Document
+ from oozie.forms import WorkflowForm, NodeForm, design_form_by_type
+ from oozie.models import Workflow, Node, Start, End, Kill,\
+                          Link, Decision, Fork, DecisionEnd, Join,\
+-                         NODE_TYPES, ACTION_TYPES, _STD_PROPERTIES_JSON
++                         NODE_TYPES, ACTION_TYPES, _STD_PROPERTIES
+ from oozie.decorators import check_job_access_permission, check_job_edition_permission
+ from oozie.utils import model_to_dict, format_dict_field_values, format_field_value
+ 
+@@ -62,7 +63,7 @@ def error_handler(view_fn):
+       'details': details
+     }
+ 
+-    return HttpResponse(json.dumps(response), mimetype="application/json", status=error_code)
++    return JsonResponse(response, status=error_code)
+   return decorator
+ 
+ 
+@@ -293,7 +294,7 @@ def _workflow(request, workflow):
+ 
+   response['status'] = 0
+   response['data'] = workflow_dict
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -309,7 +310,7 @@ def workflow_validate_node(request, workflow, node_type):
+   else:
+     response['status'] = -1
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ # Workflow and child links are SPECIAL.
+@@ -389,7 +390,7 @@ def workflow_actions(request, workflow):
+       'actions': [model_to_dict(action) for action in action_list]
+     }
+   }
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -411,8 +412,8 @@ def workflows(request):
+     }
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def autocomplete_properties(request):
+-  return HttpResponse(_STD_PROPERTIES_JSON, mimetype="application/json")
++  return JsonResponse(_STD_PROPERTIES)
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 3eab97c..22ec7f2 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -30,7 +30,8 @@ from django.utils.translation import ugettext as _
+ from django.core.urlresolvers import reverse
+ from django.shortcuts import redirect
+ 
+-from desktop.lib.django_util import render, encode_json_for_js
++from desktop.lib.django_util import JsonResponse, render
++from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import smart_str, smart_unicode
+ from desktop.lib.rest.http_client import RestException
+@@ -89,7 +90,7 @@ def manage_oozie_jobs(request, job_id, action):
+   except RestException, ex:
+     response['data'] = _("Error performing %s on Oozie job %s: %s.") % (action, job_id, ex.message)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def bulk_manage_oozie_jobs(request):
+@@ -111,7 +112,7 @@ def bulk_manage_oozie_jobs(request):
+         response['totalErrors'] = response['totalErrors'] + 1
+         response['messages'] += str(ex)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def show_oozie_error(view_func):
+@@ -144,7 +145,7 @@ def list_oozie_workflows(request):
+     if request.GET.get('type') == 'progress':
+       json_jobs = [oozie_api.get_job(job.id) for job in json_jobs]
+ 
+-    return HttpResponse(encode_json_for_js(massaged_oozie_jobs_for_json(json_jobs, request.user, just_sla)), mimetype="application/json")
++    return JsonResponse(massaged_oozie_jobs_for_json(json_jobs, request.user, just_sla), encoder=JSONEncoderForHTML)
+ 
+   return render('dashboard/list_oozie_workflows.mako', request, {
+     'user': request.user,
+@@ -172,7 +173,7 @@ def list_oozie_coordinators(request):
+     if request.GET.get('type') == 'progress':
+       json_jobs = [oozie_api.get_coordinator(job.id) for job in json_jobs]
+ 
+-    return HttpResponse(json.dumps(massaged_oozie_jobs_for_json(json_jobs, request.user)).replace('\\\\', '\\'), mimetype="application/json")
++    return HttpResponse(json.dumps(massaged_oozie_jobs_for_json(json_jobs, request.user)).replace('\\\\', '\\'), content_type="application/json")
+ 
+   return render('dashboard/list_oozie_coordinators.mako', request, {
+     'jobs': [],
+@@ -198,7 +199,7 @@ def list_oozie_bundles(request):
+     if request.GET.get('type') == 'progress':
+       json_jobs = [oozie_api.get_bundle(job.id) for job in json_jobs]
+ 
+-    return HttpResponse(json.dumps(massaged_oozie_jobs_for_json(json_jobs, request.user)).replace('\\\\', '\\'), mimetype="application/json")
++    return HttpResponse(json.dumps(massaged_oozie_jobs_for_json(json_jobs, request.user)).replace('\\\\', '\\'), content_type="application/json")
+ 
+   return render('dashboard/list_oozie_bundles.mako', request, {
+     'jobs': [],
+@@ -266,7 +267,7 @@ def list_oozie_workflow(request, job_id):
+       'graph': workflow_graph,
+       'actions': massaged_workflow_actions_for_json(oozie_workflow.get_working_actions(), oozie_coordinator, oozie_bundle)
+     }
+-    return HttpResponse(encode_json_for_js(return_obj), mimetype="application/json")
++    return JsonResponse(return_obj, encoder=JSONEncoderForHTML)
+ 
+   oozie_slas = []
+   if oozie_workflow.has_sla:
+@@ -324,7 +325,7 @@ def list_oozie_coordinator(request, job_id):
+       'actions': actions,
+       'show_all_actions': show_all_actions
+     }
+-    return HttpResponse(encode_json_for_js(return_obj), mimetype="application/json")
++    return JsonResponse(return_obj, encoder=JSONEncoderForHTML)
+ 
+   oozie_slas = []
+   if oozie_coordinator.has_sla:
+@@ -368,7 +369,7 @@ def list_oozie_bundle(request, job_id):
+       'endTime': format_time(oozie_bundle.endTime),
+       'actions': massaged_bundle_actions_for_json(oozie_bundle)
+     }
+-    return HttpResponse(json.dumps(return_obj).replace('\\\\', '\\'), mimetype="application/json")
++    return HttpResponse(json.dumps(return_obj).replace('\\\\', '\\'), content_type="application/json")
+ 
+   return render('dashboard/list_oozie_bundle.mako', request, {
+     'oozie_bundle': oozie_bundle,
+@@ -414,7 +415,7 @@ def get_oozie_job_log(request, job_id):
+     'log': oozie_job.log,
+   }
+ 
+-  return HttpResponse(encode_json_for_js(return_obj), mimetype="application/json")
++  return JsonResponse(return_obj, encoder=JSONEncoderForHTML)
+ 
+ 
+ @show_oozie_error
+@@ -538,7 +539,7 @@ def rerun_oozie_job(request, job_id, app_path):
+                    'action': reverse('oozie:rerun_oozie_job', kwargs={'job_id': job_id, 'app_path': app_path}),
+                  }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _rerun_workflow(request, oozie_id, run_args, mapping):
+@@ -592,7 +593,7 @@ def rerun_oozie_coordinator(request, job_id, app_path):
+                    'action': reverse('oozie:rerun_oozie_coord', kwargs={'job_id': job_id, 'app_path': app_path}),
+                  }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _rerun_coordinator(request, oozie_id, args, params, properties):
+@@ -655,7 +656,7 @@ def rerun_oozie_bundle(request, job_id, app_path):
+                    'action': reverse('oozie:rerun_oozie_bundle', kwargs={'job_id': job_id, 'app_path': app_path}),
+                  }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _rerun_bundle(request, oozie_id, args, params, properties):
+@@ -705,7 +706,7 @@ def submit_external_job(request, application_path):
+                    'name': _('Job'),
+                    'action': reverse('oozie:submit_external_job', kwargs={'application_path': application_path})
+                  }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def massaged_workflow_actions_for_json(workflow_actions, oozie_coordinator, oozie_bundle):
+diff --git a/apps/oozie/src/oozie/views/editor.py b/apps/oozie/src/oozie/views/editor.py
+index ea37597..4992f67 100644
+--- a/apps/oozie/src/oozie/views/editor.py
++++ b/apps/oozie/src/oozie/views/editor.py
+@@ -30,7 +30,7 @@ from django.utils.functional import curry
+ from django.utils.http import http_date
+ from django.utils.translation import ugettext as _, activate as activate_translation
+ 
+-from desktop.lib.django_util import render, extract_field_data
++from desktop.lib.django_util import JsonResponse, render, extract_field_data
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import smart_str
+ from desktop.lib.rest.http_client import RestException
+@@ -246,7 +246,7 @@ def export_workflow(request, workflow):
+ 
+   zip_file = workflow.compress(mapping=mapping)
+ 
+-  response = HttpResponse(mimetype="application/zip")
++  response = HttpResponse(content_type="application/zip")
+   response["Last-Modified"] = http_date(time.time())
+   response["Content-Length"] = len(zip_file.getvalue())
+   response['Content-Disposition'] = 'attachment; filename="workflow-%s-%d.zip"' % (workflow.name, workflow.id)
+@@ -329,7 +329,7 @@ def clone_workflow(request, workflow):
+ 
+   response = {'url': reverse('oozie:edit_workflow', kwargs={'workflow': clone.id})}
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ 
+@@ -358,7 +358,7 @@ def submit_workflow(request, workflow):
+                    'params_form': params_form,
+                    'action': reverse('oozie:submit_workflow', kwargs={'workflow': workflow.id})
+                  }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_workflow(user, fs, jt, workflow, mapping):
+@@ -554,7 +554,7 @@ def create_coordinator_dataset(request, coordinator):
+                             'dataset': dataset,
+                           }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response, safe=False)
+ 
+ 
+ @check_dataset_access_permission
+@@ -587,7 +587,7 @@ def edit_coordinator_dataset(request, dataset):
+                           'path': request.path,
+                         }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response, safe=False)
+ 
+ 
+ @check_job_access_permission()
+@@ -617,7 +617,7 @@ def create_coordinator_data(request, coordinator, data_type):
+   else:
+     response['data'] = _('A POST request is required.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_job_access_permission()
+@@ -629,7 +629,7 @@ def clone_coordinator(request, coordinator):
+ 
+   response = {'url': reverse('oozie:edit_coordinator', kwargs={'coordinator': clone.id})}
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_job_access_permission()
+@@ -656,7 +656,7 @@ def submit_coordinator(request, coordinator):
+                  'params_form': params_form,
+                  'action': reverse('oozie:submit_coordinator',  kwargs={'coordinator': coordinator.id})
+                 }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_coordinator(request, coordinator, mapping):
+@@ -787,7 +787,7 @@ def create_bundled_coordinator(request, bundle):
+   if response['status'] != 0:
+     response['data'] = get_create_bundled_coordinator_html(request, bundle, bundled_coordinator_form=bundled_coordinator_form)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def get_create_bundled_coordinator_html(request, bundle, bundled_coordinator_form=None):
+@@ -826,7 +826,7 @@ def edit_bundled_coordinator(request, bundle, bundled_coordinator):
+                             'bundled_coordinator_instance': bundled_coordinator_instance,
+                           }, force_template=True).content
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response, safe=False)
+ 
+ 
+ @check_job_access_permission()
+@@ -838,7 +838,7 @@ def clone_bundle(request, bundle):
+ 
+   response = {'url': reverse('oozie:edit_bundle', kwargs={'bundle': clone.id})}
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_job_access_permission()
+@@ -865,7 +865,7 @@ def submit_bundle(request, bundle):
+                  'params_form': params_form,
+                  'action': reverse('oozie:submit_bundle',  kwargs={'bundle': bundle.id})
+                 }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_bundle(request, bundle, properties):
+@@ -936,7 +936,7 @@ def install_examples(request):
+       LOG.exception(e)
+       result['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def jasmine(request):
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 798df05..9e9873f 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -21,11 +21,10 @@ import uuid
+ 
+ from django.core.urlresolvers import reverse
+ from django.forms.formsets import formset_factory
+-from django.http import HttpResponse
+ from django.shortcuts import redirect
+ from django.utils.translation import ugettext as _
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import smart_str
+ from desktop.lib.rest.http_client import RestException
+@@ -140,7 +139,7 @@ def delete_job(request):
+   response = {}
+   request.info(_('Document deleted.') if len(jobs) > 1 else _('Document deleted.'))
+   
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_access_permission()
+@@ -177,7 +176,7 @@ def copy_workflow(request):
+   response = {}  
+   request.info(_('Workflows copied.') if len(jobs) > 1 else _('Workflow copied.'))
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_modify_permission()
+@@ -214,7 +213,7 @@ def save_workflow(request):
+   response['doc1_id'] = workflow_doc.doc.get().id
+   response['message'] = _('Page saved !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def new_node(request):
+@@ -232,7 +231,7 @@ def new_node(request):
+   response['properties'] = properties 
+   response['workflows'] = workflows
+   
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def _get_workflows(user):
+@@ -262,7 +261,7 @@ def add_node(request):
+   response['properties'] = _properties
+   response['name'] = '%s-%s' % (node['widgetType'].split('-')[0], node['id'][:4])
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def action_parameters(request):
+@@ -291,7 +290,7 @@ def action_parameters(request):
+   except Exception, e:
+     response['message'] = str(e)
+     
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_access_permission()
+@@ -306,7 +305,7 @@ def workflow_parameters(request):
+   except Exception, e:
+     response['message'] = str(e)
+     
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def gen_xml_workflow(request):
+@@ -322,7 +321,7 @@ def gen_xml_workflow(request):
+   except Exception, e:
+     response['message'] = str(e)
+     
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_access_permission()
+@@ -352,7 +351,7 @@ def submit_workflow(request, doc_id):
+                      'name': workflow.name,
+                      'action': reverse('oozie:editor_submit_workflow', kwargs={'doc_id': workflow.id})
+                    }, force_template=True).content
+-    return HttpResponse(json.dumps(popup), mimetype="application/json")
++    return JsonResponse(popup)
+ 
+ 
+ def _submit_workflow(user, fs, jt, workflow, mapping):
+@@ -464,7 +463,7 @@ def copy_coordinator(request):
+   response = {}  
+   request.info(_('Coordinator copied.') if len(jobs) > 1 else _('Coordinator copied.'))
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_modify_permission()
+@@ -493,7 +492,7 @@ def save_coordinator(request):
+   response['id'] = coordinator_doc.id
+   response['message'] = _('Saved !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def gen_xml_coordinator(request):
+@@ -506,7 +505,7 @@ def gen_xml_coordinator(request):
+   response['status'] = 0
+   response['xml'] = coordinator.to_xml()
+     
+-  return HttpResponse(json.dumps(response), mimetype="application/json") 
++  return JsonResponse(response) 
+ 
+ 
+ @check_document_access_permission()
+@@ -550,7 +549,7 @@ def submit_coordinator(request, doc_id):
+                  'name': coordinator.name,
+                  'action': reverse('oozie:editor_submit_coordinator',  kwargs={'doc_id': coordinator.id})
+                 }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup)
+ 
+ 
+ def _submit_coordinator(request, coordinator, mapping):
+@@ -644,7 +643,7 @@ def save_bundle(request):
+   response['id'] = bundle_doc.id
+   response['message'] = _('Saved !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_access_permission()
+@@ -678,7 +677,7 @@ def copy_bundle(request):
+   response = {}  
+   request.info(_('Bundle copied.') if len(jobs) > 1 else _('Bundle copied.'))
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @check_document_access_permission()
+@@ -707,7 +706,7 @@ def submit_bundle(request, doc_id):
+                  'name': bundle.name,
+                  'action': reverse('oozie:editor_submit_bundle',  kwargs={'doc_id': bundle.id})
+                 }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++  return JsonResponse(popup)
+ 
+ 
+ def _submit_bundle(request, bundle, properties):
+diff --git a/apps/pig/src/pig/views.py b/apps/pig/src/pig/views.py
+index 0adff2a..a2c4e5e 100644
+--- a/apps/pig/src/pig/views.py
++++ b/apps/pig/src/pig/views.py
+@@ -19,12 +19,11 @@ import json
+ import logging
+ 
+ from django.core.urlresolvers import reverse
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ from django.views.decorators.csrf import ensure_csrf_cookie
+ from django.views.decorators.http import require_http_methods
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.rest.http_client import RestException
+ from desktop.models import Document
+@@ -54,7 +53,7 @@ def app(request):
+ 
+ 
+ def scripts(request):
+-  return HttpResponse(json.dumps(get_scripts(request.user, is_design=True)), mimetype="application/json")
++  return JsonResponse(get_scripts(request.user, is_design=True))
+ 
+ 
+ @show_oozie_error
+@@ -65,7 +64,7 @@ def dashboard(request):
+   hue_jobs = Document.objects.available(PigScript, request.user, with_history=True)
+   massaged_jobs = pig_api.massaged_jobs_for_json(request, jobs, hue_jobs)
+ 
+-  return HttpResponse(json.dumps(massaged_jobs), mimetype="application/json")
++  return JsonResponse(massaged_jobs)
+ 
+ 
+ def save(request):
+@@ -90,7 +89,7 @@ def save(request):
+     'docId': pig_script.doc.get().id
+   }
+ 
+-  return HttpResponse(json.dumps(response), content_type="text/plain")
++  return JsonResponse(response, content_type="text/plain")
+ 
+ 
+ @show_oozie_error
+@@ -141,7 +140,7 @@ def run(request):
+     'watchUrl': reverse('pig:watch', kwargs={'job_id': oozie_id}) + '?format=python'
+   }
+ 
+-  return HttpResponse(json.dumps(response), content_type="text/plain")
++  return JsonResponse(response, content_type="text/plain")
+ 
+ 
+ def copy(request):
+@@ -183,7 +182,7 @@ def copy(request):
+     'hadoopProperties': hadoopProperties
+   }
+ 
+-  return HttpResponse(json.dumps(response), content_type="text/plain")
++  return JsonResponse(response, content_type="text/plain")
+ 
+ 
+ def delete(request):
+@@ -205,7 +204,7 @@ def delete(request):
+     'ids': ids,
+   }
+ 
+-  return HttpResponse(json.dumps(response), content_type="text/plain")
++  return JsonResponse(response, content_type="text/plain")
+ 
+ 
+ @show_oozie_error
+@@ -231,7 +230,7 @@ def watch(request, job_id):
+     'output': hdfs_link(output)
+   }
+ 
+-  return HttpResponse(json.dumps(response), content_type="text/plain")
++  return JsonResponse(response, content_type="text/plain")
+ 
+ 
+ def install_examples(request):
+@@ -247,4 +246,4 @@ def install_examples(request):
+       LOG.exception(e)
+       result['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+diff --git a/apps/proxy/src/proxy/views.py b/apps/proxy/src/proxy/views.py
+index f11e61c..32e9b7f 100644
+--- a/apps/proxy/src/proxy/views.py
++++ b/apps/proxy/src/proxy/views.py
+@@ -106,7 +106,7 @@ def proxy(request, host, port, path):
+   else:
+     resp_text = _rewrite_links(data)
+   request.path = _reverse(host, port, path)
+-  return HttpResponse(resp_text, mimetype=data.headers.get("content-type"))
++  return HttpResponse(resp_text, content_type=data.headers.get("content-type"))
+ 
+ def _reverse(host, port, path):
+   return urlresolvers.reverse("proxy.views.proxy",
+diff --git a/apps/rdbms/src/rdbms/api.py b/apps/rdbms/src/rdbms/api.py
+index 3ac8e1a..5ffa7b8 100644
+--- a/apps/rdbms/src/rdbms/api.py
++++ b/apps/rdbms/src/rdbms/api.py
+@@ -19,9 +19,10 @@ import datetime
+ import json
+ import logging
+ 
+-from django.http import HttpResponse, Http404
++from django.http import Http404
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.context_processors import get_app_name
+ 
+ from librdbms import conf
+@@ -56,7 +57,7 @@ def error_handler(view_fn):
+       response = {
+         'error': str(e)
+       }
+-      return HttpResponse(json.dumps(response), mimetype="application/json", status=500)
++      return JsonResponse(response, status=500)
+   return decorator
+ 
+ 
+@@ -67,7 +68,7 @@ def servers(request):
+     'servers': servers_dict
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -84,7 +85,7 @@ def databases(request, server):
+     'databases': db.get_databases()
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -101,7 +102,7 @@ def tables(request, server, database):
+     'tables': db.get_tables(database)
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -118,7 +119,7 @@ def columns(request, server, database, table):
+     'columns': db.get_columns(database, table)
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -163,7 +164,7 @@ def execute_query(request, design_id=None):
+   except RuntimeError, e:
+     response['message']= str(e)
+ 
+-  return HttpResponse(json.dumps(response, cls=ResultEncoder), mimetype="application/json")
++  return JsonResponse(response, encoder=ResultEncoder)
+ 
+ 
+ @error_handler
+@@ -201,7 +202,7 @@ def explain_query(request):
+   except RuntimeError, e:
+     response['message']= str(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -246,7 +247,7 @@ def fetch_results(request, id, first_row=0):
+     'message': fetch_error and error_message or '',
+     'results': results_to_dict(results)
+   }
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -273,7 +274,7 @@ def save_query(request, design_id=None):
+   except RuntimeError, e:
+     response['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @error_handler
+@@ -288,7 +289,7 @@ def fetch_saved_query(request, design_id):
+   design = safe_get_design(request, query_type, design_id)
+ 
+   response['design'] = design_to_dict(design)
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def results_to_dict(results):
+diff --git a/apps/rdbms/src/rdbms/tests.py b/apps/rdbms/src/rdbms/tests.py
+index fb53913..edca37e 100644
+--- a/apps/rdbms/src/rdbms/tests.py
++++ b/apps/rdbms/src/rdbms/tests.py
+@@ -147,4 +147,4 @@ class TestAPI(TestSQLiteRdbmsBase):
+       self.client.get(reverse('rdbms:api_tables', args=['sqlitee', self.database]))
+     except TypeError, e:
+       assert_true('nonsensical' in str(e), e)
+-    finish()
+\ No newline at end of file
++    finish()
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index 43fc94d..a5ab6e7 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -19,13 +19,12 @@ import json
+ import logging
+ 
+ from django.core.urlresolvers import reverse
+-from django.http import HttpResponse
+ from django.utils.encoding import smart_str, force_unicode
+ from django.utils.html import escape
+ from django.utils.translation import ugettext as _
+ from django.shortcuts import redirect
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.rest.http_client import RestException
+ 
+@@ -148,7 +147,7 @@ def search(request):
+   if 'error' in response:
+     augment_solr_exception(response, collection)
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @allow_admin_only
+@@ -177,7 +176,7 @@ def save(request):
+   else:
+     response['message'] = _('There is no collection to search.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def download(request):
+@@ -186,9 +185,8 @@ def download(request):
+     response = search(request)
+ 
+     if file_format == 'json':
+-      mimetype = 'application/json'
+-      json_docs = json.dumps(json.loads(response.content)['response']['docs'])
+-      resp = HttpResponse(json_docs, mimetype=mimetype)
++      docs = json.loads(response.content)['response']['docs']
++      resp = JsonResponse(docs, safe=False)
+       resp['Content-Disposition'] = 'attachment; filename=%s.%s' % ('query_result', file_format)
+       return resp
+     else:
+@@ -218,7 +216,7 @@ def admin_collections(request, is_redirect=False):
+         'absoluteUrl': collection.get_absolute_url()
+       }
+       collections.append(massaged_collection)
+-    return HttpResponse(json.dumps(collections), mimetype="application/json")
++    return JsonResponse(collections)
+ 
+   return render('admin_collections.mako', request, {
+     'existing_hue_collections': existing_hue_collections,
+@@ -237,7 +235,7 @@ def admin_collection_delete(request):
+     'result': searcher.delete_collections([collection['id'] for collection in collections])
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @allow_admin_only
+@@ -251,7 +249,7 @@ def admin_collection_copy(request):
+     'result': searcher.copy_collections([collection['id'] for collection in collections])
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def query_suggest(request, collection_id, query=""):
+@@ -269,7 +267,7 @@ def query_suggest(request, collection_id, query=""):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def index_fields_dynamic(request):
+@@ -291,7 +289,7 @@ def index_fields_dynamic(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_document(request):
+@@ -316,7 +314,7 @@ def get_document(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_stats(request):
+@@ -340,7 +338,7 @@ def get_stats(request):
+       result['status'] = 1
+       result['message'] = _('This field does not support stats')
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_terms(request):
+@@ -371,7 +369,7 @@ def get_terms(request):
+       result['status'] = 1
+       result['message'] = _('This field does not support stats')
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_timeline(request):
+@@ -417,7 +415,7 @@ def get_timeline(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def new_facet(request):
+@@ -437,7 +435,7 @@ def new_facet(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_type):
+@@ -508,7 +506,7 @@ def get_range_facet(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_collection(request):
+@@ -526,7 +524,7 @@ def get_collection(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def get_collections(request):
+@@ -544,7 +542,7 @@ def get_collections(request):
+     else:
+       result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def install_examples(request):
+@@ -561,4 +559,4 @@ def install_examples(request):
+       LOG.exception(e)
+       result['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+diff --git a/apps/security/src/security/api/hdfs.py b/apps/security/src/security/api/hdfs.py
+index 700891d..7bb2131 100644
+--- a/apps/security/src/security/api/hdfs.py
++++ b/apps/security/src/security/api/hdfs.py
+@@ -17,9 +17,9 @@
+ 
+ import json
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions_renderable import PopupException
+ from filebrowser.views import display, listdir_paged
+ 
+@@ -54,9 +54,11 @@ def list_hdfs(request, path):
+     else:
+       json_response = display(request, path)
+   except IOError:
+-    json_response = HttpResponse(json.dumps({'files': [], 'page': {}, 'error': 'FILE_NOT_FOUND'}), mimetype="application/json") # AccessControlException: Permission denied: user=test, access=READ_EXECUTE, inode="/tmp/dir":romain:supergroup:drwxr-xr-x:group::r-x,group:bob:---,group:test:---,default:user::rwx,default:group::r--,default:mask::r--,default:other::rwx (error 403)
++    # AccessControlException: Permission denied: user=test, access=READ_EXECUTE, inode="/tmp/dir":romain:supergroup:drwxr-xr-x:group::r-x,group:bob:---,group:test:---,default:user::rwx,default:group::r--,default:mask::r--,default:other::rwx (error 403)
++    json_response = JsonResponse({'files': [], 'page': {}, 'error': 'FILE_NOT_FOUND'})
+   except Exception, e:
+-    json_response = HttpResponse(json.dumps({'files': [], 'page': {}, 'error': 'ACCESS_DENIED'}), mimetype="application/json") # AccessControlException: Permission denied: user=test, access=READ_EXECUTE, inode="/tmp/dir":romain:supergroup:drwxr-xr-x:group::r-x,group:bob:---,group:test:---,default:user::rwx,default:group::r--,default:mask::r--,default:other::rwx (error 403)
++    # AccessControlException: Permission denied: user=test, access=READ_EXECUTE, inode="/tmp/dir":romain:supergroup:drwxr-xr-x:group::r-x,group:bob:---,group:test:---,default:user::rwx,default:group::r--,default:mask::r--,default:other::rwx (error 403)
++    json_response = JsonResponse({'files': [], 'page': {}, 'error': 'ACCESS_DENIED'})
+ 
+   if json.loads(request.GET.get('isDiffMode', 'false')):
+     request.doas = 'hdfs'
+@@ -78,7 +80,7 @@ def get_acls(request):
+     print e
+     acls = None
+ 
+-  return HttpResponse(json.dumps(acls is not None and acls['AclStatus'] or None), mimetype="application/json")
++  return JsonResponse(acls is not None and acls['AclStatus'] or None)
+ 
+ 
+ def update_acls(request):
+@@ -97,7 +99,7 @@ def update_acls(request):
+   except Exception, e:
+     raise PopupException(unicode(str(e.message), "utf8"))
+ 
+-  return HttpResponse(json.dumps({'status': 0}), mimetype="application/json")
++  return JsonResponse({'status': 0})
+ 
+ 
+ def bulk_delete_acls(request):
+@@ -114,7 +116,7 @@ def bulk_delete_acls(request):
+   except Exception, e:
+     raise PopupException(unicode(str(e.message), "utf8"))
+ 
+-  return HttpResponse(json.dumps({'status': 0}), mimetype="application/json")
++  return JsonResponse({'status': 0})
+ 
+ 
+ def bulk_add_acls(request):
+@@ -130,7 +132,7 @@ def bulk_add_acls(request):
+   except Exception, e:
+     raise PopupException(unicode(str(e.message), "utf8"))
+ 
+-  return HttpResponse(json.dumps({'status': 0}), mimetype="application/json")
++  return JsonResponse({'status': 0})
+ 
+ 
+ def bulk_sync_acls(request):
+@@ -153,4 +155,4 @@ def _remove_acl_entries(fs, path, acls):
+ 
+ def _remove_acl_names(fs, path, acl_names):
+   aclspec = ','.join(acl_names)
+-  return fs.remove_acl_entries(path, aclspec)
+\ No newline at end of file
++  return fs.remove_acl_entries(path, aclspec)
+diff --git a/apps/security/src/security/api/hive.py b/apps/security/src/security/api/hive.py
+index 5eb209c..620987b 100644
+--- a/apps/security/src/security/api/hive.py
++++ b/apps/security/src/security/api/hive.py
+@@ -18,9 +18,9 @@
+ import json
+ import time
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from libsentry.api import get_api
+ from libsentry.sentry_site import get_sentry_server_admin_groups
+ from hadoop.cluster import get_defaultfs
+@@ -65,7 +65,7 @@ def list_sentry_roles_by_group(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def list_sentry_privileges_by_role(request):
+@@ -80,7 +80,7 @@ def list_sentry_privileges_by_role(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def _to_sentry_privilege(privilege):
+@@ -154,7 +154,7 @@ def create_role(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def update_role_groups(request):
+@@ -178,7 +178,7 @@ def update_role_groups(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def save_privileges(request):
+@@ -206,7 +206,7 @@ def save_privileges(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def grant_privilege(request):
+@@ -223,7 +223,7 @@ def grant_privilege(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def create_sentry_role(request):
+@@ -238,7 +238,7 @@ def create_sentry_role(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def drop_sentry_role(request):
+@@ -253,7 +253,7 @@ def drop_sentry_role(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def list_sentry_privileges_by_authorizable(request):
+@@ -278,7 +278,7 @@ def list_sentry_privileges_by_authorizable(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def bulk_delete_privileges(request):
+@@ -303,7 +303,7 @@ def bulk_delete_privileges(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def bulk_add_privileges(request):
+@@ -338,7 +338,7 @@ def bulk_add_privileges(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def rename_sentry_privilege(request):
+@@ -354,7 +354,7 @@ def rename_sentry_privilege(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def list_sentry_privileges_for_provider(request):
+@@ -372,4 +372,4 @@ def list_sentry_privileges_for_provider(request):
+   except Exception, e:
+     result['message'] = unicode(str(e), "utf8")
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 110bfee..878305a 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -23,6 +23,7 @@ from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2, Document
+ 
+@@ -43,7 +44,7 @@ def create_session(request):
+   response['session'] = get_api(request.user, snippet).create_session(lang=snippet['type'])
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -56,7 +57,7 @@ def execute(request):
+   response['handle'] = get_api(request.user, snippet).execute(notebook, snippet)
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -69,7 +70,7 @@ def check_status(request):
+   response['query_status'] = get_api(request.user, snippet).check_status(notebook, snippet)
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -84,7 +85,7 @@ def fetch_result_data(request):
+   response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet, rows, start_over)
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -129,7 +130,7 @@ def get_logs(request):
+     } for job in db._get_jobs(response['logs'])]
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def save_notebook(request):
+@@ -151,7 +152,7 @@ def save_notebook(request):
+   response['id'] = notebook_doc.id
+   response['message'] = _('Notebook saved !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def open_notebook(request):
+@@ -164,7 +165,7 @@ def open_notebook(request):
+   response['notebook'] = notebook.get_json()
+   response['message'] = _('Notebook saved !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def close_notebook(request):
+diff --git a/apps/spark/src/spark/decorators.py b/apps/spark/src/spark/decorators.py
+index 1f0a6cf..9e4c0ca 100644
+--- a/apps/spark/src/spark/decorators.py
++++ b/apps/spark/src/spark/decorators.py
+@@ -18,9 +18,10 @@
+ import json
+ import logging
+ 
+-from django.http import HttpResponse, Http404
++from django.http import Http404
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+ 
+@@ -48,8 +49,8 @@ def api_error_handler(func):
+       response['message'] = force_unicode(str(e))
+     finally:
+       if response:
+-        return HttpResponse(json.dumps(response), mimetype="application/json")
+-    
++        return JsonResponse(response)
++
+   return decorator
+ 
+ 
+@@ -63,5 +64,5 @@ def json_error_handler(view_fn):
+       response = {
+         'error': str(e)
+       }
+-      return HttpResponse(json.dumps(response), mimetype="application/json", status=500)
++      return JsonResponse(response, status=500)
+   return decorator
+diff --git a/apps/sqoop/src/sqoop/api/autocomplete.py b/apps/sqoop/src/sqoop/api/autocomplete.py
+index f2d8b34..971c9b2 100644
+--- a/apps/sqoop/src/sqoop/api/autocomplete.py
++++ b/apps/sqoop/src/sqoop/api/autocomplete.py
+@@ -17,8 +17,9 @@
+ 
+ import json
+ 
+-from django.http import HttpResponse, Http404
++from django.http import Http404
+ 
++from desktop.lib.django_util import JsonResponse
+ from librdbms import conf as librdbms_conf
+ from librdbms.server import dbms
+ 
+@@ -70,4 +71,4 @@ def autocomplete(request, database=None, table=None):
+   else:
+     response['databases'] = db.get_databases()
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/sqoop/src/sqoop/api/connector.py b/apps/sqoop/src/sqoop/api/connector.py
+index 85676ee..6fbcc7d 100644
+--- a/apps/sqoop/src/sqoop/api/connector.py
++++ b/apps/sqoop/src/sqoop/api/connector.py
+@@ -22,11 +22,11 @@ except ImportError:
+ import logging
+ import socket
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
+ from decorators import get_connector_or_exception
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+ from exception import handle_rest_exception
+@@ -50,7 +50,7 @@ def get_connectors(request):
+     response['connectors'] = list_to_dict(c.get_connectors())
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not get connectors.')))
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ def connectors(request):
+   if request.method == 'GET':
+@@ -68,6 +68,6 @@ def connector(request, connector):
+   }
+   if request.method == 'GET':
+     response['connector'] = connector.to_dict()
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+   else:
+     raise StructuredException(code="INVALID_METHOD", message=_('GET request required.'), error_code=405)
+diff --git a/apps/sqoop/src/sqoop/api/decorators.py b/apps/sqoop/src/sqoop/api/decorators.py
+index dca5104..90933d5 100644
+--- a/apps/sqoop/src/sqoop/api/decorators.py
++++ b/apps/sqoop/src/sqoop/api/decorators.py
+@@ -21,7 +21,6 @@ except ImportError:
+   import simplejson as json
+ import logging
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ from django.utils.functional import wraps
+ 
+diff --git a/apps/sqoop/src/sqoop/api/driver.py b/apps/sqoop/src/sqoop/api/driver.py
+index dab7f43..3cf4e43 100644
+--- a/apps/sqoop/src/sqoop/api/driver.py
++++ b/apps/sqoop/src/sqoop/api/driver.py
+@@ -22,10 +22,10 @@ except ImportError:
+ import logging
+ import socket
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+ from exception import handle_rest_exception
+@@ -49,6 +49,6 @@ def driver(request):
+       response['driver'] = c.get_driver().to_dict()
+     except RestException, e:
+       response.update(handle_rest_exception(e, _('Could not get driver.')))
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+   else:
+     raise StructuredException(code="INVALID_METHOD", message=_('GET request required.'), error_code=405)
+diff --git a/apps/sqoop/src/sqoop/api/job.py b/apps/sqoop/src/sqoop/api/job.py
+index eea6d43..48ab6fd 100644
+--- a/apps/sqoop/src/sqoop/api/job.py
++++ b/apps/sqoop/src/sqoop/api/job.py
+@@ -22,13 +22,13 @@ except ImportError:
+ import logging
+ import socket
+ 
+-from django.http import HttpResponse
+ from django.utils.encoding import smart_str
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
+ from sqoop.client.exception import SqoopException
+ from decorators import get_job_or_exception
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+ from exception import handle_rest_exception
+@@ -54,7 +54,7 @@ def get_jobs(request):
+     response['jobs'] = list_to_dict(jobs)
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not get jobs.')))
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def create_job(request):
+@@ -81,7 +81,7 @@ def create_job(request):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def update_job(request, job):
+@@ -107,7 +107,7 @@ def update_job(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def jobs(request):
+@@ -128,7 +128,7 @@ def job(request, job):
+   }
+   if request.method == 'GET':
+     response['job'] = job.to_dict()
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+   elif request.method == 'POST':
+     return update_job(request, job)
+   else:
+@@ -156,7 +156,7 @@ def job_clone(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ @get_job_or_exception()
+@@ -178,7 +178,7 @@ def job_delete(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ @get_job_or_exception()
+@@ -200,7 +200,7 @@ def job_start(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = [e.to_dict()]
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ @get_job_or_exception()
+@@ -222,7 +222,7 @@ def job_stop(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ @get_job_or_exception()
+@@ -244,4 +244,4 @@ def job_status(request, job):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/sqoop/src/sqoop/api/link.py b/apps/sqoop/src/sqoop/api/link.py
+index dfcf726..3ed971d 100644
+--- a/apps/sqoop/src/sqoop/api/link.py
++++ b/apps/sqoop/src/sqoop/api/link.py
+@@ -22,13 +22,13 @@ except ImportError:
+ import logging
+ import socket
+ 
+-from django.http import HttpResponse
+ from django.utils.encoding import smart_str
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
+ from sqoop.client.exception import SqoopException
+ from decorators import get_link_or_exception
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+ from exception import handle_rest_exception
+@@ -52,7 +52,7 @@ def get_links(request):
+     response['links'] = list_to_dict(c.get_links())
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not get links.')))
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def create_link(request):
+@@ -76,7 +76,7 @@ def create_link(request):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def update_link(request, link):
+@@ -99,7 +99,7 @@ def update_link(request, link):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def links(request):
+@@ -120,7 +120,7 @@ def link(request, link):
+   }
+   if request.method == 'GET':
+     response['link'] = link.to_dict()
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+   elif request.method == 'POST':
+     return update_link(request, link)
+   else:
+@@ -148,7 +148,7 @@ def link_clone(request, link):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ @get_link_or_exception()
+@@ -169,4 +169,4 @@ def link_delete(request, link):
+   except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/sqoop/src/sqoop/api/submission.py b/apps/sqoop/src/sqoop/api/submission.py
+index e22b5f9..9f17ad7 100644
+--- a/apps/sqoop/src/sqoop/api/submission.py
++++ b/apps/sqoop/src/sqoop/api/submission.py
+@@ -22,11 +22,11 @@ except ImportError:
+ import logging
+ import socket
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
+ from decorators import get_submission_or_exception
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+ from exception import handle_rest_exception
+@@ -52,7 +52,7 @@ def get_submissions(request):
+     response['submissions'] = list_to_dict(submissions)
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not get submissions.')))
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ @never_cache
+ def submissions(request):
+diff --git a/apps/useradmin/src/useradmin/views.py b/apps/useradmin/src/useradmin/views.py
+index cb33294..616cc17 100644
+--- a/apps/useradmin/src/useradmin/views.py
++++ b/apps/useradmin/src/useradmin/views.py
+@@ -26,7 +26,8 @@ import ldap
+ import ldap_access
+ 
+ from django.contrib.auth.models import User, Group
+-from desktop.lib.django_util import render
++
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ from django.core.urlresolvers import reverse
+ from django.utils.encoding import smart_str
+@@ -93,7 +94,7 @@ def list_for_autocomplete(request):
+       'users': massage_users_for_json(users, extended_user_object),
+       'groups': massage_groups_for_json(groups)
+     }
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+ 
+   return HttpResponse("")
+ 
+diff --git a/apps/zookeeper/src/zookeeper/views.py b/apps/zookeeper/src/zookeeper/views.py
+index 5ab16fa..3343a8d 100644
+--- a/apps/zookeeper/src/zookeeper/views.py
++++ b/apps/zookeeper/src/zookeeper/views.py
+@@ -19,11 +19,11 @@
+ import json
+ import logging
+ 
+-from django.http import Http404, HttpResponse
++from django.http import Http404
+ from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ from desktop.lib.exceptions_renderable import PopupException
+ 
+ from zookeeper import settings
+@@ -135,7 +135,7 @@ def delete(request, id, path):
+       'redirect': reverse('zookeeper:tree', kwargs={'id':id, 'path': path[:path.rindex('/')] or '/'})
+     }
+ 
+-  return HttpResponse(json.dumps(redir), mimetype="application/json")
++  return JsonResponse(redir)
+ 
+ 
+ def create(request, id, path):
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index 7d9f055..2dbe90d 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -22,12 +22,12 @@ import time
+ 
+ from collections import defaultdict
+ 
+-from django.http import HttpResponse
+ from django.core.urlresolvers import reverse
+ 
+ from django.utils import html
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document, DocumentTag
+ 
+@@ -196,7 +196,7 @@ def get_document(request):
+     doc_id = request.GET['id']
+     doc = Document.objects.get(id=doc_id)
+     response = massage_doc_for_json(doc, request.user)
+-    return HttpResponse(json.dumps(response), mimetype="application/json")
++    return JsonResponse(response)
+ 
+ def massage_doc_for_json(document, user, url=''):
+   read_perms = document.list_permissions(perm='read')
+@@ -237,7 +237,7 @@ def add_tag(request):
+   else:
+     response['message'] = _('POST request only')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def tag(request):
+@@ -254,7 +254,7 @@ def tag(request):
+   else:
+     response['message'] = _('POST request only')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def update_tags(request):
+@@ -271,7 +271,7 @@ def update_tags(request):
+   else:
+     response['message'] = _('POST request only')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def remove_tag(request):
+@@ -287,7 +287,7 @@ def remove_tag(request):
+   else:
+     response['message'] = _('POST request only')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def update_permissions(request):
+@@ -308,4 +308,4 @@ def update_permissions(request):
+   else:
+     response['message'] = _('POST request only')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/desktop/core/src/desktop/api2.py b/desktop/core/src/desktop/api2.py
+index 6b7e8da..ee71032 100644
+--- a/desktop/core/src/desktop/api2.py
++++ b/desktop/core/src/desktop/api2.py
+@@ -22,12 +22,12 @@ import time
+ 
+ from collections import defaultdict
+ 
+-from django.http import HttpResponse
+ from django.core.urlresolvers import reverse
+ 
+ from django.utils import html
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2, DocumentTag
+ 
+@@ -43,7 +43,7 @@ def get_document(request):
+ 
+   response = _massage_doc_for_json(doc, request.user, with_data=request.GET.get('with_data'))
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def _massage_doc_for_json(document, user, with_data=False):
+diff --git a/desktop/core/src/desktop/api_tests.py b/desktop/core/src/desktop/api_tests.py
+index 5e155e2..dc23460 100644
+--- a/desktop/core/src/desktop/api_tests.py
++++ b/desktop/core/src/desktop/api_tests.py
+@@ -23,7 +23,6 @@ from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal
+ from django.conf.urls import patterns, url
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+-from django.http import HttpResponse
+ from django.db.models import query, CharField, SmallIntegerField
+ 
+ from desktop.lib.django_test_util import make_logged_in_client
+diff --git a/desktop/core/src/desktop/lib/django_util.py b/desktop/core/src/desktop/lib/django_util.py
+index 2a0900b..7af9194 100644
+--- a/desktop/core/src/desktop/lib/django_util.py
++++ b/desktop/core/src/desktop/lib/django_util.py
+@@ -19,21 +19,22 @@
+ 
+ import logging
+ import re
+-import simplejson
++import json
+ import socket
+ import datetime
+ 
+-from django.utils.tzinfo import LocalTimezone
+-from django.utils.translation import ungettext, ugettext
+-from django.core.context_processors import csrf
+-from django.core import urlresolvers, serializers
+ from django.conf import settings
+-from django.utils.http import urlencode # this version is unicode-friendly
++from django.core import urlresolvers, serializers
++from django.core.context_processors import csrf
++from django.core.serializers.json import DjangoJSONEncoder
++from django.db import models
+ from django.http import QueryDict, HttpResponse, HttpResponseRedirect
+ from django.shortcuts import render_to_response as django_render_to_response
+-from django.template.loader import render_to_string as django_render_to_string
+ from django.template import RequestContext
+-from django.db import models
++from django.template.loader import render_to_string as django_render_to_string
++from django.utils.http import urlencode # this version is unicode-friendly
++from django.utils.translation import ungettext, ugettext
++from django.utils.tzinfo import LocalTimezone
+ 
+ import desktop.conf
+ import desktop.lib.thrift_util
+@@ -53,7 +54,7 @@ GROUPNAME_RE_RULE = ".{,80}"
+ class PopupException: pass
+ 
+ 
+-class Encoder(simplejson.JSONEncoder):
++class Encoder(json.JSONEncoder):
+   """
+   Automatically encodes JSON for Django models and
+   Thrift objects, as well as objects that have
+@@ -70,7 +71,7 @@ class Encoder(simplejson.JSONEncoder):
+       assert len(x) == 1
+       return x[0]
+ 
+-    return simplejson.JSONEncoder.default(self, o)
++    return json.JSONEncoder.default(self, o)
+ 
+ def get_username_re_rule():
+   return USERNAME_RE_RULE
+@@ -261,7 +262,7 @@ def encode_json(data, indent=None):
+   Typically this is used from render_json, but it's the natural
+   endpoint to test the Encoder logic, so it's separated out.
+   """
+-  return simplejson.dumps(data, indent=indent, cls=Encoder)
++  return json.dumps(data, indent=indent, cls=Encoder)
+ 
+ def encode_json_for_js(data, indent=None):
+   """
+@@ -270,7 +271,7 @@ def encode_json_for_js(data, indent=None):
+   Typically this is used from render_json, but it's the natural
+   endpoint to test the Encoder logic, so it's separated out.
+   """
+-  return simplejson.dumps(data, indent=indent, cls=JSONEncoderForHTML)
++  return json.dumps(data, indent=indent, cls=JSONEncoderForHTML)
+ 
+ VALID_JSON_IDENTIFIER = re.compile("^[a-zA-Z_$][a-zA-Z0-9_$]*$")
+ 
+@@ -294,7 +295,7 @@ def render_json(data, jsonp_callback=None, js_safe=False, status=200):
+     if not VALID_JSON_IDENTIFIER.match(jsonp_callback):
+       raise IllegalJsonpCallbackNameException("Invalid jsonp callback name: %s" % jsonp_callback)
+     json = "%s(%s);" % (jsonp_callback, json)
+-  return HttpResponse(json, mimetype='text/javascript', status=status)
++  return HttpResponse(json, content_type='text/javascript', status=status)
+ 
+ def update_if_dirty(model_instance, **kwargs):
+   """
+@@ -445,3 +446,26 @@ def timesince(d=None, now=None, abbreviate=False, separator=','):
+       else:
+         s += ugettext('%(separator)s %(number)d %(type)s') % {'separator': separator, 'number': count2, 'type': name2(count2)}
+   return s
++
++
++# Backported from Django 1.7
++class JsonResponse(HttpResponse):
++    """
++    An HTTP response class that consumes data to be serialized to JSON.
++
++    :param data: Data to be dumped into json. By default only ``dict`` objects
++      are allowed to be passed due to a security flaw before EcmaScript 5. See
++      the ``safe`` parameter for more information.
++    :param encoder: Should be an json encoder class. Defaults to
++      ``django.core.serializers.json.DjangoJSONEncoder``.
++    :param safe: Controls if only ``dict`` objects may be serialized. Defaults
++      to ``True``.
++    """
++
++    def __init__(self, data, encoder=DjangoJSONEncoder, safe=True, **kwargs):
++        if safe and not isinstance(data, dict):
++            raise TypeError('In order to allow non-dict objects to be '
++                'serialized set the safe parameter to False')
++        kwargs.setdefault('content_type', 'application/json')
++        data = json.dumps(data, cls=encoder)
++        super(JsonResponse, self).__init__(content=data, **kwargs)
+diff --git a/desktop/core/src/desktop/lib/export_csvxls.py b/desktop/core/src/desktop/lib/export_csvxls.py
+index b9a01ff..08e6a02 100644
+--- a/desktop/core/src/desktop/lib/export_csvxls.py
++++ b/desktop/core/src/desktop/lib/export_csvxls.py
+@@ -82,15 +82,15 @@ def make_response(generator, format, name, encoding=None):
+   @param encoding Unicode encoding for data
+   """
+   if format == 'csv':
+-    mimetype = 'application/csv'
++    content_type = 'application/csv'
+   elif format == 'xls':
+-    mimetype = 'application/xls'
++    content_type = 'application/xls'
+   else:
+     raise Exception("Unknown format: %s" % format)
+ 
+   # FIXME: this should be replaced with StreamingHttpResponse when we upgrade
+   # to Django 1.5+.
+-  resp = HttpResponse(generator, mimetype=mimetype)
++  resp = HttpResponse(generator, content_type=content_type)
+   resp['Content-Disposition'] = 'attachment; filename=%s.%s' % (name, format)
+   resp.streaming = True
+ 
+diff --git a/desktop/core/src/desktop/views.py b/desktop/core/src/desktop/views.py
+index 702b67f..ec71944 100644
+--- a/desktop/core/src/desktop/views.py
++++ b/desktop/core/src/desktop/views.py
+@@ -42,7 +42,7 @@ from desktop.api import massaged_tags_for_json, massaged_documents_for_json,\
+   _get_docs
+ from desktop.lib import django_mako
+ from desktop.lib.conf import GLOBAL_CONFIG
+-from desktop.lib.django_util import login_notrequired, render_json, render
++from desktop.lib.django_util import JsonResponse, login_notrequired, render_json, render
+ from desktop.lib.i18n import smart_str
+ from desktop.lib.paths import get_desktop_root
+ from desktop.log.access import access_log_level, access_warn
+@@ -171,7 +171,7 @@ def bootstrap(request):
+ 
+   # HttpResponse can take an iteratable as the first argument, which
+   # is what happens here.
+-  return HttpResponse(concatenated, mimetype='text/javascript')
++  return HttpResponse(concatenated, content_type='text/javascript')
+ 
+ 
+ _status_bar_views = []
+diff --git a/desktop/libs/indexer/src/indexer/api.py b/desktop/libs/indexer/src/indexer/api.py
+index 519de7b..358bfbe 100644
+--- a/desktop/libs/indexer/src/indexer/api.py
++++ b/desktop/libs/indexer/src/indexer/api.py
+@@ -20,10 +20,10 @@ import json
+ import logging
+ import re
+ 
+-from django.http import HttpResponse
+ from django.utils.decorators import available_attrs
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib.django_util import JsonResponse
+ from desktop.lib.exceptions_renderable import PopupException
+ from search.models import Collection
+ 
+@@ -86,7 +86,7 @@ def parse_fields(request):
+   else:
+     result['message'] = _('Source type %s not supported.') % source_type
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+ 
+ 
+ def collections(request):
+@@ -103,7 +103,7 @@ def collections(request):
+     'collections': massaged_collections
+   }
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_create(request):
+@@ -151,7 +151,7 @@ def collections_create(request):
+   else:
+     response['message'] = _('Collection missing.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_import(request):
+@@ -179,7 +179,7 @@ def collections_import(request):
+   else:
+     response['message'] = _('Collection missing.')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_remove(request):
+@@ -205,7 +205,7 @@ def collections_remove(request):
+     response['status'] = 0
+     response['message'] = _('Collections removed!')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_fields(request, collection):
+@@ -221,7 +221,7 @@ def collections_fields(request, collection):
+   response['fields'] = [(field, fields[field]['type'], fields[field].get('indexed', None), fields[field].get('stored', None)) for field in fields]
+   response['unique_key'] = unique_key
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_update(request, collection):
+@@ -242,7 +242,7 @@ def collections_update(request, collection):
+     response['status'] = 0
+     response['message'] = _('Collection updated!')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def collections_data(request, collection):
+@@ -269,4 +269,4 @@ def collections_data(request, collection):
+   else:
+     response['message'] = _('Unsupported source %s') % source
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/desktop/libs/indexer/src/indexer/views.py b/desktop/libs/indexer/src/indexer/views.py
+index 453e763..8830f99 100644
+--- a/desktop/libs/indexer/src/indexer/views.py
++++ b/desktop/libs/indexer/src/indexer/views.py
+@@ -18,10 +18,9 @@
+ import logging
+ import json
+ 
+-from django.http import HttpResponse
+ from django.utils.translation import ugettext as _
+ 
+-from desktop.lib.django_util import render
++from desktop.lib.django_util import JsonResponse, render
+ 
+ from indexer.management.commands import indexer_setup
+ 
+@@ -46,4 +45,4 @@ def install_examples(request, is_redirect=False):
+       LOG.exception(e)
+       result['message'] = str(e)
+ 
+-  return HttpResponse(json.dumps(result), mimetype="application/json")
++  return JsonResponse(result)
+-- 
+1.7.9.5
+

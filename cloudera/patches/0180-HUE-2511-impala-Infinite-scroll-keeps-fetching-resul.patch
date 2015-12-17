@@ -1,0 +1,27 @@
+From bd351a66d9447d8fc36d214596f21bc94cc6bc9f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 31 Dec 2014 09:48:20 +0100
+Subject: [PATCH 0180/1173] HUE-2511 [impala] Infinite scroll keeps fetching
+ results even if finished
+
+Added hasMoreResults check on infinite scroll
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index a37cf8c..67ddf4c 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -2008,7 +2008,7 @@ function datatableScroll() {
+   window.clearTimeout(_scrollTimeout);
+   _scrollTimeout = window.setTimeout(function(){
+     dataTableEl.data("scrollPosition", dataTableEl.scrollTop());
+-    if (_lastScrollPosition !=  dataTableEl.scrollTop() && dataTableEl.scrollTop() + dataTableEl.outerHeight() + 20 > dataTableEl[0].scrollHeight && dataTable) {
++    if (_lastScrollPosition !=  dataTableEl.scrollTop() && dataTableEl.scrollTop() + dataTableEl.outerHeight() + 20 > dataTableEl[0].scrollHeight && dataTable && viewModel.hasMoreResults()) {
+       dataTableEl.animate({opacity: '0.55'}, 200);
+       viewModel.fetchResults();
+     }
+-- 
+1.7.9.5
+

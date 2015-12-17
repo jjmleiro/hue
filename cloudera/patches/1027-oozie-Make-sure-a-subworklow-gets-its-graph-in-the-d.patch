@@ -1,0 +1,60 @@
+From a99b93e921b42a01c6484279b4e233fbbafed880 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 10 Mar 2015 16:41:16 -0700
+Subject: [PATCH 1027/1173] [oozie] Make sure a subworklow gets its graph in
+ the dashboard
+
+---
+ apps/oozie/src/oozie/models2.py                   |    9 +++++++++
+ desktop/libs/liboozie/src/liboozie/submission2.py |    8 +++++---
+ 2 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 603acef..90c68d3 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -210,6 +210,15 @@ class Workflow(Job):
+     _data = self.get_data()
+     return _data['workflow']['properties']['parameters']
+ 
++  def override_subworkflow_id(self, sub_wf_action, workflow_id):
++    _data = self.get_data()
++
++    action = [_action for _action in _data['workflow']['nodes'] if _action['id'] == sub_wf_action.id]
++    if action:
++      action[0]['properties']['job_properties'].append({'name': Workflow.HUE_ID, 'value': workflow_id})
++
++    self.data = json.dumps(_data)
++
+   @property
+   def sla_enabled(self):
+     _data = self.get_data()
+diff --git a/desktop/libs/liboozie/src/liboozie/submission2.py b/desktop/libs/liboozie/src/liboozie/submission2.py
+index 3bf0462..97a749a 100644
+--- a/desktop/libs/liboozie/src/liboozie/submission2.py
++++ b/desktop/libs/liboozie/src/liboozie/submission2.py
+@@ -150,9 +150,6 @@ class Submission(object):
+       jt_address = cluster.get_cluster_addr_for_job_submission()
+       self._update_properties(jt_address) # Needed for coordinator deploying workflows with credentials
+ 
+-    oozie_xml = self.job.to_xml(self.properties)
+-    self._do_as(self.user.username , self._copy_files, deployment_dir, oozie_xml, self.properties)
+-
+     if hasattr(self.job, 'nodes'):
+       for action in self.job.nodes:
+         # Make sure XML is there
+@@ -163,6 +160,11 @@ class Submission(object):
+           sub_deploy = Submission(self.user, workflow, self.fs, self.jt, self.properties)
+           sub_deploy.deploy()
+ 
++          self.job.override_subworkflow_id(action, workflow.id) # For displaying the correct graph
++
++    oozie_xml = self.job.to_xml(self.properties)
++    self._do_as(self.user.username, self._copy_files, deployment_dir, oozie_xml, self.properties)
++
+     return deployment_dir
+ 
+ 
+-- 
+1.7.9.5
+

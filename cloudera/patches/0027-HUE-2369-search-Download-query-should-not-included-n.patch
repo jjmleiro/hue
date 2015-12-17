@@ -1,0 +1,48 @@
+From b9671705ce2eda4a1f21676db1b6ed8098491d03 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 10 Oct 2014 14:42:33 -0700
+Subject: [PATCH 0027/1173] HUE-2369 [search] Download query should not
+ included non selected headers
+
+---
+ apps/search/src/search/data_export.py |    6 +++++-
+ apps/search/src/search/models.py      |    6 ++++--
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/apps/search/src/search/data_export.py b/apps/search/src/search/data_export.py
+index d5cae7a..2c0aefe 100644
+--- a/apps/search/src/search/data_export.py
++++ b/apps/search/src/search/data_export.py
+@@ -49,7 +49,11 @@ def SearchDataAdapter(results, format, collection):
+   """
+   if results and results['response'] and results['response']['docs']:
+     search_data = results['response']['docs']
+-    headers = [field['name'] for field in collection['fields']]
++
++    if collection['template']['fieldsSelected']:
++      headers = collection['template']['fieldsSelected']
++    else:
++      headers = [field['name'] for field in collection['fields']]
+ 
+     rows = []
+ 
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 8c69796..35eba7f 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -530,8 +530,10 @@ def augment_solr_response(response, collection, query):
+         value = smart_unicode(value, errors='replace')
+         escaped_value = escape(value)
+       doc[field] = escaped_value
+-    doc['showDetails'] = False
+-    doc['details'] = []
++
++    if not query['download']:
++      doc['showDetails'] = False
++      doc['details'] = []
+ 
+   highlighted_fields = response.get('highlighting', {}).keys()
+   if highlighted_fields and not query.get('download'):
+-- 
+1.7.9.5
+

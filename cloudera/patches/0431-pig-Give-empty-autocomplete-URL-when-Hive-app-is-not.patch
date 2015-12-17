@@ -1,0 +1,33 @@
+From c15bcb2a81110880a225f07b27e1c0441a81700c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 9 Jan 2015 14:03:58 -0800
+Subject: [PATCH 0431/1173] [pig] Give empty autocomplete URL when Hive app is
+ not installed
+
+---
+ apps/pig/src/pig/views.py |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/apps/pig/src/pig/views.py b/apps/pig/src/pig/views.py
+index 0d55178..0adff2a 100644
+--- a/apps/pig/src/pig/views.py
++++ b/apps/pig/src/pig/views.py
+@@ -42,8 +42,14 @@ LOG = logging.getLogger(__name__)
+ 
+ @ensure_csrf_cookie
+ def app(request):
++  autocomplete_base_url = ''
++  try:
++    autocomplete_base_url = reverse('beeswax:api_autocomplete_databases', kwargs={})
++  except:
++    pass
++  
+   return render('app.mako', request, {
+-    'autocomplete_base_url': reverse('beeswax:api_autocomplete_databases', kwargs={}),
++    'autocomplete_base_url': autocomplete_base_url,
+   })
+ 
+ 
+-- 
+1.7.9.5
+

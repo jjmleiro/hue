@@ -1,0 +1,174 @@
+From 57ae33a9a23d72937d1253a212ea2e7375ffc0e4 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 16 Dec 2014 19:14:16 -0800
+Subject: [PATCH 0340/1173] [oozie] Submit a Coordinator
+
+---
+ apps/oozie/src/oozie/models2.py                    |   16 ++++++++++++++++
+ .../oozie/templates/editor/coordinator_editor.mako |    7 ++++++-
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   17 ++++++++---------
+ apps/oozie/static/js/coordinator-editor.ko.js      |    2 +-
+ 5 files changed, 32 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 8b2630f..fd2cdbe 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1191,6 +1191,7 @@ def import_workflow_from_hue_3_7(old_wf):
+ class Coordinator():
+   XML_FILE_NAME = 'coordinator.xml'
+   PROPERTY_APP_PATH = 'oozie.coord.application.path'
++  HUE_ID = 'hue-id-c'
+ 
+   def __init__(self, data=None, json_data=None, document=None):
+     self.document = document
+@@ -1208,6 +1209,7 @@ class Coordinator():
+           "name": "My Coordinator",
+           "variables": [],
+           "properties": {
++              "deployment_dir": "",
+               "schema_version": "uri:oozie:coordinator:0.2",
+               "frequency_number": 1,
+               "frequency_unit": "days",
+@@ -1231,6 +1233,10 @@ class Coordinator():
+       }
+ 
+   @property
++  def id(self):
++    return self.document.id
++
++  @property
+   def json(self):
+     _data = self.data.copy()
+ 
+@@ -1249,6 +1255,16 @@ class Coordinator():
+ 
+     return self._data
+   
++  @property      
++  def deployment_dir(self):
++    if not self.data['properties'].get('deployment_dir'):
++      self.data['properties']['deployment_dir'] = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too    
++    return self.data['properties']['deployment_dir']
++  
++  def find_all_parameters(self):
++    # TODO
++    return []
++  
+   @property
+   def datasets(self):
+     return self.inputDatasets + self.outputDatasets
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index ae77a45..eaf37a9 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -243,7 +243,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ </div>
+ 
+ 
+-<div id="submit-wf-modal" class="modal hide"></div>
++<div id="submit-coord-modal" class="modal hide"></div>
+ 
+ <div id="exposeOverlay"></div>
+ 
+@@ -287,6 +287,11 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   function addActionDemiModalFieldCancel() {
+     viewModel.removeWidgetById(newAction.id());
+   }
++  
++  $(document).on("showSubmitPopup", function(event, data){
++    $('#submit-coord-modal').html(data);
++    $('#submit-coord-modal').modal('show');
++  });  
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 3d4ac8c..2df296a 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -85,6 +85,7 @@ urlpatterns += patterns(
+   url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
+   url(r'^editor/coordinator/new/$', 'new_coordinator', name='new_coordinator'),
+   url(r'^editor/coordinator/save/$', 'save_coordinator', name='save_coordinator'),
++  url(r'^editor/coordinator/submit/(?P<doc_id>\d+)$', 'submit_coordinator', name='editor_submit_coordinator'),
+   url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'), # Temporary
+ )
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 489e8b7..62e0591 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -298,20 +298,18 @@ def save_coordinator(request):
+ def gen_xml_coordinator(request):
+   response = {'status': -1}
+ 
+-#  try:
+   coordinator_dict = json.loads(request.POST.get('coordinator', '{}')) # TODO perms
+ 
+   coordinator = Coordinator(data=coordinator_dict)
+ 
+   response['status'] = 0
+   response['xml'] = coordinator.to_xml()
+-#  except Exception, e:
+-#    response['message'] = str(e)
+     
+   return HttpResponse(json.dumps(response), mimetype="application/json") 
+ 
+ 
+-def submit_coordinator(request, coordinator):
++def submit_coordinator(request, doc_id):
++  coordinator = Coordinator(document=Document2.objects.get(id=doc_id)) # Todo perms  
+   ParametersFormSet = formset_factory(ParameterForm, extra=0)
+ 
+   if request.method == 'POST':
+@@ -332,14 +330,15 @@ def submit_coordinator(request, coordinator):
+ 
+   popup = render('editor/submit_job_popup.mako', request, {
+                  'params_form': params_form,
+-                 'action': reverse('oozie:submit_coordinator',  kwargs={'coordinator': coordinator.id})
++                 'action': reverse('oozie:editor_submit_coordinator',  kwargs={'doc_id': coordinator.id})
+                 }, force_template=True).content
+   return HttpResponse(json.dumps(popup), mimetype="application/json")
+ 
+ 
+ def _submit_coordinator(request, coordinator, mapping):
+   try:
+-    wf_dir = Submission(request.user, coordinator.workflow, request.fs, request.jt, mapping).deploy()
++    wf_doc = Document2.objects.get(uuid=coordinator.data['properties']['workflow'])
++    wf_dir = Submission(request.user, Workflow(document=wf_doc), request.fs, request.jt, mapping).deploy()
+ 
+     properties = {'wf_application_path': request.fs.get_hdfs_path(wf_dir)}
+     properties.update(mapping)
+@@ -347,9 +346,9 @@ def _submit_coordinator(request, coordinator, mapping):
+     submission = Submission(request.user, coordinator, request.fs, request.jt, properties=properties)
+     job_id = submission.run()
+ 
+-    History.objects.create_from_submission(submission)
+-
+     return job_id
+   except RestException, ex:
+     raise PopupException(_("Error submitting coordinator %s") % (coordinator,),
+-                         detail=ex._headers.get('oozie-error-message', ex))
+\ No newline at end of file
++                         detail=ex._headers.get('oozie-error-message', ex))
++    
++    
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index b207977..fdee747 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -76,7 +76,7 @@ var Coordinator = function (vm, coordinator) {
+        'advanced_end_instance': '${coord:current(0)}',
+        'end_instance': '0',
+        'frequency_number': 1,
+-       'frequency_unit': 'DAYS',
++       'frequency_unit': 'days',
+        'start': new Date(),
+ 
+        'shared_dataset_uuid': '' // If reusing a shared dataset
+-- 
+1.7.9.5
+

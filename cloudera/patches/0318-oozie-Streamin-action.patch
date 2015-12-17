@@ -1,0 +1,181 @@
+From b656760ab0cf5850840b97bd741b14aa964aedfa Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 24 Nov 2014 15:35:08 -0800
+Subject: [PATCH 0318/1173] [oozie] Streamin action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   56 ++++++++++++++++++++
+ .../editor/gen2/workflow-streaming.xml.mako        |   14 ++---
+ .../oozie/templates/editor/workflow_editor.mako    |   39 ++++++++------
+ 3 files changed, 87 insertions(+), 22 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index c549751..64ccd2f 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -863,6 +863,61 @@ class EmailAction(Action):
+     return [cls.FIELDS['to'], cls.FIELDS['subject'], cls.FIELDS['body']]
+ 
+ 
++class StreamingAction(Action):
++  TYPE = 'streaming'
++  FIELDS = {
++     'mapper': { 
++          'name': 'mapper',
++          'label': _('Mapper'),
++          'value': '',
++          'help_text': _('The executable/script to be used as mapper.')
++     },
++     'reducer': { 
++          'name': 'reducer',
++          'label': _('Reducer'),
++          'value': '',
++          'help_text': _('The executable/script to be used as reducer.')
++     },
++     # Common
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                        'Properties specified in the Job Properties element override properties specified in the '
++                        'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['mapper'], cls.FIELDS['reducer']]
++
++
+ class KillAction(Action):
+   TYPE = 'kill'
+   FIELDS = {
+@@ -900,6 +955,7 @@ NODES = {
+   'ssh-widget': SshAction,  
+   'fs-widget': FsAction,
+   'email-widget': EmailAction,
++  'streaming-widget': StreamingAction,  
+   'kill-widget': KillAction,
+   'join-widget': JoinAction,
+ }
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+index 80d3d6b..cd2db95 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+@@ -17,18 +17,18 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <map-reduce>
+             <job-tracker>${ '${' }jobTracker}</job-tracker>
+             <name-node>${ '${' }nameNode}</name-node>
+             <streaming>
+-                <mapper>${ node.mapper }</mapper>
+-                <reducer>${ node.reducer }</reducer>
++                <mapper>${ node['properties']['mapper'] }</mapper>
++                <reducer>${ node['properties']['reducer'] }</reducer>
+             </streaming>
+-            ${ common.configuration(node.get_properties()) }
+-            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++            ${ common.configuration(node['properties']['properties']) }
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+         </map-reduce>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
++        <error to="${ node_mapping[node['children'][1]['error']].name }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 8222d48..a22ebf6 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -114,7 +114,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableStreamingAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){}}}"
++                    options: {'start': function(event, ui){$root.currentlyDraggedWidget(draggableStreamingAction());}}}"
+          title="${_('Streaming')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-exchange"></i></a>
+     </div>    
+@@ -1350,26 +1350,35 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <ul class="nav nav-tabs">
+-        <li class="active"><a href="#action" data-toggle="tab">${ _('Streaming') }</a></li>
+-        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
+-        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
+-        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
+-        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Streaming') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
+       </ul>
+       <div class="tab-content">
+-        <div class="tab-pane active" id="action">
+-          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++        <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
++          <span data-bind="text: $root.workflow_properties.mapper.label"></span>
++          <input type="text" data-bind="value: properties.mapper" />
++          <br/>
++          <span data-bind="text: $root.workflow_properties.reducer.label"></span>
++          <input type="text" data-bind="value: properties.reducer" />
+         </div>
+-        <div class="tab-pane" id="properties">
+-          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>       
+         </div>
+-        <div class="tab-pane" id="sla">
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
+         </div>
+-        <div class="tab-pane" id="credentials">
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
+         </div>
+-        <div class="tab-pane" id="transitions">
+-          OK --> []
+-          KO --> []
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
+         </div>
+       </div>
+     </div>
+-- 
+1.7.9.5
+

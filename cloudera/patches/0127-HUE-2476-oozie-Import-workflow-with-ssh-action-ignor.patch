@@ -1,0 +1,150 @@
+From 6d1b1dfedb365f103002272352651aabaff1ab14 Mon Sep 17 00:00:00 2001
+From: gdgt <michalis@cloudera.com>
+Date: Thu, 20 Nov 2014 17:52:16 +0000
+Subject: [PATCH 0127/1173] HUE-2476 [oozie] Import workflow with ssh action
+ ignores <args> tag
+
+---
+ .../xslt/workflows/0.1/nodes/fields/params.xslt    |    2 +-
+ .../xslt/workflows/0.2.5/nodes/fields/params.xslt  |    2 +-
+ .../xslt/workflows/0.2/nodes/fields/params.xslt    |    2 +-
+ .../xslt/workflows/0.3/nodes/fields/params.xslt    |    2 +-
+ .../xslt/workflows/0.4/nodes/fields/params.xslt    |    2 +-
+ .../xslt/workflows/0.5/nodes/fields/params.xslt    |    2 +-
+ .../src/oozie/test_data/workflows/0.4/test-ssh.xml |   17 +++++++++++++++++
+ apps/oozie/src/oozie/tests.py                      |   17 +++++++++++++++++
+ 8 files changed, 40 insertions(+), 6 deletions(-)
+ create mode 100644 apps/oozie/src/oozie/test_data/workflows/0.4/test-ssh.xml
+
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.1/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.1/nodes/fields/params.xslt
+index f43d998..b49b8da 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.1/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.1/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.2.5/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.2.5/nodes/fields/params.xslt
+index 40464af..d64088d 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.2.5/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.2.5/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.2/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.2/nodes/fields/params.xslt
+index e31ba6a..0f5666c 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.2/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.2/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.3/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.3/nodes/fields/params.xslt
+index 6deb0af..efa4bf0 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.3/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.3/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.4/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.4/nodes/fields/params.xslt
+index a6f5644..5e81385 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.4/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.4/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/importlib/xslt/workflows/0.5/nodes/fields/params.xslt b/apps/oozie/src/oozie/importlib/xslt/workflows/0.5/nodes/fields/params.xslt
+index 707648e..a63dbc1 100644
+--- a/apps/oozie/src/oozie/importlib/xslt/workflows/0.5/nodes/fields/params.xslt
++++ b/apps/oozie/src/oozie/importlib/xslt/workflows/0.5/nodes/fields/params.xslt
+@@ -6,7 +6,7 @@
+ 
+   <field name="params" type="TextField">
+     <xsl:text>[</xsl:text>
+-    <xsl:for-each select="*[local-name()='param'] | *[local-name()='argument']">
++    <xsl:for-each select="*[local-name()='param'] | *[starts-with(local-name(), 'arg')]">
+       <xsl:choose>
+         <xsl:when test="position() &lt; last()">
+           <xsl:text><![CDATA[{"type":"]]></xsl:text><xsl:value-of select="local-name()" /><xsl:text><![CDATA[","value":"]]></xsl:text><xsl:value-of select="." /><xsl:text><![CDATA["},]]></xsl:text>
+diff --git a/apps/oozie/src/oozie/test_data/workflows/0.4/test-ssh.xml b/apps/oozie/src/oozie/test_data/workflows/0.4/test-ssh.xml
+new file mode 100644
+index 0000000..eeef010
+--- /dev/null
++++ b/apps/oozie/src/oozie/test_data/workflows/0.4/test-ssh.xml
+@@ -0,0 +1,17 @@
++<workflow-app name="ssh-test" xmlns="uri:oozie:workflow:0.4">
++    <start to="ssh-test"/>
++    <action name="ssh-test">
++        <ssh xmlns="uri:oozie:ssh-action:0.1">
++            <host>${user}@${host}</host>
++            <command>ls</command>
++              <args>-l</args>
++              <capture-output/>
++        </ssh>
++        <ok to="end"/>
++        <error to="kill"/>
++    </action>
++    <kill name="kill">
++        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
++    </kill>
++    <end name="end"/>
++</workflow-app>
+diff --git a/apps/oozie/src/oozie/tests.py b/apps/oozie/src/oozie/tests.py
+index 23f22b7..015e8b0 100644
+--- a/apps/oozie/src/oozie/tests.py
++++ b/apps/oozie/src/oozie/tests.py
+@@ -2243,6 +2243,23 @@ class TestImportWorkflow04(OozieMockBase):
+     workflow.delete(skip_trash=True)
+ 
+ 
++  def test_import_workflow_ssh(self):
++    """
++    Validates import for ssh node: params.
++    """
++    workflow = Workflow.objects.new_workflow(self.user)
++    workflow.save()
++    f = open('apps/oozie/src/oozie/test_data/workflows/0.4/test-ssh.xml')
++    import_workflow(workflow, f.read())
++    f.close()
++    workflow.save()
++    node = Node.objects.get(workflow=workflow, node_type='ssh').get_full_node()
++    assert_equal('${user}@${host}', node.host)
++    assert_equal('ls', node.command)
++    assert_equal('[{"type":"args","value":"-l"}]', node.params)
++    workflow.delete(skip_trash=True)
++
++
+   def test_import_workflow_java(self):
+     """
+     Validates import for java node: main_class, args.
+-- 
+1.7.9.5
+

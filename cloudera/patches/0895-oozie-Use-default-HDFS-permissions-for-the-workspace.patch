@@ -1,0 +1,101 @@
+From 60e25e726f8611db6174469de92fb6a271e21947 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 23 Feb 2015 15:17:30 -0800
+Subject: [PATCH 0895/1173] [oozie] Use default HDFS permissions for the
+ workspace
+
+User willing to restrict or open the HDFS workspace will need
+to do it manually.
+
+Default make workspace accessible and readonly, which is great for
+read only sharing permissions.
+
+Doing something more sophisticated would require HDFS ACLs.
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 ++
+ apps/oozie/src/oozie/views/editor2.py              |    8 +++++---
+ desktop/libs/liboozie/src/liboozie/submission2.py  |    7 ++++---
+ 3 files changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 05af02f..841fe4d 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -1797,6 +1797,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+       <h4>${_("Workspace")}</h4>
+       <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: {value: $root.workflow.properties.deployment_dir, displayJustLastBit: true}, filechooserOptions: globalFilechooserOptions" rel="tooltip"/>
++      <span data-bind='template: { name: "common-fs-link", data: {path: $root.workflow.properties.deployment_dir(), with_label: false}}'></span>
+ 
+ 	  <h4>${ _('Hadoop Properties') }</h4>
+       <ul data-bind="foreach: $root.workflow.properties.properties" class="unstyled">
+@@ -1820,6 +1821,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+       <h4>${ _("Job XML") }</h4>
+       <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: $root.workflow.properties.job_xml, filechooserOptions: globalFilechooserOptions"/>
++      <span data-bind='template: { name: "common-fs-link", data: {path: $root.workflow.properties.job_xml(), with_label: false}}'></span>
+ 
+       <h4>${ _('SLA Configuration') }</h4>
+       <div class="sla-form" data-bind="with: $root.workflow.properties">
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index d814c39..7c62b88 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -205,9 +205,11 @@ def save_workflow(request):
+   workflow_doc.update_data({'layout': layout})
+   workflow_doc.name = workflow['name']
+   workflow_doc.save()
+-  
++
+   workflow_instance = Workflow(document=workflow_doc)
+-  
++  workflow_instance.set_workspace(request.user)
++  workflow_instance.check_workspace(request.fs, request.user)
++
+   response['status'] = 0
+   response['id'] = workflow_doc.id
+   response['doc1_id'] = workflow_doc.doc.get().id
+@@ -240,7 +242,7 @@ def _get_workflows(user):
+         'owner': workflow.owner.username,
+         'value': workflow.uuid,
+         'id': workflow.id
+-      } for workflow in [d.content_object for d in Document.objects.get_docs(user, Document2, extra='workflow2')]
++      } for workflow in [d.content_object for d in Document.objects.get_docs(user, Document2, extra='workflow2').order_by('-id')]
+     ]  
+ 
+ 
+diff --git a/desktop/libs/liboozie/src/liboozie/submission2.py b/desktop/libs/liboozie/src/liboozie/submission2.py
+index 6220e41..4accc54 100644
+--- a/desktop/libs/liboozie/src/liboozie/submission2.py
++++ b/desktop/libs/liboozie/src/liboozie/submission2.py
+@@ -219,7 +219,7 @@ class Submission(object):
+       path = REMOTE_DEPLOYMENT_DIR.get().replace('$USER', self.user.username).replace('$TIME', str(time.time())).replace('$JOBID', str(self.job.id))
+       # Shared coords or bundles might not have any existing workspaces
+       if self.fs.exists(self.job.deployment_dir):
+-        self.fs.copy_remote_dir(self.job.deployment_dir, path, owner=self.user, dir_mode=0711)
++        self.fs.copy_remote_dir(self.job.deployment_dir, path, owner=self.user)
+       else:
+         self._create_dir(path)
+     else:
+@@ -227,7 +227,7 @@ class Submission(object):
+       self._create_dir(path)
+     return path
+ 
+-  def _create_dir(self, path, perms=0711):
++  def _create_dir(self, path, perms=None):
+     """
+     Return the directory in HDFS, creating it if necessary.
+     """
+@@ -246,7 +246,8 @@ class Submission(object):
+     if not self.fs.exists(path):
+       self._do_as(self.user.username, self.fs.mkdir, path, perms)
+ 
+-    self._do_as(self.user.username, self.fs.chmod, path, perms)
++    if perms is not None:
++      self._do_as(self.user.username, self.fs.chmod, path, perms)
+ 
+     return path
+ 
+-- 
+1.7.9.5
+

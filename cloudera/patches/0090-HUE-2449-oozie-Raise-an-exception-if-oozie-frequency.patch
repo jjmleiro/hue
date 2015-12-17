@@ -1,0 +1,46 @@
+From 123f044b160f5a6f61f90cb53be1af04d1de7657 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 31 Oct 2014 11:41:34 -0700
+Subject: [PATCH 0090/1173] HUE-2449 [oozie] Raise an exception if oozie
+ frequency is invalid
+
+---
+ apps/oozie/src/oozie/utils.py |   23 ++++++++++++++++++++---
+ 1 file changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/utils.py b/apps/oozie/src/oozie/utils.py
+index fb6880d..9c15f57 100644
+--- a/apps/oozie/src/oozie/utils.py
++++ b/apps/oozie/src/oozie/utils.py
+@@ -135,8 +135,25 @@ def oozie_to_django_datetime(dt_string):
+   return None
+ 
+ 
++class InvalidFrequency(Exception):
++  pass
++
++
+ def oozie_to_hue_frequency(frequency_string):
+-  # Get frequency number and units from frequency
+-  # frequency units and number are just different parts of the EL function.
++  """
++  Get frequency number and units from frequency, which must be of the format
++  "${coord:$unit($number)}".
++
++  frequency units and number are just different parts of the EL function.
++
++  Returns:
++    A tuple of the frequency unit and number
++
++  Raises:
++    InvalidFrequency: If the `frequency_string` does not match the frequency pattern.
++  """
+   matches = re.match(FREQUENCY_REGEX, frequency_string)
+-  return matches.group('frequency_unit'), matches.group('frequency_number')
++  if matches:
++    return matches.group('frequency_unit'), matches.group('frequency_number')
++  else:
++    raise InvalidFrequency(_('invalid frequency: %s') % frequency_string)
+-- 
+1.7.9.5
+

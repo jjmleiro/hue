@@ -1,0 +1,21 @@
+From 1d08bdb479c7df2139d55f815fa55df32c1ab360 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 21 Oct 2014 10:11:09 -0700
+Subject: [PATCH 0056/1173] HUE-2423 [jobsub] Broken symbolic link jobsubd
+
+---
+ apps/jobsub/src/jobsubd |    1 -
+ 1 file changed, 1 deletion(-)
+ delete mode 120000 apps/jobsub/src/jobsubd
+
+diff --git a/apps/jobsub/src/jobsubd b/apps/jobsub/src/jobsubd
+deleted file mode 120000
+index 59cf133..0000000
+--- a/apps/jobsub/src/jobsubd
++++ /dev/null
+@@ -1 +0,0 @@
+-../gen-py/jobsubd/
+\ No newline at end of file
+-- 
+1.7.9.5
+

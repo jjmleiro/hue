@@ -1,0 +1,35 @@
+From 2270b0a714485b32ff08af1f9dbf0cb8c29a8554 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Mar 2015 12:07:36 -0700
+Subject: [PATCH 1136/1173] [hadoop] Make sure to use LOG.exception when
+ handling exceptions
+
+---
+ desktop/libs/hadoop/src/hadoop/cluster.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/cluster.py b/desktop/libs/hadoop/src/hadoop/cluster.py
+index 3a98daa..6d31bec 100644
+--- a/desktop/libs/hadoop/src/hadoop/cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/cluster.py
+@@ -138,7 +138,7 @@ def get_next_ha_mrcluster():
+           else:
+             LOG.info('JobTracker %s is not RUNNING, skipping it: %s' % (name, status))
+         except Exception, ex:
+-          LOG.info('JobTracker %s is not available, skipping it: %s' % (name, ex))
++          LOG.exception('JobTracker %s is not available, skipping it: %s' % (name, ex))
+       else:
+         return (config, jt)
+   return None
+@@ -198,7 +198,7 @@ def get_next_ha_yarncluster():
+           else:
+             LOG.info('RM %s is not RUNNING, skipping it: %s' % (name, cluster_info))
+         except Exception, ex:
+-          LOG.info('RM %s is not available, skipping it: %s' % (name, ex))
++          LOG.exception('RM %s is not available, skipping it: %s' % (name, ex))
+       else:
+         return (config, rm)
+   return None
+-- 
+1.7.9.5
+

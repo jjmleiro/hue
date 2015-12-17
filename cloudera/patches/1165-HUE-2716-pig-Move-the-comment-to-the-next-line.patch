@@ -1,0 +1,27 @@
+From 95f3ac987d5bc96fb2e67b5f1c20faacb0083a22 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 30 Apr 2015 08:40:52 -0700
+Subject: [PATCH 1165/1173] HUE-2716 [pig] Move the comment to the next line
+
+---
+ apps/pig/src/pig/models.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/src/pig/models.py b/apps/pig/src/pig/models.py
+index 20f9e90..7b6020e 100644
+--- a/apps/pig/src/pig/models.py
++++ b/apps/pig/src/pig/models.py
+@@ -81,8 +81,8 @@ class PigScript(Document):
+   @property
+   def use_hcatalog(self):
+     script = self.dict['script']
+-    return ('org.apache.hcatalog.pig.HCatStorer' in script or 'org.apache.hcatalog.pig.HCatLoader' in script) or \ # Deprecated
+-    ('org.apache.hive.hcatalog.pig.HCatLoader' in script or 'org.apache.hive.hcatalog.pig.HCatStorer' in script)
++    return ('org.apache.hcatalog.pig.HCatStorer' in script or 'org.apache.hcatalog.pig.HCatLoader' in script) or \
++        ('org.apache.hive.hcatalog.pig.HCatLoader' in script or 'org.apache.hive.hcatalog.pig.HCatStorer' in script) # New classes
+ 
+ def create_or_update_script(id, name, script, user, parameters, resources, hadoopProperties, is_design=True):
+   try:
+-- 
+1.7.9.5
+

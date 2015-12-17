@@ -1,0 +1,108 @@
+From 8d146eecf66ee195ce7a1481918fd62ccb8c0cdc Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 7 Nov 2014 15:04:58 +0100
+Subject: [PATCH 0271/1173] [oozie] Enable drop on the side of a fork and
+ disable it on the side of joins
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   40 ++++++++++++++++++--
+ 2 files changed, 39 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index fdeaacc..f265bc2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -222,7 +222,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+     <div class="row-fluid">
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+-        <div data-bind="visible: $root.isEditing(), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div data-bind="visible: $root.isEditing() && !($data.widgets().length > 0 && $data.widgets()[0].widgetType() == 'join-widget'), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div  data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+         <div data-bind="visible: columns().length == 0, css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+@@ -240,7 +240,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+       <div  data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+-        <div data-bind="visible: $root.isEditing(), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div data-bind="visible: $root.isEditing() && !($data.widgets().length > 0 && $data.widgets()[0].widgetType() == 'join-widget'),, css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+     </div>
+   </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index a73b4b0..807db7d 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -430,7 +430,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+       var _addForkAndJoin = (row.columns().length == 0);
+ 
+-      if (_addForkAndJoin){
++      if (_addForkAndJoin) {
+         var _forkRow = _parentCol.addEmptyRow(false, _rowIdx);
+         var _id = UUID();
+         var _fork = new Widget({
+@@ -458,7 +458,26 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         vm: self
+       });
+ 
+-      var _col = row.addEmptyColumn(atBeginning);
++      if (row.columns().length == 0) {
++        var _col = row.addColumn(null, atBeginning);
++        if (row.widgets().length > 0) {
++          var _row = _col.addEmptyRow();
++          row.widgets().forEach(function (widget) {
++            _row.addWidget(widget);
++          });
++          if (row.widgets()[0].widgetType() == "fork-widget") {
++            var _widgetsRow = self.getNextRow(row);
++            var _joinRow = self.getNextRow(_widgetsRow);
++            _col.rows.push(_widgetsRow);
++            _col.rows.push(_joinRow);
++            self.getRowParentColumn(row.id()).rows.remove(_widgetsRow);
++            self.getRowParentColumn(row.id()).rows.remove(_joinRow);
++          }
++          row.widgets([]);
++        }
++      }
++
++      var _col = row.addColumn(null, atBeginning);
+       var _row = new Row([_w], self);
+       _col.addRow(_row);
+ 
+@@ -476,7 +495,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+           vm: self
+         });
+ 
+-        _joinRow.widgets([_join]);        
++        _joinRow.widgets([_join]);
+         self.currentlyCreatedFork = ko.mapping.toJS(_fork);
+         self.currentlyCreatedJoin = ko.mapping.toJS(_join);
+       }
+@@ -635,6 +654,21 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     return row.widgets().length > 0 && row.widgets()[0].widgetType() == "join-widget";
+   }
+ 
++  self.getNextRow = function (row) {
++    var _parentColumn = self.getRowParentColumn(row.id());
++    var _nextParentRow = null;
++    for (var i = 0; i < _parentColumn.rows().length; i++) {
++      if (_parentColumn.rows()[i].id() == row.id()) {
++        if (_parentColumn.rows().length >= i + 1) {
++          _nextParentRow = _parentColumn.rows()[i + 1];
++        }
++        break;
++      }
++      _nextParentRow = _parentColumn.rows()[i];
++    }
++    return _nextParentRow;
++  }
++
+   self.getWidgetParentRow = function (widget_id) {
+     var _row = null;
+     for (var i = 0; i < self.columns().length; i++) {
+-- 
+1.7.9.5
+

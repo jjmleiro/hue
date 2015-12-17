@@ -1,0 +1,58 @@
+From 76d0c4300885de1fcaccd12efc43185c86692986 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Fri, 21 Nov 2014 22:50:48 -0800
+Subject: [PATCH 0139/1173] HUE-2366 [jb] Message explaining when no Resource
+ Manager is available
+
+---
+ apps/jobbrowser/src/jobbrowser/api.py   |    4 ++++
+ apps/jobbrowser/src/jobbrowser/views.py |   11 ++++++++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index 73961ca..6649de5 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -61,6 +61,8 @@ def jt_ha(funct):
+         LOG.info('JobTracker not available, trying JT plugin HA: %s.' % ex)
+         jt_ha = get_next_ha_mrcluster()
+         if jt_ha is not None:
++          if jt_ha[1].host == api.jt.host:
++            raise ex
+           config, api.jt = jt_ha
+           return funct(api, *args, **kwargs)
+       raise ex
+@@ -80,6 +82,8 @@ def rm_ha(funct):
+         LOG.info('Resource Manager not available, trying another RM: %s.' % ex)
+         rm_ha = get_next_ha_yarncluster()
+         if rm_ha is not None:
++          if rm_ha[1].url == api.resource_manager_api.url:
++            raise ex
+           config, api.resource_manager_api = rm_ha
+           return funct(api, *args, **kwargs)
+       raise ex
+diff --git a/apps/jobbrowser/src/jobbrowser/views.py b/apps/jobbrowser/src/jobbrowser/views.py
+index f1c4543..6a86de0 100644
+--- a/apps/jobbrowser/src/jobbrowser/views.py
++++ b/apps/jobbrowser/src/jobbrowser/views.py
+@@ -94,7 +94,16 @@ def jobs(request):
+   retired = request.GET.get('retired')
+ 
+   if request.GET.get('format') == 'json':
+-    jobs = get_api(request.user, request.jt).get_jobs(user=request.user, username=user, state=state, text=text, retired=retired)
++    try:
++      jobs = get_api(request.user, request.jt).get_jobs(user=request.user, username=user, state=state, text=text, retired=retired)
++    except Exception, ex:
++      ex_message = str(ex)
++      if 'Connection refused' in ex_message or 'standby RM' in ex_message:
++        raise PopupException(_('Resource Manager cannot be contacted or might be down.'))
++      elif 'Could not connect to' in ex_message:
++        raise PopupException(_('Job Tracker cannot be contacted or might be down.'))
++      else:
++        raise ex
+     json_jobs  = [massage_job_for_json(job, request) for job in jobs]
+     return HttpResponse(encode_json_for_js(json_jobs), mimetype="application/json")
+ 
+-- 
+1.7.9.5
+

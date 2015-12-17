@@ -48,7 +48,7 @@ import shutil
 import socket
 import time
 import tempfile
-import simplejson
+import json
 import lxml.etree
 import urllib2
 
@@ -155,7 +155,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
         "jar",
         hadoop.conf.HADOOP_TEST_JAR.get(),
         "minicluster",
-        "-writeConfig", tmppath("config.xml"), 
+        "-writeConfig", tmppath("config.xml"),
         "-writeDetails", tmppath("details.json"),
         "-datanodes", str(self.num_datanodes),
         "-tasktrackers", str(self.num_tasktrackers),
@@ -235,7 +235,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
       while not details:
         try:
           details_file.seek(0)
-          details = simplejson.load(details_file)
+          details = json.load(details_file)
         except ValueError:
           pass
         if self.clusterproc.poll() is not None or (not DEBUG_HADOOP and (time.time() - start) > MAX_CLUSTER_STARTUP_TIME):
@@ -255,7 +255,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
 
     # Parse the configuration using XPath and place into self.config.
     config = lxml.etree.parse(tmppath("config.xml"))
-    self.config = dict( (property.find("./name").text, property.find("./value").text) 
+    self.config = dict( (property.find("./name").text, property.find("./value").text)
       for property in config.xpath("/configuration/property"))
 
     # Write out Hadoop-style configuration directory, 
@@ -265,7 +265,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
 
     hadoop.conf.HADOOP_CONF_DIR.set_for_testing(self.config_dir)
 
-    write_config(self.config, tmppath("conf/core-site.xml"), 
+    write_config(self.config, tmppath("conf/core-site.xml"),
       ["fs.defaultFS", "jobclient.completion.poll.interval",
        "dfs.namenode.checkpoint.period", "dfs.namenode.checkpoint.dir",
        'hadoop.proxyuser.'+self.superuser+'.groups', 'hadoop.proxyuser.'+self.superuser+'.hosts'])

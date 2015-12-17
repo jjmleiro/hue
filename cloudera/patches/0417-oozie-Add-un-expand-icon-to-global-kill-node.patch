@@ -1,0 +1,30 @@
+From 7b5ff8d9ae08dc9c34d1db6de9912fff86fbb2dd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 8 Jan 2015 19:06:29 +0100
+Subject: [PATCH 0417/1173] [oozie] Add un-expand icon to global kill node
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index aee6af8..cc8cdd8 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -408,6 +408,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <a href="javascript:void(0)"><i class="fa fa-cogs"></i></a>
+         </div>
+       </div>
++      <!-- ko if: id() == '17c9c895-5a16-7443-bb81-f34b30b21548' && ooziePropertiesExpanded() -->
++      <div class="advanced-triangle-container" data-bind="visible: $root.isEditing(), click: toggleProperties">
++        <div class="advanced-triangle">
++          <a href="javascript:void(0)"><i class="fa fa-caret-square-o-left"></i></a>
++        </div>
++      </div>
++      <!-- /ko -->
+       <div data-bind="template: { name: function() { return widgetType(); }}" class="widget-main-section"></div>
+     </div>
+   </div>
+-- 
+1.7.9.5
+

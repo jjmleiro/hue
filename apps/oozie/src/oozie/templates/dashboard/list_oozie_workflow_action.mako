@@ -43,13 +43,16 @@ ${ layout.menubar(section='workflows', dashboard=True) }
           <li class="nav-header">${ _('Name') }</li>
           <li class="white">${ action.name }</li>
 
-          % if action.externalId:
-            <li class="nav-header">${ _('External Id') }</li>
-            <li><a href="${ url('jobbrowser.views.single_job', job=action.externalId) }">${ "_".join(action.externalId.split("_")[-2:]) }</a></li>
-
+          <li class="nav-header">${ _('External Id') }</li>
+          % if action.get_external_id_url():
+            <li><a href="${ action.get_external_id_url() }">${ action.externalId }</a></li>
+          % else:
+            <li>${ action.externalId } </li>
+          % endif
+          %  if action.get_absolute_log_url():
             <li class="nav-header">${ _('Logs') }</li>
             <li>
-              <a href="${ url('jobbrowser.views.job_single_logs', job=action.externalId) }" title="${ _('View the logs') }" rel="tooltip"><i class="fa fa-tasks"></i></a>
+              <a href="${ action.get_absolute_log_url() }" title="${ _('View the logs') }" rel="tooltip"><i class="fa fa-tasks"></i></a>
             </li>
           % endif
 
@@ -69,6 +72,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
         % endif
         % if oozie_coordinator:
           ${ _('Coordinator') } <a href="${ oozie_coordinator.get_absolute_url() }">${ oozie_coordinator.appName }</a> :
+        % endif
+        % if oozie_parent and (oozie_coordinator is None or oozie_parent.id != oozie_coordinator.id):
+          ${ _('Parent') } <a href="${ oozie_parent.get_absolute_url() }">${ oozie_parent.appName }</a> :
         % endif
         ${ _('Workflow') } <a href="${ workflow.get_absolute_url() }">${ workflow.appName }</a> :
         ${ _('Action') } ${ action.name }
@@ -90,6 +96,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
               </tr>
             </thead>
             <tbody>
+              % if 'sub-workflow' == action.type and action.get_external_id_url():
+                <tr>
+                  <td>${ _('Workflow') }</td>
+                  <td><a href="${ action.get_external_id_url() }">${ action.externalId }</a></td>
+                </tr>
+              % endif
               <tr>
                 <td>${ _('External Status') }</td>
                 <td><span class="label ${ utils.get_status(action.externalStatus) }">${ action.externalStatus }<span></td>
@@ -181,9 +193,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 </div>
 
 
-<script src="/static/ext/js/codemirror-3.11.js"></script>
-<link rel="stylesheet" href="/static/ext/css/codemirror.css">
-<script src="/static/ext/js/codemirror-xml.js"></script>
+<script src="${ static('desktop/ext/js/codemirror-3.11.js') }"></script>
+<link rel="stylesheet" href="${ static('desktop/ext/css/codemirror.css') }">
+<script src="${ static('desktop/ext/js/codemirror-xml.js') }"></script>
 
 <script type="text/javascript">
 

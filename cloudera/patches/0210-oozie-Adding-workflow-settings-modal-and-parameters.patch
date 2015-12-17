@@ -1,0 +1,48 @@
+From 168ee46fc40db585df34d05415131d2e5947ab4c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 22 Oct 2014 16:46:39 -0700
+Subject: [PATCH 0210/1173] [oozie] Adding workflow settings modal and
+ parameters
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   24 ++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 5eb6351..e341ed9 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -215,6 +215,30 @@ ${ dashboard.layout_skeleton() }
+ </div>
+ 
+ 
++<div id="settingsDemiModal" class="demi-modal hide" data-backdrop="false">
++  <div class="modal-body">
++    <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
++    <div style="float: left; margin-right: 30px; text-align: center; line-height: 28px">
++      
++      ${ _('Oozie Parameters') }   
++      <ul data-bind="foreach: $root.workflow.properties.parameters">
++        <li>
++          <input data-bind="value: name"/>
++          <input data-bind="value: value"/>
++          <a href="#" data-bind="click: function(){ $root.workflow.properties.parameters.remove(this); }">
++            <i class="fa fa-minus"></i>
++          </a>
++        </li>
++      </ul>
++      <button data-bind="click: function(){ $root.workflow.properties.parameters.push({'name': '', 'value': ''}); }">
++        <i class="fa fa-plus"></i>
++      </button>
++
++    </div>
++  </div>
++</div>
++
++
+ <div id="submit-wf-modal" class="modal hide"></div>
+ 
+ 
+-- 
+1.7.9.5
+

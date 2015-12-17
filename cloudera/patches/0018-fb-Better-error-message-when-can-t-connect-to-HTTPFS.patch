@@ -1,0 +1,46 @@
+From 5a9c6a8b7384ae195df57b15fe944506f9997cb5 Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Thu, 9 Oct 2014 13:31:01 -0700
+Subject: [PATCH 0018/1173] [fb] Better error message when can't connect to
+ HTTPFS
+
+---
+ apps/filebrowser/src/filebrowser/views.py |   15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 2bb58ad..b0d4c1f 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -93,9 +93,14 @@ class ParquetOptions(object):
+ 
+ def index(request):
+   # Redirect to home directory by default
+-  path = request.user.get_home_directory()
+-  if not request.fs.isdir(path):
+-    path = '/'
++  path = request.user.get_home_directory()  
++
++  try: 
++    if not request.fs.isdir(path):
++       path = '/'
++  except Exception:
++    pass
++
+   return view(request, path)
+ 
+ 
+@@ -162,7 +167,9 @@ def view(request, path):
+         else:
+             return display(request, path)
+     except (IOError, WebHdfsException), e:
+-        msg = _("Cannot access: %(path)s.") % {'path': escape(path)}
++        msg = _("Cannot access: %(path)s. ") % {'path': escape(path)}
++        if "Connection refused" in e.message:
++            msg += _(" The HDFS REST service is not available. ")
+         if request.user.is_superuser and not request.user == request.fs.superuser:
+             msg += _(' Note: You are a Hue admin but not a HDFS superuser (which is "%(superuser)s").') % {'superuser': request.fs.superuser}
+         if request.is_ajax():
+-- 
+1.7.9.5
+

@@ -1,0 +1,49 @@
+From a5d7d1f4e353ad68d6a0b087c0f3877f8840d570 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Wed, 21 Jan 2015 15:40:42 -0800
+Subject: [PATCH 0495/1173] [beeswax] handle create database description with
+ accented characters
+
+---
+ apps/beeswax/src/beeswax/create_database.py |    2 --
+ apps/beeswax/src/beeswax/tests.py           |   11 +++++++++++
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/create_database.py b/apps/beeswax/src/beeswax/create_database.py
+index 76c7dc3..431a2d5 100644
+--- a/apps/beeswax/src/beeswax/create_database.py
++++ b/apps/beeswax/src/beeswax/create_database.py
+@@ -45,8 +45,6 @@ def create_database(request):
+       proposed_query = django_mako.render_to_string("create_database_statement.mako", {
+         'database': form.cleaned_data,
+       })
+-      # Mako outputs bytestring in utf8
+-      proposed_query = proposed_query.decode('utf-8')
+       query = hql_query(proposed_query)
+       return execute_directly(request, query, on_success_url=reverse('metastore:databases'))
+   else:
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index dfd3cbe..96981eb 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -1434,6 +1434,17 @@ for x in sys.stdin:
+     resp = self.client.get("/metastore/databases/")
+     assert_true('my_db' in resp.context['databases'], resp)
+ 
++    # Test for accented characters in 'comment'
++    resp = self.client.post("/beeswax/create/database", {
++      'name': 'credito',
++      'comment': 'crédito',
++      'create': 'Create database',
++      'use_default_location': True,
++    }, follow=True)
++    resp = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': resp.context['query'].id}), follow=True)
++    resp = wait_for_query_to_finish(self.client, resp, max=180.0)
++    resp = self.client.get("/metastore/databases/")
++    assert_true('credito' in resp.context['databases'], resp)
+ 
+   def test_select_query_server(self):
+     c = make_logged_in_client()
+-- 
+1.7.9.5
+

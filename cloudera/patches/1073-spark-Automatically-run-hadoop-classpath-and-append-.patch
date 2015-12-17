@@ -1,0 +1,76 @@
+From 3c8dae8963afbe160f5cc1fe117081a0080d4872 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 13 Mar 2015 17:34:47 -0700
+Subject: [PATCH 1073/1173] [spark] Automatically run `hadoop classpath` and
+ append to livy classpath
+
+---
+ .../src/spark/management/commands/livy_server.py   |   19 ++++++++++++++++---
+ apps/spark/src/spark/monkey_patches.py             |    8 +-------
+ 2 files changed, 17 insertions(+), 10 deletions(-)
+
+diff --git a/apps/spark/src/spark/management/commands/livy_server.py b/apps/spark/src/spark/management/commands/livy_server.py
+index 47719ad..d4e35f6 100644
+--- a/apps/spark/src/spark/management/commands/livy_server.py
++++ b/apps/spark/src/spark/management/commands/livy_server.py
+@@ -17,6 +17,7 @@
+ 
+ import logging
+ import os
++import subprocess
+ 
+ from django.core.management.base import NoArgsCommand
+ import spark.conf
+@@ -34,14 +35,26 @@ class Command(NoArgsCommand):
+ 
+   def handle(self, *args, **kwargs):
+     env = os.environ.copy()
++    classpath = env.get('CLASSPATH', '').split(os.pathsep)
++
++    jar = spark.conf.LIVY_ASSEMBLY_JAR.get()
++    classpath.insert(0, jar)
++
++    # Add the hadoop classpath if it's available.
++    try:
++      p = subprocess.Popen(['hadoop', 'classpath'], stdout=subprocess.PIPE)
++    except OSError:
++      pass
++    else:
++      hadoop_classpath = p.communicate()[0]
++      if p.wait() == 0:
++        classpath.append(hadoop_classpath)
+ 
+     args = [
+       "java",
+     ]
+ 
+-    jar = spark.conf.LIVY_ASSEMBLY_JAR.get()
+-    classpath = jar + os.path.pathsep + env.get('CLASSPATH', '')
+-    args.extend(("-cp", classpath))
++    args.extend(("-cp", os.pathsep.join(classpath)))
+ 
+     server_host = spark.conf.LIVY_SERVER_HOST.get()
+     args.append("-Dlivy.server.host=" + server_host)
+diff --git a/apps/spark/src/spark/monkey_patches.py b/apps/spark/src/spark/monkey_patches.py
+index 6e1f986..feb0b71 100644
+--- a/apps/spark/src/spark/monkey_patches.py
++++ b/apps/spark/src/spark/monkey_patches.py
+@@ -22,14 +22,8 @@ def _start_livy_server():
+   import subprocess
+   import sys
+   import time
+-  import os
+ 
+-  p = subprocess.Popen(['hadoop', 'classpath'], stdout=subprocess.PIPE)
+-  classpath = p.communicate()[0]
+-  env = os.environ.copy()
+-  env['CLASSPATH'] = env.get('CLASSPATH', '') + os.pathsep + classpath
+-
+-  p = subprocess.Popen([sys.executable, sys.argv[0], 'livy_server'], env=env)
++  p = subprocess.Popen([sys.executable, sys.argv[0], 'livy_server'])
+ 
+   def cleanup():
+     p.terminate()
+-- 
+1.7.9.5
+

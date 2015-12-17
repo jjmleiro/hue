@@ -1,0 +1,147 @@
+From f9b50d94c4c12fa392177f0231982308e162288f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 7 Jan 2015 16:32:30 +0100
+Subject: [PATCH 0404/1173] [oozie] Added workflow picker to coordinator page
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |   56 +++++++++++++-------
+ apps/oozie/static/css/common-editor.css            |    2 +-
+ apps/oozie/static/js/coordinator-editor.ko.js      |   23 ++++++++
+ 3 files changed, 61 insertions(+), 20 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 8add3f9..53ee8ac 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -79,12 +79,11 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('Which workflow to schedule?') }</h1>
+ 
+         <div class="card-body">
+-          <select data-bind="options: workflows,
+-                         optionsText: 'name',
+-                         optionsValue: 'uuid',
+-                         value: coordinator.properties.workflow,
+-                         optionsCaption: 'Choose...'">
+-          </select>
++          <a class="pointer" data-bind="visible: ! coordinator.properties.workflow(), click: showChooseWorkflow">${ _('Choose a workflow...') }</a>
++          <!-- ko if: coordinator.properties.workflow -->
++            <a class="pointer" data-bind="click: showChooseWorkflow, text: getWorkflowById(coordinator.properties.workflow()).name">${ _('Choose a workflow...') }</a>
++          <!-- /ko -->
++
+         </div>
+       </div>
+ 
+@@ -239,6 +238,26 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+ </div>
+ 
++<div id="chooseWorkflowDemiModal" class="demi-modal hide" data-backdrop="false">
++  <div class="modal-body">
++    <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
++    <div style="float: left; margin-right: 10px;text-align: center">
++      <input id="chooseWorkflowInput" type="text" data-bind="clearable: $root.workflowModalFilter, valueUpdate:'afterkeydown'" placeholder="${_('Filter workflows')}" class="input" style="float: left" /><br/>
++    </div>
++    <div>
++      <ul data-bind="foreach: $root.filteredModalWorkflows().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalWorkflows().length > 0"
++          class="unstyled inline fields-chooser" style="height: 100px; overflow-y: auto">
++        <li data-bind="click: selectWorkflow">
++          <span class="badge badge-info"><span data-bind="text: name(), attr: {'title': uuid()}"></span>
++          </span>
++        </li>
++      </ul>
++      <div class="alert alert-info inline" data-bind="visible: $root.filteredModalWorkflows().length == 0" style="margin-left: 250px;margin-right: 50px; height: 42px;line-height: 42px">
++        ${_('There are no workflows matching your search term.')}
++      </div>
++    </div>
++  </div>
++</div>
+ 
+ <div id="settingsModal" class="modal hide fade">
+   <div class="modal-header" style="padding-bottom: 2px">
+@@ -309,26 +328,25 @@ ${ dashboard.import_bindings() }
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode });
+   ko.applyBindings(viewModel);
+ 
+-  function showAddActionDemiModal(widget) {
+-    newAction = widget;
+-    $("#addActionDemiModal").modal("show");
+-  }
+-
+-  function addActionDemiModalFieldPreview(field) {
+-    if (newAction != null) {
+-      viewModel.coordinator.addNode(newAction);
+-      $("#addActionDemiModal").modal("hide");
+-    }
++  function showChooseWorkflow() {
++    $("#chooseWorkflowDemiModal").modal("show");
+   }
+ 
+-  function addActionDemiModalFieldCancel() {
+-    viewModel.removeWidgetById(newAction.id());
++  function selectWorkflow(wf) {
++    viewModel.coordinator.properties.workflow(wf.uuid());
++    $("#chooseWorkflowDemiModal").modal("hide");
+   }
+   
+   $(document).on("showSubmitPopup", function(event, data){
+     $('#submit-coord-modal').html(data);
+     $('#submit-coord-modal').modal('show');
+-  });  
++  });
++
++  $(document).ready(function() {
++    $("#chooseWorkflowDemiModal").modal({
++      show: false
++    });
++  });
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+index dbbb053..3611f84 100644
+--- a/apps/oozie/static/css/common-editor.css
++++ b/apps/oozie/static/css/common-editor.css
+@@ -45,5 +45,5 @@
+ }
+ 
+ .demi-modal {
+-  z-index: 1032;
++  z-index: 1033;
+ }
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 77a696d..f4de02a 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -89,6 +89,29 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   self.workflows = ko.mapping.fromJS(workflows_json);
+   self.coordinator = new Coordinator(self, coordinator_json);
+   self.credentials = ko.mapping.fromJS(credentials_json);
++
++  self.workflowModalFilter = ko.observable("");
++  self.filteredModalWorkflows = ko.computed(function() {
++    var _filter = self.workflowModalFilter().toLowerCase();
++    if (!_filter) {
++      return self.workflows();
++    }
++    else {
++      return ko.utils.arrayFilter(self.workflows(), function(wf) {
++        return wf.name().toLowerCase().indexOf(_filter.toLowerCase()) > -1;
++      });
++    }
++  }, self);
++
++  self.getWorkflowById = function (uuid) {
++    var _wfs = ko.utils.arrayFilter(self.workflows(), function(wf) {
++      return wf.uuid() == uuid;
++    });
++    if (_wfs.length > 0){
++      return _wfs[0];
++    }
++    return null;
++  }
+   
+   
+   self.save = function () {
+-- 
+1.7.9.5
+

@@ -1,0 +1,973 @@
+From 663b93ab9cbabd86a5ce38a372ec63524d63a052 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 15:27:24 -0800
+Subject: [PATCH 0613/1173] [spark] Cleaned up the session api
+
+---
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |   73 +++++----
+ .../com/cloudera/hue/sparker/server/Session.java   |   15 +-
+ .../hue/sparker/server/SessionManager.java         |   59 ++++---
+ .../hue/sparker/server/SessionResource.java        |   55 +++++--
+ .../cloudera/hue/sparker/server/SparkSession.java  |   97 +++++++----
+ .../cloudera/hue/sparker/server/SparkerApp.java    |   13 ++
+ .../cloudera/hue/sparker/server/SparkerMain.java   |  160 ------------------
+ .../hue/sparker/server/SparkerServlet.java         |  173 --------------------
+ apps/spark/sparker-shell                           |    6 +-
+ 9 files changed, 207 insertions(+), 444 deletions(-)
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerMain.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerServlet.java
+
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+index 8390c2a..8245a89 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+@@ -80,44 +80,51 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+         runThunks()
+       }
+ 
+-      if (line eq null) false               // assume null means EOF
+-      else {
+-        implicit val formats = DefaultFormats
+-
+-        val request = parse(line)
+-        val type_ = (request \ "type").extract[Option[String]]
+-
+-        type_ match {
+-          case Some("stdin") => {
+-            (request \ "statement").extract[Option[String]] match {
+-              case Some(statement) => {
+-                command(statement) match {
+-                  case Result(false, _) => false
+-                  case Result(true, finalLine) => {
+-                    finalLine match {
+-                      case Some(line) => addReplay(line)
+-                      case _ =>
+-                    }
+-
+-                    var output: String = outString.getBuffer.toString
+-                    output = output.substring("scala> ".length + 1, output.length - 1)
+-                    outString.getBuffer.setLength(0)
+-                    println(compact(render(Map("state" -> "stdout", "stdout" -> output))))
+-
+-                    true
++      if (line eq null) {
++        return false                // assume null means EOF
++      }
++
++      val request = parseOpt(line) match {
++        case Some(request) => request;
++        case None => {
++          println(compact(render(Map("type" -> "error", "msg" -> "invalid json"))))
++          return true
++        }
++      }
++
++      implicit val formats = DefaultFormats
++      val type_ = (request \ "type").extract[Option[String]]
++
++      type_ match {
++        case Some("stdin") => {
++          (request \ "statement").extract[Option[String]] match {
++            case Some(statement) => {
++              command(statement) match {
++                case Result(false, _) => false
++                case Result(true, finalLine) => {
++                  finalLine match {
++                    case Some(line) => addReplay(line)
++                    case _ =>
+                   }
++
++                  var output: String = outString.getBuffer.toString
++                  output = output.substring("scala> ".length + 1, output.length - 1)
++                  outString.getBuffer.setLength(0)
++                  println(compact(render(Map("type" -> "stdout", "stdout" -> output))))
++
++                  true
+                 }
+               }
+-              case _ => {
+-                println(compact(render(Map("type" -> "error", "msg" -> "missing statement"))))
+-                true
+-              }
++            }
++            case _ => {
++              println(compact(render(Map("type" -> "error", "msg" -> "missing statement"))))
++              true
+             }
+           }
+-          case _ => {
+-            println(compact(render(Map("type" -> "error", "msg" -> "unknown type"))))
+-            true
+-          }
++        }
++        case _ => {
++          println(compact(render(Map("type" -> "error", "msg" -> "unknown type"))))
++          true
+         }
+       }
+     }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/Session.java
+index 25e6495..a65b876 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/Session.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/Session.java
+@@ -18,7 +18,7 @@
+ 
+ package com.cloudera.hue.sparker.server;
+ 
+-import org.codehaus.jackson.JsonNode;
++import com.fasterxml.jackson.annotation.JsonProperty;
+ 
+ import java.io.IOException;
+ import java.util.List;
+@@ -26,19 +26,16 @@ import java.util.concurrent.TimeoutException;
+ 
+ public interface Session {
+ 
++    @JsonProperty
+     String getId();
+ 
+-    public Cell executeStatement(String statement) throws IOException, ClosedSessionException;
+-
+-    public long getLastActivity();
+-
++    @JsonProperty
+     List<Cell> getCells();
+ 
+-    /*
+-    List<String> getInputLines();
++    @JsonProperty
++    public long getLastActivity();
+ 
+-    List<JsonNode> getOutputLines();
+-    */
++    public Cell executeStatement(String statement) throws Exception, ClosedSessionException;
+ 
+     public void close() throws IOException, InterruptedException, TimeoutException;
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionManager.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionManager.java
+index 55e8904..6d7b639 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionManager.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionManager.java
+@@ -22,6 +22,7 @@ import java.io.IOException;
+ import java.util.Enumeration;
+ import java.util.UUID;
+ import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.TimeoutException;
+ 
+ public class SessionManager {
+ 
+@@ -32,52 +33,58 @@ public class SessionManager {
+     private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+ 
+     public SessionManager() {
+-        new SessionManagerGarbageCollector(this).start();
++        SessionManagerGarbageCollector gc = new SessionManagerGarbageCollector(this);
++        gc.setDaemon(true);
++        gc.start();
+     }
+ 
+-    public Session get(String key) {
+-        return sessions.get(key);
++    public Session get(String id) throws SessionNotFound {
++        Session session = sessions.get(id);
++        if (session == null) {
++            throw new SessionNotFound(id);
++        }
++        return session;
+     }
+ 
+     public Session create(int language) throws IllegalArgumentException, IOException, InterruptedException {
+-        String key = UUID.randomUUID().toString();
++        String id = UUID.randomUUID().toString();
+         Session session;
+         switch (language) {
+-            case SCALA:  session = new SparkSession(key); break;
+-            case PYTHON: session = new PySparkSession(key); break;
++            case SCALA:  session = new SparkSession(id); break;
++            //case PYTHON: session = new PySparkSession(id); break;
+             default: throw new IllegalArgumentException("Invalid language specified for shell session");
+         }
+-        sessions.put(key, session);
++        sessions.put(id, session);
+         return session;
+     }
+ 
+-    public void close() {
++    public void close() throws InterruptedException, IOException, TimeoutException {
+         for (Session session : sessions.values()) {
+-            this.close(session.getKey());
++            sessions.remove(session.getId());
++            session.close();
+         }
+     }
+ 
+-    public void close(String key) {
+-        Session session = this.get(key);
+-        sessions.remove(key);
+-        try {
+-            session.close();
+-        } catch (Exception e) {
+-            // throws InterruptedException, TimeoutException, IOException
+-            e.printStackTrace();
+-        }
++    public void close(String id) throws InterruptedException, TimeoutException, IOException, SessionNotFound {
++        Session session = this.get(id);
++        sessions.remove(id);
++        session.close();
+     }
+ 
+-    public Enumeration<String> getSessionKeys() {
++    public Enumeration<String> getSessionIds() {
+         return sessions.keys();
+     }
+ 
+-    public void garbageCollect() {
++    public void garbageCollect() throws InterruptedException, IOException, TimeoutException {
+         long timeout = 60000; // Time in milliseconds; TODO: make configurable
+         for (Session session : sessions.values()) {
+             long now = System.currentTimeMillis();
+             if ((now - session.getLastActivity()) > timeout) {
+-                this.close(session.getKey());
++                try {
++                    this.close(session.getId());
++                } catch (SessionNotFound sessionNotFound) {
++                    // Ignore
++                }
+             }
+         }
+     }
+@@ -101,7 +108,17 @@ public class SessionManager {
+                 }
+             } catch (InterruptedException e) {
+                 e.printStackTrace();
++            } catch (TimeoutException e) {
++                e.printStackTrace();
++            } catch (IOException e) {
++                e.printStackTrace();
+             }
+         }
+     }
++
++    public class SessionNotFound extends Throwable {
++        public SessionNotFound(String id) {
++            super(id);
++        }
++    }
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionResource.java
+index f250748..39bdec2 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SessionResource.java
+@@ -1,15 +1,16 @@
+ package com.cloudera.hue.sparker.server;
+ 
+ import com.codahale.metrics.annotation.Timed;
+-import com.sun.jersey.api.Responses;
+ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+ 
++import javax.validation.Valid;
+ import javax.ws.rs.*;
+ import javax.ws.rs.core.MediaType;
+ import javax.ws.rs.core.Response;
+ import java.io.IOException;
+ import java.util.Collections;
+ import java.util.List;
++import java.util.concurrent.TimeoutException;
+ 
+ @Path("/sessions")
+ @Produces(MediaType.APPLICATION_JSON)
+@@ -27,20 +28,19 @@ public class SessionResource {
+     @GET
+     @Timed
+     public List<String> getSessions() {
+-        return Collections.list(sessionManager.getSessionKeys());
++        return Collections.list(sessionManager.getSessionIds());
+     }
+ 
+-    /*
+-    @GET
+-    @Timed
+-    public Session getSession()
+-    */
+-
+     @POST
+     @Timed
+     public String createSession(@QueryParam("lang") String language) throws IOException, InterruptedException {
+         int sessionType;
+ 
++        if (language == null) {
++            Response resp = new ResponseBuilderImpl().status(400).entity("missing language").build();
++            throw new WebApplicationException(resp);
++        }
++
+         if (language.equals(SCALA)) {
+             sessionType = SessionManager.SCALA;
+         } else if (language.equals(PYTHON)) {
+@@ -52,19 +52,46 @@ public class SessionResource {
+ 
+         Session session = sessionManager.create(sessionType);
+ 
+-        return session.getKey();
++        return session.getId();
+     }
+ 
+     @Path("/{id}")
+     @GET
+     @Timed
+-    public List<String> getSession(@PathParam("id") String id) {
++    public List<Cell> getSession(@PathParam("id") String id,
++                                 @QueryParam("from") Integer fromCell,
++                                 @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+         Session session = sessionManager.get(id);
+-        if (session == null) {
+-            Response resp = new ResponseBuilderImpl().status(404).entity("unknown session").build();
+-            throw new WebApplicationException(resp);
++        List<Cell> cells = session.getCells();
++
++        if (fromCell != null || limit != null) {
++            if (fromCell == null) {
++                fromCell = 0;
++            }
++
++            if (limit == null) {
++                limit = cells.size();
++            }
++
++            cells = cells.subList(fromCell, fromCell + limit);
+         }
+ 
+-        session.getOutputLines();
++        return cells;
++    }
++
++    @Path("/{id}")
++    @POST
++    @Timed
++    public Cell executeStatement(@PathParam("id") String id, @Valid ExecuteStatementRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
++        Session session = sessionManager.get(id);
++        return session.executeStatement(request.getStatement());
++    }
++
++    @Path("/{id}")
++    @DELETE
++    @Timed
++    public Response closeSession(@PathParam("id") String id) throws InterruptedException, TimeoutException, IOException, SessionManager.SessionNotFound {
++        sessionManager.close(id);
++        return Response.noContent().build();
+     }
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkSession.java
+index c01ee09..7c8c451 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkSession.java
+@@ -49,39 +49,47 @@ import java.util.List;
+  */
+ public class SparkSession implements Session {
+ 
++    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
++
+     private static final String SPARKER_HOME = System.getenv("SPARKER_HOME");
+     private static final String SPARKER_SHELL = SPARKER_HOME + "/sparker-shell";
+ 
+-    private static final Logger logger = LoggerFactory.getLogger(SparkSession.class);
+-
+     private final String id;
+     private final Process process;
+     private final Writer writer;
+     private final BufferedReader reader;
+     private final List<Cell> cells = new ArrayList<Cell>();
+     private final ObjectMapper objectMapper = new ObjectMapper();
+-    private final Thread thread;
++    /*
++    private final StdoutWorkerThread stdoutWorkerThread = new StdoutWorkerThread();
++    private final Queue<JsonNode> requests = new ConcurrentLinkedDeque<JsonNode>();
++    private final Queue<JsonNode> responses = new ConcurrentLinkedDeque<JsonNode>();
++    */
++
+     private boolean isClosed = false;
+ 
+     protected long lastActivity = Long.MAX_VALUE;
+ 
+     public SparkSession(final String id) throws IOException, InterruptedException {
+-        logger.info("[" + id + "]: creating spark session");
++        LOG.info("[" + id + "]: creating spark session");
+ 
+         touchLastActivity();
+ 
+         this.id = id;
+ 
+-        cells.add(new Cell());
+-
+         ProcessBuilder pb = new ProcessBuilder(Lists.newArrayList(SPARKER_SHELL))
+                 .redirectInput(ProcessBuilder.Redirect.PIPE)
+                 .redirectOutput(ProcessBuilder.Redirect.PIPE);
+ 
+         this.process = pb.start();
+ 
+-        this.writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+-        this.reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++        writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
++        reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++
++        /*
++        stdoutWorkerThread.setDaemon(true);
++        stdoutWorkerThread.start();
++        */
+     }
+ 
+     @Override
+@@ -89,7 +97,6 @@ public class SparkSession implements Session {
+         return id;
+     }
+ 
+-
+     @Override
+     public long getLastActivity() {
+         return this.lastActivity;
+@@ -101,54 +108,59 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
+-    public Cell executeStatement(String statement) throws IOException, ClosedSessionException {
++    public Cell executeStatement(String statement) throws IOException, ClosedSessionException, InterruptedException {
+         if (isClosed) {
+             throw new ClosedSessionException();
+         }
+ 
+         touchLastActivity();
+ 
+-        Cell cell = cells.get(cells.size() - 1);
++        Cell cell = new Cell();
++        cells.add(cell);
++
+         cell.addInput(statement);
+ 
+         ObjectNode request = objectMapper.createObjectNode();
+-        request.put("type", "execute-statement");
++        request.put("type", "stdin");
+         request.put("statement", statement);
+ 
+         writer.write(request.toString());
++        writer.write("\n");
++        writer.flush();
+ 
+-        String line;
++        String line = reader.readLine();
+ 
+-        while ((line = reader.readLine()) != null) {
+-            JsonNode response = objectMapper.readTree(line);
++        if (line == null) {
++            // The process must have shutdown on us!
++            process.waitFor();
++            throw new ClosedSessionException();
++        }
+ 
+-            if (response.has("stdout")) {
+-                cell.addOutput(response.get("stdout").asText());
+-            }
++        LOG.info("[" + id + "] spark stdout: " + line);
+ 
+-            if (response.has("stderr")) {
+-                cell.addOutput(response.get("stderr").asText());
+-            }
++        JsonNode response = objectMapper.readTree(line);
+ 
+-            String state = response.get("state").asText();
++        if (response.has("stdout")) {
++            cell.addOutput(response.get("stdout").asText());
++        }
+ 
+-            if (state.equals("complete") || state.equals("incomplete")) {
+-                break;
+-            }
++        if (response.has("stderr")) {
++            cell.addOutput(response.get("stderr").asText());
+         }
+ 
+         return cell;
+     }
+ 
+-    public void
+-
+     @Override
+     public void close() {
+         isClosed = true;
++        process.destroy();
+ 
++        /*
+         if (process.isAlive()) {
+             process.destroy();
+         }
++        */
+     }
+ 
+     private void touchLastActivity() {
+@@ -169,7 +181,7 @@ public class SparkSession implements Session {
+                     ObjectMapper mapper = new ObjectMapper();
+ 
+                     while ((line = reader.readLine()) != null) {
+-                        logger.info("[" + id + "] spark stdout: " + line);
++                        LOG.info("[" + id + "] spark stdout: " + line);
+ 
+                         JsonNode node = mapper.readTree(line);
+ 
+@@ -206,7 +218,7 @@ public class SparkSession implements Session {
+                     }
+ 
+                     int exitCode = process.waitFor();
+-                    logger.info("[" + id + "]: process exited with " + exitCode);
++                    LOG.info("[" + id + "]: process exited with " + exitCode);
+                 } catch (IOException e) {
+                     e.printStackTrace();
+                 } catch (InterruptedException e) {
+@@ -229,7 +241,7 @@ public class SparkSession implements Session {
+                     ObjectMapper mapper = new ObjectMapper();
+ 
+                     while ((line = reader.readLine()) != null) {
+-                        logger.info("[" + id + "] stderr: " + line);
++                        LOG.info("[" + id + "] stderr: " + line);
+ 
+ 
+ 
+@@ -259,7 +271,7 @@ public class SparkSession implements Session {
+     }
+ 
+     public void execute(String command) throws IOException {
+-        logger.info("[" + id + "]: execute: " + command);
++        LOG.info("[" + id + "]: execute: " + command);
+ 
+         this.touchLastActivity();
+         if (!command.endsWith("\n")) {
+@@ -297,7 +309,7 @@ public class SparkSession implements Session {
+     }
+ 
+     public void close() throws IOException, InterruptedException, TimeoutException {
+-        logger.info("[" + id + "]: closing shell");
++        LOG.info("[" + id + "]: closing shell");
+         process.getOutputStream().close();
+ 
+         stdoutThread.join(1000);
+@@ -310,8 +322,27 @@ public class SparkSession implements Session {
+             throw new TimeoutException();
+         }
+ 
+-        logger.info("[" + id + "]: shell closed with " + process.exitValue());
++        LOG.info("[" + id + "]: shell closed with " + process.exitValue());
+     }
+ 
+     */
++
++    /*
++    private class StdoutWorkerThread extends Thread {
++        @Override
++        public void run() {
++            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++            String line;
++
++            try {
++                while ((line = reader.readLine()) != null) {
++                    JsonNode response = objectMapper.readTree(line);
++                    responses.add(response);
++                }
++            } catch (IOException e) {
++                e.printStackTrace();
++            }
++        }
++    }
++    */
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+index 1144b7e..ff0a73a 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+@@ -1,9 +1,13 @@
+ package com.cloudera.hue.sparker.server;
+ 
++import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+ import io.dropwizard.Application;
+ import io.dropwizard.setup.Bootstrap;
+ import io.dropwizard.setup.Environment;
+ 
++import javax.ws.rs.core.Response;
++import javax.ws.rs.ext.ExceptionMapper;
++
+ public class SparkerApp extends Application<SparkerConfiguration> {
+ 
+     public static void main(String[] args) throws Exception {
+@@ -20,5 +24,14 @@ public class SparkerApp extends Application<SparkerConfiguration> {
+         final SessionManager sessionManager = new SessionManager();
+         final SessionResource resource = new SessionResource(sessionManager);
+         environment.jersey().register(resource);
++        environment.jersey().register(new SessionManagerExceptionMapper());
++    }
++
++    private class SessionManagerExceptionMapper implements ExceptionMapper<SessionManager.SessionNotFound> {
++
++        @Override
++        public Response toResponse(SessionManager.SessionNotFound sessionNotFound) {
++            return new ResponseBuilderImpl().status(404).entity("session not found").build();
++        }
+     }
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerMain.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerMain.java
+deleted file mode 100644
+index d9adf7a..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerMain.java
++++ /dev/null
+@@ -1,160 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.sparker.server;
+-
+-public class SparkerMain {
+-
+-    /*
+-    class Binder extends AbstractBinder {
+-        @Override
+-        protected void configure() {
+-            bind()
+-        }
+-    }
+-
+-    public SparkerMain() {
+-        register(new Binder());
+-        packages(true, "com.cloudera.hue.sparker.server");
+-    }
+-
+-    public static void main(String[] args) throws Exception {
+-
+-        ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+-        context.setContextPath("/");
+-
+-        Server jettyServer = new Server(8080);
+-        jettyServer.setHandler(context);
+-
+-        ServletHolder jerseyServlet = context.addServlet(
+-                org.glassfish.jersey.servlet.ServletContainer.class, "/*"
+-        );
+-        jerseyServlet.setInitOrder(0);
+-
+-        jerseyServlet.setInitParameter(
+-                "jersey.config.server.provider.classnames",
+-                Service.class.getCanonicalName());
+-
+-        SessionManager manager = new SessionManager();
+-
+-        context.setAttribute("sessionManager", manager);
+-
+-        try {
+-            jettyServer.start();
+-            jettyServer.join();
+-        } finally {
+-            jettyServer.destroy();
+-        }
+-
+-
+-        /*
+-        Server server = new Server(8080);
+-
+-        ServletContextHandler context = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
+-        context.setContextPath("/*");
+-        server.setHandler(context);
+-
+-        ServletHolder holder = context.addServlet(ServletContainer.class, "/goo");
+-        holder.setInitOrder(1);
+-        holder.setInitParameter("jersey.config.server.provider.packages", "com.cloudera.hue.sparker.server.Service");
+-
+-        server.start();
+-        server.join();
+-        */
+-
+-        /*
+-        ServletHolder servletHolder = new ServletHolder(ServletContainer.class);
+-        server.setHandler(servletHolder);
+-        */
+-
+-        /*
+-        SessionManager manager = new SessionManager();
+-        */
+-
+-        /*
+-        Server httpServer = new Server(8080);
+-
+-        ServletContextHandler context = new ServletContextHandler();
+-        httpServer.setHandler(context);
+-
+-        context.setContextPath("/");
+-        context.addServlet(new ServletHolder(new SparkerServlet(manager)), "/*");
+-        */
+-
+-        /*
+-        //InetSocketAddress address = NetUtils.createSocketAddr()
+-        ServletContextHandler.Context context = new ServletContextHandler.Context();
+-        context.setContextPath("");
+-        context.addServlet(JMXJsonServlet.class, "/jmx");
+-        context.addServlet(SparkerServlet.class, "/*");
+-
+-        httpServer.addHandler(context);
+-        */
+-
+-        /*
+-        httpServer.start();
+-        httpServer.join();
+-        */
+-
+-        /*
+-        BufferedReader reader = new BufferedReader(new StringReader(""));
+-        StringWriter writer = new StringWriter();
+-        String master = "erickt-1.ent.cloudera.com";
+-
+-        SparkILoop interp = new SparkILoop(reader, new PrintWriter(writer));
+-        Main.interp_$eq(interp);
+-        interp.process(new String[] { "-usejavacp" });
+-        */
+-
+-        /*
+-        SparkerInterpreter session = new SparkerInterpreter(UUID.randomUUID());
+-
+-        try {
+-            session.start();
+-
+-            session.execute("sc");
+-            session.execute("1 + 1");
+-
+-        } finally {
+-            session.close();
+-        }
+-        */
+-
+-        /*
+-        SessionManager manager = new SessionManager();
+-
+-        try {
+-            Session session = manager.create();
+-
+-            session.execute("sc");
+-            session.execute("1 + 1");
+-
+-            for (String input : session.getInputLines()) {
+-                System.out.print("input: " + input + "\n");
+-            }
+-
+-            for (String output : session.getOutputLines()) {
+-                System.out.print("output: " + output + "\n");
+-            }
+-
+-        } finally {
+-            manager.close();
+-        }
+-        */
+-    //}
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerServlet.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerServlet.java
+deleted file mode 100644
+index ab1028b..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerServlet.java
++++ /dev/null
+@@ -1,173 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.sparker.server;
+-
+-/*
+-import org.codehaus.jackson.map.ObjectMapper;
+-import org.codehaus.jackson.map.ObjectWriter;
+-*/
+-
+-import javax.servlet.http.HttpServlet;
+-import javax.servlet.http.HttpServletRequest;
+-import javax.servlet.http.HttpServletResponse;
+-import java.io.BufferedReader;
+-import java.io.IOException;
+-import java.util.regex.Matcher;
+-import java.util.regex.Pattern;
+-
+-public class SparkerServlet extends HttpServlet {
+-
+-    /*
+-    public static final String SESSION_DATA = "sparky.sessions";
+-
+-    private static final String ROOT = "/";
+-    private static final Pattern SESSION_ID = Pattern.compile("^/([-A-Za-z90-9]+)$");
+-    private static final Pattern SESSION_LANG = Pattern.compile("^lang=(scala|python)$");
+-
+-    private static final String APPLICATION_JSON_MIME = "application/json";
+-
+-    private ObjectWriter jsonWriter;
+-
+-    private final SessionManager manager;
+-
+-    public SparkerServlet(SessionManager manager) {
+-        this.manager = manager;
+-
+-        ObjectMapper mapper = new ObjectMapper();
+-        jsonWriter = mapper.defaultPrettyPrintingWriter();
+-    }
+-
+-    @Override
+-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            getSessions(req, resp);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                getSession(req, resp, key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    private void getSessions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        jsonWriter.writeValue(resp.getOutputStream(), manager.getSessionKeys());
+-    }
+-
+-    private void getSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
+-        Session session = manager.get(key);
+-        if (session == null) {
+-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            return;
+-        }
+-
+-        jsonWriter.writeValue(resp.getOutputStream(), session.getOutputLines());
+-    }
+-
+-    @Override
+-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException, IllegalArgumentException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            createSession(req, resp);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                writeToSession(req, resp, key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    @Override
+-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                manager.close(key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    private void createSession(HttpServletRequest req, HttpServletResponse resp) throws IOException, IllegalArgumentException {
+-        try {
+-            Matcher m = SESSION_LANG.matcher(req.getReader().readLine());
+-            if (!m.matches()) {
+-                throw new IllegalArgumentException("Invalid language or no language specified");
+-            }
+-            String lang = m.group(1);
+-
+-            int sessionType = SessionManager.UNKNOWN;
+-            if (lang.equals("scala")) {
+-                sessionType = SessionManager.SCALA;
+-            }
+-            else if (lang.equals("python")) {
+-                sessionType = SessionManager.PYTHON;
+-            }
+-            Session session = manager.create(sessionType);
+-
+-            jsonWriter.writeValue(resp.getOutputStream(), session.getKey());
+-        } catch (InterruptedException e) {
+-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+-            e.printStackTrace();
+-        }
+-    }
+-
+-    private void writeToSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
+-        Session session = manager.get(key);
+-        if (session == null) {
+-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            return;
+-        }
+-
+-        BufferedReader reader = req.getReader();
+-        String line;
+-
+-        while ((line = reader.readLine()) != null) {
+-            session.execute(line);
+-        }
+-    }
+-
+-*/
+-}
+diff --git a/apps/spark/sparker-shell b/apps/spark/sparker-shell
+index 575fc0a..a85167c 100755
+--- a/apps/spark/sparker-shell
++++ b/apps/spark/sparker-shell
+@@ -2,4 +2,8 @@
+ 
+ cd `dirname $0`
+ 
+-exec java -cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" com.cloudera.hue.sparker.repl.Main -usejavacp "$@"
++	#-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5006 \
++
++exec java \
++	-cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" \
++	com.cloudera.hue.sparker.repl.Main -usejavacp "$@" 2>/dev/null
+-- 
+1.7.9.5
+

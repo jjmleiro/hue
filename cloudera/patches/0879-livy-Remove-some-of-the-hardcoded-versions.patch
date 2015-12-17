@@ -1,0 +1,38 @@
+From 546456cd2c3daebea22dd9c3ac3b4c01f4bfcd20 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 15:39:34 -0800
+Subject: [PATCH 0879/1173] [livy] Remove some of the hardcoded versions
+
+---
+ apps/spark/Makefile     |    2 +-
+ apps/spark/java/pom.xml |    1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/apps/spark/Makefile b/apps/spark/Makefile
+index f313af6..9902a72 100644
+--- a/apps/spark/Makefile
++++ b/apps/spark/Makefile
+@@ -28,7 +28,7 @@ JAVA_LIB = $(SPARK_ROOT)/java-lib
+ 
+ LIVY_DIR = $(SPARK_ROOT)/java
+ LIVY_TARGET_DIR = $(LIVY_DIR)/livy-assembly/target/scala-2.10
+-LIVY_ASSEMBLY = livy-assembly-3.7.0-SNAPSHOT.jar
++LIVY_ASSEMBLY = livy-assembly-$(MAVEN_VERSION).jar
+ LIVY = $(JAVA_LIB)/$(LIVY_ASSEMBLY)
+ 
+ HAVE_JAVA_SRC = $(wildcard $(LIVY_DIR))
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 031d51a..385a454 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -30,7 +30,6 @@
+     <groupId>com.cloudera.hue.livy</groupId>
+     <artifactId>livy-main</artifactId>
+     <packaging>pom</packaging>
+-    <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+ 
+     <name>livy-main</name>
+     <description>livy-main</description>
+-- 
+1.7.9.5
+

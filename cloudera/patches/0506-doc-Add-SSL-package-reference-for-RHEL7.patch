@@ -1,0 +1,33 @@
+From 5a6aec1c531240cb257f1e7843a212abef4bd053 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 29 Jan 2015 18:42:04 +0800
+Subject: [PATCH 0506/1173] [doc] Add SSL package reference for RHEL7
+
+---
+ README.rst |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/README.rst b/README.rst
+index 5cb2ad9..a46caeb 100644
+--- a/README.rst
++++ b/README.rst
+@@ -86,7 +86,7 @@ your system:
+       * python-simplejson
+       * python-setuptools
+ 
+-    CentOS:
++    CentOS/RHEL:
+       * ant
+       * asciidoc
+       * cyrus-sasl-devel
+@@ -104,6 +104,7 @@ your system:
+       * python-devel
+       * python-simplejson
+       * sqlite-devel
++      * openssl-devel (for version 7+)
+ 
+     MacOS (mac port):
+       * liblxml
+-- 
+1.7.9.5
+

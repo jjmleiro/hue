@@ -1,0 +1,25 @@
+From b6e3fafd26382ec655ed379da66d110437de300d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 25 Feb 2015 18:57:08 +0100
+Subject: [PATCH 0909/1173] [security] Solves Json error of Django 1.6 upgrade
+
+---
+ apps/security/src/security/api/hdfs.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/security/src/security/api/hdfs.py b/apps/security/src/security/api/hdfs.py
+index 7bb2131..cc744a4 100644
+--- a/apps/security/src/security/api/hdfs.py
++++ b/apps/security/src/security/api/hdfs.py
+@@ -80,7 +80,7 @@ def get_acls(request):
+     print e
+     acls = None
+ 
+-  return JsonResponse(acls is not None and acls['AclStatus'] or None)
++  return JsonResponse(acls is not None and acls['AclStatus'] or None, safe=False)
+ 
+ 
+ def update_acls(request):
+-- 
+1.7.9.5
+

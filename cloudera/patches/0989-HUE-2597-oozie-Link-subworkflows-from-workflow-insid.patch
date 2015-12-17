@@ -1,0 +1,100 @@
+From 446d282dfa5b839b4515954b94cb471ce9d2aabc Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 3 Mar 2015 16:53:35 -0800
+Subject: [PATCH 0989/1173] HUE-2597 [oozie] Link subworkflows from workflow
+ inside a workflow
+
+---
+ .../templates/dashboard/list_oozie_workflow.mako   |    3 +++
+ .../dashboard/list_oozie_workflow_action.mako      |    3 +++
+ apps/oozie/src/oozie/views/dashboard.py            |   10 ++++++++++
+ desktop/libs/liboozie/src/liboozie/types.py        |    5 +++++
+ 4 files changed, 21 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 65ec81c..1c22218 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -143,6 +143,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         % if oozie_coordinator:
+           ${ _('Coordinator') } <a href="${ oozie_coordinator.get_absolute_url(oozie_bundle) }">${ oozie_coordinator.appName }</a> :
+         % endif
++        % if oozie_parent and (oozie_coordinator is None or oozie_parent.id != oozie_coordinator.id):
++          ${ _('Parent') } <a href="${ oozie_parent.get_absolute_url() }">${ oozie_parent.appName }</a> :
++        % endif
+ 
+         ${ _('Workflow') } ${ oozie_workflow.appName }
+       </h1>
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+index 9d5e61b..9820c2c 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+@@ -70,6 +70,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         % if oozie_coordinator:
+           ${ _('Coordinator') } <a href="${ oozie_coordinator.get_absolute_url() }">${ oozie_coordinator.appName }</a> :
+         % endif
++        % if oozie_parent and (oozie_coordinator is None or oozie_parent.id != oozie_coordinator.id):
++          ${ _('Parent') } <a href="${ oozie_parent.get_absolute_url() }">${ oozie_parent.appName }</a> :
++        % endif
+         ${ _('Workflow') } <a href="${ workflow.get_absolute_url() }">${ workflow.appName }</a> :
+         ${ _('Action') } ${ action.name }
+       </h1>
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 2e372da..4c2b66d 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -249,6 +249,10 @@ def list_oozie_workflow(request, job_id):
+   if oozie_bundle is not None:
+     setattr(oozie_workflow, 'oozie_bundle', oozie_bundle)
+ 
++  oozie_parent = oozie_workflow.get_parent_job_id()
++  if oozie_parent:
++    oozie_parent = check_job_access_permission(request, oozie_parent)
++
+   workflow_data = None
+   credentials = None
+   doc = None
+@@ -319,6 +323,7 @@ def list_oozie_workflow(request, job_id):
+     'oozie_workflow': oozie_workflow,
+     'oozie_coordinator': oozie_coordinator,
+     'oozie_bundle': oozie_bundle,
++    'oozie_parent': oozie_parent,
+     'oozie_slas': oozie_slas,
+     'hue_workflow': hue_workflow,
+     'hue_coord': hue_coord,
+@@ -446,11 +451,16 @@ def list_oozie_workflow_action(request, action):
+   workflow.oozie_coordinator = oozie_coordinator
+   workflow.oozie_bundle = oozie_bundle
+ 
++  oozie_parent = workflow.get_parent_job_id()
++  if oozie_parent:
++    oozie_parent = check_job_access_permission(request, oozie_parent)
++
+   return render('dashboard/list_oozie_workflow_action.mako', request, {
+     'action': action,
+     'workflow': workflow,
+     'oozie_coordinator': oozie_coordinator,
+     'oozie_bundle': oozie_bundle,
++    'oozie_parent': oozie_parent,
+   })
+ 
+ 
+diff --git a/desktop/libs/liboozie/src/liboozie/types.py b/desktop/libs/liboozie/src/liboozie/types.py
+index e625ca0..6d0db38 100644
+--- a/desktop/libs/liboozie/src/liboozie/types.py
++++ b/desktop/libs/liboozie/src/liboozie/types.py
+@@ -417,6 +417,11 @@ class Workflow(Job):
+   def type(self):
+     return 'Workflow'
+ 
++  def get_parent_job_id(self):
++    if self.parentId and '@' in self.parentId:
++      return self.parentId.split('@')[0]
++    return self.parentId
++
+   def get_absolute_url(self, format='html'):
+     extra_params = []
+ 
+-- 
+1.7.9.5
+

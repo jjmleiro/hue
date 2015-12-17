@@ -1,0 +1,147 @@
+From 5a2f297d01edcb534956c341affeedea4a514df4 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 27 Feb 2015 15:05:02 +0100
+Subject: [PATCH 0963/1173] HUE-2577 [search] Range setting widget does not
+ update the model
+
+Changed variables that are updated on slide event
+Updated look'n'feel
+---
+ apps/search/src/search/templates/search.mako       |    6 ++++-
+ .../static/desktop/css/bootstrap-slider.css        |   24 +++++++++++++++++++-
+ .../desktop/static/desktop/js/bootstrap-slider.js  |   15 +++++++-----
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |   14 +++++++++++-
+ 4 files changed, 50 insertions(+), 9 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 4268ba6..98d0b96 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -29,6 +29,10 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
+       location.href = "/search/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
++
++  SLIDER_LABELS = {
++    STEP: "${_('Increment')}",
++  }
+ </script>
+ 
+ <div class="search-bar">
+@@ -291,7 +295,7 @@ ${ dashboard.layout_skeleton() }
+ 
+     <!-- ko if: type() == 'range' || type() == 'range-up' -->
+       <!-- ko ifnot: properties.isDate() -->
+-        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.initial_gap, min: properties.initial_start, max: properties.initial_end}"></div>
++        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.initial_gap, min: properties.initial_start, max: properties.initial_end, properties: properties, labels: SLIDER_LABELS}"></div>
+       <!-- /ko -->
+       <!-- ko if: properties.isDate() -->
+         <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.initial_gap, relatedgap: properties.gap, min: properties.min, max: properties.max}"></div>
+diff --git a/desktop/core/src/desktop/static/desktop/css/bootstrap-slider.css b/desktop/core/src/desktop/static/desktop/css/bootstrap-slider.css
+index 694116b..5b8d9bf 100644
+--- a/desktop/core/src/desktop/static/desktop/css/bootstrap-slider.css
++++ b/desktop/core/src/desktop/static/desktop/css/bootstrap-slider.css
+@@ -148,4 +148,26 @@
+ 
+ .slider .tooltip {
+   z-index: 10;
+-}
+\ No newline at end of file
++}
++
++.slider .tooltip-inner.subtle {
++  border: 1px solid #FFF !important;
++  -webkit-box-shadow: none;
++  -moz-box-shadow: none;
++  box-shadow: none;
++}
++
++.slider .tooltip-inner.subtle:hover {
++  border: 1px solid #CCC !important;
++  -webkit-box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
++  -moz-box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
++  box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
++}
++
++.slider .tooltip.top .tooltip-arrow {
++  border-top-color: #333;
++}
++
++.slider .tooltip.bottom .tooltip-arrow {
++  border-bottom-color: #333;
++}
+diff --git a/desktop/core/src/desktop/static/desktop/js/bootstrap-slider.js b/desktop/core/src/desktop/static/desktop/js/bootstrap-slider.js
+index 6b93746..7e8f189 100644
+--- a/desktop/core/src/desktop/static/desktop/js/bootstrap-slider.js
++++ b/desktop/core/src/desktop/static/desktop/js/bootstrap-slider.js
+@@ -40,11 +40,11 @@
+         '<div class="slider-handle"></div>' +
+         '</div>' +
+         '<div id="tooltip" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner" /></div>' +
+-        '<div id="tooltip_start" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner" /></div>' +
+-        '<div id="tooltip_end" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner" /></div>' +
+-        '<div id="tooltip_min" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner" /></div>' +
+-        '<div id="tooltip_max" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner" /></div>' +
+-        '<div id="tooltip_step" class="tooltip"><input type="text" class="tooltip-inner" style="border-width: 2px!important" /></div>' +
++        '<div id="tooltip_start" class="tooltip"><input type="text" class="tooltip-inner" style="margin-bottom: -14px!important" /></div>' +
++        '<div id="tooltip_end" class="tooltip"><input type="text" class="tooltip-inner" style="margin-bottom: -14px!important" /></div>' +
++        '<div id="tooltip_min" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner subtle" /></div>' +
++        '<div id="tooltip_max" class="tooltip"><div class="tooltip-arrow"></div><input type="text" class="tooltip-inner subtle" /></div>' +
++        '<div id="tooltip_step" class="tooltip"><div style="text-align: center;height: 11px;"><i class="fa fa-arrows-h"></i></div><input type="text" class="tooltip-inner subtle" title="' + options.labels.STEP + '" /></div>' +
+         '</div>')
+         .insertBefore(this.element)
+         .append(this.element);
+@@ -102,7 +102,7 @@
+     this.tooltip_end.addClass("top")[0].style.top = "-30px";
+     this.tooltip_min.addClass("top")[0].style.top = "18px";
+     this.tooltip_max.addClass("top")[0].style.top = "18px";
+-    this.tooltip_step.addClass("top")[0].style.top = "18px";
++    this.tooltip_step.addClass("top")[0].style.top = "6px";
+ 
+     this.tooltipInner_start.on({
+       blur: $.proxy(this.blur, this, 0),
+@@ -894,6 +894,9 @@
+     },
+     reverseStepFormatter: function (value) {
+       return value*1;
++    },
++    labels: {
++      STEP: "Increment"
+     }
+   };
+ 
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index 40bf585..1ec3ca9 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -176,14 +176,26 @@ ko.bindingHandlers.slider = {
+       start: parseFloat(_options.min()),
+       end: parseFloat(_options.max()),
+       tooltip_split: true,
+-      tooltip: 'always'
++      tooltip: 'always',
++      labels: _options.labels
+     });
+     _el.on("slide", function (e) {
+       _options.start(e.min);
+       _options.end(e.max);
+       _options.min(e.start);
+       _options.max(e.end);
++      if (_options.min() < _options.start()){
++        _options.start(_options.min());
++      }
++      if (_options.max() > _options.end()){
++        _options.end(_options.max());
++      }
+       _options.gap(e.step);
++      if (typeof _options.properties.initial_start == "function"){
++        _options.properties.start(_options.properties.initial_start());
++        _options.properties.end(_options.properties.initial_end());
++        _options.properties.gap(_options.properties.initial_gap());
++      }
+     });
+     _el.on("slideStop", function (e) {
+       viewModel.search();
+-- 
+1.7.9.5
+

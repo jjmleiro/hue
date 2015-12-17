@@ -1,0 +1,2139 @@
+From dd7c12dcc15c3323029546a1d792642cfa963118 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 20 Oct 2014 14:48:51 -0700
+Subject: [PATCH 0206/1173] [oozie] Generate XML workflow
+
+Add Start and End nodes
+Link new node to Start and End
+---
+ apps/oozie/src/oozie/models2.py                    |  110 +++-
+ .../templates/editor/gen2/workflow-common.xml.mako |   83 +++
+ .../editor/gen2/workflow-decision.xml.mako         |   27 +
+ .../templates/editor/gen2/workflow-distcp.xml.mako |   38 ++
+ .../templates/editor/gen2/workflow-email.xml.mako  |   32 +
+ .../templates/editor/gen2/workflow-end.xml.mako    |   18 +
+ .../templates/editor/gen2/workflow-fork.xml.mako   |   22 +
+ .../templates/editor/gen2/workflow-fs.xml.mako     |   55 ++
+ .../editor/gen2/workflow-generic.xml.mako          |   24 +
+ .../editor/gen2/workflow-graph-status.xml.mako     |  123 ++++
+ .../templates/editor/gen2/workflow-graph.xml.mako  |   57 ++
+ .../templates/editor/gen2/workflow-hive.xml.mako   |   42 ++
+ .../templates/editor/gen2/workflow-java.xml.mako   |   50 ++
+ .../templates/editor/gen2/workflow-join.xml.mako   |   18 +
+ .../templates/editor/gen2/workflow-kill.xml.mako   |   20 +
+ .../editor/gen2/workflow-mapreduce.xml.mako        |   36 ++
+ .../templates/editor/gen2/workflow-pig.xml.mako    |   42 ++
+ .../templates/editor/gen2/workflow-shell.xml.mako  |   46 ++
+ .../templates/editor/gen2/workflow-sqoop.xml.mako  |   44 ++
+ .../templates/editor/gen2/workflow-ssh.xml.mako    |   36 ++
+ .../templates/editor/gen2/workflow-start.xml.mako  |   18 +
+ .../editor/gen2/workflow-streaming.xml.mako        |   34 +
+ .../editor/gen2/workflow-subworkflow.xml.mako      |   33 +
+ .../oozie/templates/editor/gen2/workflow.xml.mako  |   53 ++
+ .../oozie/templates/editor/workflow_editor.mako    |   38 +-
+ apps/oozie/src/oozie/tests2.py                     |  680 ++++++++++++++++++++
+ apps/oozie/src/oozie/urls.py                       |    2 +
+ apps/oozie/src/oozie/views/editor2.py              |   16 +
+ apps/oozie/static/js/workflow-editor.ko.js         |   27 +-
+ 29 files changed, 1812 insertions(+), 12 deletions(-)
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-fs.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-generic.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-graph-status.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-graph.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-kill.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-mapreduce.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-shell.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-subworkflow.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+ create mode 100644 apps/oozie/src/oozie/tests2.py
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index b0840f7..aff24b1 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -17,18 +17,22 @@
+ 
+ import json
+ import logging
++import re
+ 
++from django.utils.encoding import force_unicode
+ from django.utils.translation import ugettext as _
+ 
++from desktop.lib import django_mako
+ from desktop.models import Document2
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
++
+ class Workflow():
+   
+-  def __init__(self, data=None, document=None):
++  def __init__(self, data=None, document=None, workflow=None):
+     self.document = document
+ 
+     if document is not None:
+@@ -38,19 +42,109 @@ class Workflow():
+     else:
+       self.data = json.dumps({
+           'layout': [
+-              {"size":12,"rows":[{"widgets":[]}],"drops":["temp"],"klass":"card card-home card-column span2"}
++              #{"size":12,"rows":[{"widgets":[]}],"drops":["temp"],"klass":"card card-home card-column span2"}
++{"size":12, "rows":[
++      {"widgets":[{"size":12, "name":"Start", "id":"3f107997-04cc-8733-60a9-a4bb62cebffc", "widgetType":"start-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]},
++      {"widgets":[]},  
++      {"widgets":[{"size":12, "name":"End", "id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a", "widgetType":"end-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]}], 
++   "drops":[ "temp"],
++   "klass":"card card-home card-column span12"}              
+           ],
+-           'workflow': {}
++           'workflow': workflow if workflow is not None else {"id": None,"uuid":"549e2697-97cf-f931-2ce4-83dfdd03b7e7","name":"",
++   "properties":{"job_xml":"","sla_enabled":False,"schema_version":"uri:oozie:workflow:0.4","sla_workflow_enabled":False,"credentials":[],"properties":{}},
++   "nodes":[{"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
++            {"id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a","name":"End","type":"end-widget","properties":{},"children":[]}]
++   }
+       })
+-      
++  
+   def get_json(self):
+     _data = self.get_data()
+ 
+-    if self.document is not None:
+-      _data['workflow']['id'] = self.document.id  
+-
+     return json.dumps(_data)
+  
+   def get_data(self):
+-    return json.loads(self.data)
++    _data = json.loads(self.data)
++    
++    if self.document is not None:
++      _data['workflow']['id'] = self.document.id
++    if 'properties' not in _data['workflow']:
++      _data['workflow']['properties'] = {}
++
++    if 'sla_workflow_enabled' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['sla_workflow_enabled'] = False
++    if 'sla_enabled' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['sla_enabled'] = False            
++    
++    if 'schema_version' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['schema_version'] = 'uri:oozie:workflow:0.4'
++    if 'job_xml' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['job_xml'] = ''
++    if 'properties' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['properties'] = {}
++
++    if 'credentials' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['credentials'] = []      
++
++    return _data
++  
++  def to_xml(self, mapping=None):
++    if mapping is None:
++      mapping = {}
++    tmpl = 'editor/gen2/workflow.xml.mako'
++
++    data = self.get_data()  
++    nodes = [Node(node) for node in data['workflow']['nodes']]
++
++    xml = re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {
++              'workflow': data['workflow'],
++              'nodes': nodes,
++              'mapping': mapping
++          }))
++    return force_unicode(xml)  
++
++
++class Node():
++  def __init__(self, data):
++    self.data = data
++    
++    self._augment_data()
++    
++  def to_xml(self, mapping=None):
++    if mapping is None:
++      mapping = {}
++
++    data = {
++      'node': self.data,
++      'mapping': mapping
++    }
++
++    return django_mako.render_to_string(self.get_template_name(), data)
++  
++  def _augment_data(self):
++    self.data['type'] = self.data['type'].replace('-widget', '')
++    self.data['uuid'] = self.data['id']
++    
++    # if action node?
++    if 'credentials' not in self.data['properties']:
++      self.data['properties']['credentials'] = []     
++    if 'prepares' not in self.data['properties']:
++      self.data['properties']['prepares'] = []
++    if 'job_xml' not in self.data['properties']:
++      self.data['properties']['job_xml'] = []      
++    if 'properties' not in self.data['properties']:
++      self.data['properties']['properties'] = []
++    if 'params' not in self.data['properties']:
++      self.data['properties']['params'] = []
++    if 'files' not in self.data['properties']:
++      self.data['properties']['files'] = []
++    if 'archives' not in self.data['properties']:
++      self.data['properties']['archives'] = []
++
++    if 'script_path' not in self.data['properties']:
++      self.data['properties']['script_path'] = 'test.pig'      
+ 
++    if 'sla_enabled' not in self.data['properties']:
++      self.data['properties']['sla_enabled'] = False
++    
++  def get_template_name(self):
++    return 'editor/gen2/workflow-%s.xml.mako' % self.data['type']    
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
+new file mode 100644
+index 0000000..9afc266
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
+@@ -0,0 +1,83 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  import posixpath
++  from oozie.utils import smart_path
++%>
++
++
++<%def name="filelink(path)">${ '#' in path and path or path + '#' + posixpath.basename(path) }</%def>
++
++
++<%def name="credentials(credentials)">${ ' cred="%s"' % ','.join([cred['name'] for cred in credentials if cred['value']]) if credentials else '' | n,unicode }</%def>
++
++
++<%def name="prepares(prepares)">
++        % if prepares:
++            <prepare>
++                % for p in prepares:
++                  <%
++                    operation = p['type']
++                    path = p['value']
++                  %>
++                  <${ operation } path="${ smart_path(path, mapping) }"/>
++                % endfor
++            </prepare>
++        % endif
++</%def>
++
++
++<%def name="configuration(properties)">
++        % if properties:
++            <configuration>
++                % for p in properties:
++                <property>
++                    <name>${ p['name'] }</name>
++                    <value>${ p['value'] }</value>
++                </property>
++                % endfor
++            </configuration>
++        % endif
++</%def>
++
++
++<%def name="distributed_cache(files, archives)">
++    % for f in files:
++        % if f:
++            <file>${ filelink(f) }</file>
++        % endif
++    % endfor
++    % for a in archives:
++        % if a:
++            <archive>${ filelink(a['name']) }</archive>
++        % endif
++    % endfor
++</%def>
++
++
++<%def name="sla(element)">
++        % if element['properties']['sla_enabled']:
++          <sla:info>
++          % for sla in element['sla']:
++            % if sla['value'] and sla['key'] != 'enabled':
++            <sla:${ sla['key'] }>${ sla['value'] }</sla:${ sla['key'] }>
++            % endif
++          % endfor
++          </sla:info>
++        % endif
++</%def>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
+new file mode 100644
+index 0000000..38a9fee
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
+@@ -0,0 +1,27 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <decision name="${ node }">
++        <switch>
++        % for link in node.get_children_links('start'):
++            <case to="${ link.child }">
++              ${ link.comment }
++            </case>
++        % endfor
++            <default to="${ node.get_oozie_child('default') }"/>
++        </switch>
++    </decision>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
+new file mode 100644
+index 0000000..5d32b2d
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
+@@ -0,0 +1,38 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <distcp xmlns="uri:oozie:distcp-action:0.1">
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            % for param in node.get_params():
++              <arg>${ param['value'] }</arg>
++            % endfor
++        </distcp>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
+new file mode 100644
+index 0000000..ac98860
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
+@@ -0,0 +1,32 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <email xmlns="uri:oozie:email-action:0.1">
++            <to>${ node.to }</to>
++            % if node.cc:
++              <cc>${ node.cc }</cc>
++            % endif
++            <subject>${ node.subject }</subject>
++            <body>${ node.body }</body>
++        </email>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
+new file mode 100644
+index 0000000..d993580
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
+@@ -0,0 +1,18 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <end name="${ node['uuid'] }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
+new file mode 100644
+index 0000000..fd2aec8
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
+@@ -0,0 +1,22 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <fork name="${ node }">
++        % for child in node.get_children('start'):
++        <path start="${ child }" />
++        % endfor
++    </fork>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-fs.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fs.xml.mako
+new file mode 100644
+index 0000000..bbb9e9a
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fs.xml.mako
+@@ -0,0 +1,55 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  from oozie.utils import smart_path
++%>
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <fs>
++            % for param in node.get_deletes():
++              <delete path='${ smart_path(param['name'], mapping) }'/>
++            % endfor
++
++            % for param in node.get_mkdirs():
++              <mkdir path='${ smart_path(param['name'], mapping) }'/>
++            % endfor
++
++            % for param in node.get_moves():
++              <move source='${ smart_path(param['source'], mapping) }' target='${ smart_path(param['destination'], mapping) }'/>
++            % endfor
++
++            % for param in node.get_chmods():
++              <%
++                if param['recursive']:
++                  recursive = 'true'
++                else:
++                  recursive = 'false'
++              %>
++              <chmod path='${ smart_path(param['path'], mapping) }' permissions='${ param['permissions'] }' dir-files='${ recursive }'/>
++            % endfor
++
++            % for param in node.get_touchzs():
++              <touchz path='${ smart_path(param['name'], mapping) }'/>
++            % endfor
++        </fs>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-generic.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-generic.xml.mako
+new file mode 100644
+index 0000000..8f386e8
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-generic.xml.mako
+@@ -0,0 +1,24 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        ${ node.xml | n,unicode }
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph-status.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph-status.xml.mako
+new file mode 100644
+index 0000000..8921b29
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph-status.xml.mako
+@@ -0,0 +1,123 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="graph" file="workflow-graph.xml.mako" />
++<%namespace name="utils" file="../../utils.inc.mako" />
++
++<%!
++  from django.utils.translation import ugettext as _
++%>
++
++<%def name="get_tab(form, action, control, css_box_class)">
++  <ul style="margin-bottom:0" class="nav nav-tabs">
++    <li class="active"><a style="line-height:10px
++    % if not action:
++          ;background-color: #F9F9F9;
++    % endif
++    " data-toggle="tab"><i class="fa ${css_box_class}" style="color:#DDD"></i> &nbsp; <strong style="color:#999">
++      % if action and action.externalId:
++        ${ form.instance.node_type }
++      % else:
++        ${ form.instance.__unicode__() }
++      % endif
++    </strong> &nbsp;&nbsp;
++      % if action and action.externalId:
++        <span class="label ${ utils.get_status(action.status) }">${ action.status }</span>
++      % elif control:
++        <span class="label ${ utils.get_status(control.status) }">${ control.status }</span>
++      % endif
++    </a>
++    </li>
++  </ul>
++</%def>
++
++<%def name="get_content(form, action, control, inverse=False)">
++  <div class="row-fluid">
++    % if action and action.externalId:
++      <div style="text-align:left; padding:10px;border:1px solid #DDD; border-top:0" class="span12">
++          <div style="font-size: 30px; margin-top:14px" class="pull-right"><a href="${ url('jobbrowser.views.job_single_logs', job=action.externalId) }" title="${ _('View the logs') }" rel="tooltip" data-row-selector-exclude="true"><i class="fa fa-tasks"></i></a></div>
++          <h4><a href="${ action.get_absolute_url() }" title="${ _('View workflow action') }" rel="tooltip">${ form.instance.__unicode__() }</a></h4>
++          <span class="muted">${ form.instance.description }&nbsp;</span>
++          % if action:
++            ${ action.errorMessage or '' }
++          % elif control:
++            ${ control.errorMessage or '' }
++          % endif
++      </div>
++    % else:
++      <div style="border:0;" class="span12
++      %if inverse:
++      inverse_gradient
++      %else:
++      gradient
++      %endif
++      ">
++      </div>
++    % endif
++  </div>
++</%def>
++
++
++<%def name="print_status_node(form)">
++  <%
++    is_start = form.instance.get_full_node().node_type == 'start'
++    is_end = form.instance.get_full_node().node_type == 'end'
++    is_fork = form.instance.get_full_node().node_type == 'fork'
++    is_join = form.instance.get_full_node().node_type == 'join'
++    is_decision = form.instance.get_full_node().node_type == 'decision'
++    is_decision_end = form.instance.get_full_node().node_type == 'decisionend'
++    action = actions.get(unicode(form.instance))
++    control = controls.get(unicode(form.instance))
++    css_box_class = ""
++    if is_start:
++      css_box_class = "fa-thumbs-up"
++    if is_end:
++      css_box_class = "fa-dot-circle-o"
++    if is_fork:
++      css_box_class = "fa-sitemap"
++    if is_join:
++      css_box_class = "fa-sitemap fa-rotate-180"
++    if is_decision:
++      css_box_class = "fa-magic"
++    if is_decision_end:
++      css_box_class = "fa-magic"
++    if action:
++      css_box_class = "fa-cogs"
++  %>
++
++  % if form.instance.get_full_node().is_visible():
++      <div class="span12 action" style="margin-top:0">
++        % if is_end or is_join:
++          ${get_content(form, action, control, True)}
++          <div class="tabbable tabs-below">
++          ${get_tab(form, action, control, css_box_class)}
++          </div>
++        % else:
++          ${get_tab(form, action, control, css_box_class)}
++          ${get_content(form, action, control)}
++        % endif
++      </div>
++  % endif
++
++</%def>
++
++${ graph.display_graph(nodes, print_status_node) }
++
++<style type="text/css">
++  .node-text-failed {color:white; font-weight:bold;};
++  .node-text-pass {color:black; font-weight:bold;};
++</style>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph.xml.mako
+new file mode 100644
+index 0000000..08e7163
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-graph.xml.mako
+@@ -0,0 +1,57 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%def name="print_graph(nodes, print_node)">
++  % for node in nodes:
++    % if type(node) != list:
++      <div class="row-fluid">
++        ${ print_node(index[node.id]) }
++      </div>
++    % else:
++      % if type(node[0]) != list:
++      <div class="row-fluid">
++        ${ print_graph(node, print_node) }
++      </div>
++      % else:
++         <div class="row-fluid">
++         <%
++           children = [n for n in node if n]
++           columns = 12 / len(children)
++         %>
++          % for n in children:
++          <div class="${ 'span%d' % columns } action2">
++            ${ print_graph(n, print_node) }
++          </div>
++        % endfor
++        </div>
++      % endif
++    % endif
++  % endfor
++</%def>
++
++
++<%def name="display_graph(form, print_node)">
++  <div class="row action2" style="min-height:400px;margin-left:1px">
++    ${ print_graph(nodes, print_node) }
++  </div>
++
++  <style type="text/css">
++    .action2 {text-align: center;}
++    .action {border-style:solid; border-width:1px; border-color:LightGrey; padding: 3px; margin:25px;}
++    .action-link:hover {cursor: pointer;}
++  </style>
++</%def>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+new file mode 100644
+index 0000000..92fe593
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+@@ -0,0 +1,42 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <hive xmlns="uri:oozie:hive-action:0.2">
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            <script>${ node.script_path }</script>
++
++            % for param in node.get_params():
++              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % endfor
++
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++        </hive>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
+new file mode 100644
+index 0000000..05d656d
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
+@@ -0,0 +1,50 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <java>
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            <main-class>${ node.main_class }</main-class>
++
++            % if node.java_opts:
++            <java-opts>${ node.java_opts }</java-opts>
++            % endif
++
++            % for arg in node.args.split():
++            <arg>${ arg }</arg>
++            % endfor
++
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++
++            % if node.capture_output:
++            <capture-output/>
++            % endif
++        </java>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
+new file mode 100644
+index 0000000..be10684
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
+@@ -0,0 +1,18 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <join name="${ node }" to="${ node.get_oozie_child('to') }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-kill.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-kill.xml.mako
+new file mode 100644
+index 0000000..ade9428
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-kill.xml.mako
+@@ -0,0 +1,20 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <kill name="${ node }">
++        <message>${ node.message }</message>
++    </kill>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-mapreduce.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-mapreduce.xml.mako
+new file mode 100644
+index 0000000..b3dc26d
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-mapreduce.xml.mako
+@@ -0,0 +1,36 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <map-reduce>
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++        </map-reduce>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+new file mode 100644
+index 0000000..69172c3
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+@@ -0,0 +1,42 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node['uuid'] }"${ common.credentials(node['properties']['credentials']) }>
++        <pig>
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node['properties']['prepares']) }
++            % if node['properties']['job_xml']:
++              <job-xml>${ node['properties']['job_xml'] }</job-xml>
++            % endif
++            ${ common.configuration(node['properties']['properties']) }
++
++            <script>${ node['properties']['script_path'] }</script>
++
++            % for param in node['properties']['params']:
++              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % endfor
++
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
++        </pig>
++        <ok to="${ node['children'][0]['to'] }"/>
++        <error to="${ node['children'][0]['to'] }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-shell.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-shell.xml.mako
+new file mode 100644
+index 0000000..37ce238
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-shell.xml.mako
+@@ -0,0 +1,46 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <shell xmlns="uri:oozie:shell-action:0.1">
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            <exec>${ node.command }</exec>
++
++            % for param in node.get_params():
++              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % endfor
++
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++
++            % if node.capture_output:
++              <capture-output/>
++            % endif
++        </shell>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
+new file mode 100644
+index 0000000..7991579
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
+@@ -0,0 +1,44 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <sqoop xmlns="uri:oozie:sqoop-action:0.2">
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node.get_prepares()) }
++            % if node.job_xml:
++              <job-xml>${ node.job_xml }</job-xml>
++            % endif
++            ${ common.configuration(node.get_properties()) }
++
++            % if node.script_path:
++            <command>${ node.script_path }</command>
++            % endif
++
++            % for param in node.get_params():
++              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % endfor
++
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++        </sqoop>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
+new file mode 100644
+index 0000000..a439de8
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
+@@ -0,0 +1,36 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <ssh xmlns="uri:oozie:ssh-action:0.1">
++            <host>${ node.user }@${ node.host }</host>
++            <command>${ node.command }</command>
++
++            % for param in node.get_params():
++              <args>${ param['value'] }</args>
++            % endfor
++
++            % if node.capture_output:
++              <capture-output/>
++            % endif
++        </ssh>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
+new file mode 100644
+index 0000000..4d938d0
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
+@@ -0,0 +1,18 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++    <start to="${ node['children'][0]['to'] }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+new file mode 100644
+index 0000000..80d3d6b
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+@@ -0,0 +1,34 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <map-reduce>
++            <job-tracker>${ '${' }jobTracker}</job-tracker>
++            <name-node>${ '${' }nameNode}</name-node>
++            <streaming>
++                <mapper>${ node.mapper }</mapper>
++                <reducer>${ node.reducer }</reducer>
++            </streaming>
++            ${ common.configuration(node.get_properties()) }
++            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++        </map-reduce>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-subworkflow.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-subworkflow.xml.mako
+new file mode 100644
+index 0000000..6d81173
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-subworkflow.xml.mako
+@@ -0,0 +1,33 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node }"${ common.credentials(node.credentials) }>
++        <sub-workflow>
++            <app-path>${'${'}nameNode}${ node.sub_workflow.deployment_dir }</app-path>
++
++            % if node.propagate_configuration:
++              <propagate-configuration/>
++            % endif
++
++            ${ common.configuration(node.get_properties()) }
++        </sub-workflow>
++        <ok to="${ node.get_oozie_child('ok') }"/>
++        <error to="${ node.get_oozie_child('error') }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+new file mode 100644
+index 0000000..489e337
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+@@ -0,0 +1,53 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++
++<workflow-app name="${ workflow['name'] | x }" xmlns="${ 'uri:oozie:workflow:0.5' if workflow['properties']['sla_workflow_enabled'] else workflow['properties']['schema_version'] | n,unicode }"${ ' xmlns:sla="uri:oozie:sla:0.2"' if workflow['properties']['sla_workflow_enabled'] else '' | n,unicode }>
++  % if workflow['properties']['job_xml'] or workflow['properties']['properties']:
++  <global>
++    % if workflow['properties']['job_xml']:
++      <job-xml>${ workflow['properties']['job_xml'] | x }</job-xml>
++    % endif
++    % if workflow['properties']['properties']:
++      ${ common.configuration(workflow['properties']['properties']) | x }
++    % endif
++  </global>
++  % endif
++  % if workflow['properties']['credentials']:
++  <credentials>
++    % for cred_type in workflow['properties']['credentials']:
++    <%
++      credential = mapping['credentials'][cred_type]
++    %>
++    <credential name="${ credential['xml_name'] }" type="${ cred_type }">
++    % for name, value in credential['properties']:
++      <property>
++        <name>${ name }</name>
++        <value>${ value }</value>
++      </property>
++    % endfor
++    </credential>
++    % endfor
++  </credentials>
++  % endif
++  % for node in nodes:
++      ${ node.to_xml(mapping) | n }
++  % endfor
++  ${ common.sla(workflow) }
++</workflow-app>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 5ff39de..06367fc 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -61,7 +61,11 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+ 
+ <div class="search-bar">
+-  <div class="pull-right" style="padding-right:50px">
++  <div class="pull-right" style="padding-right:50px">    
++    <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
++      <i class="fa fa-file-code-o"></i>
++    </a>
++    &nbsp;&nbsp;
+     % if user.is_superuser:
+       <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+         <i class="fa fa-pencil"></i>
+@@ -85,6 +89,38 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ ${ dashboard.layout_skeleton() }
+ 
+ 
++<script type="text/html" id="start-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      Start
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="end-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      End
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="hive-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+diff --git a/apps/oozie/src/oozie/tests2.py b/apps/oozie/src/oozie/tests2.py
+new file mode 100644
+index 0000000..4c8d274
+--- /dev/null
++++ b/apps/oozie/src/oozie/tests2.py
+@@ -0,0 +1,680 @@
++#!/usr/bin/env python
++## -*- coding: utf-8 -*-
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++
++import logging
++
++from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal
++from django.contrib.auth.models import User
++from django.core.urlresolvers import reverse
++
++from desktop.lib.django_test_util import make_logged_in_client
++from desktop.lib.test_utils import grant_access, add_permission, add_to_group, reformat_json, reformat_xml
++
++
++from oozie.models2 import Workflow
++
++
++LOG = logging.getLogger(__name__)
++
++
++class TestEditor():
++
++  def setUp(self):
++    self.wf = Workflow()
++
++  def test_workflow_gen_xml(self):
++    assert_equal(
++        '<workflow-app name="Test" xmlns="0">\n'
++        '</workflow-app>'
++        .split(),
++        self.wf.to_xml({'output': '/path'}).split()
++    )
++
++
++#  def test_workflow_name(self):
++#    try:
++#      workflow_dict = WORKFLOW_DICT.copy()
++#      workflow_count = Document.objects.available_docs(Workflow, self.user).count()
++#
++#      workflow_dict['name'][0] = 'bad workflow name'
++#      response = self.c.post(reverse('oozie:create_workflow'), workflow_dict, follow=True)
++#      assert_equal(200, response.status_code)
++#      assert_equal(workflow_count, Document.objects.available_docs(Workflow, self.user).count(), response)
++#
++#      workflow_dict['name'][0] = 'good-workflow-name'
++#      response = self.c.post(reverse('oozie:create_workflow'), workflow_dict, follow=True)
++#      assert_equal(200, response.status_code)
++#      assert_equal(workflow_count + 1, Document.objects.available_docs(Workflow, self.user).count(), response)
++#    finally:
++#      name = 'bad workflow name'
++#      if Workflow.objects.filter(name=name).exists():
++#        Node.objects.filter(workflow__name=name).delete()
++#        Workflow.objects.filter(name=name).delete()
++#      name = 'good-workflow-name'
++#      if Workflow.objects.filter(name=name).exists():
++#        Node.objects.filter(workflow__name=name).delete()
++#        Workflow.objects.filter(name=name).delete()
++#
++#
++#  def test_find_parameters(self):
++#    data = json.dumps({'sla': [
++#        {'key': 'enabled', 'value': True},
++#        {'key': 'nominal-time', 'value': '${time}'},]}
++#    )
++#    jobs = [Job(name="$a"),
++#            Job(name="foo ${b} $$"),
++#            Job(name="${foo}", description="xxx ${food}", data=data)]
++#
++#    result = [find_parameters(job, ['name', 'description', 'sla']) for job in jobs]
++#    assert_equal(set(["b", "foo", "food", "time"]), reduce(lambda x, y: x | set(y), result, set()))
++#
++#
++#  def test_find_all_parameters(self):
++#    self.wf.data = json.dumps({'sla': [
++#        {'key': 'enabled', 'value': False},
++#        {'key': 'nominal-time', 'value': '${time}'},]}
++#    )
++#    assert_equal([{'name': u'output', 'value': u''}, {'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}],
++#                 self.wf.find_all_parameters())
++#
++#    self.wf.data = json.dumps({'sla': [
++#        {'key': 'enabled', 'value': True},
++#        {'key': 'nominal-time', 'value': '${time}'},]}
++#    )
++#    assert_equal([{'name': u'output', 'value': u''}, {'name': u'SLEEP', 'value': ''}, {'name': u'market', 'value': u'US'}, {'name': u'time', 'value': u''}],
++#                 self.wf.find_all_parameters())
++#
++#
++#  def test_workflow_has_cycle(self):
++#    action1 = Node.objects.get(workflow=self.wf, name='action-name-1')
++#    action3 = Node.objects.get(workflow=self.wf, name='action-name-3')
++#
++#    assert_false(self.wf.has_cycle())
++#
++#    ok = action3.get_link('ok')
++#    ok.child = action1
++#    ok.save()
++#
++#    assert_true(self.wf.has_cycle())
++#
++#
++#  def test_workflow_gen_xml(self):
++#    assert_equal(
++#        '<workflow-app name="wf-name-1" xmlns="uri:oozie:workflow:0.4">\n'
++#        '    <global>\n'
++#        '        <job-xml>jobconf.xml</job-xml>\n'
++#        '        <configuration>\n'
++#        '            <property>\n'
++#        '                <name>sleep-all</name>\n'
++#        '                <value>${SLEEP}</value>\n'
++#        '            </property>\n'
++#        '         </configuration>\n'
++#        '    </global>\n'
++#        '    <start to="action-name-1"/>\n'
++#        '    <action name="action-name-1">\n'
++#        '        <map-reduce>\n'
++#        '           <job-tracker>${jobTracker}</job-tracker>\n'
++#        '            <name-node>${nameNode}</name-node>\n'
++#        '            <prepare>\n'
++#        '                <delete path="${nameNode}${output}"/>\n'
++#        '                <mkdir path="${nameNode}/test"/>\n'
++#        '            </prepare>\n'
++#        '            <configuration>\n'
++#        '                <property>\n'
++#        '                    <name>sleep</name>\n'
++#        '                    <value>${SLEEP}</value>\n'
++#        '                </property>\n'
++#        '            </configuration>\n'
++#        '        </map-reduce>\n'
++#        '        <ok to="action-name-2"/>\n'
++#        '        <error to="kill"/>\n'
++#        '    </action>\n'
++#        '    <action name="action-name-2">\n'
++#        '        <map-reduce>\n'
++#        '            <job-tracker>${jobTracker}</job-tracker>\n'
++#        '            <name-node>${nameNode}</name-node>\n'
++#        '            <prepare>\n'
++#        '                <delete path="${nameNode}${output}"/>\n'
++#        '                <mkdir path="${nameNode}/test"/>\n'
++#        '            </prepare>\n'
++#        '            <configuration>\n'
++#        '                <property>\n'
++#        '                    <name>sleep</name>\n'
++#        '                    <value>${SLEEP}</value>\n'
++#        '                </property>\n'
++#        '            </configuration>\n'
++#        '        </map-reduce>\n'
++#        '        <ok to="action-name-3"/>\n'
++#        '        <error to="kill"/>\n'
++#        '    </action>\n'
++#        '    <action name="action-name-3">\n'
++#        '        <map-reduce>\n'
++#        '            <job-tracker>${jobTracker}</job-tracker>\n'
++#        '            <name-node>${nameNode}</name-node>\n'
++#        '            <prepare>\n'
++#        '                <delete path="${nameNode}${output}"/>\n'
++#        '                <mkdir path="${nameNode}/test"/>\n'
++#        '            </prepare>\n'
++#        '            <configuration>\n'
++#        '                <property>\n'
++#        '                    <name>sleep</name>\n'
++#        '                    <value>${SLEEP}</value>\n'
++#        '                </property>\n'
++#        '            </configuration>\n'
++#        '        </map-reduce>\n'
++#        '        <ok to="end"/>\n'
++#        '        <error to="kill"/>\n'
++#        '    </action>\n'
++#        '    <kill name="kill">\n'
++#        '        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>\n'
++#        '    </kill>\n'
++#        '    <end name="end"/>\n'
++#        '</workflow-app>'.split(), self.wf.to_xml({'output': '/path'}).split())
++#
++#
++#  def test_workflow_java_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'java', [self.wf.start], {
++#        u'name': 'MyTeragen',
++#        "description":"Generate N number of records",
++#        "main_class":"org.apache.hadoop.examples.terasort.TeraGen",
++#        "args":"1000 ${output_dir}/teragen",
++#        "files":'["my_file","my_file2"]',
++#        "job_xml":"",
++#        "java_opts":"-Dexample-property=natty",
++#        "jar_path":"/user/hue/oozie/workspaces/lib/hadoop-examples.jar",
++#        "prepares":'[{"value":"/test","type":"mkdir"}]',
++#        "archives":'[{"dummy":"","name":"my_archive"},{"dummy":"","name":"my_archive2"}]',
++#        "capture_output": "on",
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml({'output_dir': '/path'})
++#
++#    assert_true("""
++#    <action name="MyTeragen">
++#        <java>
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#            <prepare>
++#                  <mkdir path="${nameNode}/test"/>
++#            </prepare>
++#            <main-class>org.apache.hadoop.examples.terasort.TeraGen</main-class>
++#            <java-opts>-Dexample-property=natty</java-opts>
++#            <arg>1000</arg>
++#            <arg>${output_dir}/teragen</arg>
++#            <file>my_file#my_file</file>
++#            <file>my_file2#my_file2</file>
++#            <archive>my_archive#my_archive</archive>
++#            <archive>my_archive2#my_archive2</archive>
++#            <capture-output/>
++#        </java>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#
++#  def test_workflow_streaming_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'streaming', [self.wf.start], {
++#        u'name': 'MyStreaming',
++#        "description": "Generate N number of records",
++#        "main_class": "org.apache.hadoop.examples.terasort.TeraGen",
++#        "mapper": "MyMapper",
++#        "reducer": "MyReducer",
++#        "files": '["my_file"]',
++#        "archives":'[{"dummy":"","name":"my_archive"}]',
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#    <action name="MyStreaming">
++#        <map-reduce>
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#            <streaming>
++#                <mapper>MyMapper</mapper>
++#                <reducer>MyReducer</reducer>
++#            </streaming>
++#            <file>my_file#my_file</file>
++#            <archive>my_archive#my_archive</archive>
++#        </map-reduce>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#
++#  def test_workflow_shell_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'shell', [self.wf.start], {
++#        u'job_xml': 'my-job.xml',
++#        u'files': '["hello.py"]',
++#        u'name': 'Shell',
++#        u'job_properties': '[]',
++#        u'capture_output': 'on',
++#        u'command': 'hello.py',
++#        u'archives': '[]',
++#        u'prepares': '[]',
++#        u'params': '[{"value":"World!","type":"argument"}]',
++#        u'description': 'Execute a Python script printing its arguments'
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#        <shell xmlns="uri:oozie:shell-action:0.1">
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#              <job-xml>my-job.xml</job-xml>
++#            <exec>hello.py</exec>
++#              <argument>World!</argument>
++#            <file>hello.py#hello.py</file>
++#              <capture-output/>
++#        </shell>""" in xml, xml)
++#
++#    action1.capture_output = False
++#    action1.save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#        <shell xmlns="uri:oozie:shell-action:0.1">
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#              <job-xml>my-job.xml</job-xml>
++#            <exec>hello.py</exec>
++#              <argument>World!</argument>
++#            <file>hello.py#hello.py</file>
++#        </shell>""" in xml, xml)
++#
++#
++#  def test_workflow_fs_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'fs', [self.wf.start], {
++#        u'name': 'MyFs',
++#        u'description': 'Execute a Fs action that manage files',
++#        u'deletes': '[{"name":"/to/delete"},{"name":"to/delete2"}]',
++#        u'mkdirs': '[{"name":"/to/mkdir"},{"name":"${mkdir2}"}]',
++#        u'moves': '[{"source":"/to/move/source","destination":"/to/move/destination"},{"source":"/to/move/source2","destination":"/to/move/destination2"}]',
++#        u'chmods': '[{"path":"/to/chmod","recursive":true,"permissions":"-rwxrw-rw-"},{"path":"/to/chmod2","recursive":false,"permissions":"755"}]',
++#        u'touchzs': '[{"name":"/to/touchz"},{"name":"/to/touchz2"}]'
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml({'mkdir2': '/path'})
++#
++#    assert_true("""
++#    <action name="MyFs">
++#        <fs>
++#              <delete path='${nameNode}/to/delete'/>
++#              <delete path='${nameNode}/user/${wf:user()}/to/delete2'/>
++#              <mkdir path='${nameNode}/to/mkdir'/>
++#              <mkdir path='${nameNode}${mkdir2}'/>
++#              <move source='${nameNode}/to/move/source' target='${nameNode}/to/move/destination'/>
++#              <move source='${nameNode}/to/move/source2' target='${nameNode}/to/move/destination2'/>
++#              <chmod path='${nameNode}/to/chmod' permissions='-rwxrw-rw-' dir-files='true'/>
++#              <chmod path='${nameNode}/to/chmod2' permissions='755' dir-files='false'/>
++#              <touchz path='${nameNode}/to/touchz'/>
++#              <touchz path='${nameNode}/to/touchz2'/>
++#        </fs>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#
++#  def test_workflow_email_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'email', [self.wf.start], {
++#        u'name': 'MyEmail',
++#        u'description': 'Execute an Email action',
++#        u'to': 'hue@hue.org,django@python.org',
++#        u'cc': '',
++#        u'subject': 'My subject',
++#        u'body': 'My body'
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#    <action name="MyEmail">
++#        <email xmlns="uri:oozie:email-action:0.1">
++#            <to>hue@hue.org,django@python.org</to>
++#            <subject>My subject</subject>
++#            <body>My body</body>
++#        </email>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#    action1.cc = 'lambda@python.org'
++#    action1.save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#    <action name="MyEmail">
++#        <email xmlns="uri:oozie:email-action:0.1">
++#            <to>hue@hue.org,django@python.org</to>
++#              <cc>lambda@python.org</cc>
++#            <subject>My subject</subject>
++#            <body>My body</body>
++#        </email>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#
++#  def test_workflow_subworkflow_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    wf_dict = WORKFLOW_DICT.copy()
++#    wf_dict['name'] = [u'wf-name-2']
++#    wf2 = create_workflow(self.c, self.user, wf_dict)
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'subworkflow', [self.wf.start], {
++#        u'name': 'MySubworkflow',
++#        u'description': 'Execute a subworkflow action',
++#        u'sub_workflow': wf2,
++#        u'propagate_configuration': True,
++#        u'job_properties': '[{"value":"World!","name":"argument"}]'
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true(re.search(
++#        '<sub-workflow>\W+'
++#            '<app-path>\${nameNode}/user/hue/oozie/workspaces/_test_-oozie-(.+?)</app-path>\W+'
++#            '<propagate-configuration/>\W+'
++#                '<configuration>\W+'
++#                '<property>\W+'
++#                    '<name>argument</name>\W+'
++#                    '<value>World!</value>\W+'
++#                '</property>\W+'
++#            '</configuration>\W+'
++#        '</sub-workflow>', xml, re.MULTILINE), xml)
++#
++#    wf2.delete(skip_trash=True)
++#
++#  def test_workflow_flatten_list(self):
++#    assert_equal('[<Start: start>, <Mapreduce: action-name-1>, <Mapreduce: action-name-2>, <Mapreduce: action-name-3>, '
++#                 '<Kill: kill>, <End: end>]',
++#                 str(self.wf.node_list))
++#
++#    # 1 2
++#    #  3
++#    self.setup_forking_workflow()
++#
++#    assert_equal('[<Start: start>, <Fork: fork-name-1>, <Mapreduce: action-name-1>, <Mapreduce: action-name-2>, '
++#                 '<Join: join-name-1>, <Mapreduce: action-name-3>, <Kill: kill>, <End: end>]',
++#                 str(self.wf.node_list))
++#
++#
++#  def test_workflow_generic_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'generic', [self.wf.start], {
++#        u'name': 'Generic',
++#        u'description': 'Execute a Generic email action',
++#        u'xml': """
++#        <email xmlns="uri:oozie:email-action:0.1">
++#            <to>hue@hue.org,django@python.org</to>
++#            <subject>My subject</subject>
++#            <body>My body</body>
++#        </email>""",
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#    <action name="Generic">
++#        <email xmlns="uri:oozie:email-action:0.1">
++#            <to>hue@hue.org,django@python.org</to>
++#            <subject>My subject</subject>
++#            <body>My body</body>
++#        </email>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>""" in xml, xml)
++#
++#
++#  def test_workflow_hive_gen_xml(self):
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'hive', [self.wf.start], {
++#        u'job_xml': 'my-job.xml',
++#        u'files': '["hello.py"]',
++#        u'name': 'MyHive',
++#        u'job_properties': '[]',
++#        u'script_path': 'hello.sql',
++#        u'archives': '[]',
++#        u'prepares': '[]',
++#        u'params': '[{"value":"World!","type":"argument"}]',
++#        u'description': ''
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    assert_true("""
++#<workflow-app name="wf-name-1" xmlns="uri:oozie:workflow:0.4">
++#  <global>
++#      <job-xml>jobconf.xml</job-xml>
++#            <configuration>
++#                <property>
++#                    <name>sleep-all</name>
++#                    <value>${SLEEP}</value>
++#                </property>
++#            </configuration>
++#  </global>
++#    <start to="MyHive"/>
++#    <action name="MyHive">
++#        <hive xmlns="uri:oozie:hive-action:0.2">
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#              <job-xml>my-job.xml</job-xml>
++#            <script>hello.sql</script>
++#              <argument>World!</argument>
++#            <file>hello.py#hello.py</file>
++#        </hive>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>
++#    <kill name="kill">
++#        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
++#    </kill>
++#    <end name="end"/>
++#</workflow-app>""" in xml, xml)
++#
++#    import beeswax
++#    from beeswax.tests import hive_site_xml
++#
++#    tmpdir = tempfile.mkdtemp()
++#    saved = None
++#    try:
++#      # We just replace the Beeswax conf variable
++#      class Getter(object):
++#        def get(self):
++#          return tmpdir
++#
++#      xml = hive_site_xml(is_local=False, use_sasl=True, kerberos_principal='hive/_HOST@test.com')
++#      file(os.path.join(tmpdir, 'hive-site.xml'), 'w').write(xml)
++#
++#      beeswax.hive_site.reset()
++#      saved = beeswax.conf.HIVE_CONF_DIR
++#      beeswax.conf.HIVE_CONF_DIR = Getter()
++#
++#      action1 = Node.objects.get(workflow=self.wf, name='MyHive')
++#      action1.credentials = [{'name': 'hcat', 'value': True}, {'name': 'hbase', 'value': False}, {'name': 'hive2', 'value': True}]
++#      action1.save()
++#
++#      xml = self.wf.to_xml(mapping={
++#          'credentials': {
++#              'hcat': {
++#                  'xml_name': 'hcat',
++#                  'properties': [
++#                      ('hcat.metastore.uri', 'thrift://hue-koh-chang:9999'),
++#                      ('hcat.metastore.principal', 'hive')
++#                  ]
++#              },
++#              'hive2': {
++#                  'xml_name': 'hive2',
++#                  'properties': [
++#                      ('hive2.jdbc.url', 'jdbc:hive2://hue-koh-chang:8888'),
++#                      ('hive2.server.principal', 'hive')
++#                  ]
++#              }
++#          }
++#        }
++#      )
++#
++#      assert_true("""
++#<workflow-app name="wf-name-1" xmlns="uri:oozie:workflow:0.4">
++#  <global>
++#      <job-xml>jobconf.xml</job-xml>
++#            <configuration>
++#                <property>
++#                    <name>sleep-all</name>
++#                    <value>${SLEEP}</value>
++#                </property>
++#            </configuration>
++#  </global>
++#  <credentials>
++#    <credential name="hcat" type="hcat">
++#      <property>
++#        <name>hcat.metastore.uri</name>
++#        <value>thrift://hue-koh-chang:9999</value>
++#      </property>
++#      <property>
++#        <name>hcat.metastore.principal</name>
++#        <value>hive</value>
++#      </property>
++#    </credential>
++#    <credential name="hive2" type="hive2">
++#      <property>
++#        <name>hive2.jdbc.url</name>
++#        <value>jdbc:hive2://hue-koh-chang:8888</value>
++#      </property>
++#      <property>
++#        <name>hive2.server.principal</name>
++#        <value>hive</value>
++#      </property>
++#    </credential>
++#  </credentials>
++#    <start to="MyHive"/>
++#    <action name="MyHive" cred="hcat,hive2">
++#        <hive xmlns="uri:oozie:hive-action:0.2">
++#            <job-tracker>${jobTracker}</job-tracker>
++#            <name-node>${nameNode}</name-node>
++#              <job-xml>my-job.xml</job-xml>
++#            <script>hello.sql</script>
++#              <argument>World!</argument>
++#            <file>hello.py#hello.py</file>
++#        </hive>
++#        <ok to="end"/>
++#        <error to="kill"/>
++#    </action>
++#    <kill name="kill">
++#        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
++#    </kill>
++#    <end name="end"/>
++#</workflow-app>""" in xml, xml)
++#
++#    finally:
++#      beeswax.hive_site.reset()
++#      if saved is not None:
++#        beeswax.conf.HIVE_CONF_DIR = saved
++#      shutil.rmtree(tmpdir)
++#
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#
++#  def test_workflow_gen_workflow_sla(self):
++#    xml = self.wf.to_xml({'output': '/path'})
++#    assert_false('<sla' in xml, xml)
++#    assert_false('xmlns="uri:oozie:workflow:0.5"' in xml, xml)
++#    assert_false('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
++#
++#    sla = self.wf.sla
++#    sla[0]['value'] = True
++#    sla[1]['value'] = 'now' # nominal-time
++#    sla[3]['value'] = '${ 10 * MINUTES}' # should-end
++#    self.wf.sla = sla
++#    self.wf.save()
++#
++#    xml = self.wf.to_xml({'output': '/path'})
++#    assert_true('xmlns="uri:oozie:workflow:0.5"' in xml, xml)
++#    assert_true('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
++#    assert_true("""<end name="end"/>
++#          <sla:info>
++#            <sla:nominal-time>now</sla:nominal-time>
++#            <sla:should-end>${ 10 * MINUTES}</sla:should-end>
++#          </sla:info>
++#</workflow-app>""" in xml, xml)
++#
++#
++#  def test_workflow_gen_action_sla(self):
++#    xml = self.wf.to_xml({'output': '/path'})
++#    assert_false('<sla' in xml, xml)
++#    assert_false('xmlns="uri:oozie:workflow:0.5"' in xml, xml)
++#    assert_false('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
++#
++#    self.wf.node_set.filter(name='action-name-1').delete()
++#
++#    action1 = add_node(self.wf, 'action-name-1', 'hive', [self.wf.start], {
++#        u'job_xml': 'my-job.xml',
++#        u'files': '["hello.py"]',
++#        u'name': 'MyHive',
++#        u'job_properties': '[]',
++#        u'script_path': 'hello.sql',
++#        u'archives': '[]',
++#        u'prepares': '[]',
++#        u'params': '[{"value":"World!","type":"argument"}]',
++#        u'description': ''
++#    })
++#    Link(parent=action1, child=self.wf.end, name="ok").save()
++#
++#    xml = self.wf.to_xml()
++#
++#    sla = action1.sla
++#    sla[0]['value'] = True
++#    sla[1]['value'] = 'now' # nominal-time
++#    sla[3]['value'] = '${ 10 * MINUTES}' # should-end
++#    action1.sla = sla
++#    action1.save()
++#
++#    xml = self.wf.to_xml({'output': '/path'})
++#    assert_true('xmlns="uri:oozie:workflow:0.5"' in xml, xml)
++#    assert_true('xmlns:sla="uri:oozie:sla:0.2"' in xml, xml)
++#    assert_true("""<error to="kill"/>
++#          <sla:info>
++#            <sla:nominal-time>now</sla:nominal-time>
++#            <sla:should-end>${ 10 * MINUTES}</sla:should-end>
++#          </sla:info>
++#    </action>""" in xml, xml)
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 884527c..c51e826 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -74,6 +74,8 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/edit/$', 'edit_workflow', name='edit_workflow'),
+   url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),
+   url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
++  
++  url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 80eb437..31ee685 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -84,3 +84,19 @@ def save_workflow(request):
+   response['message'] = _('Page saved !')
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def gen_xml_workflow(request):
++  response = {'status': -1}
++
++  try:
++    workflow_json = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  
++    workflow = Workflow(workflow=workflow_json)
++  
++    response['status'] = 0
++    response['xml'] = workflow.to_xml()
++  except Exception, e:
++    response['message'] = str(e)
++    
++  return HttpResponse(json.dumps(response), mimetype="application/json") 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index a625b46..efe5fe7 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -59,16 +59,18 @@ var Node = function (node) {
+   self.type = ko.observable(typeof type != "undefined" && type != null ? type : "");
+ 
+   self.properties = ko.mapping.fromJS(typeof node.properties != "undefined" && node.properties != null ? node.properties : {});
+-  
+-  self.childreen = ko.observable(typeof node.childreen != "undefined" && node.childreen != null ? node.childreen : []);
++  self.children = ko.mapping.fromJS(typeof node.children != "undefined" && node.children != null ? node.children : []);
+ }
+ 
++
+ var Workflow = function (vm, workflow) {
+   var self = this;
+ 
+   self.id = ko.observable(typeof workflow.id != "undefined" && workflow.id != null ? workflow.id : null);
+   self.uuid = ko.observable(typeof workflow.uuid != "undefined" && workflow.uuid != null ? workflow.uuid : UUID());
+-  self.name = ko.observable(typeof workflow.name != "undefined" && workflow.name != null ? workflow.name : "");
++  self.name = ko.observable(typeof workflow.name != "undefined" && workflow.name != null ? workflow.name : "");  
++
++  self.properties = ko.mapping.fromJS(typeof workflow.properties != "undefined" && workflow.properties != null ? workflow.properties : {});
+   self.nodes = ko.observableArray([]);
+   
+   self.loadNodes = function(workflow) {
+@@ -86,7 +88,10 @@ var Workflow = function (vm, workflow) {
+ 	  
+     //if (self.nodes().length == 0) {
+       var node = new Node(ko.mapping.toJS(widget));
++      node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
+       self.nodes.push(node);
++      self.nodes()[0].children.removeAll();
++      self.nodes()[0].children().push({'to': node.id()});
+     //}
+   }
+   
+@@ -155,6 +160,22 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+     });
+   };
+ 
++  self.gen_xml = function () {
++    $.post("/oozie/editor/workflow/gen_xml/", {        
++        "layout": ko.mapping.toJSON(self.columns),
++        "workflow": ko.mapping.toJSON(self.workflow)
++    }, function (data) {
++      if (data.status == 0) {
++        alert(data.xml);
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
++  
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+       size: 12,
+-- 
+1.7.9.5
+

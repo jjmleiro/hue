@@ -15,42 +15,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
+
+# FIXME: This could be replaced with hooking into the `AppConfig.ready()`
+# signal in Django 1.7:
+#
+# https://docs.djangoproject.com/en/1.7/ref/applications/#django.apps.AppConfig.ready
+#
+# For now though we have to load in the monkey patches here because we know
+# this file has been loaded after `desktop.settings` has been loaded.
+import spark.monkey_patches
 
 
 # Views
 urlpatterns = patterns('spark.views',
   url(r'^$', 'editor', name='index'),
-  url(r'^editor/design/(?P<design_id>.+)$', 'editor', name='execute_design'), # For Beeswax
-  url(r'^editor/query/(?P<query_history_id>.+)$', 'editor', name='watch_query_history'), # For Beeswax
-  url(r'^editor/(?P<design_id>.+)?$', 'editor', name='view_job'), # For browser
-  url(r'^editor/(?P<design_id>.+)?$', 'editor', name='editor'),
-  url(r'^editor/(?P<design_id>.+)?$', 'editor', name='execute_query'), # For Beeswax
-  url(r'^list_jobs', 'list_jobs', name='list_jobs'),
-  url(r'^list_contexts', 'list_contexts', name='list_contexts'),
-  url(r'^delete_contexts', 'delete_contexts', name='delete_contexts'),
-  url(r'^list_applications', 'list_applications', name='list_applications'),
-  url(r'^upload_app$', 'upload_app', name='upload_app'),
-  url(r'^download_result/(?P<job_id>.+)?$', 'download_result', name='download_result'),
+  url(r'^editor$', 'editor', name='editor'),
+  url(r'^notebooks$', 'notebooks', name='notebooks'),
+  url(r'^new$', 'new', name='new'),
+  url(r'^download$', 'download', name='download'),
+  url(r'^install_examples$', 'install_examples', name='install_examples'),
+  url(r'^delete$', 'delete', name='delete'),
+  url(r'^copy$', 'copy', name='copy'),
 )
 
 # APIs
 urlpatterns += patterns('spark.api',
-  url(r'^api/jars$', 'jars', name='jars'),
+  url(r'^api/create_session$', 'create_session', name='create_session'),
   url(r'^api/execute$', 'execute', name='execute'),
-  url(r'^api/contexts$', 'contexts', name='contexts'),
-  url(r'^api/job/(?P<job_id>.+)$', 'job', name='job'),
-  url(r'^api/create_context$', 'create_context', name='create_context'),
-  url(r'^api/delete_context', 'delete_context', name='delete_context'),
-  url(r'^api/save_query/((?P<design_id>\d+)/?)?$', 'save_query', name='save_query'),
+  url(r'^api/check_status$', 'check_status', name='check_status'),
+  url(r'^api/fetch_result_data$', 'fetch_result_data', name='fetch_result_data'),
+  url(r'^api/fetch_result_metadata$', 'fetch_result_metadata', name='fetch_result_metadata'),
+  url(r'^api/cancel_statement', 'cancel_statement', name='cancel_statement'),
+  url(r'^api/close_statement', 'close_statement', name='close_statement'),
+  url(r'^api/get_logs', 'get_logs', name='get_logs'),
+
+  url(r'^api/notebook/save$', 'save_notebook', name='save_notebook'),
+  url(r'^api/notebook/open$', 'open_notebook', name='open_notebook'),
+  url(r'^api/notebook/close$', 'close_notebook', name='close_notebook'),
 )
 
-urlpatterns += patterns('beeswax.views',
-  url(r'^my_queries$', 'my_queries', name='my_queries'),
-  url(r'^list_designs$', 'list_designs', name='list_designs'),
-  url(r'^list_trashed_designs$', 'list_trashed_designs', name='list_trashed_designs'),
-  url(r'^delete_designs$', 'delete_design', name='delete_design'),
-  url(r'^restore_designs$', 'restore_design', name='restore_design'),
-  url(r'^clone_design/(?P<design_id>\d+)$', 'clone_design', name='clone_design'),
-  url(r'^query_history$', 'list_query_history', name='list_query_history')
-)

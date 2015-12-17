@@ -1,0 +1,40 @@
+From 50c7cc16eb4bf5abd3a97245ef4b430ee7f44e86 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 11 Nov 2014 00:23:11 +0100
+Subject: [PATCH 0274/1173] [oozie] Fix widget predecessor and successor
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4f42e78..4fec7b1 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -395,7 +395,22 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+       var _newRow = null;
+       if (typeof atBeginning != "undefined"){
+-        _newRow = _parentCol.addEmptyRow(atBeginning);
++        if (atBeginning){
++          if (_parentCol.rows().length > 0 && _parentCol.rows()[0].widgets() && _parentCol.rows()[0].widgets().length > 0  && _parentCol.rows()[0].widgets()[0].widgetType()=="start-widget"){
++            _newRow = _parentCol.addEmptyRow(false, 1);
++          }
++          else {
++            _newRow = _parentCol.addEmptyRow(atBeginning);
++          }
++        }
++        else {
++          if (_parentCol.rows().length > 0 && _parentCol.rows()[0].widgets() && _parentCol.rows()[0].widgets().length > 0  && _parentCol.rows()[0].widgets()[0].widgetType()=="start-widget"){
++            _newRow = _parentCol.addEmptyRow(false, _parentCol.rows().length - 1);
++          }
++          else {
++            _newRow = _parentCol.addEmptyRow(atBeginning);
++          }
++        }
+       }
+       else {
+         var _rowIdx = 0;
+-- 
+1.7.9.5
+

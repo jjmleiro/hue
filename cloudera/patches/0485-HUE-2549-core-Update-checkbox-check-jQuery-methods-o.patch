@@ -1,0 +1,77 @@
+From c13fbe8a0db5e43acd45df5909abeaded5a968c2 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 21 Jan 2015 22:09:58 +0100
+Subject: [PATCH 0485/1173] HUE-2549 [core] Update checkbox check jQuery
+ methods on jHueSelector
+
+Updated checked methods
+Fixed selectAll problems on list users and groups of useradmin
+---
+ .../src/useradmin/templates/list_groups.mako       |    4 ++--
+ .../src/useradmin/templates/list_users.mako        |    4 ++--
+ desktop/core/static/js/jquery.selector.js          |    6 +++---
+ 3 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/templates/list_groups.mako b/apps/useradmin/src/useradmin/templates/list_groups.mako
+index 5c6304b..36b1bc6 100644
+--- a/apps/useradmin/src/useradmin/templates/list_groups.mako
++++ b/apps/useradmin/src/useradmin/templates/list_groups.mako
+@@ -161,11 +161,11 @@ ${layout.menubar(section='groups')}
+ 
+     $("#selectAll").click(function () {
+       if ($(this).attr("checked")) {
+-        $(this).removeAttr("checked");
++        $(this).removeAttr("checked").removeClass("fa-check");
+         $(".groupCheck").removeClass("fa-check").removeAttr("checked");
+       }
+       else {
+-        $(this).attr("checked", "checked");
++        $(this).attr("checked", "checked").addClass("fa-check");
+         $(".groupCheck").addClass("fa-check").attr("checked", "checked");
+       }
+       toggleActions();
+diff --git a/apps/useradmin/src/useradmin/templates/list_users.mako b/apps/useradmin/src/useradmin/templates/list_users.mako
+index 4c7cd96..52d1626 100644
+--- a/apps/useradmin/src/useradmin/templates/list_users.mako
++++ b/apps/useradmin/src/useradmin/templates/list_users.mako
+@@ -190,11 +190,11 @@ ${layout.menubar(section='users')}
+ 
+     $("#selectAll").click(function () {
+       if ($(this).attr("checked")) {
+-        $(this).removeAttr("checked");
++        $(this).removeAttr("checked").removeClass("fa-check");;
+         $(".userCheck").removeClass("fa-check").removeAttr("checked");
+       }
+       else {
+-        $(this).attr("checked", "checked");
++        $(this).attr("checked", "checked").addClass("fa-check");
+         $(".userCheck").addClass("fa-check").attr("checked", "checked");
+       }
+       toggleActions();
+diff --git a/desktop/core/static/js/jquery.selector.js b/desktop/core/static/js/jquery.selector.js
+index 9514789..671fd4c 100644
+--- a/desktop/core/static/js/jquery.selector.js
++++ b/desktop/core/static/js/jquery.selector.js
+@@ -113,16 +113,16 @@
+           var isChecked = $(this).is(":checked");
+           selectorContainer.find("input.selector:visible").each(function () {
+             if (isChecked) {
+-              $(this).attr("checked", "checked");
++              $(this).prop("checked", true);
+               $(this).data("opt").attr("selected", "selected");
+             }
+             else {
+-              $(this).removeAttr("checked");
++              $(this).prop("checked", false);
+               $(this).data("opt").removeAttr("selected");
+             }
+           });
+           if (searchBox.val() != "") {
+-            $(this).removeAttr("checked");
++            $(this).prop("checked", false);
+           }
+           _this.options.onChange();
+         }).prependTo(selectAll);
+-- 
+1.7.9.5
+

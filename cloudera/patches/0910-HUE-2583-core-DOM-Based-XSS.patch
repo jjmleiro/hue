@@ -1,0 +1,253 @@
+From 86cbea7c405bbcd0463c75b99fe3bf10891c7cc6 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 25 Feb 2015 18:41:29 +0100
+Subject: [PATCH 0910/1173] HUE-2583 [core] DOM Based XSS
+
+Replaced all location.hash read references
+---
+ .../filebrowser/templates/listdir_components.mako  |    4 ++--
+ .../src/jobbrowser/templates/attempt.mako          |    2 +-
+ .../templates/dashboard/list_oozie_bundles.mako    |    2 +-
+ .../dashboard/list_oozie_coordinators.mako         |    2 +-
+ .../oozie/templates/dashboard/list_oozie_sla.mako  |    2 +-
+ .../templates/dashboard/list_oozie_workflows.mako  |    2 +-
+ .../src/oozie/templates/editor2/bundle_editor.mako |    2 +-
+ .../templates/editor2/coordinator_editor.mako      |    2 +-
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ apps/search/src/search/templates/search.mako       |    2 +-
+ apps/security/src/security/templates/hdfs.mako     |    2 +-
+ apps/security/static/js/hive.ko.js                 |    8 ++++----
+ apps/spark/src/spark/templates/editor.mako         |    2 +-
+ .../indexer/src/indexer/templates/collections.mako |    4 ++--
+ 14 files changed, 19 insertions(+), 19 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 6c463e2..58016d0 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -1767,7 +1767,7 @@ from django.utils.translation import ugettext as _
+ 
+       if (location.hash != null && location.hash.length > 1) {
+         var targetPath = "";
+-        var hash = window.location.hash.substring(1);
++        var hash = window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, "");
+         if (hash != null && hash != "") {
+           targetPath = "${url('filebrowser.views.view', path=urlencode('/'))}";
+           if (hash.indexOf("!!") != 0) {
+@@ -1842,7 +1842,7 @@ from django.utils.translation import ugettext as _
+ 
+       $(window).bind("hashchange", function () {
+         var targetPath = "";
+-        var hash = window.location.hash.substring(1);
++        var hash = window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, "");
+ 
+         if (hash != null && hash != "") {
+           addPathToHistory(hash);
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/attempt.mako b/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
+index fe74b13..c3eda3e 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
+@@ -188,7 +188,7 @@ ${ comps.menubar() }
+     });
+ 
+     if (window.location.hash != null && window.location.hash.length > 1) {
+-      $('#tabs a[href="#' + window.location.hash.substring(2) + '"]').tab('show');
++      $('#tabs a[href="#' + window.location.hash.substring(2).replace(/(<([^>]+)>)/ig, "") + '"]').tab('show');
+     }
+ 
+     hellipsify();
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+index b462fd1..da17891 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+@@ -264,7 +264,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+       drawTable();
+     });
+ 
+-    var hash = window.location.hash;
++    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
+     if (hash != "" && hash.indexOf("=") > -1) {
+       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
+     }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+index 14b525b..7ec2005 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+@@ -300,7 +300,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+       drawTable();
+     });
+ 
+-    var hash = window.location.hash;
++    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
+     if (hash != "" && hash.indexOf("=") > -1) {
+       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
+     }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+index cfff681..813b0a3 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+@@ -284,7 +284,7 @@ ${ layout.menubar(section='sla', dashboard=True) }
+     });
+ 
+     if (window.location.hash != "") {
+-      $("input[name='job_name']").val(window.location.hash.substr(1));
++      $("input[name='job_name']").val(window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, ""));
+       performSearch(window.location.hash.substr(1));
+     }
+   });
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index c8e6a9a..b4af145 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -299,7 +299,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       drawTable();
+     });
+ 
+-    var hash = window.location.hash;
++    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
+     if (hash != "" && hash.indexOf("=") > -1) {
+       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
+     }
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index 38cb81f..6c519e2 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -25,7 +25,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+ <script type="text/javascript">
+   if (window.location.hash != "") {
+     if (window.location.hash.indexOf("bundle") > -1) {
+-      location.href = "/oozie/editor/bundle/edit/?" + window.location.hash.substr(1);
++      location.href = "/oozie/editor/bundle/edit/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
+ </script>
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 8c1debe..779e4fb 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -27,7 +27,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ <script type="text/javascript">
+   if (window.location.hash != "") {
+     if (window.location.hash.indexOf("coordinator") > -1) {
+-      location.href = "/oozie/editor/coordinator/edit/?" + window.location.hash.substr(1);
++      location.href = "/oozie/editor/coordinator/edit/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
+   var datasetTypeaheadSource = ["/data/${'${'}YEAR}/${'${'}MONTH}/${'${'}DAY}", "${'${'}MINUTE}", "${'${'}HOUR}", "${'${'}DAY}", "${'${'}MONTH}", "${'${'}YEAR}", "${'${'}coord:nominalTime()}", "${'${'}coord:formatTime(coord:nominalTime(), 'yyyyMMdd')}"]
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 6771ca8..3f828e7 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -33,7 +33,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <script type="text/javascript">
+   if (window.location.hash != "") {
+     if (window.location.hash.indexOf("workflow") > -1) {
+-      location.href = "/oozie/editor/workflow/edit/?" + window.location.hash.substr(1);
++      location.href = "/oozie/editor/workflow/edit/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
+ </script>
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index f988e92..8f5ce88 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -26,7 +26,7 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
+ <script type="text/javascript">
+   if (window.location.hash != "") {
+     if (window.location.hash.indexOf("collection") > -1) {
+-      location.href = "/search/?" + window.location.hash.substr(1);
++      location.href = "/search/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
+ </script>
+diff --git a/apps/security/src/security/templates/hdfs.mako b/apps/security/src/security/templates/hdfs.mako
+index c4506d7..5d8226c 100644
+--- a/apps/security/src/security/templates/hdfs.mako
++++ b/apps/security/src/security/templates/hdfs.mako
+@@ -309,7 +309,7 @@ ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assi
+ 
+     var _initialPath = "/";
+     if (window.location.hash != "") {
+-      _initialPath = window.location.hash.substr(1);
++      _initialPath = window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+     viewModel.init(_initialPath);
+ 
+diff --git a/apps/security/static/js/hive.ko.js b/apps/security/static/js/hive.ko.js
+index bbc3a24..6c840b4 100644
+--- a/apps/security/static/js/hive.ko.js
++++ b/apps/security/static/js/hive.ko.js
+@@ -1191,7 +1191,7 @@ var HiveViewModel = function (initial) {
+   }
+ 
+   self.updatePathHash = function (path) {
+-    var _hash = window.location.hash;
++    var _hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
+     if (_hash.indexOf("@") == -1) {
+       window.location.hash = path;
+     }
+@@ -1201,7 +1201,7 @@ var HiveViewModel = function (initial) {
+   }
+ 
+   self.updateSectionHash = function (section) {
+-    var _hash = window.location.hash;
++    var _hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
+     if (_hash == "") {
+       window.location.hash = "@" + section;
+     }
+@@ -1215,7 +1215,7 @@ var HiveViewModel = function (initial) {
+ 
+   self.getPathHash = function () {
+     if (window.location.hash != "") {
+-      var _hash = window.location.hash.substr(1);
++      var _hash = window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+       if (_hash.indexOf("@") > -1) {
+         return _hash.split("@")[0];
+       }
+@@ -1228,7 +1228,7 @@ var HiveViewModel = function (initial) {
+ 
+   self.getSectionHash = function () {
+     if (window.location.hash != "") {
+-      var _hash = window.location.hash.substr(1);
++      var _hash = window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+       if (_hash.indexOf("@") > -1) {
+         return _hash.split("@")[1];
+       }
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 99ab390..8aa4b10 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -24,7 +24,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ <script type="text/javascript">
+   if (window.location.hash != "") {
+     if (window.location.hash.indexOf("notebook") > -1) {
+-      location.href = "/spark/editor?" + window.location.hash.substr(1);
++      location.href = "/spark/editor?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
+     }
+   }
+ </script>
+diff --git a/desktop/libs/indexer/src/indexer/templates/collections.mako b/desktop/libs/indexer/src/indexer/templates/collections.mako
+index 1d9abc9..5742e8b 100644
+--- a/desktop/libs/indexer/src/indexer/templates/collections.mako
++++ b/desktop/libs/indexer/src/indexer/templates/collections.mako
+@@ -548,7 +548,7 @@ routie({
+     vm.page('manage-page');
+   },
+   "manage": function() {
+-    vm.breadcrumb(window.location.hash.substring(1));
++    vm.breadcrumb(window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, ""));
+     vm.page('manage-page');
+   },
+   "create": function() {
+@@ -560,7 +560,7 @@ routie({
+     vm.breadcrumb("create/wizard/" + vm.create.wizard.currentPage().url());
+   },
+   "create/wizard/:step": function(step) {
+-    vm.breadcrumb(window.location.hash.substring(1));
++    vm.breadcrumb(window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, ""));
+     vm.page('create-page');
+     vm.create.wizard.setPageByUrl(step);
+     routie('create/wizard/' + vm.create.wizard.currentPage().url());
+-- 
+1.7.9.5
+

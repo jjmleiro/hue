@@ -1,0 +1,153 @@
+From 6b85a36ef7db3c3ec9d3ada54cd847540bc5067c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 14 Jan 2015 10:43:37 -0800
+Subject: [PATCH 0446/1173] [oozie] Refresh page when deleting or copying
+ workflows
+
+---
+ apps/oozie/src/oozie/models2.py                    |    5 +++
+ .../templates/editor/list_editor_workflows.mako    |   16 ++++---
+ apps/oozie/src/oozie/views/editor2.py              |   44 +++++++++++---------
+ 3 files changed, 37 insertions(+), 28 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 6910421..c9dd546 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -187,6 +187,11 @@ class Workflow(Job):
+   def name(self):
+     _data = self.get_data()
+     return _data['workflow']['name']
++  
++  def update_name(self, name):
++    _data = self.get_data()
++    _data['workflow']['name'] = name
++    self.data = json.dumps(_data)  
+ 
+   @property      
+   def deployment_dir(self):
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index c4ef94d..f0049cc 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -40,10 +40,10 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+           <i class="fa fa-play"></i> ${ _('Submit') }
+         </a>
+         &nbsp;&nbsp;&nbsp;
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! oneSelected()}">
++        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+-        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! moreThanOneSelected() }">
++        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
+       </div>
+@@ -126,13 +126,13 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+     self.oneSelected = ko.computed(function() {
+       return self.selectedJobs().length == 1;
+     });
+-    self.moreThanOneSelected = ko.computed(function() {
++    self.atLeastOneSelected = ko.computed(function() {
+       return self.selectedJobs().length >= 1;
+     });
+     self.allSelected = ko.observable(false);
+ 
+     self.handleSelect = function(wf) {
+-      wf.isSelected(!wf.isSelected());
++      wf.isSelected(! wf.isSelected());
+     }
+ 
+     self.selectAll = function() {
+@@ -157,9 +157,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+       $.post("${ url('oozie:delete_workflow') }", {
+         "selection": ko.mapping.toJSON(self.selectedJobs)
+       }, function() {
+-        $.each(self.selectedJobs(), function(index, job) { 
+-          alert(self.jobs.remove(job)); // Remove from table + cancel auto sort?
+-        });
++        window.location.reload();
+         $('#deleteWf').modal('hide');
+       }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
+@@ -168,9 +166,9 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+     
+     self.copy = function() {
+       $.post("${ url('oozie:copy_workflow') }", {
+-        "workflow": self.selectedJobs()[0].id()
++        "selection": ko.mapping.toJSON(self.selectedJobs)
+       }, function(data) {
+-        // add to list or refresh page
++        window.location.reload();
+       }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
+       });
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 150289f..c2b5f66 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -111,6 +111,7 @@ def delete_workflow(request):
+     doc2.delete()
+ 
+   response = {}
++  request.info(_('Workflows deleted.') if len(jobs) > 1 else _('Workflow deleted.'))
+   
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+@@ -120,29 +121,34 @@ def copy_workflow(request):
+   if request.method != 'POST':
+     raise PopupException(_('A POST request is required.'))
+ 
+-  workflow_id = request.POST.get('workflow')
+-  doc2 = Document2.objects.get(type='oozie-workflow2', id=workflow_id)
++  jobs = json.loads(request.POST.get('selection'))
++
++  for job in jobs:
++    doc2 = Document2.objects.get(type='oozie-workflow2', id=job['id'])
++    
++    name = doc2.name + '-copy'
++    copy_doc = doc2.doc.get().copy(name=name, owner=request.user)
+   
+-  name = doc2.name + '-copy'
+-  copy_doc = doc2.doc.get().copy(name=name, owner=request.user)
+-
+-  doc2.pk = None
+-  doc2.id = None
+-  doc2.uuid = str(uuid.uuid4())  
+-  doc2.name = name
+-  doc2.owner = request.user
+-  doc2.save()
+-
+-  doc2.doc.all().delete()
+-  doc2.doc.add(copy_doc)
++    doc2.pk = None
++    doc2.id = None
++    doc2.uuid = str(uuid.uuid4())
++    doc2.name = name
++    doc2.owner = request.user    
++    doc2.save()
+   
+-  workflow = Workflow(document=doc2)
++    doc2.doc.all().delete()
++    doc2.doc.add(copy_doc)
++    
++    workflow = Workflow(document=doc2)
++    workflow.update_name(name)
++    doc2.update_data({'workflow': workflow.get_data()['workflow']})
++    doc2.save()
+ 
+-  workflow = Workflow()
+-  workflow.set_workspace(request.user)
+-  workflow.check_workspace(request.fs, request.user)
++    workflow.set_workspace(request.user)
++    workflow.check_workspace(request.fs, request.user)
+ 
+-  response = {'url': reverse('oozie:edit_workflow', kwargs={'workflow': doc2.id})}
++  response = {}  
++  request.info(_('Workflows copied.') if len(jobs) > 1 else _('Workflow copied.'))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+-- 
+1.7.9.5
+

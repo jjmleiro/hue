@@ -1,0 +1,37 @@
+From 7a58f8acc5cdc87adbd0969cbaf9b1a209a6541c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 18 Nov 2014 14:34:11 +0100
+Subject: [PATCH 0283/1173] [oozie] Moving to a fork doesn't create a new node
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index ab81e74..4ae2e95 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -327,7 +327,7 @@ var Workflow = function (vm, workflow) {
+     }
+   };
+   
+-  self.moveNode = function(widget) { alert(vm.currentlyCreatingFork);
++  self.moveNode = function(widget) {
+     if (! vm.currentlyCreatingFork) {
+       var node = self.getNodeById(widget.id());
+       var oldChildId = ko.mapping.toJS(node.get_link('to'))['to'];
+@@ -504,6 +504,11 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         vm: self
+       });
+ 
++      if (self.currentlyDraggedWidget.id() != ""){
++        self.removeWidgetById(self.currentlyDraggedWidget.id());
++        _w = self.currentlyDraggedWidget;
++      }
++
+       if (row.columns().length == 0) {
+         var _col = row.addColumn(null, atBeginning);
+         if (row.widgets().length > 0) {
+-- 
+1.7.9.5
+

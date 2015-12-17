@@ -1,0 +1,154 @@
+From edea7c03d5e6fcb4988f165411ec8ccfc1783b52 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 00:54:45 +0100
+Subject: [PATCH 0573/1173] [spark] Toggle db assist
+
+---
+ apps/spark/src/spark/templates/editor.mako |   26 ++++++++++++++++++------
+ apps/spark/static/css/spark.css            |   30 ++++++++++++++++++++++++++++
+ apps/spark/static/js/spark.vm.js           |    8 +++++++-
+ 3 files changed, 57 insertions(+), 7 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 62a47fb..25f2a7f 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -141,6 +141,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ </div>
+ 
+ 
++<a title="${_('Toggle Assist')}" class="pointer show-assist" data-bind="visible: !$root.isAssistVisible(), click: $root.toggleAssist">
++  <i class="fa fa-chevron-right"></i>
++</a>
++
++
+ <div class="container-fluid">
+   <div class="row-fluid">
+     <div class="span12">
+@@ -155,12 +160,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ <script type="text/html" id="notebook">
+   <div class="row-fluid">
+-    <div class="span2">
++    <div class="span2" data-bind="visible: $root.isAssistVisible, css:{'span2': $root.isAssistVisible, 'hidden': !$root.isAssistVisible()}">
+       <div class="assist">
+-        <a href="#" title="${_('Double click on a table name or field to insert it in the editor')}" rel="tooltip" data-placement="top" class="pull-right" style="margin:3px; margin-top:7px">
+-          <i class="fa fa-question-circle"></i>
++        <a title="${_('Toggle Assist')}" class="pull-right pointer" style="margin:3px; margin-top:9px" data-bind="click: $root.toggleAssist">
++          <i class="fa fa-chevron-left"></i>
+         </a>
+-        <a id="refreshNavigator" href="#" title="${_('Manually refresh the table list')}" rel="tooltip" data-placement="top" class="pull-right" style="margin:3px; margin-top:7px">
++        <a id="refreshNavigator" href="#" title="${_('Manually refresh the table list')}" rel="tooltip" data-placement="top" class="pull-right" style="margin:3px; margin-top:9px">
+           <i class="fa fa-refresh"></i>
+         </a>
+         <ul class="nav nav-list" style="border: none; padding: 0; background-color: #FFF">
+@@ -190,7 +195,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+       </div>
+     </div>
+-    <div class="span10">
++    <div data-bind="css:{'span10': $root.isAssistVisible, 'span12 nomargin': !$root.isAssistVisible()}">
+       <div data-bind="css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+         sortable: { template: 'snippet', data: snippets, isEnabled: $root.isEditing,
+         options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
+@@ -841,7 +846,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     }
+   };
+ 
+-  viewModel = new EditorViewModel(${ notebooks_json | n,unicode });
++  var _opts = {
++    assistVisible: $.totalStorage("sparkAssistVisible") != null ? $.totalStorage("sparkAssistVisible") : true
++  }
++
++  viewModel = new EditorViewModel(${ notebooks_json | n,unicode }, _opts);
+   viewModel.assistContent(assist);
+   ko.applyBindings(viewModel);
+   viewModel.init();
+@@ -1165,6 +1174,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   $(document).ready(function () {
+     resizeAssist();
+ 
++    $(document).on("toggleAssist", function(){
++      $.totalStorage("sparkAssistVisible", viewModel.isAssistVisible());
++      resizeAssist();
++    });
++
+     $(document).on("executeStarted", function (e, snippet) {
+       var _el = $("#snippet_" + snippet.id()).find(".resultTable");
+       $("#snippet_" + snippet.id()).find(".progress").animate({
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index f6e628d..db48686 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -53,6 +53,11 @@
+ 
+ .nav-list > li > a, .nav-list .nav-header {
+   padding-left: 0;
++  margin-left: 0;
++}
++
++.nav-list {
++  padding-left: 0;
+ }
+ 
+ .dropdown-menu li {
+@@ -138,4 +143,29 @@
+ 
+ [contenteditable]:focus {
+   outline:none;
++}
++
++.span12.nomargin {
++  margin-left: 0;
++}
++
++.show-assist {
++  position: fixed;
++  top: 80px;
++  background-color: #FFF;
++  width: 16px;
++  height: 24px;
++  line-height: 24px;
++  margin-left: -2px;
++  text-align: center;
++  -webkit-border-top-right-radius: 3px;
++  -webkit-border-bottom-right-radius: 3px;
++  -moz-border-radius-topright: 3px;
++  -moz-border-radius-bottomright: 3px;
++  border-top-right-radius: 3px;
++  border-bottom-right-radius: 3px;
++}
++
++.show-assist:hover {
++  margin-left: 0;
+ }
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index e591364..1c5c9de 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -483,7 +483,7 @@ var Notebook = function (vm, notebook) {
+ }
+ 
+ 
+-function EditorViewModel(notebooks) {
++function EditorViewModel(notebooks, options) {
+   var self = this;
+ 
+   self.notebooks = ko.observableArray();
+@@ -497,6 +497,12 @@ function EditorViewModel(notebooks) {
+     self.isEditing(! self.isEditing());
+   };
+ 
++  self.isAssistVisible = ko.observable(options.assistVisible);
++  self.toggleAssist = function () {
++    self.isAssistVisible(! self.isAssistVisible());
++    $(document).trigger("toggleAssist");
++  };
++
+   self.assistContent = ko.observable();
+ 
+   self.init = function() {
+-- 
+1.7.9.5
+

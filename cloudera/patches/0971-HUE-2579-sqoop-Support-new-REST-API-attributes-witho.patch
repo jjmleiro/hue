@@ -1,0 +1,64 @@
+From aa5a12d654a4c942c77e9bfa773e5089d882771d Mon Sep 17 00:00:00 2001
+From: Abraham Elmahrek <abe@apache.org>
+Date: Fri, 20 Feb 2015 12:47:37 -0800
+Subject: [PATCH 0971/1173] HUE-2579 [sqoop] Support new REST API attributes
+ without breaking
+
+---
+ apps/sqoop/src/sqoop/client/config.py   |    4 ++--
+ apps/sqoop/src/sqoop/templates/app.mako |   10 +++++-----
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/apps/sqoop/src/sqoop/client/config.py b/apps/sqoop/src/sqoop/client/config.py
+index 00084a5..771949b 100644
+--- a/apps/sqoop/src/sqoop/client/config.py
++++ b/apps/sqoop/src/sqoop/client/config.py
+@@ -21,7 +21,7 @@ from desktop.lib.python_util import force_dict_to_strings
+ 
+ class Config(object):
+ 
+-  def __init__(self, id, name, type, inputs=[]):
++  def __init__(self, id, name, type, inputs=[], **kwargs):
+     self.id = id
+     self.name = name
+     self.type = type
+@@ -43,7 +43,7 @@ class Config(object):
+ 
+ class Input(object):
+ 
+-  def __init__(self, id, type, name, value=None, values=None, sensitive=False, size=-1):
++  def __init__(self, id, type, name, value=None, values=None, sensitive=False, size=-1, **kwargs):
+     self.id = id
+     self.type = type
+     self.name = name
+diff --git a/apps/sqoop/src/sqoop/templates/app.mako b/apps/sqoop/src/sqoop/templates/app.mako
+index 6c00c1e..3ca38d9 100644
+--- a/apps/sqoop/src/sqoop/templates/app.mako
++++ b/apps/sqoop/src/sqoop/templates/app.mako
+@@ -411,10 +411,6 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+         </a>
+       </div>
+       <!-- /ko -->
+-      <div class="clearfix"></div>
+-      <a data-bind="routie: 'link/new'" href="javascript:void(0);" style="margin: 5px; display: block">
+-        <i class="fa fa-plus"></i> ${_('Add a new link')}
+-      </a>
+     </div>
+   </div>
+ 
+@@ -433,7 +429,11 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+         </a>
+       </div>
+       <!-- /ko -->
+-      <div class="clearfix"></div>
++    </div>
++  </div>
++
++  <div class="control-group">
++    <div class="controls">
+       <a data-bind="routie: 'link/new'" href="javascript:void(0);" style="margin: 5px; display: block">
+         <i class="fa fa-plus"></i> ${_('Add a new link')}
+       </a>
+-- 
+1.7.9.5
+

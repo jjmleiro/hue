@@ -26,34 +26,57 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
 <script type="text/javascript">
   if (window.location.hash != "") {
     if (window.location.hash.indexOf("collection") > -1) {
-      location.href = "/search/?" + window.location.hash.substr(1);
+      location.href = "/search/?" + window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
     }
+  }
+
+  SLIDER_LABELS = {
+    STEP: "${_('Increment')}",
   }
 </script>
 
 <div class="search-bar">
   <div class="pull-right" style="padding-right:50px">
-    % if user.is_superuser:
-      <button type="button" title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}"><i class="fa fa-pencil"></i></button>
-      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: save, css: {'btn': true}"><i class="fa fa-save"></i></button>
-      <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsDemiModal"
-          data-bind="css: {'btn': true}">
-        <i class="fa fa-cog"></i>
-      </button>
+    <button type="button" title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+      <i class="fa fa-pencil"></i>
+    </button>
+    % if is_owner:
+    <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: save, css: {'btn': true}, visible: columns().length != 0">
+      <i class="fa fa-save"></i>
+    </button>
     % endif
-      <button type="button" title="${ _('Share') }" rel="tooltip" data-placement="bottom" data-bind="click: showShareModal, css: {'btn': true}"><i class="fa fa-link"></i></button>
-    % if user.is_superuser:
-      &nbsp;&nbsp;&nbsp;
-      <a class="btn" href="${ url('search:new_search') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}"><i class="fa fa-file-o"></i></a>
-      <a class="btn" href="${ url('search:admin_collections') }" title="${ _('Dashboards') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}"><i class="fa fa-tags"></i></a>
-    % endif
+    <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsDemiModal"
+        data-bind="css: {'btn': true}, visible: columns().length != 0">
+      <i class="fa fa-cog"></i>
+    </button>
+
+    <span style="padding-left:85px" data-bind="visible: columns().length == 0"></span>
+
+    &nbsp;&nbsp;&nbsp;
+
+    <button type="button" title="${ _('Share') }" rel="tooltip" data-placement="bottom" data-bind="click: showShareModal, css: {'btn': true}, visible: columns().length != 0, enable: $root.collection.id() != null">
+      <i class="fa fa-link"></i>
+    </button>
+
+    &nbsp;&nbsp;&nbsp;
+
+    <a class="btn" href="${ url('search:new_search') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+      <i class="fa fa-file-o"></i>
+    </a>
+    <a class="btn" href="${ url('search:admin_collections') }" title="${ _('Dashboards') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+      <i class="fa fa-tags"></i>
+    </a>
   </div>
 
   <form data-bind="visible: $root.isEditing() && columns().length == 0">
     ${ _('Select a search index') }
     <!-- ko if: columns().length == 0 -->
-    <select data-bind="options: $root.initial.collections, value: $root.collection.name">
+    <select data-bind="options: $root.initial.collections, value: $root.collection.name, disable: isSyncingCollections">
     </select>
+    <label class="checkbox" style="display:inline-block; margin-left: 10px">
+      <input type="checkbox" data-bind="checked: showCores" />${ _('Show cores') }
+      <i class="fa fa-spinner fa-spin" data-bind="visible: isSyncingCollections"></i>
+    </label>
     <!-- /ko -->
   </form>
 
@@ -67,7 +90,7 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
       </div>
 
       <span data-bind="foreach: query.qs">
-        <input data-bind="clearable: q" maxlength="4096" type="text" class="search-query input-xlarge">
+        <input data-bind="clearable: q, typeahead: { target: q, source: $root.collection.template.fieldsNames, multipleValues: true, multipleValuesSeparator: ':', extraKeywords: 'AND OR TO', completeSolrRanges: true }, css:{'input-xlarge': $root.query.qs().length == 1, 'input-medium': $root.query.qs().length < 4, 'input-small': $root.query.qs().length >= 4}" maxlength="4096" type="text" class="search-query">
         <!-- ko if: $index() >= 1 -->
         <a class="btn" href="javascript:void(0)" data-bind="click: $root.query.removeQ"><i class="fa fa-minus"></i></a>
         <!-- /ko -->
@@ -183,7 +206,7 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
                        <i class="fa fa-th"></i>
          </a>
     </div>
-    <div data-bind="css: { 'draggable-widget': true, 'disabled': !availableDraggableHistogram() },
+    <div data-bind="css: { 'draggable-widget': true, 'disabled': ! availableDraggableHistogram() },
                     draggable: {data: draggableHistogram(), isEnabled: availableDraggableHistogram,
                     options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
@@ -192,12 +215,12 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
                        <i class="hcha hcha-timeline-chart"></i>
          </a>
     </div>
-    <div data-bind="css: { 'draggable-widget': true, 'disabled': !availableDraggableChart() },
-                    draggable: {data: draggableMap(), isEnabled: availableDraggableChart,
+    <div data-bind="css: { 'draggable-widget': true, 'disabled': ! availableDraggableMap() },
+                    draggable: {data: draggableMap(), isEnabled: availableDraggableMap,
                     options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
          title="${_('Gradient Map')}" rel="tooltip" data-placement="top">
-         <a data-bind="style: { cursor: $root.availableDraggableChart() ? 'move' : 'default' }">
+         <a data-bind="style: { cursor: $root.availableDraggableMap() ? 'move' : 'default' }">
                        <i class="hcha hcha-map-chart"></i>
          </a>
    </div>
@@ -226,11 +249,17 @@ ${ dashboard.layout_skeleton() }
 
 
 <script type="text/html" id="facet-toggle">
+  <div class="facet-field-tile">
+    <div class="facet-field-cnt">
+      <span class="facet-field-label facet-field-label-fixed-width facet-field-label-fixed-width-double facet-field-label-title">${ _('Settings') }</span>
+    </div>
+
     <div class="facet-field-cnt" data-bind="visible: properties.canRange">
       <span class="facet-field-label facet-field-label-fixed-width">${ _('Type') }</span>
-      <a href="javascript: void(0)" title="${ _('Toggle range or field facet') }" data-bind="click: $root.collection.toggleRangeFacet" data-loading-text="...">
-        <i class="fa" data-bind="css: { 'fa-arrows-h': type() == 'range', 'fa-circle': type() == 'field' }, attr: { title: type() == 'range' ? 'Range' : 'Term' }"></i>
+      <a href="javascript: void(0)" title="${ _('Toggle how to group the values') }" data-bind="click: $root.collection.toggleRangeFacet" data-loading-text="...">
+        <i class="fa" data-bind="css: { 'fa-arrows-h': type() == 'range', 'fa-circle': type() == 'field', 'fa-level-up': type() == 'range-up' }, attr: { title: type() == 'field' ? 'Range' : type() == 'range-up' ? 'Range and up' : 'Term' }"></i>
         <span data-bind="visible: type() == 'range'">${_('range')}</span>
+        <span data-bind="visible: type() == 'range-up'">${_('range & up')}</span>
         <span data-bind="visible: type() == 'field'">${_('field')}</span>
       </a>
     </div>
@@ -245,7 +274,6 @@ ${ dashboard.layout_skeleton() }
     </div>
 
     <!-- ko if: type() == 'pivot' -->
-
       <div class="facet-field-cnt">
         <span class="spinedit-cnt">
           <span class="facet-field-label facet-field-label-fixed-width">
@@ -263,9 +291,45 @@ ${ dashboard.layout_skeleton() }
           <input type="text" class="input-medium" data-bind="spinedit: properties.mincount"/>
         </span>
       </div>
+    <!-- /ko -->
 
-      <br/>
+    <!-- ko if: type() == 'range' || type() == 'range-up' -->
+      <!-- ko ifnot: properties.isDate() -->
+        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.initial_gap, min: properties.initial_start, max: properties.initial_end, properties: properties, labels: SLIDER_LABELS}"></div>
+      <!-- /ko -->
+      <!-- ko if: properties.isDate() -->
+        <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.initial_gap, relatedgap: properties.gap, min: properties.min, max: properties.max}"></div>
+        <br/>
+      <!-- /ko -->
+    <!-- /ko -->
 
+    <!-- ko if: type() == 'field' -->
+      <div class="facet-field-cnt">
+        <span class="spinedit-cnt">
+          <span class="facet-field-label facet-field-label-fixed-width">
+            ${ _('Limit') }
+          </span>
+          <input type="text" class="input-medium" data-bind="spinedit: properties.limit"/>
+        </span>
+      </div>
+    <!-- /ko -->
+
+    <!-- ko if: widgetType() == 'map-widget' -->
+      <div class="facet-field-cnt">
+        <span class="spinedit-cnt">
+          <span class="facet-field-label facet-field-label-fixed-width">
+            ${ _('Scope') }
+          </span>
+          <select data-bind="selectedOptions: properties.scope" class="input-small">
+            <option value="world">${ _("World") }</option>
+            <option value="usa">${ _("USA") }</option>
+          </select>
+        </span>
+      </div>
+    <!-- /ko -->
+    </div>
+
+    <!-- ko if: type() == 'pivot' -->
       <div class="facet-field-tile" data-bind="visible: properties.scope() == 'tree' || properties.facets().length == 0">
         <div class="facet-field-cnt">
           <span class="facet-field-label facet-field-label-fixed-width facet-field-label-fixed-width-double facet-field-label-title">${ _('Add a dimension') }</span>
@@ -302,34 +366,13 @@ ${ dashboard.layout_skeleton() }
         </div>
       </div>
     <!-- /ko -->
-
-    <!-- ko if: type() == 'range' -->
-      <!-- ko ifnot: properties.isDate() -->
-        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.gap, min: properties.start, max: properties.end}"></div>
-      <!-- /ko -->
-      <!-- ko if: properties.isDate() -->
-        <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.gap, min: properties.min, max: properties.max}"></div>
-        <br/>
-      <!-- /ko -->
-    <!-- /ko -->
-
-    <!-- ko if: type() == 'field' -->
-      <div class="facet-field-cnt">
-        <span class="spinedit-cnt">
-          <span class="facet-field-label facet-field-label-fixed-width">
-            ${ _('Limit') }
-          </span>
-          <input type="text" class="input-medium" data-bind="spinedit: properties.limit"/>
-        </span>
-      </div>
-    <!-- /ko -->
-
+    <div class="clearfix"></div>
 </script>
 
 <script type="text/html" id="facet-widget">
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 
   <!-- ko if: $root.getFacetFromQuery(id()) -->
@@ -339,7 +382,7 @@ ${ dashboard.layout_skeleton() }
       </span>
     </div>
     <div data-bind="with: $root.collection.getFacetById($parent.id())">
-      <!-- ko if: type() != 'range' -->
+      <!-- ko if: type() == 'field' -->
         <div data-bind="foreach: $parent.counts">
           <div class="trigger-exclude">
               <!-- ko if: $index() < $parent.properties.limit() -->
@@ -379,13 +422,31 @@ ${ dashboard.layout_skeleton() }
         <div data-bind="foreach: $parent.counts">
           <div class="trigger-exclude">
               <!-- ko if: ! selected -->
-                <a class="pointer" data-bind="text: $data.from + ' - ' + $data.to, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
+                <a class="pointer" data-bind="text: $data.is_single_unit_gap ? $data.from : $data.from + ' - ' + $data.to, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
                 <span class="pointer counter" data-bind="text: ' (' + $data.value + ')', click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></span>
                 <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
               <!-- /ko -->
               <!-- ko if: selected -->
                 <span class="pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }">
-                  <strong data-bind="text: $data.from + ' - ' + $data.to"></strong>
+                  <strong data-bind="text: $data.is_single_unit_gap ? $data.from : $data.from + ' - ' + $data.to"></strong>
+                  <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
+                  <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
+                </span>
+              <!-- /ko -->
+          </div>
+        </div>
+      <!-- /ko -->
+      <!-- ko if: type() == 'range-up' -->
+        <div data-bind="foreach: $parent.counts">
+          <div class="trigger-exclude">
+              <!-- ko if: ! selected -->
+                <a class="pointer" data-bind="text: $data.from + ($data.is_up ? ' & Up' : ' & Less'), click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }"></a>
+                <span class="pointer counter" data-bind="text: ' (' + $data.total_counts + ')', click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }"></span>
+                <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true, is_up: $data.is_up}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
+              <!-- /ko -->
+              <!-- ko if: selected -->
+                <span class="pointer" data-bind="click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }">
+                  <strong data-bind="text: $data.from + ($data.is_up ? ' & Up' : ' & Less')"></strong>
                   <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
                   <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
                 </span>
@@ -442,7 +503,7 @@ ${ dashboard.layout_skeleton() }
     <div>
       <div class="widget-spinner" data-bind="visible: $root.isRetrievingResults()">
         <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-        <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+        <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
       </div>
 
       <div data-bind="visible: !$root.isRetrievingResults() && $root.results().length == 0">
@@ -480,7 +541,7 @@ ${ dashboard.layout_skeleton() }
                 <td data-bind="attr: {'colspan': $root.collection.template.fieldsSelected().length > 0 ? $root.collection.template.fieldsSelected().length + 1 : 2}">
                   <!-- ko if: $data.details().length == 0 -->
                     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-                    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+                    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
                   <!-- /ko -->
                   <!-- ko if: $data.details().length > 0 -->
                     <div class="document-details">
@@ -553,7 +614,7 @@ ${ dashboard.layout_skeleton() }
       <div class="widget-section widget-html-section" style="display: none">
         <div class="row-fluid">
           <div class="span9">
-            <textarea data-bind="codemirror: {data: $root.collection.template.template, lineNumbers: true, htmlMode: true, mode: 'text/html' }" data-template="true"></textarea>
+            <textarea data-bind="codemirror: {data: $root.collection.template.template, lineNumbers: true, htmlMode: true, mode: 'text/html', stripScript: true }" data-template="true"></textarea>
           </div>
           <div class="span3">
             <h5 class="editor-title">${_('Available Fields')}</h5>
@@ -614,7 +675,7 @@ ${ dashboard.layout_skeleton() }
 
       <div class="widget-spinner" data-bind="visible: $root.isRetrievingResults()">
         <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-        <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+        <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
       </div>
     </div>
   <!-- /ko -->
@@ -649,6 +710,20 @@ ${ dashboard.layout_skeleton() }
 
 
 <script type="text/html" id="resultset-pagination">
+<!-- ko if: $data.response.numFound > 0 -->
+<div class="pull-right" style="display:inline">
+  <form method="POST" action="${ url('search:download') }" style="display:inline">
+    ${ csrf_token(request) | n,unicode }
+    <input type="hidden" name="collection" data-bind="value: ko.mapping.toJSON($root.collection)"/>
+    <input type="hidden" name="query" data-bind="value: ko.mapping.toJSON($root.query)"/>
+    <input type="hidden" name="download">
+    <button class="btn" type="submit" name="json" title="${ _('Download first rows as JSON') }"><i class="hfo hfo-file-json"></i></button>
+    <button class="btn" type="submit" name="csv" title="${ _('Download first rows as CSV') }"><i class="hfo hfo-file-csv"></i></button>
+    <button class="btn" type="submit" name="xls" title="${ _('Download first rows as XLS') }"><i class="hfo hfo-file-xls"></i></button>
+  </form>
+</div>
+<!-- /ko -->
+
 <div style="text-align: center; margin-top: 4px">
   <a href="javascript: void(0)" title="${ _('Previous') }">
     <span data-bind="click: $root.collection.toggleSortColumnGridLayout"></span>
@@ -661,7 +736,7 @@ ${ dashboard.layout_skeleton() }
   ${ _('Showing') }
   <span data-bind="text: ($data.response.start + 1)"></span>
   ${ _('to') }
-  <span data-bind="text: ($data.response.start + $root.collection.template.rows())"></span>
+  <span data-bind="text: Math.min(($data.response.start + $root.collection.template.rows()), $data.response.numFound)"></span>
   ${ _('of') }
   <span data-bind="text: $data.response.numFound"></span>
   ${ _(' results') }
@@ -681,19 +756,6 @@ ${ dashboard.layout_skeleton() }
         click: function() { $root.query.paginate('next') }">
     </i>
   </a>
-
-  <!-- ko if: $data.response.numFound > 0 -->
-  <span class="pull-right">
-    <form method="POST" action="${ url('search:download') }">
-      <input type="hidden" name="collection" data-bind="value: ko.mapping.toJSON($root.collection)"/>
-      <input type="hidden" name="query" data-bind="value: ko.mapping.toJSON($root.query)"/>
-      <input type="hidden" name="download">
-      <button class="btn" type="submit" name="json" title="${ _('Download first rows as JSON') }"><i class="hfo hfo-file-json"></i></button>
-      <button class="btn" type="submit" name="csv" title="${ _('Download first rows as CSV') }"><i class="hfo hfo-file-csv"></i></button>
-      <button class="btn" type="submit" name="xls" title="${ _('Download first rows as XLS') }"><i class="hfo hfo-file-xls"></i></button>
-    </form>
-  </span>
-  <!-- /ko -->
 </div>
 </script>
 
@@ -701,7 +763,7 @@ ${ dashboard.layout_skeleton() }
 <script type="text/html" id="histogram-widget">
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 
   <!-- ko if: $root.getFacetFromQuery(id()) -->
@@ -712,18 +774,26 @@ ${ dashboard.layout_skeleton() }
     </div>
 
     <div style="padding-bottom: 10px; text-align: right; padding-right: 20px" data-bind="visible: counts.length > 0">
+      <span data-bind="with: $root.collection.getFacetById($parent.id())">
+        <span class="facet-field-label">${ _('Interval') }</span>
+         <select class="input-small" data-bind="options: $root.intervalOptions,
+                       optionsText: 'label',
+                       optionsValue: 'value',
+                       value: properties.gap"></select>&nbsp;
+      </span>
       <span class="facet-field-label">${ _('Zoom') }</span>
-      <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
-      <span class="facet-field-label">${ _('Group by') }</span>
-      <select class="input-medium" data-bind="options: $root.query.multiqs, optionsValue: 'id', optionsText: 'label', value: $root.query.selectedMultiq"></select>
+      <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+      <span class="facet-field-label" data-bind="visible: $root.query.multiqs().length > 1">${ _('Group by') }</span>
+      <select class="input-medium" data-bind="visible: $root.query.multiqs().length > 1, options: $root.query.multiqs, optionsValue: 'id', optionsText: 'label', value: $root.query.selectedMultiq"></select>
     </div>
-
-    <div data-bind="timelineChart: {datum: {counts: counts, extraSeries: extraSeries, widget_id: $parent.id(), label: label}, stacked: $root.collection.getFacetById($parent.id()).properties.stacked(), field: field, label: label, transformer: timelineChartDataTransformer,
+    <!-- ko if: $root.collection.getFacetById($parent.id()) -->
+    <div data-bind="timelineChart: {datum: {counts: counts, extraSeries: (typeof extraSeries != 'undefined' ? extraSeries : []), widget_id: $parent.id(), label: label}, stacked: $root.collection.getFacetById($parent.id()).properties.stacked(), field: field, label: label, transformer: timelineChartDataTransformer,
       fqs: $root.query.fqs,
       onSelectRange: function(from, to){ viewModel.collection.selectTimelineFacet({from: from, to: to, cat: field, widget_id: $parent.id()}) },
       onStateChange: function(state){ $root.collection.getFacetById($parent.id()).properties.stacked(state.stacked); },
       onClick: function(d){ viewModel.query.selectRangeFacet({count: d.obj.value, widget_id: $parent.id(), from: d.obj.from, to: d.obj.to, cat: d.obj.field}) },
       onComplete: function(){ viewModel.getWidgetById(id).isLoading(false) }}" />
+    <!-- /ko -->
   </div>
   <!-- /ko -->
 </script>
@@ -732,7 +802,7 @@ ${ dashboard.layout_skeleton() }
 <script type="text/html" id="bar-widget">
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 
   <!-- ko if: $root.getFacetFromQuery(id()) -->
@@ -746,7 +816,7 @@ ${ dashboard.layout_skeleton() }
       <!-- ko if: type() == 'range' -->
         <div style="padding-bottom: 10px; text-align: right; padding-right: 20px">
           <span class="facet-field-label">${ _('Zoom') }</span>
-          <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+          <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
         </div>
       <!-- /ko -->
     </div>
@@ -773,7 +843,7 @@ ${ dashboard.layout_skeleton() }
 <script type="text/html" id="line-widget">
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 
   <!-- ko if: $root.getFacetFromQuery(id()) -->
@@ -785,7 +855,7 @@ ${ dashboard.layout_skeleton() }
 
     <div style="padding-bottom: 10px; text-align: right; padding-right: 20px" data-bind="visible: counts.length > 0">
       <span class="facet-field-label">${ _('Zoom') }</span>
-      <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+      <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
     </div>
 
     <div data-bind="lineChart: {datum: {counts: counts, widget_id: $parent.id(), label: label}, field: field, label: label,
@@ -827,7 +897,7 @@ ${ dashboard.layout_skeleton() }
   <!-- /ko -->
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
@@ -835,37 +905,43 @@ ${ dashboard.layout_skeleton() }
 <script type="text/html" id="tree-widget">
   <!-- ko if: $root.getFacetFromQuery(id()) -->
   <div class="row-fluid" data-bind="with: $root.getFacetFromQuery(id())">
-    <div data-bind="visible: $root.isEditing, with: $root.collection.getFacetById($parent.id())" style="margin-bottom: 20px">
+    <div class="responsive-facet-toggle-section" data-bind="visible: $root.isEditing, with: $root.collection.getFacetById($parent.id())">
       <span data-bind="template: { name: 'facet-toggle', afterRender: function(){ $root.getWidgetById($parent.id).isLoading(false); } }">
       </span>
     </div>
 
     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+      <div class="dimensions-header margin-bottom-10" data-bind="visible: $root.isEditing() && $data.properties.facets().length > 0">
+        <span class="muted">${ _('Selected dimensions') }</span>
+      </div>
       <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
-        <div class="facet-field-tile">
-          <div class="facet-field-cnt">
-            <span class="facet-field-label facet-field-label-fixed-width facet-field-label-fixed-width-double facet-field-label-title" data-bind="text: field"></span>
+        <div class="filter-box">
+          <div class="title">
+            <a data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }" class="pull-right" href="javascript:void(0)">
+              <i class="fa fa-times"></i>
+            </a>
+            <span data-bind="text: field"></span>
+            &nbsp;
           </div>
 
-          <div class="facet-field-cnt">
-            <span class="spinedit-cnt">
-              <span class="facet-field-label facet-field-label-fixed-width">
-                ${ _('Limit') }
+          <div class="content">
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Limit') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: limit"/>
               </span>
-              <input type="text" class="input-medium" data-bind="spinedit: limit"/>
-            </span>
-          </div>
+            </div>
 
-          <div class="facet-field-cnt">
-            <span class="spinedit-cnt">
-              <span class="facet-field-label facet-field-label-fixed-width">
-                ${ _('Min Count') }
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Min Count') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
               </span>
-              <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
-              <a href="javascript: void(0)" data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }">
-                <i class="fa fa-minus"></i>
-              </a>
-            </span>
+            </div>
           </div>
         </div>
       </div>
@@ -890,7 +966,7 @@ ${ dashboard.layout_skeleton() }
 
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
@@ -898,39 +974,45 @@ ${ dashboard.layout_skeleton() }
 <script type="text/html" id="heatmap-widget">
   <!-- ko if: $root.getFacetFromQuery(id()) -->
   <div class="row-fluid" data-bind="with: $root.getFacetFromQuery(id())">
-    <div data-bind="visible: $root.isEditing, with: $root.collection.getFacetById($parent.id())" style="margin-bottom: 20px">
+    <div class="floating-facet-toggle-section" data-bind="visible: $root.isEditing, with: $root.collection.getFacetById($parent.id())">
       <span data-bind="template: { name: 'facet-toggle', afterRender: function(){ $root.getWidgetById($parent.id).isLoading(false); } }">
       </span>
     </div>
 
     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+      <div class="dimensions-header margin-bottom-10" data-bind="visible: $root.isEditing() && $data.properties.facets().length > 0">
+        <span class="muted">${ _('Selected dimension') }</span>
+      </div>
       <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
-        <div class="facet-field-tile">
-          <div class="facet-field-cnt">
-            <span class="facet-field-label facet-field-label-fixed-width facet-field-label-fixed-width-double facet-field-label-title" data-bind="text: field"></span>
+        <div class="filter-box">
+          <div class="title">
+            <a data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }" class="pull-right" href="javascript:void(0)">
+              <i class="fa fa-times"></i>
+            </a>
+            <span data-bind="text: field"></span>
+            &nbsp;
           </div>
 
-          <div class="facet-field-cnt">
-            <span class="spinedit-cnt">
-              <span class="facet-field-label facet-field-label-fixed-width">
-                ${ _('Limit') }
+          <div class="content">
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Limit') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: limit"/>
               </span>
-              <input type="text" class="input-medium" data-bind="spinedit: limit"/>
-            </span>
-          </div>
-
-          <div class="facet-field-cnt">
-            <span class="spinedit-cnt">
-              <span class="facet-field-label facet-field-label-fixed-width">
-                ${ _('Min Count') }
+            </div>
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Min Count') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
               </span>
-              <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
-              <a href="javascript: void(0)" data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }">
-                <i class="fa fa-minus"></i>
-              </a>
-            </span>
+            </div>
           </div>
         </div>
+
       </div>
       <div class="clearfix"></div>
 
@@ -952,7 +1034,7 @@ ${ dashboard.layout_skeleton() }
 
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
@@ -983,7 +1065,7 @@ ${ dashboard.layout_skeleton() }
     </div>
     <!-- /ko -->
 
-    <!-- ko if: $data.type() == 'range' -->
+    <!-- ko if: $data.type() == 'range' || $data.type() == 'range-up' -->
     <div class="filter-box">
       <div class="title">
         <a href="javascript:void(0)" class="pull-right" data-bind="click: function(){ chartsUpdatingState(); $root.query.removeFilter($data); $root.search() }">
@@ -993,17 +1075,31 @@ ${ dashboard.layout_skeleton() }
         &nbsp;
       </div>
       <div class="content">
+        <strong>${_('selected')}</strong>
         <span data-bind="foreach: $data.properties" style="font-weight: normal">
           <!-- ko if: $.grep($parent.filter(), function(f) { return f.value() == $data.from() && ! f.exclude() }).length > 0 -->
-            <strong>${_('from')}</strong> <span data-bind="text: $data.from"></span>
-            <strong>${_('to')}</strong> <span data-bind="text: $data.to"></span>
+          <span class="label label-info">
+            <!-- ko if: $parent.type() == 'range' -->
+              <strong>${_('from')}</strong> <span data-bind="text: $data.from"></span>
+              <strong>${_('to')}</strong> <span data-bind="text: $data.to"></span>
+            <!-- /ko -->
+
+            <!-- ko if: $parent.type() == 'range-up' -->
+              <strong data-bind="visible: ! $parent.is_up()">${ _('Until') }</strong>
+              <span data-bind="text: $data.from"></span>
+              <strong data-bind="visible: $parent.is_up()"> & Up</strong>
+            <!-- /ko -->
+          </span>
           <!-- /ko -->
         </span>
         <br/>
-        <span data-bind="foreach: $data.properties" style="font-weight: normal"  class="excluded">
+        <strong>${_('excluded')}</strong>
+        <span data-bind="foreach: $data.properties" style="font-weight: normal" class="excluded">
           <!-- ko if: $.grep($parent.filter(), function(f) { return f.value() == $data.from() && f.exclude() }).length > 0 -->
+          <span class="label label-important">
             <strong>${_('from')}</strong> <span data-bind="text: $data.from"></span>
             <strong>${_('to')}</strong> <span data-bind="text: $data.to"></span>
+          </span>
           <!-- /ko -->
         </span>
       </div>
@@ -1013,7 +1109,7 @@ ${ dashboard.layout_skeleton() }
   <div class="clearfix"></div>
   <div class="widget-spinner" data-bind="visible: isLoading() &&  $root.query.fqs().length > 0">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
@@ -1022,44 +1118,92 @@ ${ dashboard.layout_skeleton() }
   <!-- ko if: $root.getFacetFromQuery(id()) -->
   <div class="row-fluid" data-bind="with: $root.getFacetFromQuery(id())">
     <div data-bind="visible: $root.isEditing, with: $root.collection.getFacetById($parent.id())" style="margin-bottom: 20px">
-      ${ _('Scope') }:
-      <select data-bind="selectedOptions: properties.scope" class="input-small">
-        <option value="world">${ _("World") }</option>
-        <option value="usa">${ _("USA") }</option>
-      </select>
-      <span data-bind="template: { name: 'facet-toggle' }">
-      </span>
+      <div class="floating-facet-toggle-section">
+        <span data-bind="template: { name: 'facet-toggle', afterRender: function(){ $root.getWidgetById($parent.id).isLoading(false); } }">
+        </span>
+      </div>
+      <div class="dimensions-header margin-bottom-10" data-bind="visible: $root.isEditing() && $data.properties.facets().length > 0">
+        <span class="muted">${ _('Selected dimension') }</span>
+      </div>
+      <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
+        <div class="filter-box">
+          <div class="title">
+            <a data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }" class="pull-right" href="javascript:void(0)">
+              <i class="fa fa-times"></i>
+            </a>
+            <span data-bind="text: field"></span>
+            &nbsp;
+          </div>
+
+          <div class="content">
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Limit') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: limit"/>
+              </span>
+            </div>
+
+            <div class="facet-field-cnt">
+              <span class="spinedit-cnt">
+                <span class="facet-field-label facet-field-label-fixed-width">
+                  ${ _('Min Count') }
+                </span>
+                <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="clearfix"></div>
     </div>
+
+    <div class="margin-bottom-10" data-bind="visible: ! $root.isEditing()">
+      <div data-bind="with: $root.collection.getFacetById($parent.id())">
+        <!-- ko if: $data.properties.facets().length == 1 -->
+          <div class="margin-bottom-10">
+            <span data-bind="text: $data.properties.facets()[0].field"></span>
+          </div>
+        <!-- /ko -->
+      </div>
+    </div>
+
     <div data-bind="with: $root.collection.getFacetById($parent.id())">
-      <div data-bind="mapChart: {data: {counts: $parent.counts, scope: $root.collection.getFacetById($parent.id).properties.scope()},
+      <div data-bind="mapChart: {data: {counts: $parent.count, scope: $root.collection.getFacetById($parent.id).properties.scope()},
         transformer: mapChartDataTransformer,
         maxWidth: 750,
         isScale: true,
-        onClick: function(d){ viewModel.query.toggleFacet({facet: d, widget_id: $parent.id}) },
+        onClick: function(d) {
+          $root.query.togglePivotFacet({facet: {'fq_fields': d.fields, 'fq_values': d.value}, widget_id: id()});
+        },
         onComplete: function(){ var widget = viewModel.getWidgetById($parent.id); if (widget != null) {widget.isLoading(false)};} }" />
     </div>
   </div>
   <!-- /ko -->
   <div class="widget-spinner" data-bind="visible: isLoading()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
+
 <script type="text/html" id="leafletmap-widget">
   <div class="row-fluid">
-    <div data-bind="visible: $root.isEditing" style="margin-top: 10px; margin-bottom: 20px; text-align: center">
-      ${_('Latitude')}
+    <div data-bind="visible: $root.isEditing" style="margin-top: 10px; margin-bottom: 20px;" class="leaflet-align">
+      ${_('Latitude')}<div class="break-on-small-column"></div>
       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.latitudeField, optionsCaption: '${ _('Choose...') }'"></select>
       &nbsp;&nbsp;
-      ${_('Longitude')}
+      <div class="break-on-small-column"></div>
+      ${_('Longitude')}<div class="break-on-small-column"></div>
       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.longitudeField, optionsCaption: '${ _('Choose...') }'"></select>
       &nbsp;&nbsp;
-      ${_('Label')}
+      <div class="break-on-small-column"></div>
+      ${_('Label')}<div class="break-on-small-column"></div>
       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.labelField, optionsCaption: '${ _('Choose...') }'"></select>
     </div>
 
-    <div data-bind="leafletMapChart: {visible: ! $root.isRetrievingResults() && $root.collection.template.leafletmapOn(), datum: {counts: $root.results()},
+    <div data-bind="leafletMapChart: {visible: ! $root.isRetrievingResults() && $root.collection.template.leafletmapOn(), datum: {counts: $root.response()},
       transformer: leafletMapChartDataTransformer,
       onComplete: function(){ var widget = viewModel.getWidgetById(id); if (widget != null) {widget.isLoading(false)};} }">
     </div>
@@ -1067,7 +1211,7 @@ ${ dashboard.layout_skeleton() }
 
   <div class="widget-spinner" data-bind="visible: $root.isRetrievingResults()">
     <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
   </div>
 </script>
 
@@ -1087,7 +1231,7 @@ ${ dashboard.layout_skeleton() }
       <div class="tab-pane active" id="analysis-terms" data-bind="with: terms">
         <div class="widget-spinner" data-bind="visible: $parent.isLoading()">
           <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-          <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+          <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
         </div>
         <div class="alert" data-bind="visible: ! $parent.isLoading() && $data.data().length == 0">${ _('There are no terms to be shown') }</div>
         <table style="width: 100%" data-bind="visible: ! $parent.isLoading() && $data.data().length > 0" class="table-striped">
@@ -1113,7 +1257,7 @@ ${ dashboard.layout_skeleton() }
       <div class="tab-pane" id="analysis-stats" data-bind="with: stats">
         <div class="widget-spinner" data-bind="visible: $parent.isLoading()">
           <!--[if !IE]> --><i class="fa fa-spinner fa-spin"></i><!-- <![endif]-->
-          <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+          <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
         </div>
         <div class="alert" data-bind="visible: ! $parent.isLoading() && $data.data().length > 0 && $data.data()[0].key.toLowerCase() == 'error'">${ _('This field does not support stats') }</div>
         <div class="alert" data-bind="visible: ! $parent.isLoading() && $data.data().length == 0">${ _('There are no stats to be shown') }</div>
@@ -1230,24 +1374,24 @@ ${ dashboard.layout_skeleton() }
 <span id="extra" data-bind="augmenthtml: $root.collection.template.extracode"></span>
 
 
-<link rel="stylesheet" href="/search/static/css/search.css">
-<link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
-<link rel="stylesheet" href="/static/ext/css/hue-charts.css">
-<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
+<link rel="stylesheet" href="${ static('search/css/search.css') }">
+<link rel="stylesheet" href="${ static('desktop/ext/css/hue-filetypes.css') }">
+<link rel="stylesheet" href="${ static('desktop/ext/css/hue-charts.css') }">
+<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
 
-<script src="/static/ext/js/moment-with-langs.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/moment-with-locales.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 ${ dashboard.import_layout() }
 
-<script src="/search/static/js/search.utils.js" type="text/javascript" charset="utf-8"></script>
-<script src="/search/static/js/lzstring.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/shortcut.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/mustache.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('search/js/search.utils.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('search/js/lzstring.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/bootstrap-editable.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/ko.editable.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/shortcut.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/mustache.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 
-<script src="/search/static/js/search.ko.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('search/js/search.ko.js') }" type="text/javascript" charset="utf-8"></script>
 
 ${ dashboard.import_bindings() }
 ${ dashboard.import_charts() }
@@ -1473,9 +1617,13 @@ function timelineChartDataTransformer(rawDatum) {
 function mapChartDataTransformer(data) {
   var _data = [];
   $(data.counts).each(function (cnt, item) {
+    item.fields = item.pivot ? item.pivot[0].fq_fields : item.fq_fields;
+    item.values = item.pivot ? item.pivot[0].fq_values : item.fq_values;
+    item.counts = item.pivot ? item.pivot[0].count : item.count; // unused yet
+    item.is2d = item.pivot ? true : false; // unused yet
     _data.push({
       label: item.value,
-      value: item.count,
+      value: item.pivot ? item.pivot[0].fq_values : item.count,
       obj: item
     });
   });
@@ -1484,20 +1632,18 @@ function mapChartDataTransformer(data) {
 
 function leafletMapChartDataTransformer(data) {
   var _data = [];
-
-  data.counts.forEach(function(record){
-    if (record.leafletmap) {
+  if (!$.isEmptyObject(data.counts) && data.counts.response.docs && viewModel.collection.template.leafletmap.latitudeField() != "" && viewModel.collection.template.leafletmap.longitudeField() != "") {
+    data.counts.response.docs.forEach(function (record) {
       var _obj = {
-        lat: record.leafletmap.latitude,
-        lng: record.leafletmap.longitude
+        lat: record[viewModel.collection.template.leafletmap.latitudeField()],
+        lng: record[viewModel.collection.template.leafletmap.longitudeField()]
       }
-      if (record.leafletmap.label != null && record.leafletmap.label != ""){
-        _obj.label = record.leafletmap.label;
+      if (viewModel.collection.template.leafletmap.labelField() != "") {
+        _obj.label = record[viewModel.collection.template.leafletmap.labelField()];
       }
       _data.push(_obj);
-    }
-  });
-
+    });
+  }
   return _data;
 }
 
@@ -1625,6 +1771,9 @@ $(document).ready(function () {
       $("#shareModal input[type='text']").on("focus", function () {
         this.select();
       });
+      if (!window.location.origin) {
+        window.location.origin = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port: "");
+      }
       var _search = window.location.search;
       var _pathname = window.location.pathname;
       if (_pathname.indexOf("${ url('search:new_search') }") > -1) {
@@ -1668,26 +1817,50 @@ $(document).ready(function () {
     viewModel.search();
   }
 
-  function widgetDraggedAdditionalHandler(widget) {
-    showAddFacetDemiModal(widget);
+  function widgetDraggedAdditionalHandler(widget, row) {
+    showAddFacetDemiModal(widget, row);
+  }
+
+  function distributeRowWidgetsSize(row, waitForIt) {
+    if (row) {
+      if (waitForIt) {
+        var _initial = row.widgets().length;
+        var _widgetDropInterval = window.setInterval(function () {
+          if (row.widgets().length != _initial) {
+            window.clearInterval(_widgetDropInterval);
+            row.autosizeWidgets();
+          }
+        }, 100)
+      }
+      else {
+        row.autosizeWidgets();
+      }
+    }
   }
 
   var selectedWidget = null;
-  function showAddFacetDemiModal(widget) {
+  var selectedRow = null;
+  function showAddFacetDemiModal(widget, row) {
     if (["resultset-widget", "html-resultset-widget", "filter-widget", "leafletmap-widget"].indexOf(widget.widgetType()) == -1) {
       viewModel.collection.template.fieldsModalFilter("");
       viewModel.collection.template.fieldsModalType(widget.widgetType());
       viewModel.collection.template.fieldsModalFilter.valueHasMutated();
       $('#addFacetInput').typeahead({
-          'source': viewModel.collection.template.availableWidgetFieldsNames(),
-          'updater': function(item) {
-              addFacetDemiModalFieldPreview({'name': function(){return item}});
-              return item;
-           }
+        'source': viewModel.collection.template.availableWidgetFieldsNames(),
+        'updater': function (item) {
+          addFacetDemiModalFieldPreview({'name': function () {
+            return item
+          }});
+          return item;
+        }
       });
       selectedWidget = widget;
+      selectedRow = row;
       $("#addFacetDemiModal").modal("show");
       $("#addFacetDemiModal input[type='text']").focus();
+    }
+    else {
+      distributeRowWidgetsSize(row, true);
     }
   }
 
@@ -1703,11 +1876,15 @@ $(document).ready(function () {
         _existingFacet.field(field.name());
       }
       $("#addFacetDemiModal").modal("hide");
+      if (selectedRow != null) {
+        distributeRowWidgetsSize(selectedRow);
+      }
     }
   }
 
   function addFacetDemiModalFieldCancel() {
     viewModel.removeWidget(selectedWidget);
+    selectedRow = null;
   }
 
   $(document).on("setResultsHeight", function () {

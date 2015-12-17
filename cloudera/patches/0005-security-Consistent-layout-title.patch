@@ -1,0 +1,53 @@
+From e8ad9e619492bbb257864302db6791934c4d9784 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 7 Oct 2014 21:38:59 -0700
+Subject: [PATCH 0005/1173] [security] Consistent layout title
+
+---
+ apps/security/src/security/templates/hdfs.mako     |    2 +-
+ apps/security/src/security/templates/hive.mako     |    2 +-
+ .../core/src/desktop/templates/common_header.mako  |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/security/src/security/templates/hdfs.mako b/apps/security/src/security/templates/hdfs.mako
+index 45c3b77..ddcb5b2 100644
+--- a/apps/security/src/security/templates/hdfs.mako
++++ b/apps/security/src/security/templates/hdfs.mako
+@@ -84,7 +84,7 @@ ${ layout.menubar(section='hdfs') }
+     <div class="span12">
+       <div class="card card-small">
+         <h1 class="card-heading simple">
+-          ${ _('HDFS ACLs') }
++          ${ _('File ACLs') }
+         </h1>
+         <div class="card-body">
+           <div class="row-fluid" data-bind="visible: $root.doAs() != '${ user.username }' && ! $root.assist.isDiffMode()">
+diff --git a/apps/security/src/security/templates/hive.mako b/apps/security/src/security/templates/hive.mako
+index 8915374..6c926fd 100644
+--- a/apps/security/src/security/templates/hive.mako
++++ b/apps/security/src/security/templates/hive.mako
+@@ -139,7 +139,7 @@ ${ layout.menubar(section='hive') }
+ 
+       <div id="edit" class="mainSection card card-small">
+         <h1 class="card-heading simple">
+-          ${ _('Database and Tables privileges') }
++          ${ _('Database and Table privileges') }
+         </h1>
+ 
+         <div class="card-body">
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 1434e44..053a878 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -445,7 +445,7 @@ from django.utils.translation import ugettext as _
+            <a title="${_('Hadoop Security')}" rel="navigator-tooltip" href="#" data-toggle="dropdown" class="dropdown-toggle">${_('Security')} <b class="caret"></b></a>
+            <ul role="menu" class="dropdown-menu">
+              <li><a href="${ url('security:hive') }">&nbsp;<i class="fa fa-database"></i>&nbsp;&nbsp;${_('Sentry Tables')}</a></li>
+-             <li><a href="${ url('security:hdfs') }">&nbsp;<i class="fa fa-file"></i>&nbsp;&nbsp;${_('Files ACLs')}</a></li>
++             <li><a href="${ url('security:hdfs') }">&nbsp;<i class="fa fa-file"></i>&nbsp;&nbsp;${_('File ACLs')}</a></li>
+            </ul>
+          </li>
+        % endif
+-- 
+1.7.9.5
+

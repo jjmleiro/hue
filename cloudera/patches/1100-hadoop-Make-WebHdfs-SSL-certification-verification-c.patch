@@ -1,0 +1,118 @@
+From c3148843b01255eb4920a1043da3b21c61e26378 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 10:00:29 -0500
+Subject: [PATCH 1100/1173] [hadoop] Make WebHdfs SSL certification
+ verification configurable
+
+Turned on by default
+---
+ desktop/conf.dist/hue.ini                    |    4 ++++
+ desktop/conf/pseudo-distributed.ini.tmpl     |    4 ++++
+ desktop/libs/hadoop/src/hadoop/conf.py       |    4 ++++
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |   17 +++++++++++------
+ 4 files changed, 23 insertions(+), 6 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index c959e74..7de6002 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -663,6 +663,10 @@
+       # Change this if your HDFS cluster is Kerberos-secured
+       ## security_enabled=false
+ 
++      # In secure mode (HTTPS), if SSL certificates from YARN Rest APIs
++      # have to be verified against certificate authority
++      ## ssl_cert_ca_verify=True
++
+       # Directory of the Hadoop configuration
+       ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
+ 
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index eb10fec..d932cf6 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -666,6 +666,10 @@
+       # Change this if your HDFS cluster is Kerberos-secured
+       ## security_enabled=false
+ 
++      # In secure mode (HTTPS), if SSL certificates from YARN Rest APIs
++      # have to be verified against certificate authority
++      ## ssl_cert_ca_verify=True
++
+       # Directory of the Hadoop configuration
+       ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index 4474d5f..fa82e68 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -67,6 +67,10 @@ HDFS_CLUSTERS = UnspecifiedConfigSection(
+                                    default="hdfs", type=str),
+       SECURITY_ENABLED=Config("security_enabled", help="Is running with Kerberos authentication",
+                               default=False, type=coerce_bool),
++      SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
++                  help="In secure mode (HTTPS), if SSL certificates from YARN Rest APIs have to be verified against certificate authority",
++                  default=True,
++                  type=coerce_bool),
+       TEMP_DIR=Config("temp_dir", help="HDFS directory for temporary files",
+                       default='/tmp', type=str),
+       HADOOP_CONF_DIR = Config(
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index b81b441..4642d9a 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -59,6 +59,7 @@ class WebHdfs(Hdfs):
+                logical_name=None,
+                hdfs_superuser=None,
+                security_enabled=False,
++               ssl_cert_ca_verify=True,
+                temp_dir="/tmp",
+                umask=01022):
+     self._url = url
+@@ -69,33 +70,37 @@ class WebHdfs(Hdfs):
+     self._fs_defaultfs = fs_defaultfs
+     self._logical_name = logical_name
+ 
+-    self._client = self._make_client(url, security_enabled)
++    self._client = self._make_client(url, security_enabled, ssl_cert_ca_verify)
+     self._root = resource.Resource(self._client)
+ 
+     # To store user info
+     self._thread_local = threading.local()
+ 
+-    LOG.debug("Initializing Hadoop WebHdfs: %s (security: %s, superuser: %s)" %
+-              (self._url, self._security_enabled, self._superuser))
++    LOG.debug("Initializing Hadoop WebHdfs: %s (security: %s, superuser: %s)" % (self._url, self._security_enabled, self._superuser))
+ 
+   @classmethod
+   def from_config(cls, hdfs_config):
+     fs_defaultfs = hdfs_config.FS_DEFAULTFS.get()
++
+     return cls(url=_get_service_url(hdfs_config),
+                fs_defaultfs=fs_defaultfs,
+                logical_name=hdfs_config.LOGICAL_NAME.get(),
+                security_enabled=hdfs_config.SECURITY_ENABLED.get(),
++               ssl_cert_ca_verify=hdfs_config.SSL_CERT_CA_VERIFY.get(),
+                temp_dir=hdfs_config.TEMP_DIR.get(),
+                umask=get_umask_mode())
+ 
+   def __str__(self):
+     return "WebHdfs at %s" % self._url
+ 
+-  def _make_client(self, url, security_enabled):
+-    client = http_client.HttpClient(
+-        url, exc_class=WebHdfsException, logger=LOG)
++  def _make_client(self, url, security_enabled, ssl_cert_ca_verify=True):
++    client = http_client.HttpClient(url, exc_class=WebHdfsException, logger=LOG)
++
+     if security_enabled:
+       client.set_kerberos_auth()
++
++    client.set_verify(ssl_cert_ca_verify)
++
+     return client
+ 
+   @property
+-- 
+1.7.9.5
+

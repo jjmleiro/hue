@@ -1,0 +1,38 @@
+From 664f318809433788dfad9770ad909704f7617f2a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 29 Jan 2015 18:09:29 +0800
+Subject: [PATCH 0720/1173] [livy] Hack python session to allow the last line
+ of a cell to be a magic fn
+
+---
+ .../livy-repl/src/main/resources/fake_shell.py     |   14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+index 5f7c6a9..e6b3317 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -94,8 +94,18 @@ def execute_request(content):
+         exc_type, exc_value, tb = sys.exc_info()
+         return execute_reply_error(exc_type, exc_value, [])
+ 
+-    if code.startswith('%'):
+-        parts = code[1:].split(' ', 1)
++    lines = code.split('\n')
++
++    if lines and lines[-1].startswith('%'):
++        code, magic = lines[:-1], lines[-1]
++
++        # Make sure to execute the other lines first.
++        if code:
++            result = execute('\n'.join(code))
++            if result['content']['status'] != 'ok':
++                return result
++
++        parts = magic[1:].split(' ', 1)
+         if len(parts) == 1:
+             magic, rest = parts[0], ()
+         else:
+-- 
+1.7.9.5
+

@@ -1,0 +1,179 @@
+From 374a0b0638447893de34ba619986b07b95f914b2 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 13:12:15 -0800
+Subject: [PATCH 0877/1173] [spark] Add livy configuration options to hue.ini
+
+---
+ apps/spark/src/spark/conf.py                       |   34 ++++++++----
+ apps/spark/src/spark/job_server_api.py             |    4 +-
+ .../src/spark/management/commands/livy_server.py   |   58 +++++++++++---------
+ 3 files changed, 58 insertions(+), 38 deletions(-)
+
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 241b409..cd8ec8c 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -29,12 +29,6 @@ def coerce_json(j):
+   return json.loads(j)
+ 
+ 
+-JOB_SERVER_URL = Config(
+-  key="server_url",
+-  help=_t("URL of the Livy Spark Server."),
+-  default="http://localhost:8998/"
+-)
+-
+ LANGUAGES = Config(
+   key="languages",
+   help=_t("List of available types of snippets."),
+@@ -48,17 +42,35 @@ LANGUAGES = Config(
+   ]"""
+ )
+ 
+-LIVY_SESSION_KIND = Config(
+-  key="livy_session_kind",
+-  help=_t("Configure livy to start with thread, process, or yarn workers"),
+-  default="thread")
+-
+ LIVY_ASSEMBLY_JAR = Config(
+   key="livy_assembly_jar",
+   help=_t("Path to livy-assembly.jar"),
+   private=True,
+   default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-SNAPSHOT.jar"))
+ 
++LIVY_SERVER_HOST = Config(
++  key="livy_server_host",
++  help=_t("Host address of the Livy Server."),
++  default="0.0.0.0")
++
++LIVY_SERVER_PORT = Config(
++  key="livy_server_port",
++  help=_t("Port of the Livy Server."),
++  default="8998")
++
++LIVY_SERVER_SESSION_KIND = Config(
++  key="livy_server_session_kind",
++  help=_t("Configure livy to start with process, thread, or yarn workers"),
++  default="process")
++
++LIVY_YARN_JAR = Config(
++  key="livy_yarn_jar",
++  help=_t("Path to livy-assembly.jar inside HDFS"),
++  private=True)
++
++def get_livy_server_url():
++  return 'http://%s:%s' % (LIVY_SERVER_HOST.get(), LIVY_SERVER_PORT.get())
++
+ def get_spark_status(user):
+   from spark.job_server_api import get_api
+   status = None
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index ccb803a..a442dff 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -23,7 +23,7 @@ import threading
+ from desktop.lib.rest.http_client import HttpClient
+ from desktop.lib.rest.resource import Resource
+ 
+-from spark.conf import JOB_SERVER_URL
++from spark.conf import get_livy_server_url
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -44,7 +44,7 @@ def get_api(user):
+     _api_cache_lock.acquire()
+     try:
+       if _api_cache is None:
+-        _api_cache = JobServerApi(JOB_SERVER_URL.get())
++        _api_cache = JobServerApi(get_livy_server_url())
+     finally:
+       _api_cache_lock.release()
+   _api_cache.setuser(user)
+diff --git a/apps/spark/src/spark/management/commands/livy_server.py b/apps/spark/src/spark/management/commands/livy_server.py
+index 3e2824a..47719ad 100644
+--- a/apps/spark/src/spark/management/commands/livy_server.py
++++ b/apps/spark/src/spark/management/commands/livy_server.py
+@@ -7,7 +7,7 @@
+ # "License"); you may not use this file except in compliance
+ # with the License.  You may obtain a copy of the License at
+ #
+-#     http://www.apache.org/licenses/LICENSE-2.0
++#   http://www.apache.org/licenses/LICENSE-2.0
+ #
+ # Unless required by applicable law or agreed to in writing, software
+ # distributed under the License is distributed on an "AS IS" BASIS,
+@@ -18,39 +18,47 @@
+ import logging
+ import os
+ 
+-from django.core.management.base import BaseCommand
++from django.core.management.base import NoArgsCommand
+ import spark.conf
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
+-class Command(BaseCommand):
+-    """
+-    Starts livy server.
+-    """
++class Command(NoArgsCommand):
++  """
++  Starts livy server.
++  """
+ 
+-    args = '<thread(default)|process|yarn>'
+-    help = 'start livy server with thread, process, or yarn workers'
++  help = 'start livy server'
+ 
+-    def handle(self, *args, **kwargs):
+-        if not args:
+-            session_kind = spark.conf.LIVY_SESSION_KIND.get()
+-        else:
+-            session_kind = args[0].lower()
++  def handle(self, *args, **kwargs):
++    env = os.environ.copy()
+ 
+-        jar = spark.conf.LIVY_ASSEMBLY_JAR.get()
+-        env = os.environ.copy()
+-        classpath = jar + os.path.pathsep + env.get('CLASSPATH', '')
++    args = [
++      "java",
++    ]
+ 
+-        args = [
+-            "java",
+-            "-cp", classpath,
+-            "com.cloudera.hue.livy.server.Main",
+-            session_kind,
+-        ]
++    jar = spark.conf.LIVY_ASSEMBLY_JAR.get()
++    classpath = jar + os.path.pathsep + env.get('CLASSPATH', '')
++    args.extend(("-cp", classpath))
+ 
+-        LOG.info("Executing %r (%r) (%r)" % (bin, args, env))
++    server_host = spark.conf.LIVY_SERVER_HOST.get()
++    args.append("-Dlivy.server.host=" + server_host)
+ 
+-        # Use exec, so that this takes only one process.
+-        os.execvpe(args[0], args, env)
++    server_port = spark.conf.LIVY_SERVER_PORT.get()
++    args.append("-Dlivy.server.port=" + server_port)
++
++    session_factory = spark.conf.LIVY_SERVER_SESSION_KIND.get()
++    args.append("-Dlivy.server.session.factory=" + session_factory)
++
++    livy_yarn_jar = spark.conf.LIVY_YARN_JAR.get()
++    if livy_yarn_jar:
++      args.append("-Dlivy.yarn.jar=" + livy_yarn_jar)
++
++    args.append("com.cloudera.hue.livy.server.Main")
++
++    LOG.info("Executing %r (%r) (%r)" % (args[0], args, env))
++
++    # Use exec, so that this takes only one process.
++    os.execvpe(args[0], args, env)
+-- 
+1.7.9.5
+

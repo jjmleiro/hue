@@ -1,0 +1,36 @@
+From dbf62f769b7fb5c7a35793314acfbb1bff2cef96 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 14 Jan 2015 17:31:31 -0800
+Subject: [PATCH 0449/1173] [oozie] Support creating Fork of Fork
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index c753d4c..7d95785 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -332,12 +332,17 @@ var Workflow = function (vm, workflow) {
+ 
+             var forkParent = self.getNodeById(vm.getWidgetPredecessor(parentWidget.id()).id());
+ 
+-            var afterParentId = ko.mapping.toJS(forkParent.get_link('to')).to;
++            // In case of Fork of Fork, we need to pick the link of the neighbor of new node instead of just the first forkParent.get_link('to')
++            var newParentLink = $.grep(forkParent.children(), function(link) {
++              return vm.getWidgetPredecessor(ko.mapping.toJS(link)['to']).id() == fork.id();
++            })[0];  
++ 
++            var afterParentId = ko.mapping.toJS(newParentLink).to;
+             var afterParent = self.getNodeById(afterParentId);
+             fork.children.push({'to': afterParentId, 'condition': ''});
+             fork.children.push({'to': node.id(), 'condition': ''});
+ 
+-            forkParent.get_link('to')['to'] = fork.id();
++            newParentLink['to'] = fork.id();
+ 
+             var belowJoin = vm.getWidgetSuccessor(join.id());
+             join.set_link('to', belowJoin.id());
+-- 
+1.7.9.5
+

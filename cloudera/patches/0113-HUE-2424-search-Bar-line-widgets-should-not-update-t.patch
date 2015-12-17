@@ -1,0 +1,85 @@
+From 2a6e148c271988ee0abb95623a1b76bf9dc92628 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 13 Nov 2014 15:27:39 +0100
+Subject: [PATCH 0113/1173] HUE-2424 [search] Bar/line widgets should not
+ update their start/end/gap values
+
+Added support for initial_start and initial_end
+---
+ apps/search/src/search/models.py             |    4 ++++
+ apps/search/src/search/templates/search.mako |    2 +-
+ apps/search/src/search/views.py              |    2 ++
+ apps/search/static/js/search.ko.js           |   14 ++++++++++----
+ 4 files changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 5ec3a50..35cf74f 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -278,6 +278,10 @@ class Collection(models.Model):
+       properties = facet['properties']
+       if 'gap' in properties and not 'initial_gap' in properties:
+         properties['initial_gap'] = properties['gap']
++      if 'start' in properties and not 'initial_start' in properties:
++        properties['initial_start'] = properties['start']
++      if 'end' in properties and not 'initial_end' in properties:
++        properties['initial_end'] = properties['end']
+ 
+     return json.dumps(props)
+ 
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index e7f4945..52fab42 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -272,7 +272,7 @@ ${ dashboard.layout_skeleton() }
+ 
+     <!-- ko if: type() == 'range' -->
+       <!-- ko ifnot: properties.isDate() -->
+-        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.gap, min: properties.start, max: properties.end}"></div>
++        <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.initial_gap, min: properties.initial_start, max: properties.initial_end}"></div>
+       <!-- /ko -->
+       <!-- ko if: properties.isDate() -->
+         <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.initial_gap, min: properties.min, max: properties.max}"></div>
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index e5d8937..55434cb 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -461,6 +461,8 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
+       facet_type = 'range'
+       properties.update(range_properties)
+       properties['initial_gap'] = properties['gap']
++      properties['initial_start'] = properties['start']
++      properties['initial_end'] = properties['end']
+     elif widget_type == 'hit-widget':
+       facet_type = 'query'
+     else:
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index f2382fd..f5b60db 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -767,12 +767,18 @@ var Collection = function (vm, collection) {
+   }
+ 
+   self.rangeZoomOut = function (facet_json) {
+-    var facet = self.getFacetById(facet_json.id);
++    var facet = self.getFacetById(typeof facet_json.id == "function" ? facet_json.id() : facet_json.id);
+ 
+     vm.query.removeFilter(ko.mapping.fromJS({'id': facet_json.id}));
+-    if (facet.properties.gap() != null) { // Bar, line charts don't have gap
+-      facet.properties.gap(facet.properties.initial_gap());
+-    }
++    //if (facet && facet.properties) {
++      if (facet.properties.gap() != null) { // Bar, line charts don't have gap
++        facet.properties.gap(facet.properties.initial_gap());
++      }
++      if (facet.properties.initial_start() != null) { // Bar and line charts
++        facet.properties.start(facet.properties.initial_start());
++        facet.properties.end(facet.properties.initial_end());
++      }
++    //}
+ 
+     vm.search();
+   }
+-- 
+1.7.9.5
+

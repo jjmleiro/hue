@@ -1,0 +1,26 @@
+From 105fbb5d92f80f27ae64be6f674bf60c7731b9e3 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Feb 2015 11:38:03 -0800
+Subject: [PATCH 0858/1173] [fb] Remove unused deprecated md5 import
+
+DeprecationWarning: the md5 module is deprecated; use hashlib instead
+  import md5
+---
+ .../filebrowser/templates/listdir_components.mako  |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 1420c32..6c463e2 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -16,7 +16,6 @@
+ 
+ <%!
+ import datetime
+-import md5
+ from django.template.defaultfilters import urlencode, stringformat, filesizeformat, date, time, escape
+ from desktop.lib.django_util import reverse_with_get, extract_field_data
+ from django.utils.encoding import smart_str
+-- 
+1.7.9.5
+

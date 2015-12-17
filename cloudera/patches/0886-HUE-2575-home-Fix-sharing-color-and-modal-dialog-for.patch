@@ -1,0 +1,88 @@
+From 92bc980f6f25dc1f77c96027204de2dbfcbee57a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 19 Feb 2015 16:09:43 +0100
+Subject: [PATCH 0886/1173] HUE-2575 [home] Fix sharing color and modal dialog
+ for already shared documents
+
+Fixed user load problem on share modal name rendering
+Added colored icon also for write perms
+---
+ .../core/src/desktop/templates/common_share.mako   |    4 ++--
+ desktop/core/src/desktop/templates/home.mako       |    2 +-
+ desktop/core/static/js/share.vm.js                 |   17 +++++++++++------
+ 3 files changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/desktop/core/src/desktop/templates/common_share.mako b/desktop/core/src/desktop/templates/common_share.mako
+index 4f924f6..6106652 100644
+--- a/desktop/core/src/desktop/templates/common_share.mako
++++ b/desktop/core/src/desktop/templates/common_share.mako
+@@ -29,7 +29,7 @@ from django.utils.translation import ugettext as _
+         <h4 class="muted" style="margin-top:0px">${_('Read')}</h4>
+         <div data-bind="visible: (selectedDoc().perms.read.users.length == 0 && selectedDoc().perms.read.groups.length == 0)">${_('The document is not shared for read.')}</div>
+         <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.users">
+-          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
++          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id), css:{'notpretty': prettifyUsername(id) == ''}, attr:{'data-id': id}"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
+         </ul>
+         <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.groups">
+           <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupReadShare"> <i class="fa fa-times"></i></li>
+@@ -40,7 +40,7 @@ from django.utils.translation import ugettext as _
+         <h4 class="muted" style="margin-top:0px">${_('Read and Modify')}</h4>
+         <div data-bind="visible: (selectedDoc().perms.write.users.length == 0 && selectedDoc().perms.write.groups.length == 0)">${_('The document is not shared for read and modify.')}</div>
+         <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.users">
+-          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
++          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id), css:{'notpretty': prettifyUsername(id) == ''}, attr:{'data-id': id}"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
+         </ul>
+         <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.groups">
+           <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupWriteShare"> <i class="fa fa-times"></i></li>
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index 55e5a4e..29f48ec 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -276,7 +276,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+       </a>
+     </td>
+     <td style="width: 40px; text-align: center">
+-      <a class="share-link" rel="tooltip" data-placement="left" style="padding-left:10px; padding-right: 10px" data-bind="click: shareDoc, attr: {'data-original-title': '${ _("Share") } '+name}, visible: isMine , css: {'baseShared': true, 'isShared': perms.read.users.length + perms.read.groups.length > 0}">
++      <a class="share-link" rel="tooltip" data-placement="left" style="padding-left:10px; padding-right: 10px" data-bind="click: shareDoc, attr: {'data-original-title': '${ _("Share") } '+name}, visible: isMine , css: {'baseShared': true, 'isShared': perms.read.users.length + perms.read.groups.length + perms.write.users.length + perms.write.groups.length > 0}">
+         <i class="fa fa-users"></i>
+       </a>
+       <i class="fa fa-ban" style="padding-left:8px; padding-right: 8px" data-bind="visible: !isMine"></i>
+diff --git a/desktop/core/static/js/share.vm.js b/desktop/core/static/js/share.vm.js
+index 1dc8191..c8b0058 100644
+--- a/desktop/core/static/js/share.vm.js
++++ b/desktop/core/static/js/share.vm.js
+@@ -46,6 +46,9 @@ function openShareModal() {
+     $("#documentShareAddBtn").removeClass("disabled");
+     $("#documentShareCaret").removeClass("disabled");
+     $("#documentShareTypeahead").removeAttr("disabled");
++    $(".notpretty").each(function(){
++      $(this).text(prettifyUsername($(this).attr("data-id")));
++    });
+   });
+ }
+ 
+@@ -57,13 +60,15 @@ function isShared() {
+ 
+ function prettifyUsername(userId) {
+   var _user = null;
+-  for (var i = 0; i < JSON_USERS_GROUPS.users.length; i++) {
+-    if (JSON_USERS_GROUPS.users[i].id == userId) {
+-      _user = JSON_USERS_GROUPS.users[i];
++  if (self.hasSetupBeenCalled) {
++    for (var i = 0; i < JSON_USERS_GROUPS.users.length; i++) {
++      if (JSON_USERS_GROUPS.users[i].id == userId) {
++        _user = JSON_USERS_GROUPS.users[i];
++      }
++    }
++    if (_user != null) {
++      return (_user.first_name != "" ? _user.first_name + " " : "") + (_user.last_name != "" ? _user.last_name + " " : "") + ((_user.first_name != "" || _user.last_name != "") ? "(" : "") + _user.username + ((_user.first_name != "" || _user.last_name != "") ? ")" : "");
+     }
+-  }
+-  if (_user != null) {
+-    return (_user.first_name != "" ? _user.first_name + " " : "") + (_user.last_name != "" ? _user.last_name + " " : "") + ((_user.first_name != "" || _user.last_name != "") ? "(" : "") + _user.username + ((_user.first_name != "" || _user.last_name != "") ? ")" : "");
+   }
+   return "";
+ }
+-- 
+1.7.9.5
+

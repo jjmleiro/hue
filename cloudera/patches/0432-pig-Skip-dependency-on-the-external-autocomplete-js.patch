@@ -1,0 +1,31 @@
+From 623b781fcdf6feced76008b412bf0668a5b0ce51 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 12 Jan 2015 15:31:26 +0100
+Subject: [PATCH 0432/1173] [pig] Skip dependency on the external autocomplete
+ js
+
+---
+ apps/pig/src/pig/templates/app.mako |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/apps/pig/src/pig/templates/app.mako b/apps/pig/src/pig/templates/app.mako
+index b90c9d4..02b5783 100644
+--- a/apps/pig/src/pig/templates/app.mako
++++ b/apps/pig/src/pig/templates/app.mako
+@@ -741,7 +741,13 @@ ${ commonshare() | n,unicode }
+ <script src="/static/js/codemirror-pig.js"></script>
+ <script src="/static/js/codemirror-show-hint.js"></script>
+ <script src="/static/js/codemirror-pig-hint.js"></script>
++% if autocomplete_base_url != '':
+ <script src="/beeswax/static/js/autocomplete.utils.js" type="text/javascript" charset="utf-8"></script>
++% else:
++<script type="text/javascript" charset="utf-8">
++  var hac_getTables = function() {};
++</script>
++% endif
+ 
+ <link rel="stylesheet" href="/pig/static/css/pig.css">
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+-- 
+1.7.9.5
+

@@ -1,0 +1,228 @@
+From 262c205ca169fe55954f042efdfadb12a1c618dd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 3 Dec 2014 21:51:30 +0100
+Subject: [PATCH 0544/1173] [spark] Added * to autocomplete, basic restyle of
+ the results area
+
+---
+ apps/spark/src/spark/templates/editor.mako |  103 ++++++----------------------
+ apps/spark/static/css/spark.css            |    4 ++
+ apps/spark/static/js/spark.vm.js           |   20 ++++++
+ 3 files changed, 45 insertions(+), 82 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 0367ef5..35ae0e6 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -137,9 +137,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <select data-bind="options: availableSnippets, value: selectedSnippet">
+         </select>
+       </div>
+-      <div id='chart'>
+-        <svg style='height:300px'> </svg>
+-      </div>
+     </div>
+   </div>
+ 
+@@ -206,16 +203,16 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+           <a href="javascript:void(0)" data-bind="click: execute, visible: status() != 'running'" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+           <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
+-          <a href="javascript:void(0)" data-bind="click: function() { $data.showLogs(! $data.showLogs()); }" class="btn">${ _('Logs') }</a>         
+         </div>
+       </div>
+ 
+-
+-      <div data-bind="visible: showLogs, css: resultsKlass">
+-        <span data-bind="text: result.logs"></span>
++      <div style="padding-top: 10px;">
++        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showGrid(! $data.showGrid()); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }"><i class="fa fa-th"></i></a>
++        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showChart(! $data.showChart()); }, css: {'active': $data.showChart}" href="javascript:void(0)" class="btn" title="${ _('Chart') }"><i class="fa fa-line-chart"></i></a>
++        <a data-bind="visible: status() != 'ready', click: function() { $data.showLogs(! $data.showLogs()); }, css: {'active': $data.showLogs}" href="javascript:void(0)" class="btn" title="${ _('Logs') }"><i class="fa fa-file-text-o"></i></a>
+       </div>
+ 
+-      <div class="row-fluid" data-bind="visible: result.meta().length > 0">
++      <div class="row-fluid" data-bind="visible: result.meta().length > 0 && showGrid()">
+         <div class="span2">
+           <ul class="nav nav-list" style="border: none; background-color: #FFF">
+             <li class="nav-header">${_('columns')}</li>
+@@ -243,6 +240,15 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </div>
+         </div>
+       </div>
++
++      <div data-bind="visible: showChart">
++        The chart is gonna be here
++      </div>
++
++      <div data-bind="visible: showLogs, css: resultsKlass">
++        Here are the logs. <br/>
++        <span data-bind="text: result.logs"></span>
++      </div>
+     </div>
+   </div>
+ </script>
+@@ -469,7 +475,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               else {
+                 assist.options.onDataReceived = function (data) {
+                   if (data.columns) {
+-                    CodeMirror.catalogFields = data.columns.join(" ");
++                    CodeMirror.catalogFields = "* " + data.columns.join(" ");
+                     CodeMirror.showHint(cm, autocompleteSet);
+                   }
+                 }
+@@ -511,7 +517,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                 for (var col in _cols) {
+                   _cols[col] = "." + _cols[col];
+                 }
+-                CodeMirror.catalogFields = _cols.join(" ");
++                CodeMirror.catalogFields = "* " + _cols.join(" ");
+                 CodeMirror.fromDot = true;
+                 CodeMirror.showHint(cm, autocompleteSet);
+               }
+@@ -550,7 +556,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                       for (var col in _cols) {
+                         _cols[col] = "." + _cols[col];
+                       }
+-                      CodeMirror.catalogFields = _cols.join(" ");
++                      CodeMirror.catalogFields = "* " + _cols.join(" ");
+                       CodeMirror.showHint(cm, autocompleteSet);
+                     }
+                   }
+@@ -756,77 +762,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     $(".assist-main").height($(window).height() - 230);
+   }
+ 
+-  $(document).ready(function(){
+-    resizeAssist();
+-
+-
+-    /*These lines are all chart setup.  Pick and choose which chart features you want to utilize. */
+-nv.addGraph(function() {
+-  var chart = nv.models.lineChart()
+-                .margin({left: 100})  //Adjust chart margins to give the x-axis some breathing room.
+-                .useInteractiveGuideline(true)  //We want nice looking tooltips and a guideline!
+-                .transitionDuration(350)  //how fast do you want the lines to transition?
+-                .showLegend(true)       //Show the legend, allowing users to turn on/off line series.
+-                .showYAxis(true)        //Show the y-axis
+-                .showXAxis(true)        //Show the x-axis
+-  ;
+-
+-  chart.xAxis     //Chart x-axis settings
+-      .axisLabel('Time (ms)')
+-      .tickFormat(d3.format(',r'));
+-
+-  chart.yAxis     //Chart y-axis settings
+-      .axisLabel('Voltage (v)')
+-      .tickFormat(d3.format('.02f'));
+-
+-  /* Done setting the chart up? Time to render it!*/
+-  var myData = sinAndCos();   //You need data...
+-
+-  d3.select('#chart svg')    //Select the <svg> element you want to render the chart in.
+-      .datum(myData)         //Populate the <svg> element with chart data...
+-      .call(chart);          //Finally, render the chart!
+-
+-  //Update the chart when window resizes.
+-  nv.utils.windowResize(function() { chart.update() });
+-  return chart;
+-});
+-/**************************************
+- * Simple test data generator
+- */
+-function sinAndCos() {
+-  var sin = [],sin2 = [],
+-      cos = [];
+-
+-  //Data is represented as an array of {x,y} pairs.
+-  for (var i = 0; i < 100; i++) {
+-    sin.push({x: i, y: Math.sin(i/10)});
+-    sin2.push({x: i, y: Math.sin(i/10) *0.25 + 0.5});
+-    cos.push({x: i, y: .5 * Math.cos(i/10)});
+-  }
+-
+-  //Line chart data should be sent as an array of series objects.
+-  return [
+-    {
+-      values: sin,      //values - represents the array of {x,y} data points
+-      key: 'Sine Wave', //key  - the name of the series.
+-      color: '#ff7f0e'  //color - optional: choose your own line color.
+-    },
+-    {
+-      values: cos,
+-      key: 'Cosine Wave',
+-      color: '#2ca02c'
+-    },
+-    {
+-      values: sin2,
+-      key: 'Another sine wave',
+-      color: '#7777ff',
+-      area: true      //area - set to true if you want this line to turn into a filled area chart.
+-    }
+-  ];
+-}
+-
+-  });
+-
+   var _datatableCreationTimeout = -1;
+   function waitForDatatable(el) {
+     if ($(el).is("tr") && $(el).parents("table").length > 0){
+@@ -903,6 +838,10 @@ function sinAndCos() {
+     }
+   }
+ 
++  $(document).ready(function(){
++    resizeAssist();
++  });
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 3927b47..7db3359 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -122,3 +122,7 @@
+ .assist-main {
+   overflow-y: scroll;
+ }
++
++.editable-empty, .editable-empty:hover {
++  color: #DDD!important;
++}
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 5089652..0d5ca3e 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -111,7 +111,27 @@ var Snippet = function (notebook, snippet) {
+ 	return statement;
+   });
+   self.result = new Result(snippet, snippet.result);
++  self.showGrid = ko.observable(typeof snippet.showGrid != "undefined" && snippet.showGrid != null ? snippet.showGrid : true);
++  self.showChart = ko.observable(typeof snippet.showChart != "undefined" && snippet.showChart != null ? snippet.showChart : false);
+   self.showLogs = ko.observable(typeof snippet.showLogs != "undefined" && snippet.showLogs != null ? snippet.showLogs : false);
++  self.showGrid.subscribe(function (val){
++    if (val){
++      self.showChart(false);
++      self.showLogs(false);
++    }
++  });
++  self.showChart.subscribe(function (val){
++    if (val){
++      self.showGrid(false);
++      self.showLogs(false);
++    }
++  });
++  self.showLogs.subscribe(function (val){
++    if (val){
++      self.showGrid(false);
++      self.showChart(false);
++    }
++  });
+ 
+   self.size = ko.observable(typeof snippet.size != "undefined" && snippet.size != null ? snippet.size : 12).extend({ numeric: 0 });
+   self.offset = ko.observable(typeof snippet.offset != "undefined" && snippet.offset != null ? snippet.offset : 0).extend({ numeric: 0 });
+-- 
+1.7.9.5
+

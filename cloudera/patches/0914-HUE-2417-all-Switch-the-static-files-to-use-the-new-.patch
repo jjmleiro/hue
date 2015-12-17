@@ -1,0 +1,833 @@
+From a9bcad3b65f807513eab1999e382cbf119fc970b Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 13:29:11 -0800
+Subject: [PATCH 0914/1173] HUE-2417 [all] Switch the static files to use the
+ new /static prefix
+
+---
+ apps/about/src/about/static/about/help/index.html  |    4 +-
+ .../src/beeswax/static/beeswax/help/index.html     |   16 ++---
+ .../filebrowser/static/filebrowser/help/index.html |   14 ++---
+ apps/hbase/src/hbase/static/hbase/css/hbase.css    |    2 +-
+ .../src/impala/static/impala/help/index.html       |   10 ++--
+ .../jobbrowser/static/jobbrowser/help/index.html   |    6 +-
+ .../src/jobsub/static/jobsub/help/index.html       |   16 ++---
+ .../jobsub/static/jobsub/js/jobsub.templates.js    |   62 ++++++++++----------
+ .../src/metastore/static/metastore/help/index.html |    2 +-
+ apps/oozie/src/oozie/static/oozie/help/index.html  |   32 +++++-----
+ apps/pig/src/pig/static/pig/help/index.html        |    8 +--
+ .../src/search/static/search/help/index.html       |    2 +-
+ apps/sqoop/src/sqoop/static/sqoop/help/index.html  |    4 +-
+ .../src/useradmin/static/useradmin/help/index.html |    4 +-
+ .../static/desktop/css/common_dashboard.css        |    6 +-
+ .../static/desktop/ext/css/fileuploader.css        |    4 +-
+ .../src/desktop/static/desktop/help/index.html     |   10 ++--
+ .../static/desktop/js/jquery.filechooser.js        |    2 +-
+ .../src/indexer/static/indexer/help/index.html     |    2 +-
+ .../src/libopenid/templates/openid-login.html      |   18 +++---
+ docs/sdk/sdk.md                                    |    6 +-
+ 21 files changed, 115 insertions(+), 115 deletions(-)
+
+diff --git a/apps/about/src/about/static/about/help/index.html b/apps/about/src/about/static/about/help/index.html
+index 34327fc..8a7cb51 100644
+--- a/apps/about/src/about/static/about/help/index.html
++++ b/apps/about/src/about/static/about/help/index.html
+@@ -22,7 +22,7 @@
+ 
+     <div class="section" id="topic_3__section_nph_qgn_1k"><a name="topic_3__section_nph_qgn_1k"><!-- --></a><h2 class="title sectiontitle">Starting About Hue</h2>
+ 
+-      <p class="p"> To start the About Hue application, click <a name="topic_3__image_vms_qgn_1k"><!-- --></a><img class="image" id="topic_3__image_vms_qgn_1k" src="/static/art/hue-logo-mini.png"/> in the navigation bar at the top of the Hue browser page. It opens
++      <p class="p"> To start the About Hue application, click <a name="topic_3__image_vms_qgn_1k"><!-- --></a><img class="image" id="topic_3__image_vms_qgn_1k" src="/static/desktop/art/hue-logo-mini.png"/> in the navigation bar at the top of the Hue browser page. It opens
+         to the Quick Start Wizard screen. </p>
+ 
+     </div>
+@@ -82,4 +82,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/beeswax/src/beeswax/static/beeswax/help/index.html b/apps/beeswax/src/beeswax/static/beeswax/help/index.html
+index 7b63d18..f542fd3 100644
+--- a/apps/beeswax/src/beeswax/static/beeswax/help/index.html
++++ b/apps/beeswax/src/beeswax/static/beeswax/help/index.html
+@@ -193,11 +193,11 @@
+       Tables</h2>
+ 
+     <div class="body conbody">
+-      <div class="note note" id="topic_4_2_1__note_sb1_dlk_2k"><a name="topic_4_2_1__note_sb1_dlk_2k"><!-- --></a><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++      <div class="note note" id="topic_4_2_1__note_sb1_dlk_2k"><a name="topic_4_2_1__note_sb1_dlk_2k"><!-- --></a><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> You must be a superuser to perform this task.</div>
+ 
+       <a name="topic_4_2_1__ol_kss_btp_wj"><!-- --></a><ol class="ol" id="topic_4_2_1__ol_kss_btp_wj">
+-        <li class="li" id="topic_4_2_1__li_src_z3t_yj"><a name="topic_4_2_1__li_src_z3t_yj"><!-- --></a>Click <a name="topic_4_2_1__image_vv5_hnv_wj"><!-- --></a><img class="image" id="topic_4_2_1__image_vv5_hnv_wj" src="/static/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
++        <li class="li" id="topic_4_2_1__li_src_z3t_yj"><a name="topic_4_2_1__li_src_z3t_yj"><!-- --></a>Click <a name="topic_4_2_1__image_vv5_hnv_wj"><!-- --></a><img class="image" id="topic_4_2_1__image_vv5_hnv_wj" src="/static/desktop/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
+ 
+         <li class="li" id="topic_4_2_1__li_zgj_z3t_yj"><a name="topic_4_2_1__li_zgj_z3t_yj"><!-- --></a>Click <strong class="ph b">Step 2:
+             Examples</strong>.</li>
+@@ -292,7 +292,7 @@
+       <h3 class="title topictitle3">Running Queries </h3>
+ 
+       <div class="body conbody">
+-        <div class="note note" id="concept_xsr_yx1_zj__note_vbn_4xk_xj"><a name="concept_xsr_yx1_zj__note_vbn_4xk_xj"><!-- --></a><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note" id="concept_xsr_yx1_zj__note_vbn_4xk_xj"><a name="concept_xsr_yx1_zj__note_vbn_4xk_xj"><!-- --></a><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> To run a query, you must be logged in to
+           Hue as a user that also has a Unix user account on the remote server. </div>
+ 
+@@ -319,7 +319,7 @@
+ 
+         </ol>
+ 
+-        <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> Under <strong class="ph b">MR JOBS</strong>, you can view any MapReduce jobs that
+           the query generated.</div>
+ 
+@@ -331,7 +331,7 @@
+       <h3 class="title topictitle3">Downloading and Saving Query Results</h3>
+ 
+       <div class="body conbody">
+-        <div class="note important"><span class="importanttitle"><img src="/static/art/help/important.jpg"/> 
++        <div class="note important"><span class="importanttitle"><img src="/static/desktop/art/help/important.jpg"/> 
+       <b>Important</b>:</span>
+           <a name="concept_axp_mgb_zj__ul_p4w_yx1_zj"><!-- --></a><ul class="ul" id="concept_axp_mgb_zj__ul_p4w_yx1_zj">
+             <li class="li">You can only save results to a file when the results were
+@@ -490,13 +490,13 @@
+ </li>
+ 
+                       <li class="li">For <strong class="ph b">Path</strong>, enter the
+-                        path to the file or click <a name="topic_4_3_2__image_sdp_cgc_zj"><!-- --></a><img class="image" id="topic_4_3_2__image_sdp_cgc_zj" src="/static/art/help/browse.png"/> to browse and select the file.  </li>
++                        path to the file or click <a name="topic_4_3_2__image_sdp_cgc_zj"><!-- --></a><img class="image" id="topic_4_3_2__image_sdp_cgc_zj" src="/static/desktop/art/help/browse.png"/> to browse and select the file.  </li>
+ 
+                     </ol>
+ </div>
+ 
+ 
+-                  <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++                  <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> It is not necessary to specify files used in a
+ 										transform script if the files are available in the same path
+ 										on all machines in the Hadoop cluster.</div>
+@@ -764,4 +764,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/filebrowser/src/filebrowser/static/filebrowser/help/index.html b/apps/filebrowser/src/filebrowser/static/filebrowser/help/index.html
+index c82b749..b846496 100644
+--- a/apps/filebrowser/src/filebrowser/static/filebrowser/help/index.html
++++ b/apps/filebrowser/src/filebrowser/static/filebrowser/help/index.html
+@@ -154,7 +154,7 @@
+ 						window.</li>
+ 
+ 
+-          <li class="li">Click the <img class="image" src="/static/art/help/edit.png"/> icon, type a directory name, and press <strong class="ph b">Enter</strong>.</li>
++          <li class="li">Click the <img class="image" src="/static/desktop/art/help/edit.png"/> icon, type a directory name, and press <strong class="ph b">Enter</strong>.</li>
+ 
+ 
+         </ul>
+@@ -166,7 +166,7 @@
+         </p>
+ 
+ 
+-        <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> 
+           <p class="p">
+             The <strong class="ph b">Home</strong> button is disabled if you do not have a home directory. Ask a Hue administrator to create a
+@@ -250,7 +250,7 @@
+           <li class="li">In the <strong class="ph b">File Browser</strong> window,
+             check the checkbox next to the file you want to copy.</li>
+ 
+-          <li class="li">Click the <a name="concept_gft_ln5_yj__image_nz4_tn5_yj"><!-- --></a><img class="image" id="concept_gft_ln5_yj__image_nz4_tn5_yj" src="/static/art/help/copy.png"/> Copy button.</li>
++          <li class="li">Click the <a name="concept_gft_ln5_yj__image_nz4_tn5_yj"><!-- --></a><img class="image" id="concept_gft_ln5_yj__image_nz4_tn5_yj" src="/static/desktop/art/help/copy.png"/> Copy button.</li>
+ 
+         </ol>
+ 
+@@ -360,7 +360,7 @@
+                 <td class="entry" valign="top" width="75%" headers="d8839e349 ">
+                   <div class="p">
+                     <a name="concept_ejf_h3r_2k__ol_idh_ypg_dk"><!-- --></a><ol class="ol" id="concept_ejf_h3r_2k__ol_idh_ypg_dk">
+-                      <li class="li">In the <strong class="ph b">File Browser</strong> window, click <a name="concept_ejf_h3r_2k__image_wxl_l3r_2k"><!-- --></a><img class="image" id="concept_ejf_h3r_2k__image_wxl_l3r_2k" src="/static/art/help/fbtrash.png"/>.</li>
++                      <li class="li">In the <strong class="ph b">File Browser</strong> window, click <a name="concept_ejf_h3r_2k__image_wxl_l3r_2k"><!-- --></a><img class="image" id="concept_ejf_h3r_2k__image_wxl_l3r_2k" src="/static/desktop/art/help/fbtrash.png"/>.</li>
+ 
+                     </ol>
+ 
+@@ -404,7 +404,7 @@
+ 
+                 <td class="entry" valign="top" width="75%" headers="d8839e349 ">
+                   <a name="concept_ejf_h3r_2k__ol_fgd_s3r_2k"><!-- --></a><ol class="ol" id="concept_ejf_h3r_2k__ol_fgd_s3r_2k">
+-                    <li class="li">In the <strong class="ph b">File Browser</strong> window, click <a name="concept_ejf_h3r_2k__image_lgd_s3r_2k"><!-- --></a><img class="image" id="concept_ejf_h3r_2k__image_lgd_s3r_2k" src="/static/art/help/fbtrash.png"/>.</li>
++                    <li class="li">In the <strong class="ph b">File Browser</strong> window, click <a name="concept_ejf_h3r_2k__image_lgd_s3r_2k"><!-- --></a><img class="image" id="concept_ejf_h3r_2k__image_lgd_s3r_2k" src="/static/desktop/art/help/fbtrash.png"/>.</li>
+ 
+                     <li class="li">Click <span class="ph uicontrol">Empty</span>.</li>
+ 
+@@ -571,7 +571,7 @@
+ 
+       <div class="body conbody">
+ 
+-        <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> 
+           <p class="p">
+             Only the Hadoop superuser can change a file's or directory's owner, group, or permissions. The user who
+@@ -795,4 +795,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/hbase/src/hbase/static/hbase/css/hbase.css b/apps/hbase/src/hbase/static/hbase/css/hbase.css
+index 3b2f6d2..14bb86a 100644
+--- a/apps/hbase/src/hbase/static/hbase/css/hbase.css
++++ b/apps/hbase/src/hbase/static/hbase/css/hbase.css
+@@ -34,7 +34,7 @@ ul#hbase-breadcrumbs li a {
+ 
+ .isLoading {
+   opacity: .5 !important;
+-  background: url(/static/art/spinner.gif) center center no-repeat;
++  background: url(/static/desktop/art/spinner.gif) center center no-repeat;
+ }
+ 
+ .smartview {
+diff --git a/apps/impala/src/impala/static/impala/help/index.html b/apps/impala/src/impala/static/impala/help/index.html
+index cfb79fd..fd551e6 100644
+--- a/apps/impala/src/impala/static/impala/help/index.html
++++ b/apps/impala/src/impala/static/impala/help/index.html
+@@ -87,7 +87,7 @@ LIMIT 10
+     <div class="body conbody">
+ 
+       <p class="p">Click the <strong class="ph b">Impala Query UI</strong>
+-        icon (<img class="image" src="/impala/static/art/icon_impala_24.png"/>) in the navigation bar at the top of the Hue browser page. </p>
++        icon (<img class="image" src="/static/impala/art/icon_impala_24.png"/>) in the navigation bar at the top of the Hue browser page. </p>
+ 
+ 
+     </div>
+@@ -119,11 +119,11 @@ LIMIT 10
+       Tables</h2>
+ 
+     <div class="body conbody">
+-      <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++      <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> You must be a superuser to perform this task.</div>
+ 
+       <a name="topic_4_2_1__ol_kss_btp_wj"><!-- --></a><ol class="ol" id="topic_4_2_1__ol_kss_btp_wj">
+-        <li class="li">Click <a name="topic_4_2_1__d104e102"><!-- --></a><img class="image" id="topic_4_2_1__d104e102" src="/static/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
++        <li class="li">Click <a name="topic_4_2_1__d104e102"><!-- --></a><img class="image" id="topic_4_2_1__d104e102" src="/static/desktop/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
+ <li class="li">Click <strong class="ph b">Step 2:
+             Examples</strong>.</li>
+ 
+@@ -219,7 +219,7 @@ LIMIT 10
+       <h3 class="title topictitle3">Running Queries</h3>
+ 
+       <div class="body conbody">
+-        <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> To run a query, you must be logged in to
+           Hue as a user that also has a Unix user account on the remote server. </div>
+ 
+@@ -560,4 +560,4 @@ LIMIT 10
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/jobbrowser/src/jobbrowser/static/jobbrowser/help/index.html b/apps/jobbrowser/src/jobbrowser/static/jobbrowser/help/index.html
+index 1b5a3e6..26a97f2 100644
+--- a/apps/jobbrowser/src/jobbrowser/static/jobbrowser/help/index.html
++++ b/apps/jobbrowser/src/jobbrowser/static/jobbrowser/help/index.html
+@@ -172,9 +172,9 @@
+ 
+ 
+     <div class="body conbody">
+-      <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++      <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span>  At any level you can view the log for an object by clicking the
+-          <a name="topic_7_4__image_ym1_fy5_wj"><!-- --></a><img class="image" id="topic_7_4__image_ym1_fy5_wj" src="/static/art/help/log.png"/> icon in the Logs column. </div>
++          <a name="topic_7_4__image_ym1_fy5_wj"><!-- --></a><img class="image" id="topic_7_4__image_ym1_fy5_wj" src="/static/desktop/art/help/log.png"/> icon in the Logs column. </div>
+ 
+ 
+       <p class="p">
+@@ -299,4 +299,4 @@ This takes you to the job output directory in the <strong class="ph b">File Brow
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/jobsub/src/jobsub/static/jobsub/help/index.html b/apps/jobsub/src/jobsub/static/jobsub/help/index.html
+index a3e7280..117a1a4 100644
+--- a/apps/jobsub/src/jobsub/static/jobsub/help/index.html
++++ b/apps/jobsub/src/jobsub/static/jobsub/help/index.html
+@@ -53,7 +53,7 @@
+ 
+ 		<div class="body conbody">
+ 
+-			<p class="p">Click the <strong class="ph b">Job Designer</strong> icon (<img class="image" src="/jobsub/static/art/icon_jobsub_24.png"/>) in the navigation bar at the top of the Hue web page.
++			<p class="p">Click the <strong class="ph b">Job Designer</strong> icon (<img class="image" src="/static/jobsub/art/icon_jobsub_24.png"/>) in the navigation bar at the top of the Hue web page.
+ 				The <strong class="ph b">Job Designs</strong> page opens in the browser. </p>
+ 
+ 
+@@ -69,11 +69,11 @@
+ 
+ 
+ 		<div class="body conbody">
+-			<div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++			<div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> You must be a superuser to perform this task.</div>
+ 
+ 			<a name="topic_8_3__ol_ebx_xng_dk"><!-- --></a><ol class="ol" id="topic_8_3__ol_ebx_xng_dk">
+-				<li class="li">Click <a name="topic_8_3__d104e102"><!-- --></a><img class="image" id="topic_8_3__d104e102" src="/static/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
++				<li class="li">Click <a name="topic_8_3__d104e102"><!-- --></a><img class="image" id="topic_8_3__d104e102" src="/static/desktop/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
+ <li class="li">Click <strong class="ph b">Step 2:
+             Examples</strong>.</li>
+ 
+@@ -188,7 +188,7 @@
+ 				<div class="section" id="concept_rfg_wfr_2k__section_i5h_1gr_2k"><a name="concept_rfg_wfr_2k__section_i5h_1gr_2k"><!-- --></a><h4 class="title sectiontitle">Restoring Job Designs</h4>
+ 					
+ 					<a name="concept_rfg_wfr_2k__ol_rrt_kgr_2k"><!-- --></a><ol class="ol" id="concept_rfg_wfr_2k__ol_rrt_kgr_2k">
+-						<li class="li">In a Manager screen, click <a name="concept_rfg_wfr_2k__d238e349"><!-- --></a><img class="image" id="concept_rfg_wfr_2k__d238e349" src="/static/art/help/trash.png"/>
++						<li class="li">In a Manager screen, click <a name="concept_rfg_wfr_2k__d238e349"><!-- --></a><img class="image" id="concept_rfg_wfr_2k__d238e349" src="/static/desktop/art/help/trash.png"/>
+             <strong class="ph b">Trash</strong>.</li>
+ 
+ 						<li class="li">Check the checkbox next to one or more job designs.</li>
+@@ -928,7 +928,7 @@
+ 
+ 
+ 			<div class="body conbody">
+-				<div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++				<div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> 
+ 					<p class="p">A job's input files must be uploaded to the cluster before you can submit the
+ 						job.</p>
+@@ -1139,7 +1139,7 @@
+ 				<li class="li">Actions - a list of actions in the job.</li>
+ 
+ 
+-				<li class="li">Click <img class="image" src="/static/art/help/gear.png"/> to display the action configuration. In the action configuration for a
++				<li class="li">Click <img class="image" src="/static/desktop/art/help/gear.png"/> to display the action configuration. In the action configuration for a
+ 					MapReduce action, click the value of the <samp class="ph codeph">mapred.output.dir</samp> property to display
+ 					the job output.</li>
+ 
+@@ -1148,7 +1148,7 @@
+ 					the Job Browser.</li>
+ 
+ 
+-				<li class="li">Details - the job details. Click <img class="image" src="/static/art/help/gear.png"/> to display the Oozie application configuration.</li>
++				<li class="li">Details - the job details. Click <img class="image" src="/static/desktop/art/help/gear.png"/> to display the Oozie application configuration.</li>
+ 
+ 
+ 				<li class="li">Definition - the Oozie application definition.</li>
+@@ -1168,4 +1168,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/jobsub/src/jobsub/static/jobsub/js/jobsub.templates.js b/apps/jobsub/src/jobsub/static/jobsub/js/jobsub.templates.js
+index 2be7079..2c4713a 100644
+--- a/apps/jobsub/src/jobsub/static/jobsub/js/jobsub.templates.js
++++ b/apps/jobsub/src/jobsub/static/jobsub/js/jobsub.templates.js
+@@ -24,39 +24,39 @@ var Templates = (function($, ko) {
+ 
+     var options = $.extend({
+       actions: {
+-        mapreduce: 'static/templates/actions/mapreduce.html',
+-        java: 'static/templates/actions/java.html',
+-        streaming: 'static/templates/actions/streaming.html',
+-        hive: 'static/templates/actions/hive.html',
+-        pig: 'static/templates/actions/pig.html',
+-        sqoop: 'static/templates/actions/sqoop.html',
+-        fs: 'static/templates/actions/fs.html',
+-        ssh: 'static/templates/actions/ssh.html',
+-        shell: 'static/templates/actions/shell.html',
+-        email: 'static/templates/actions/email.html',
+-        distcp: 'static/templates/actions/distcp.html'
++        mapreduce: '/static/jobsub/templates/actions/mapreduce.html',
++        java: '/static/jobsub/templates/actions/java.html',
++        streaming: '/static/jobsub/templates/actions/streaming.html',
++        hive: '/static/jobsub/templates/actions/hive.html',
++        pig: '/static/jobsub/templates/actions/pig.html',
++        sqoop: '/static/jobsub/templates/actions/sqoop.html',
++        fs: '/static/jobsub/templates/actions/fs.html',
++        ssh: '/static/jobsub/templates/actions/ssh.html',
++        shell: '/static/jobsub/templates/actions/shell.html',
++        email: '/static/jobsub/templates/actions/email.html',
++        distcp: '/static/jobsub/templates/actions/distcp.html'
+       },
+       partials: {
+-        name: 'static/templates/widgets/text.html',
+-        description: 'static/templates/widgets/text.html',
+-        is_shared: 'static/templates/widgets/checkbox.html',
++        name: '/static/jobsub/templates/widgets/text.html',
++        description: '/static/jobsub/templates/widgets/text.html',
++        is_shared: '/static/jobsub/templates/widgets/checkbox.html',
+         // Oozie parameters
+-        parameters: 'static/templates/widgets/parameters.html',
+-        archives: 'static/templates/widgets/filechooser.html',
+-        files: 'static/templates/widgets/filechooser.html',
+-        mkdirs: 'static/templates/widgets/folderchooser.html',
+-        deletes: 'static/templates/widgets/pathchooser.html',
+-        touchzs: 'static/templates/widgets/filechooser.html',
+-        chmods: 'static/templates/widgets/chmods.html',
+-        moves: 'static/templates/widgets/moves.html',
+-        job_properties: 'static/templates/widgets/properties.html',
+-        prepares: 'static/templates/widgets/prepares.html',
+-        arguments: 'static/templates/widgets/params.html',
+-        args: 'static/templates/widgets/params.html',
+-        params: 'static/templates/widgets/params.html',
+-        arguments_envvars: 'static/templates/widgets/params.html',
+-        params_arguments: 'static/templates/widgets/params.html',
+-        capture_output: 'static/templates/widgets/checkbox.html'
++        parameters: '/static/jobsub/templates/widgets/parameters.html',
++        archives: '/static/jobsub/templates/widgets/filechooser.html',
++        files: '/static/jobsub/templates/widgets/filechooser.html',
++        mkdirs: '/static/jobsub/templates/widgets/folderchooser.html',
++        deletes: '/static/jobsub/templates/widgets/pathchooser.html',
++        touchzs: '/static/jobsub/templates/widgets/filechooser.html',
++        chmods: '/static/jobsub/templates/widgets/chmods.html',
++        moves: '/static/jobsub/templates/widgets/moves.html',
++        job_properties: '/static/jobsub/templates/widgets/properties.html',
++        prepares: '/static/jobsub/templates/widgets/prepares.html',
++        arguments: '/static/jobsub/templates/widgets/params.html',
++        args: '/static/jobsub/templates/widgets/params.html',
++        params: '/static/jobsub/templates/widgets/params.html',
++        arguments_envvars: '/static/jobsub/templates/widgets/params.html',
++        params_arguments: '/static/jobsub/templates/widgets/params.html',
++        capture_output: '/static/jobsub/templates/widgets/checkbox.html'
+       }
+     }, options);
+ 
+@@ -120,4 +120,4 @@ var Templates = (function($, ko) {
+ 
+   return module;
+ })($, ko);
+-var templates = new Templates();
+\ No newline at end of file
++var templates = new Templates();
+diff --git a/apps/metastore/src/metastore/static/metastore/help/index.html b/apps/metastore/src/metastore/static/metastore/help/index.html
+index 77cac10..63e9c80 100644
+--- a/apps/metastore/src/metastore/static/metastore/help/index.html
++++ b/apps/metastore/src/metastore/static/metastore/help/index.html
+@@ -62,7 +62,7 @@ div.rbtoc1359395567394 li {margin-left: 0;padding-left: 0;}
+ 
+ <h1><a name="Metastore-StartingMetastore"></a>Starting Table Browser</h1>
+ 
+-<p>To start the Table Browser application, click the <b>Table Browser</b> icon (<span class="image-wrap" style=""><img src="/metastore/static/art/icon_metastore_24.png" width="30" style="border: 0 solid black"/></span>) in the navigation bar at the top of the Hue browser page.</p>
++<p>To start the Table Browser application, click the <b>Table Browser</b> icon (<span class="image-wrap" style=""><img src="/static/metastore/art/icon_metastore_24.png" width="30" style="border: 0 solid black"/></span>) in the navigation bar at the top of the Hue browser page.</p>
+ 
+ <h3><a name="Metastore-InstallingtheSampleTables"></a>Installing the Sample Tables</h3>
+ 
+diff --git a/apps/oozie/src/oozie/static/oozie/help/index.html b/apps/oozie/src/oozie/static/oozie/help/index.html
+index 37ca48f..d4f4837 100644
+--- a/apps/oozie/src/oozie/static/oozie/help/index.html
++++ b/apps/oozie/src/oozie/static/oozie/help/index.html
+@@ -76,8 +76,8 @@
+     <div class="body conbody">
+ 
+       <p class="p">Click the <strong class="ph b">Oozie Editor</strong> icon
+-          (<img class="image" src="/oozie/static/art/icon_oozie_editor_24.png"/>) <strong class="ph b">Oozie Dashboard</strong> icon
+-          (<img class="image" src="/oozie/static/art/icon_oozie_dashboard_24.png"/>) in the navigation bar at the top of the Hue browser page. <strong class="ph b">Oozie Editor/Dashboard</strong> opens with the following screens: </p>
++          (<img class="image" src="/static/oozie/art/icon_oozie_editor_24.png"/>) <strong class="ph b">Oozie Dashboard</strong> icon
++          (<img class="image" src="/static/oozie/art/icon_oozie_dashboard_24.png"/>) in the navigation bar at the top of the Hue browser page. <strong class="ph b">Oozie Editor/Dashboard</strong> opens with the following screens: </p>
+ 
+ 
+       <ul class="ul">
+@@ -110,12 +110,12 @@
+ 
+ 
+     <div class="body conbody">
+-      <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++      <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> You must be a superuser to perform this task.</div>
+ 
+ 
+       <a name="topic_9_3__ol_ugf_hjt_yj"><!-- --></a><ol class="ol" id="topic_9_3__ol_ugf_hjt_yj">
+-        <li class="li">Click <a name="topic_9_3__d104e102"><!-- --></a><img class="image" id="topic_9_3__d104e102" src="/static/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
++        <li class="li">Click <a name="topic_9_3__d104e102"><!-- --></a><img class="image" id="topic_9_3__d104e102" src="/static/desktop/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
+ <li class="li">Click <strong class="ph b">Step 2:
+             Examples</strong>.</li>
+ 
+@@ -287,7 +287,7 @@
+       <div class="section" id="concept_ms2_rzj_2k__section_ecf_xzj_2k"><a name="concept_ms2_rzj_2k__section_ecf_xzj_2k"><!-- --></a><h3 class="title sectiontitle">Restoring Workflows, Coordinators, and Bundles</h3>
+         
+         <a name="concept_ms2_rzj_2k__ol_ujf_dbk_2k"><!-- --></a><ol class="ol" id="concept_ms2_rzj_2k__ol_ujf_dbk_2k">
+-          <li class="li" id="concept_ms2_rzj_2k__li_msc_mgr_2k"><a name="concept_ms2_rzj_2k__li_msc_mgr_2k"><!-- --></a>In a Manager screen, click <a name="concept_ms2_rzj_2k__image_e35_2bk_2k"><!-- --></a><img class="image" id="concept_ms2_rzj_2k__image_e35_2bk_2k" src="/static/art/help/trash.png"/>
++          <li class="li" id="concept_ms2_rzj_2k__li_msc_mgr_2k"><a name="concept_ms2_rzj_2k__li_msc_mgr_2k"><!-- --></a>In a Manager screen, click <a name="concept_ms2_rzj_2k__image_e35_2bk_2k"><!-- --></a><img class="image" id="concept_ms2_rzj_2k__image_e35_2bk_2k" src="/static/desktop/art/help/trash.png"/>
+             <strong class="ph b">Trash</strong>.</li>
+ 
+           <li class="li">Check the checkbox next to one or more workflows, coordinators or bundles.</li>
+@@ -342,7 +342,7 @@
+ <p class="p">Click a workflow row in the Running or Completed table to view detailed information about that workflow job.
+         </p>
+ 
+-        <p class="p">In the left pane contains a link to the workflow and the variable values specified.<br/><a name="topic_9_6_1__image_xq2_stz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_xq2_stz_2k" src="/static/art/help/workflow.jpg"/><br/>
++        <p class="p">In the left pane contains a link to the workflow and the variable values specified.<br/><a name="topic_9_6_1__image_xq2_stz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_xq2_stz_2k" src="/static/desktop/art/help/workflow.jpg"/><br/>
+         </p>
+ 
+ 
+@@ -393,7 +393,7 @@
+ 
+         <a name="topic_9_6_1__ul_v4y_htz_2k"><!-- --></a><ul class="ul" id="topic_9_6_1__ul_v4y_htz_2k">
+           <li class="li">
+-            <div class="p">Click the <a name="topic_9_6_1__image_u3d_ssz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_u3d_ssz_2k" src="/static/art/help/eye.png"/> icon to view the
++            <div class="p">Click the <a name="topic_9_6_1__image_u3d_ssz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_u3d_ssz_2k" src="/static/desktop/art/help/eye.png"/> icon to view the
+               action screen, which contains:<a name="topic_9_6_1__ul_edm_5sz_2k"><!-- --></a><ul class="ul" id="topic_9_6_1__ul_edm_5sz_2k">
+                 <li class="li"><strong class="ph b">Details</strong> tab shows job statistics including start and end times.</li>
+ 
+@@ -408,7 +408,7 @@
+           </li>
+ 
+           <li class="li">
+-            <p class="p">Click the <a name="topic_9_6_1__image_hwj_ktz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_hwj_ktz_2k" src="/static/art/help/log.png"/> icon to view the log
++            <p class="p">Click the <a name="topic_9_6_1__image_hwj_ktz_2k"><!-- --></a><img class="image" id="topic_9_6_1__image_hwj_ktz_2k" src="/static/desktop/art/help/log.png"/> icon to view the log
+               in the Job Browser. </p>
+ 
+           </li>
+@@ -684,7 +684,7 @@
+ 
+ <p class="p">To view the output of the job, click
+ 
+-          <img class="image" src="/static/art/help/log.png"/>
++          <img class="image" src="/static/desktop/art/help/log.png"/>
+ 
+           <strong class="ph b">View the logs</strong>.
+         </p>
+@@ -816,7 +816,7 @@
+ 
+           <ul class="ul">
+ 
+-            <li class="li">Add actions to the workflow by clicking an action <a name="topic_9_7_7__image_kpj_dnt_4j"><!-- --></a><img class="image" id="topic_9_7_7__image_kpj_dnt_4j" src="/static/art/help/action.png"/> button and drop the action on the workflow. The Edit Node
++            <li class="li">Add actions to the workflow by clicking an action <a name="topic_9_7_7__image_kpj_dnt_4j"><!-- --></a><img class="image" id="topic_9_7_7__image_kpj_dnt_4j" src="/static/desktop/art/help/action.png"/> button and drop the action on the workflow. The Edit Node
+               screen displays. <a name="topic_9_7_7__ol_l3q_dnt_4j"><!-- --></a><ol class="ol" id="topic_9_7_7__ol_l3q_dnt_4j">
+                 <li class="li">Set the action properties and click <strong class="ph b">Done</strong>. Each action in a workflow must have a
+                   unique name.</li>
+@@ -830,7 +830,7 @@
+ 
+           <ul class="ul">
+ 
+-            <li class="li">Copy an action by clicking the <img class="image" src="/static/art/help/copy.png"/>
++            <li class="li">Copy an action by clicking the <img class="image" src="/static/desktop/art/help/copy.png"/>
+               <strong class="ph b">Copy</strong> button.</li>
+ 
+ 
+@@ -848,10 +848,10 @@
+ 
+           <ul class="ul">
+ 
+-            <li class="li">Delete an action by clicking the <img class="image" src="/static/art/help/trash.png"/> button.</li>
++            <li class="li">Delete an action by clicking the <img class="image" src="/static/desktop/art/help/trash.png"/> button.</li>
+ 
+ 
+-            <li class="li">Edit an action by clicking the <img class="image" src="/static/art/help/edit.png"/> button.</li>
++            <li class="li">Edit an action by clicking the <img class="image" src="/static/desktop/art/help/edit.png"/> button.</li>
+ 
+ 
+             <li class="li">Change the position of an action by left-clicking and dragging an action
+@@ -878,12 +878,12 @@
+ 							the fork.</li>
+ 
+ 
+-            <li class="li">Convert a fork to a decision by clicking the <img class="image" src="/static/art/help/convert.png"/>
++            <li class="li">Convert a fork to a decision by clicking the <img class="image" src="/static/desktop/art/help/convert.png"/>
+ 							button.</li>
+ 
+ 
+             <li class="li">To edit a decision: <a name="topic_9_7_7__ol_dcc_fnt_4j"><!-- --></a><ol class="ol" id="topic_9_7_7__ol_dcc_fnt_4j">
+-                <li class="li">Click the <a name="topic_9_7_7__image_lcc_fnt_4j"><!-- --></a><img class="image" id="topic_9_7_7__image_lcc_fnt_4j" src="/static/art/help/edit.png"/> button.</li>
++                <li class="li">Click the <a name="topic_9_7_7__image_lcc_fnt_4j"><!-- --></a><img class="image" id="topic_9_7_7__image_lcc_fnt_4j" src="/static/desktop/art/help/edit.png"/> button.</li>
+ 
+                 <li class="li">Fill in the predicates that determine which action to
+                   perform and select the default action from the drop-down list.</li>
+@@ -1421,4 +1421,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/pig/src/pig/static/pig/help/index.html b/apps/pig/src/pig/static/pig/help/index.html
+index 9acec84..87d6f74 100644
+--- a/apps/pig/src/pig/static/pig/help/index.html
++++ b/apps/pig/src/pig/static/pig/help/index.html
+@@ -53,7 +53,7 @@
+     <h2 class="title topictitle2">Starting Pig Editor</h2>
+ 
+     <div class="body conbody">
+-      <div class="p">Click the <strong class="ph b">Pig Editor</strong> icon (<a name="concept_e2q_xn5_wj__image_fgk_4n5_wj"><!-- --></a><img class="image" id="concept_e2q_xn5_wj__image_fgk_4n5_wj" src="/pig/static/art/icon_pig_24.png"/>) in the navigation bar at the top of the Hue
++      <div class="p">Click the <strong class="ph b">Pig Editor</strong> icon (<a name="concept_e2q_xn5_wj__image_fgk_4n5_wj"><!-- --></a><img class="image" id="concept_e2q_xn5_wj__image_fgk_4n5_wj" src="/static/pig/art/icon_pig_24.png"/>) in the navigation bar at the top of the Hue
+         browser page. The Pig Editor opens with three tabs:<a name="concept_e2q_xn5_wj__ul_itr_clx_2k"><!-- --></a><ul class="ul" id="concept_e2q_xn5_wj__ul_itr_clx_2k">
+           <li class="li">Editor - editor where you can create, edit, run, save, copy, and
+             delete scripts and edit script properties.</li>
+@@ -75,11 +75,11 @@
+     <h2 class="title topictitle2">Installing the Sample Pig Scripts </h2>
+ 
+     <div class="body conbody">
+-      <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++      <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> You must be a superuser to perform this task.</div>
+ 
+       <a name="concept_lng_kjt_yj__ol_zys_pjt_yj"><!-- --></a><ol class="ol" id="concept_lng_kjt_yj__ol_zys_pjt_yj">
+-        <li class="li">Click <a name="concept_lng_kjt_yj__d45e102"><!-- --></a><img class="image" id="concept_lng_kjt_yj__d45e102" src="/static/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
++        <li class="li">Click <a name="concept_lng_kjt_yj__d45e102"><!-- --></a><img class="image" id="concept_lng_kjt_yj__d45e102" src="/static/desktop/art/hue-logo-mini.png"/>. The Quick Start Wizard opens.</li>
+ <li class="li">Click <strong class="ph b">Step 2:
+             Examples</strong>.</li>
+ 
+@@ -154,4 +154,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/search/src/search/static/search/help/index.html b/apps/search/src/search/static/search/help/index.html
+index 21134b4..f6dcf57 100644
+--- a/apps/search/src/search/static/search/help/index.html
++++ b/apps/search/src/search/static/search/help/index.html
+@@ -19,7 +19,7 @@
+ manual.</p>
+ <h2>Starting  Solr Search</h2>
+ <p>Click the <strong> Solr Search</strong> icon
+-(<img alt="image" src="/search/static/art/icon_search_24.png" />) in the navigation bar at the top of
++(<img alt="image" src="/static/search/art/icon_search_24.png" />) in the navigation bar at the top of
+ the Hue browser page. <strong>Solr Search</strong> opens to the  <a href="#collectionManager">Collection Manager</a>. If there are no collections, the <a href="#importCollection">Import Collections and Cores</a> dialog displays.</p>
+ <p><a id="collectionManager"></a></p>
+ <h2>Collection Manager</h2>
+diff --git a/apps/sqoop/src/sqoop/static/sqoop/help/index.html b/apps/sqoop/src/sqoop/static/sqoop/help/index.html
+index b0fec93..3047bbb 100644
+--- a/apps/sqoop/src/sqoop/static/sqoop/help/index.html
++++ b/apps/sqoop/src/sqoop/static/sqoop/help/index.html
+@@ -136,7 +136,7 @@ Hue. For information about installing and configuring Hue, see the Hue Installat
+ manual.</p>
+ <h2>Starting</h2>
+ <p>Click the <strong>Sqoop</strong> icon
+-(<img alt="image" src="/sqoop/static/art/icon_sqoop_24.png" />) in the navigation bar at the top of
++(<img alt="image" src="/static/sqoop/art/icon_sqoop_24.png" />) in the navigation bar at the top of
+ the Hue browser page.</p>
+ <h2>Sqoop Jobs</h2>
+ <p>Sqoop UI is oriented around jobs in Apache Sqoop.</p>
+@@ -208,4 +208,4 @@ of sqoop jobs by name.</p>
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/apps/useradmin/src/useradmin/static/useradmin/help/index.html b/apps/useradmin/src/useradmin/static/useradmin/help/index.html
+index 881190f..75d5323 100644
+--- a/apps/useradmin/src/useradmin/static/useradmin/help/index.html
++++ b/apps/useradmin/src/useradmin/static/useradmin/help/index.html
+@@ -346,7 +346,7 @@
+           Installation</a>. </span></p>
+ 
+ 
+-        <div class="note note"><span class="notetitle"><img src="/static/art/help/note.jpg"/> 
++        <div class="note note"><span class="notetitle"><img src="/static/desktop/art/help/note.jpg"/> 
+       <b>Note</b>:</span> 
+           <p class="p">  Importing users from an LDAP directory does not import any password information. You must add passwords
+             manually in order for a user to log in.
+@@ -762,4 +762,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+index 32627a0..165327e 100644
+--- a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
++++ b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+@@ -260,7 +260,7 @@ body.modal-open {
+ }
+ 
+ .clearable {
+-  background: url(/static/art/clearField.png) no-repeat right -10px center;
++  background: url(/static/desktop/art/clearField.png) no-repeat right -10px center;
+   border: 1px solid #999;
+   padding: 3px 18px 3px 4px;
+   border-radius: 3px;
+@@ -269,7 +269,7 @@ body.modal-open {
+ 
+ @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+   .clearable {
+-    background: url(/static/art/clearField@2x.png) no-repeat right -10px center;
++    background: url(/static/desktop/art/clearField@2x.png) no-repeat right -10px center;
+     background-size: 10px 10px;
+   }
+ }
+@@ -391,4 +391,4 @@ body.modal-open {
+   font-size: 11px;
+   font-weight: bold;
+   margin-bottom: 3px;
+-}
+\ No newline at end of file
++}
+diff --git a/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css b/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css
+index 174d862..7322b63 100755
+--- a/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css
++++ b/desktop/core/src/desktop/static/desktop/ext/css/fileuploader.css
+@@ -110,7 +110,7 @@
+ 
+ .qq-upload-spinner {
+     display: inline-block;
+-    background: url("/static/ext/js/loading.gif");
++    background: url("/static/desktop/ext/js/loading.gif");
+     width: 15px;
+     height: 15px;
+     vertical-align: text-bottom;
+@@ -126,4 +126,4 @@
+ 
+ .qq-upload-fail .qq-upload-failed-text {
+     display: inline;
+-}
+\ No newline at end of file
++}
+diff --git a/desktop/core/src/desktop/static/desktop/help/index.html b/desktop/core/src/desktop/static/desktop/help/index.html
+index 933b363..2bed982 100644
+--- a/desktop/core/src/desktop/static/desktop/help/index.html
++++ b/desktop/core/src/desktop/static/desktop/help/index.html
+@@ -44,7 +44,7 @@
+ 
+ 
+ 			<p class="p">
+-				<br/><img class="image" src="/static/art/help/huearch.jpg"/><br/>
++				<br/><img class="image" src="/static/desktop/art/help/huearch.jpg"/><br/>
+ 			</p>
+ 
+ 
+@@ -62,7 +62,7 @@
+ 		<div class="body conbody">
+ 
+ 			<p class="p"> To open a Hue application, click the appropriate icon in the navigation
+-				bar at the top of the Hue web browser window. <br/><a name="topic_2_2__image_dwb_kqg_rj"><!-- --></a><img class="image" id="topic_2_2__image_dwb_kqg_rj" src="/static/art/help/applications.png"/><br/></p>
++				bar at the top of the Hue web browser window. <br/><a name="topic_2_2__image_dwb_kqg_rj"><!-- --></a><img class="image" id="topic_2_2__image_dwb_kqg_rj" src="/static/desktop/art/help/applications.png"/><br/></p>
+ 
+ 			<p class="p">To open a second application concurrently (or a second instance of the same
+ 				application), right-click the icon and select <strong class="ph b">Open
+@@ -82,7 +82,7 @@
+ 
+ 		<div class="body conbody">
+ 
+-			<p class="p"> To display the help text for a Hue application, click the <strong class="ph b">Help</strong> ( <img class="image" src="/static/art/help/icon_help_24.png"/> ) tab in the Hue navigation bar,
++			<p class="p"> To display the help text for a Hue application, click the <strong class="ph b">Help</strong> ( <img class="image" src="/static/desktop/art/help/icon_help_24.png"/> ) tab in the Hue navigation bar,
+ 				then click the appropriate link in the Help navigation bar at the top of the Help
+ 				window. </p>
+ 
+@@ -117,7 +117,7 @@
+ 
+ 		<div class="body conbody">
+ 
+-			<p class="p"> If Hue detects a misconfiguration, an indicator <img class="image" src="/static/art/help/misconfiguration.png"/> appears in the navigation bar at the top of the page.
++			<p class="p"> If Hue detects a misconfiguration, an indicator <img class="image" src="/static/desktop/art/help/misconfiguration.png"/> appears in the navigation bar at the top of the page.
+ 				Clicking this indicator takes you to the Check Configuration screen which will indicate the
+ 				potential misconfiguration(s) with hints about fixing them. </p>
+ 
+@@ -172,4 +172,4 @@
+ 
+ 
+ </body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/desktop/core/src/desktop/static/desktop/js/jquery.filechooser.js b/desktop/core/src/desktop/static/desktop/js/jquery.filechooser.js
+index 14c8b3c..f6b0bd3 100644
+--- a/desktop/core/src/desktop/static/desktop/js/jquery.filechooser.js
++++ b/desktop/core/src/desktop/static/desktop/js/jquery.filechooser.js
+@@ -101,7 +101,7 @@
+     Plugin.prototype.navigateTo = function (path) {
+         var _parent = this;
+         if (navigator.userAgent.match(/msie/i)) {
+-          $(_parent.element).html("<img src='/static/art/spinner.gif' />");
++          $(_parent.element).html("<img src='/static/desktop/art/spinner.gif' />");
+         }
+         else {
+           $(_parent.element).html("<i style=\"font-size: 24px; color: #DDD\" class=\"fa fa-spinner fa-spin\"></i>");
+diff --git a/desktop/libs/indexer/src/indexer/static/indexer/help/index.html b/desktop/libs/indexer/src/indexer/static/indexer/help/index.html
+index aec8647..b24d221 100644
+--- a/desktop/libs/indexer/src/indexer/static/indexer/help/index.html
++++ b/desktop/libs/indexer/src/indexer/static/indexer/help/index.html
+@@ -19,7 +19,7 @@
+ manual.</p>
+ <h2>Starting  Solr Search</h2>
+ <p>Click the <strong> Solr Search</strong> icon
+-(<img alt="image" src="/search/static/art/icon_search_24.png" />) in the navigation bar at the top of
++(<img alt="image" src="/static/search/art/icon_search_24.png" />) in the navigation bar at the top of
+ the Hue browser page. <strong>Solr Search</strong> opens to the  <a href="#collectionManager">Collection Manager</a>. If there are no collections, the <a href="#importCollection">Import Collections and Cores</a> dialog displays.</p>
+ <p><a id="collectionManager"></a></p>
+ <h2>Collection Manager</h2>
+diff --git a/desktop/libs/libopenid/src/libopenid/templates/openid-login.html b/desktop/libs/libopenid/src/libopenid/templates/openid-login.html
+index 8af2760..61e66c5 100644
+--- a/desktop/libs/libopenid/src/libopenid/templates/openid-login.html
++++ b/desktop/libs/libopenid/src/libopenid/templates/openid-login.html
+@@ -13,9 +13,9 @@
+   <meta name="description" content="">
+   <meta name="author" content="">
+ 
+-  <link href="/static/ext/css/bootplus.css" rel="stylesheet">
+-  <link href="/static/ext/css/font-awesome.min.css" rel="stylesheet">
+-  <link href="/static/css/hue3.css" rel="stylesheet">
++  <link href="/static/desktop/ext/css/bootplus.css" rel="stylesheet">
++  <link href="/static/desktop/ext/css/font-awesome.min.css" rel="stylesheet">
++  <link href="/static/desktop/css/hue3.css" rel="stylesheet">
+ 
+   <style type="text/css">
+     body {
+@@ -102,9 +102,9 @@
+       <li id="jHueTourFlagPlaceholder"></li>
+     </ul>
+   </div>
+-  <a class="brand nav-tooltip pull-left" href="#"><img src="/static/art/hue-logo-mini-white.png"
+-                                                       data-orig="/static/art/hue-logo-mini-white.png"
+-                                                       data-hover="/static/art/hue-logo-mini-white-hover.png"/></a>
++  <a class="brand nav-tooltip pull-left" href="#"><img src="/static/desktop/art/hue-logo-mini-white.png"
++                                                       data-orig="/static/desktop/art/hue-logo-mini-white.png"
++                                                       data-hover="/static/desktop/art/hue-logo-mini-white-hover.png"/></a>
+   <ul class="nav nav-pills pull-left hide" id="visit">
+     <li><a title="{% trans "Visit gethue.com" %}" href="http://gethue.com">{% trans "Fell asleep? Visit us on gethue.com instead!" %} <i class="fa fa-external-link-circle"></i></a></li>
+   </ul>
+@@ -115,8 +115,8 @@
+   <div class="row">
+     <div class="login-content">
+       <form method="POST" action="{{ action }}" class="well">
+-        <img id="logo" src="/static/art/hue-login-logo.png" data-orig="/static/art/hue-login-logo.png"
+-             data-hover="/static/art/hue-login-logo-skew.png"/>
++        <img id="logo" src="/static/desktop/art/hue-login-logo.png" data-orig="/static/desktop/art/hue-login-logo.png"
++             data-hover="/static/desktop/art/hue-login-logo-skew.png"/>
+ 
+         {% if login_errors %}
+             <div class="alert alert-error" style="text-align: center">
+@@ -147,7 +147,7 @@
+   </div>
+ </div>
+ 
+-<script src="/static/ext/js/jquery/jquery-2.1.1.min.js"></script>
++<script src="/static/desktop/ext/js/jquery/jquery-2.1.1.min.js"></script>
+ <script>
+   $(document).ready(function () {
+     var _skew = -1;
+diff --git a/docs/sdk/sdk.md b/docs/sdk/sdk.md
+index ef1fc42..f195799 100644
+--- a/docs/sdk/sdk.md
++++ b/docs/sdk/sdk.md
+@@ -168,9 +168,9 @@ Run "create_desktop_app" to Set up a New Source Tree
+     calculator/src/calculator/templates/shared_components.mako
+ 
+     # Static resources
+-    calculator/src/calculator/static/art/calculator.png # logo
+-    calculator/src/calculator/static/css/calculator.css
+-    calculator/src/calculator/static/js/calculator.js
++    calculator/src/static/calculator/art/calculator.png # logo
++    calculator/src/static/calculator/css/calculator.css
++    calculator/src/static/calculator/js/calculator.js
+ 
+ To download an app or browse dditional plugin apps available in the Hue app store:
+     ## Visit http://gethue.com/app-store/
+-- 
+1.7.9.5
+

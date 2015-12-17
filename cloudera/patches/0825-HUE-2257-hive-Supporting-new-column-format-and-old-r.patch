@@ -1,0 +1,319 @@
+From 4a5be6cccdfcfec9d2c43acff750eeb89f108f9f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 7 Aug 2014 13:29:46 -0700
+Subject: [PATCH 0825/1173] HUE-2257 [hive] Supporting new column format and
+ old row format
+
+If Thrift version >= 7, we use the new column format.
+We could optimize more but we need to stay barkward compatible without
+modifying every pages.
+---
+ apps/beeswax/src/beeswax/api.py                    |    3 +-
+ apps/beeswax/src/beeswax/conf.py                   |    4 +-
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |  143 ++++++++++++++++----
+ apps/beeswax/thrift/TCLIService.thrift             |   10 +-
+ desktop/conf.dist/hue.ini                          |    2 +-
+ desktop/conf/pseudo-distributed.ini.tmpl           |    2 +-
+ 6 files changed, 126 insertions(+), 38 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/api.py b/apps/beeswax/src/beeswax/api.py
+index 59082d1..872047a 100644
+--- a/apps/beeswax/src/beeswax/api.py
++++ b/apps/beeswax/src/beeswax/api.py
+@@ -269,8 +269,9 @@ def execute(request, design_id=None):
+   design = safe_get_design(request, query_type, design_id)
+ 
+   try:
++    print 'aaa'
+     query_form = get_query_form(request)
+-
++    print 'bb'
+     if query_form.is_valid():
+       query_str = query_form.query.cleaned_data["query"]
+       explain = request.GET.get('explain', 'false').lower() == 'true'
+diff --git a/apps/beeswax/src/beeswax/conf.py b/apps/beeswax/src/beeswax/conf.py
+index eefedd2..bc9b754 100644
+--- a/apps/beeswax/src/beeswax/conf.py
++++ b/apps/beeswax/src/beeswax/conf.py
+@@ -60,7 +60,7 @@ SERVER_CONN_TIMEOUT = Config(
+   type=int,
+   help=_t('Timeout in seconds for Thrift calls.'))
+ 
+-USE_GET_LOG_API = Config(
++USE_GET_LOG_API = Config( # To remove in Hue 4
+   key='use_get_log_api',
+   default=False,
+   type=coerce_bool,
+@@ -92,7 +92,7 @@ THRIFT_VERSION = Config(
+   key="thrift_version",
+   help=_t("Thrift version to use when communicating with HiveServer2"),
+   type=int,
+-  default=5
++  default=7
+ )
+ 
+ SSL = ConfigSection(
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index c79d3f0..92996de 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -16,6 +16,7 @@
+ # limitations under the License.
+ 
+ import logging
++import itertools
+ import re
+ 
+ from itertools import imap
+@@ -33,7 +34,7 @@ from TCLIService.ttypes import TOpenSessionReq, TGetTablesReq, TFetchResultsReq,
+   TStatusCode, TGetResultSetMetadataReq, TGetColumnsReq, TTypeId,\
+   TExecuteStatementReq, TGetOperationStatusReq, TFetchOrientation,\
+   TCloseSessionReq, TGetSchemasReq, TGetLogReq, TCancelOperationReq,\
+-  TCloseOperationReq, TFetchResultsResp, TRowSet
++  TCloseOperationReq, TFetchResultsResp, TRowSet, TProtocolVersion
+ 
+ from beeswax import conf as beeswax_conf
+ from beeswax import hive_site
+@@ -53,9 +54,15 @@ class HiveServerTable(Table):
+   Impala only supports a simple DESCRIBE.
+   """
+   def __init__(self, table_results, table_schema, desc_results, desc_schema):
+-    if not table_results.rows:
+-      raise NoSuchObjectException()
+-    self.table = table_results.rows and table_results.rows[0] or ''
++    if beeswax_conf.THRIFT_VERSION.get() >= 7:
++      if not table_results.columns:
++        raise NoSuchObjectException()
++      self.table = table_results.columns or ''
++    else: # Deprecated. To remove in Hue 4.
++      if not table_results.rows:
++        raise NoSuchObjectException()
++      self.table = table_results.rows and table_results.rows[0] or ''
++
+     self.table_schema = table_schema
+     self.desc_results = desc_results
+     self.desc_schema = desc_schema
+@@ -155,7 +162,7 @@ class HiveServerTable(Table):
+     return props
+ 
+ 
+-class HiveServerTRowSet:
++class HiveServerTRowSet2:
+   def __init__(self, row_set, schema):
+     self.row_set = row_set
+     self.rows = row_set.rows
+@@ -167,24 +174,70 @@ class HiveServerTRowSet:
+ 
+   def cols(self, col_names):
+     cols_rows = []
+-    for row in self.rows:
+-      row = HiveServerTRow(row, self.schema)
+-      cols = {}
+-      for col_name in col_names:
+-        cols[col_name] = row.col(col_name)
+-      cols_rows.append(cols)
++
++    rs = HiveServerTRow2(self.row_set.columns, self.schema)
++    cols = [rs.full_col(name) for name in col_names]
++
++    for cols_row in itertools.izip(*cols):
++      cols_rows.append(dict(zip(col_names, cols_row)))
++
+     return cols_rows
+ 
+   def __iter__(self):
+     return self
+ 
+   def next(self):
+-    if self.rows:
+-      return HiveServerTRow(self.rows.pop(0), self.schema)
++    if self.row_set.columns:
++      return HiveServerTRow2(self.row_set.columns, self.schema)
+     else:
+       raise StopIteration
+ 
+ 
++class HiveServerTRow2:
++  def __init__(self, cols, schema):
++    self.cols = cols
++    self.schema = schema
++
++  def col(self, colName):
++    pos = self._get_col_position(colName)
++    return HiveServerTColumnValue2(self.cols[pos]).val[0] # Return only first element
++
++  def full_col(self, colName):
++    pos = self._get_col_position(colName)
++    return HiveServerTColumnValue2(self.cols[pos]).val # Return the full column and its values
++
++  def _get_col_position(self, column_name):
++    return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
++
++  def fields(self):
++    try:
++      return [HiveServerTColumnValue2(field).val.pop(0) for field in self.cols]
++    except IndexError:
++      raise StopIteration
++
++
++class HiveServerTColumnValue2:
++  def __init__(self, tcolumn_value):
++    self.column_value = tcolumn_value
++
++  @property
++  def val(self):
++    # TODO get index from schema
++    if self.column_value.boolVal is not None:
++      return self.column_value.boolVal.values
++    elif self.column_value.byteVal is not None:
++      return self.column_value.byteVal.values
++    elif self.column_value.i16Val is not None:
++      return self.column_value.i16Val.values
++    elif self.column_value.i32Val is not None:
++      return self.column_value.i32Val.values
++    elif self.column_value.i64Val is not None:
++      return self.column_value.i64Val.values
++    elif self.column_value.doubleVal is not None:
++      return self.column_value.doubleVal.values
++    elif self.column_value.stringVal is not None:
++      return self.column_value.stringVal.values
++
+ 
+ class HiveServerDataTable(DataTable):
+   def __init__(self, results, schema, operation_handle):
+@@ -218,7 +271,7 @@ class HiveServerTTableSchema:
+   def cols(self):
+     try:
+       return HiveServerTRowSet(self.columns, self.schema).cols(('col_name', 'data_type', 'comment'))
+-    except:
++    except Exception:
+       # Impala API is different
+       cols = HiveServerTRowSet(self.columns, self.schema).cols(('name', 'type', 'comment'))
+       for col in cols:
+@@ -234,20 +287,54 @@ class HiveServerTTableSchema:
+     return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
+ 
+ 
+-class HiveServerTRow:
+-  def __init__(self, row, schema):
+-    self.row = row
+-    self.schema = schema
+-
+-  def col(self, colName):
+-    pos = self._get_col_position(colName)
+-    return HiveServerTColumnValue(self.row.colVals[pos]).val
+-
+-  def _get_col_position(self, column_name):
+-    return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
+-
+-  def fields(self):
+-    return [HiveServerTColumnValue(field).val for field in self.row.colVals]
++if beeswax_conf.THRIFT_VERSION.get() >= 7:
++  HiveServerTRow = HiveServerTRow2
++  HiveServerTRowSet = HiveServerTRowSet2
++else:
++  # Deprecated. To remove in Hue 4.
++  class HiveServerTRow:
++    def __init__(self, row, schema):
++      self.row = row
++      self.schema = schema
++
++    def col(self, colName):
++      pos = self._get_col_position(colName)
++      return HiveServerTColumnValue(self.row.colVals[pos]).val
++
++    def _get_col_position(self, column_name):
++      return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
++
++    def fields(self):
++      return [HiveServerTColumnValue(field).val for field in self.row.colVals]
++
++  class HiveServerTRowSet:
++    def __init__(self, row_set, schema):
++      self.row_set = row_set
++      self.rows = row_set.rows
++      self.schema = schema
++      self.startRowOffset = row_set.startRowOffset
++
++    def is_empty(self):
++      return len(self.rows) == 0
++
++    def cols(self, col_names):
++      cols_rows = []
++      for row in self.rows:
++        row = HiveServerTRow(row, self.schema)
++        cols = {}
++        for col_name in col_names:
++          cols[col_name] = row.col(col_name)
++        cols_rows.append(cols)
++      return cols_rows
++
++    def __iter__(self):
++      return self
++
++    def next(self):
++      if self.rows:
++        return HiveServerTRow(self.rows.pop(0), self.schema)
++      else:
++        raise StopIteration
+ 
+ 
+ class HiveServerTColumnValue:
+diff --git a/apps/beeswax/thrift/TCLIService.thrift b/apps/beeswax/thrift/TCLIService.thrift
+index e683bd0..74d6520 100644
+--- a/apps/beeswax/thrift/TCLIService.thrift
++++ b/apps/beeswax/thrift/TCLIService.thrift
+@@ -41,19 +41,19 @@ enum TProtocolVersion {
+   HIVE_CLI_SERVICE_PROTOCOL_V1,
+   
+   // V2 adds support for asynchronous execution
+-  HIVE_CLI_SERVICE_PROTOCOL_V2
++  HIVE_CLI_SERVICE_PROTOCOL_V2,
+ 
+   // V3 add varchar type, primitive type qualifiers
+-  HIVE_CLI_SERVICE_PROTOCOL_V3
++  HIVE_CLI_SERVICE_PROTOCOL_V3,
+ 
+   // V4 add decimal precision/scale, char type
+-  HIVE_CLI_SERVICE_PROTOCOL_V4
++  HIVE_CLI_SERVICE_PROTOCOL_V4,
+ 
+   // V5 adds error details when GetOperationStatus returns in error state
+-  HIVE_CLI_SERVICE_PROTOCOL_V5
++  HIVE_CLI_SERVICE_PROTOCOL_V5,
+ 
+   // V6 uses binary type for binary payload (was string) and uses columnar result set
+-  HIVE_CLI_SERVICE_PROTOCOL_V6
++  HIVE_CLI_SERVICE_PROTOCOL_V6,
+ 
+   // V7 adds support for delegation token based connection
+   HIVE_CLI_SERVICE_PROTOCOL_V7
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index fc62579..bfaf25b 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -792,7 +792,7 @@
+   # This will free all the query resources in HiveServer2, but also make its results inaccessible.
+   ## close_queries=false
+ 
+-  # Thrift version to use when communicating with HiveServer2
++  # Thrift version to use when communicating with HiveServer2. Version 7 is a faster prototype.
+   ## thrift_version=5
+ 
+   [[ssl]]
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 17072ff..55b8f43 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -798,7 +798,7 @@
+   # This will free all the query resources in HiveServer2, but also make its results inaccessible.
+   ## close_queries=false
+ 
+-  # Thrift version to use when communicating with HiveServer2
++  # Thrift version to use when communicating with HiveServer2. Version 7 is a faster prototype.
+   ## thrift_version=5
+ 
+   [[ssl]]
+-- 
+1.7.9.5
+

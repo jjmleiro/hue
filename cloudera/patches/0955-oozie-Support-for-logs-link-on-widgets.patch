@@ -1,0 +1,40 @@
+From 3d7bdef0e1789b89c41869b4cf808fc0ea5f0279 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 27 Feb 2015 17:26:27 +0100
+Subject: [PATCH 0955/1173] [oozie] Support for logs link on widgets
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    2 +-
+ .../oozie/templates/editor2/common_workflow.mako   |    4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index 5330d5d..53d5cc5 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -1196,6 +1196,6 @@ var ExtendedWidget = function (params) {
+   self.ooziePropertiesExpanded = ko.observable(false);
+   self.status = ko.observable("");
+   self.progress = ko.observable(0);
+-  self.logs = ko.observable("");
++  self.logsURL = ko.observable("");
+   return self;
+ }
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index d6dd7ee..976ade6 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -214,6 +214,10 @@
+ 
+       <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
+ 
++      <!-- ko if: logsURL() != '' -->
++        <a class="pull-right pointer" data-bind="click: function(){ location.href = logsURL(); }"><i class="fa fa-tasks"></i></a>
++      <!-- /ko -->
++
+       <!-- ko if: widgetType() == 'decision-widget' -->
+         <div class="inline pull-right" data-bind="visible: $root.isEditing() && $root.workflow.getNodeById(id()) && $root.workflow.getNodeById(id()).children().length <= 1 && ! oozieExpanded() && ! ooziePropertiesExpanded()">
+           <a href="javascript:void(0)" data-bind="click: function(w){addActionDemiModalFieldCancel();$root.removeWidget(w);}"><i class="fa fa-times"></i></a>
+-- 
+1.7.9.5
+

@@ -24,8 +24,8 @@
 
 ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
 
-<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
-<link rel="stylesheet" href="/indexer/static/css/admin.css">
+<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
+<link rel="stylesheet" href="${ static('indexer/css/admin.css') }">
 <style type="text/css">
 .hueBreadcrumb {
   padding: 12px 14px;
@@ -157,13 +157,15 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
                 title="${_('Delete the selected indexes. These must be solr cloud collections. Cores cannot be deleted currently.')}" data-toggle="modal" data-target="#deleteCollections">
               <i class="fa fa-times"></i> ${_('Delete')}
             </button>
-            <a href="#create" class="btn toolbarBtn pull-right">
-              <i class="fa fa-plus-circle"></i> ${_('Create')}
-            </a>
+            <label class="checkbox" style="display:inline-block; margin-left: 20px" data-bind="visible: hasCloudCollections"><input type="checkbox" data-bind="checked: showCores" />${ _('Show cores') }</label>
           </div>
         </%def>
 
-        <%def name="creation()"></%def>
+        <%def name="creation()">
+          <a href="#create" class="btn toolbarBtn">
+              <i class="fa fa-plus-circle"></i> ${_('Create')}
+            </a>
+        </%def>
       </%actionbar:render>
 
       <div class="row-fluid" data-bind="visible: collections().length == 0 && !isLoading()">
@@ -178,17 +180,19 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
             <thead>
               <tr>
                 <th>
-                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(filteredCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
+                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(displayCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
                 </th>
-                <th width="100%">${_('Name')}</th>
+                <th width="60%">${_('Name')}</th>
+                <th width="40%">${_('Collections')}</th>
               </tr>
             </thead>
-            <tbody data-bind="foreach: filteredCollections">
+            <tbody data-bind="foreach: displayCollections">
               <tr data-bind="routie: 'edit/' + name()" class="pointer">
                 <td data-bind="click: $parent.toggleCollectionSelect.bind($parent), clickBubble: false">
-                  <span data-bind="css: {'fa-check': $parent.filteredCollections()[$index()].selected()}" class="hueCheckbox fa"></span>
+                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected(), 'hueCheckbox fa': ! isAlias()}"></span>
                 </td>
                 <td data-bind="text: name" style="cursor: pointer"></td>
+                <td data-bind="text: collections" style="cursor: pointer"></td>
               </tr>
             </tbody>
           </table>
@@ -462,14 +466,14 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
 <!--/ Edit collection page -->
 
 
-<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/jquery/plugins/jquery-ui-1.10.4.draggable-droppable-sortable.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-sortable.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/indexer/static/js/lib.js" type="text/javascript" charset="utf-8"></script>
-<script src="/indexer/static/js/collections.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.draggable-droppable-sortable.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout.mapping-2.3.2.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-sortable.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('indexer/js/lib.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('indexer/js/collections.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript">
 function afterRender() {
@@ -546,7 +550,7 @@ routie({
     vm.page('manage-page');
   },
   "manage": function() {
-    vm.breadcrumb(window.location.hash.substring(1));
+    vm.breadcrumb(window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, ""));
     vm.page('manage-page');
   },
   "create": function() {
@@ -558,7 +562,7 @@ routie({
     vm.breadcrumb("create/wizard/" + vm.create.wizard.currentPage().url());
   },
   "create/wizard/:step": function(step) {
-    vm.breadcrumb(window.location.hash.substring(1));
+    vm.breadcrumb(window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, ""));
     vm.page('create-page');
     vm.create.wizard.setPageByUrl(step);
     routie('create/wizard/' + vm.create.wizard.currentPage().url());

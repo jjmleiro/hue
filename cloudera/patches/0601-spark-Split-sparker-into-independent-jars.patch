@@ -1,0 +1,1543 @@
+From 2c65d83378f4f20fc64322f05965697b7fd4554f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 6 Nov 2014 13:58:38 -0800
+Subject: [PATCH 0601/1173] [spark] Split sparker into independent jars
+
+---
+ apps/spark/java/pom.xml                            |   62 ++------
+ apps/spark/java/sparker-repl/pom.xml               |   30 ++++
+ .../cloudera/hue/sparker/SparkerInterpreter.java   |   73 +++++++++
+ apps/spark/java/sparker-server/pom.xml             |   93 ++++++++++++
+ .../java/com/cloudera/hue/sparker/Session.java     |   39 +++++
+ .../com/cloudera/hue/sparker/SessionManager.java   |   99 +++++++++++++
+ .../java/com/cloudera/hue/sparker/SparkerMain.java |   97 ++++++++++++
+ .../com/cloudera/hue/sparker/SparkerServlet.java   |  155 ++++++++++++++++++++
+ .../com/cloudera/hue/sparker/SparkerSession.java   |  139 ++++++++++++++++++
+ .../main/java/com/cloudera/sparker/Session.java    |   39 -----
+ .../java/com/cloudera/sparker/SessionManager.java  |   99 -------------
+ .../com/cloudera/sparker/SparkerInterpreter.java   |   73 ---------
+ .../java/com/cloudera/sparker/SparkerMain.java     |   97 ------------
+ .../java/com/cloudera/sparker/SparkerServlet.java  |  155 --------------------
+ .../java/com/cloudera/sparker/SparkerSession.java  |  139 ------------------
+ 15 files changed, 735 insertions(+), 654 deletions(-)
+ create mode 100644 apps/spark/java/sparker-repl/pom.xml
+ create mode 100644 apps/spark/java/sparker-repl/src/main/java/com/cloudera/hue/sparker/SparkerInterpreter.java
+ create mode 100644 apps/spark/java/sparker-server/pom.xml
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/Session.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SessionManager.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerMain.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerServlet.java
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerSession.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+ delete mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
+
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 197b10b..1766547 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -27,13 +27,13 @@
+         <version>3.7.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <groupId>com.cloudera.sparker</groupId>
+-    <artifactId>spark-server</artifactId>
+-    <packaging>jar</packaging>
++    <groupId>com.cloudera.hue.sparker</groupId>
++    <artifactId>sparker-main</artifactId>
++    <packaging>pom</packaging>
+     <version>3.7.0-SNAPSHOT</version>
+ 
+-    <name>Spark Server</name>
+-    <description>Spark Server</description>
++    <name>Spark Main</name>
++    <description>Spark Main</description>
+ 
+     <licenses>
+         <license>
+@@ -55,9 +55,13 @@
+         <slf4j.version>${cdh.slf4j.version}</slf4j.version>
+         <jetty.version>8.1.14.v20131031</jetty.version>
+         -->
+-        <spark.version></spark.version>
+     </properties>
+ 
++    <modules>
++        <module>sparker-server</module>
++        <module>sparker-repl</module>
++    </modules>
++
+     <repositories>
+         <repository>
+             <id>cdh.repo</id>
+@@ -87,52 +91,6 @@
+         </repository>
+     </repositories>
+ 
+-    <dependencies>
+-        <!--
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-core_2.10</artifactId>
+-            <version>${spark.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-bagel_2.10</artifactId>
+-            <version>${spark.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-mllib_2.10</artifactId>
+-            <version>${spark.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-streaming_2.10</artifactId>
+-            <version>${spark.version}</version>
+-        </dependency>
+-        -->
+-
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-repl_2.10</artifactId>
+-            <version>1.1.0-cdh5.2.0-SNAPSHOT</version>
+-
+-
+-                <!--
+-                ${spark.version}</version>
+-                -->
+-
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>javax.servlet</groupId>
+-                    <artifactId>servlet-api</artifactId>
+-                </exclusion>
+-            </exclusions>
+-        </dependency>
+-    </dependencies>
+-
+     <build>
+         <pluginManagement>
+             <plugins>
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+new file mode 100644
+index 0000000..b2bfd6f
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.sparker</groupId>
++        <artifactId>sparker-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>sparker-repl</artifactId>
++    <packaging>jar</packaging>
++
++    <properties>
++        <spark.version>1.1.0-cdh5.2.0-SNAPSHOT</spark.version>
++    </properties>
++
++    <dependencies>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-repl_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++
++    </dependencies>
++
++</project>
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-repl/src/main/java/com/cloudera/hue/sparker/SparkerInterpreter.java b/apps/spark/java/sparker-repl/src/main/java/com/cloudera/hue/sparker/SparkerInterpreter.java
+new file mode 100644
+index 0000000..2e7bf2d
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/java/com/cloudera/hue/sparker/SparkerInterpreter.java
+@@ -0,0 +1,73 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import org.apache.spark.repl.Main;
++import org.apache.spark.repl.SparkILoop;
++
++import java.io.*;
++import java.util.UUID;
++
++public class SparkerInterpreter implements AutoCloseable {
++
++    private final UUID uuid;
++    private final PipedWriter stdin;
++    private final PipedReader stdout;
++    private final SparkILoop interp;
++    private final Thread thread;
++
++    public SparkerInterpreter(UUID uuid) throws IOException {
++        this.uuid = uuid;
++        this.stdin = new PipedWriter();
++        this.stdout = new PipedReader();
++        this.interp = new SparkILoop(
++                new BufferedReader(new PipedReader(stdin)),
++                new PrintWriter(System.out)); //new PipedWriter(stdout)));
++
++
++        Main.interp_$eq(interp);
++
++        thread = new Thread(new Runnable() {
++            @Override
++            public void run() {
++                interp.process(new String[]{"-usejavacp"});
++            }
++        });
++    }
++
++    public UUID getUUID() {
++        return uuid;
++    }
++
++    public void execute(String command) throws IOException {
++        stdin.write(command);
++        stdin.write("\n");
++    }
++
++    public void start() throws IOException {
++        thread.start();
++    }
++
++    @Override
++    public void close() throws Exception {
++        stdin.close();
++        stdout.close();
++        thread.join();
++    }
++}
+diff --git a/apps/spark/java/sparker-server/pom.xml b/apps/spark/java/sparker-server/pom.xml
+new file mode 100644
+index 0000000..200b38d
+--- /dev/null
++++ b/apps/spark/java/sparker-server/pom.xml
+@@ -0,0 +1,93 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++  Licensed to the Apache Software Foundation (ASF) under one
++  or more contributor license agreements.  See the NOTICE file
++  distributed with this work for additional information
++  regarding copyright ownership.  The ASF licenses this file
++  to you under the Apache License, Version 2.0 (the
++  "License"); you may not use this file except in compliance
++  with the License.  You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++  Unless required by applicable law or agreed to in writing, software
++  distributed under the License is distributed on an "AS IS" BASIS,
++  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  See the License for the specific language governing permissions and
++  limitations under the License.
++-->
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.sparker</groupId>
++        <artifactId>sparker-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>sparker-server</artifactId>
++    <packaging>jar</packaging>
++
++    <name>Spark Server</name>
++    <description>Spark Server</description>
++
++    <dependencies>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-server</artifactId>
++            <version>9.1.0.v20131115</version>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-servlet</artifactId>
++            <version>9.1.0.v20131115</version>
++        </dependency>
++        <dependency>
++            <groupId>org.codehaus.jackson</groupId>
++            <artifactId>jackson-mapper-asl</artifactId>
++            <version>1.9.3</version>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-dependency-plugin</artifactId>
++                <executions>
++                    <execution>
++                        <id>copy-dependencies</id>
++                        <phase>prepare-package</phase>
++                        <goals>
++                            <goal>copy-dependencies</goal>
++                        </goals>
++                        <configuration>
++                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
++                            <overWriteReleases>false</overWriteReleases>
++                            <overWriteSnapshots>false</overWriteSnapshots>
++                            <overWriteIfNewer>true</overWriteIfNewer>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <addClasspath>true</addClasspath>
++                            <classpathPrefix>lib/</classpathPrefix>
++                            <mainClass>com.cloudera.hue.sparker.SparkerMain</mainClass>
++                        </manifest>
++                    </archive>
++                </configuration>
++            </plugin>
++
++        </plugins>
++
++    </build>
++
++</project>
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/Session.java
+new file mode 100644
+index 0000000..58dabd0
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/Session.java
+@@ -0,0 +1,39 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import java.io.IOException;
++import java.util.List;
++import java.util.concurrent.TimeoutException;
++
++public interface Session {
++
++    String getKey();
++
++    public void execute(String command) throws IOException;
++
++    public long getLastActivity();
++
++    List<String> getInputLines();
++
++    List<String> getOutputLines();
++
++    public void close() throws IOException, InterruptedException, TimeoutException;
++}
++
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SessionManager.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SessionManager.java
+new file mode 100644
+index 0000000..229feda
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SessionManager.java
+@@ -0,0 +1,99 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import java.io.IOException;
++import java.util.Enumeration;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.TimeoutException;
++
++public class SessionManager {
++
++    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
++
++    public SessionManager() {
++        new SessionManagerGarbageCollector(this).start();
++    }
++
++    public Session get(String key) {
++        return sessions.get(key);
++    }
++
++    public Session create() throws IOException, InterruptedException {
++        String key = UUID.randomUUID().toString();
++        Session session = new SparkerSession(key);
++        sessions.put(key, session);
++        return session;
++    }
++
++    public void close() {
++        for (Session session : sessions.values()) {
++            this.close(session.getKey());
++        }
++    }
++
++    public void close(String key) {
++        Session session = this.get(key);
++        sessions.remove(key);
++        try {
++            session.close();
++        } catch (Exception e) {
++            // throws InterruptedException, TimeoutException, IOException
++            e.printStackTrace();
++        }
++    }
++
++    public Enumeration<String> getSessionKeys() {
++        return sessions.keys();
++    }
++
++    public void garbageCollect() {
++        long timeout = 60000; // Time in milliseconds; TODO: make configurable
++        for (Session session : sessions.values()) {
++            long now = System.currentTimeMillis();
++            if ((now - session.getLastActivity()) > timeout) {
++                this.close(session.getKey());
++            }
++        }
++    }
++
++    protected class SessionManagerGarbageCollector extends Thread {
++
++        protected SessionManager manager;
++
++        protected long period = 60000; // Time in milliseconds; TODO: make configurable
++
++        public SessionManagerGarbageCollector(SessionManager manager) {
++            super();
++            this.manager = manager;
++        }
++
++        public void run() {
++            try {
++                while(true) {
++                    manager.garbageCollect();
++                    sleep(period);
++                }
++            } catch (InterruptedException e) {
++                e.printStackTrace();
++            }
++        }
++    }
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerMain.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerMain.java
+new file mode 100644
+index 0000000..af677fe
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerMain.java
+@@ -0,0 +1,97 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import org.eclipse.jetty.server.Server;
++import org.eclipse.jetty.servlet.ServletContextHandler;
++import org.eclipse.jetty.servlet.ServletHolder;
++
++public class SparkerMain {
++
++    public static void main(String[] args) throws Exception {
++        SessionManager manager = new SessionManager();
++
++        Server httpServer = new Server(8080);
++
++        ServletContextHandler context = new ServletContextHandler();
++        httpServer.setHandler(context);
++
++        context.setContextPath("/");
++        context.addServlet(new ServletHolder(new SparkerServlet(manager)), "/*");
++
++        /*
++        //InetSocketAddress address = NetUtils.createSocketAddr()
++        ServletContextHandler.Context context = new ServletContextHandler.Context();
++        context.setContextPath("");
++        context.addServlet(JMXJsonServlet.class, "/jmx");
++        context.addServlet(SparkerServlet.class, "/*");
++
++        httpServer.addHandler(context);
++        */
++
++        httpServer.start();
++        httpServer.join();
++
++        /*
++        BufferedReader reader = new BufferedReader(new StringReader(""));
++        StringWriter writer = new StringWriter();
++        String master = "erickt-1.ent.cloudera.com";
++
++        SparkILoop interp = new SparkILoop(reader, new PrintWriter(writer));
++        Main.interp_$eq(interp);
++        interp.process(new String[] { "-usejavacp" });
++        */
++
++        /*
++        SparkerInterpreter session = new SparkerInterpreter(UUID.randomUUID());
++
++        try {
++            session.start();
++
++            session.execute("sc");
++            session.execute("1 + 1");
++
++        } finally {
++            session.close();
++        }
++        */
++
++        /*
++        SessionManager manager = new SessionManager();
++
++        try {
++            Session session = manager.create();
++
++            session.execute("sc");
++            session.execute("1 + 1");
++
++            for (String input : session.getInputLines()) {
++                System.out.print("input: " + input + "\n");
++            }
++
++            for (String output : session.getOutputLines()) {
++                System.out.print("output: " + output + "\n");
++            }
++
++        } finally {
++            manager.close();
++        }
++        */
++    }
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerServlet.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerServlet.java
+new file mode 100644
+index 0000000..d67eed9
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerServlet.java
+@@ -0,0 +1,155 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import org.codehaus.jackson.map.ObjectMapper;
++import org.codehaus.jackson.map.ObjectWriter;
++
++import javax.servlet.http.HttpServlet;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
++
++public class SparkerServlet extends HttpServlet {
++
++    public static final String SESSION_DATA = "sparky.sessions";
++
++    private static final String ROOT = "/";
++    private static final Pattern SESSION_ID = Pattern.compile("^/([-A-Za-z90-9]+)$");
++
++    private static final String APPLICATION_JSON_MIME = "application/json";
++
++    private ObjectWriter jsonWriter;
++
++    private final SessionManager manager;
++
++    public SparkerServlet(SessionManager manager) {
++        this.manager = manager;
++
++        ObjectMapper mapper = new ObjectMapper();
++        jsonWriter = mapper.defaultPrettyPrintingWriter();
++    }
++
++    @Override
++    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            getSessions(req, resp);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                getSession(req, resp, key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
++    private void getSessions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        jsonWriter.writeValue(resp.getOutputStream(), manager.getSessionKeys());
++    }
++
++    private void getSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
++        Session session = manager.get(key);
++        if (session == null) {
++            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            return;
++        }
++
++        jsonWriter.writeValue(resp.getOutputStream(), session.getOutputLines());
++    }
++
++    @Override
++    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            createSession(req, resp);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                writeToSession(req, resp, key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
++    @Override
++    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                manager.close(key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
++    private void createSession(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        try {
++            Session session = manager.create();
++
++            jsonWriter.writeValue(resp.getOutputStream(), session.getKey());
++        } catch (InterruptedException e) {
++            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
++            e.printStackTrace();
++        }
++    }
++
++    private void writeToSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
++        Session session = manager.get(key);
++        if (session == null) {
++            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            return;
++        }
++
++        BufferedReader reader = req.getReader();
++        String line;
++
++        while ((line = reader.readLine()) != null) {
++            session.execute(line);
++        }
++    }
++
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerSession.java
+new file mode 100644
+index 0000000..85d4e43
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/SparkerSession.java
+@@ -0,0 +1,139 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.sparker;
++
++import com.google.common.collect.Lists;
++
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.util.List;
++import java.util.Queue;
++import java.util.concurrent.ConcurrentLinkedQueue;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeoutException;
++
++public class SparkerSession implements Session {
++
++    private final String key;
++    private final Process process;
++    private final Thread readerThread;
++
++    private final Queue<String> inputLines = new ConcurrentLinkedQueue<String>();
++    private final Queue<String> outputLines = new ConcurrentLinkedQueue<String>();
++
++    public SparkerSession(String key) throws IOException, InterruptedException {
++        this.touchLastActivity();
++
++        this.key = key;
++
++        ProcessBuilder pb = new ProcessBuilder("spark-shell")
++                .redirectInput(ProcessBuilder.Redirect.PIPE)
++                .redirectOutput(ProcessBuilder.Redirect.PIPE)
++                .redirectErrorStream(true);
++
++        this.process = pb.start();
++
++        final CountDownLatch latch = new CountDownLatch(1);
++
++        this.readerThread = new Thread(new Runnable() {
++            @Override
++            public void run() {
++                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++
++                try {
++                    String line;
++
++                    /*
++                    while ((line = reader.readLine()) != null) {
++                        outputLines.add(line);
++                        if (line.equals("Spark context available as sc.")) {
++                            latch.countDown();
++                        }
++                    }
++                    */
++
++                    while ((line = reader.readLine()) != null) {
++                        outputLines.add(line);
++                    }
++
++                    process.waitFor();
++                } catch (IOException e) {
++                    e.printStackTrace();
++                } catch (InterruptedException e) {
++                    e.printStackTrace();
++                }
++            }
++        });
++
++        readerThread.start();
++
++        //latch.await();
++    }
++
++    @Override
++    public String getKey() {
++        return key;
++    }
++
++    public void execute(String command) throws IOException {
++        this.touchLastActivity();
++        if (!command.endsWith("\n")) {
++            command += "\n";
++        }
++
++        inputLines.add(command);
++        process.getOutputStream().write(command.getBytes("UTF-8"));
++        process.getOutputStream().flush();
++    }
++
++    @Override
++    public List<String> getInputLines() {
++        this.touchLastActivity();
++        return Lists.newArrayList(inputLines);
++    }
++
++    @Override
++    public List<String> getOutputLines() {
++        this.touchLastActivity();
++        return Lists.newArrayList(outputLines);
++    }
++
++    public void close() throws IOException, InterruptedException, TimeoutException {
++        process.getOutputStream().close();
++
++        readerThread.join();
++        if (readerThread.isAlive()) {
++            readerThread.interrupt();
++            process.destroy();
++            throw new TimeoutException();
++        }
++    }
++
++    protected long lastActivity = Long.MAX_VALUE;
++
++    public void touchLastActivity() {
++        long now = System.currentTimeMillis();
++        this.lastActivity = now;
++    }
++
++    public long getLastActivity() {
++        return this.lastActivity;
++    }
++}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java b/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+deleted file mode 100644
+index afb4c11..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
++++ /dev/null
+@@ -1,39 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import java.io.IOException;
+-import java.util.List;
+-import java.util.concurrent.TimeoutException;
+-
+-public interface Session {
+-
+-    String getKey();
+-
+-    public void execute(String command) throws IOException;
+-
+-    public long getLastActivity();
+-
+-    List<String> getInputLines();
+-
+-    List<String> getOutputLines();
+-
+-    public void close() throws IOException, InterruptedException, TimeoutException;
+-}
+-
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+deleted file mode 100644
+index 5f2325c..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
++++ /dev/null
+@@ -1,99 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import java.io.IOException;
+-import java.util.Enumeration;
+-import java.util.UUID;
+-import java.util.concurrent.ConcurrentHashMap;
+-import java.util.concurrent.TimeoutException;
+-
+-public class SessionManager {
+-
+-    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+-
+-    public SessionManager() {
+-        new SessionManagerGarbageCollector(this).start();
+-    }
+-
+-    public Session get(String key) {
+-        return sessions.get(key);
+-    }
+-
+-    public Session create() throws IOException, InterruptedException {
+-        String key = UUID.randomUUID().toString();
+-        Session session = new SparkerSession(key);
+-        sessions.put(key, session);
+-        return session;
+-    }
+-
+-    public void close() {
+-        for (Session session : sessions.values()) {
+-            this.close(session.getKey());
+-        }
+-    }
+-
+-    public void close(String key) {
+-        Session session = this.get(key);
+-        sessions.remove(key);
+-        try {
+-            session.close();
+-        } catch (Exception e) {
+-            // throws InterruptedException, TimeoutException, IOException
+-            e.printStackTrace();
+-        }
+-    }
+-
+-    public Enumeration<String> getSessionKeys() {
+-        return sessions.keys();
+-    }
+-
+-    public void garbageCollect() {
+-        long timeout = 60000; // Time in milliseconds; TODO: make configurable
+-        for (Session session : sessions.values()) {
+-            long now = System.currentTimeMillis();
+-            if ((now - session.getLastActivity()) > timeout) {
+-                this.close(session.getKey());
+-            }
+-        }
+-    }
+-
+-    protected class SessionManagerGarbageCollector extends Thread {
+-
+-        protected SessionManager manager;
+-
+-        protected long period = 60000; // Time in milliseconds; TODO: make configurable
+-
+-        public SessionManagerGarbageCollector(SessionManager manager) {
+-            super();
+-            this.manager = manager;
+-        }
+-
+-        public void run() {
+-            try {
+-                while(true) {
+-                    manager.garbageCollect();
+-                    sleep(period);
+-                }
+-            } catch (InterruptedException e) {
+-                e.printStackTrace();
+-            }
+-        }
+-    }
+-}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
+deleted file mode 100644
+index aa04481..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
++++ /dev/null
+@@ -1,73 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import org.apache.spark.repl.Main;
+-import org.apache.spark.repl.SparkILoop;
+-
+-import java.io.*;
+-import java.util.UUID;
+-
+-public class SparkerInterpreter implements AutoCloseable {
+-
+-    private final UUID uuid;
+-    private final PipedWriter stdin;
+-    private final PipedReader stdout;
+-    private final SparkILoop interp;
+-    private final Thread thread;
+-
+-    public SparkerInterpreter(UUID uuid) throws IOException {
+-        this.uuid = uuid;
+-        this.stdin = new PipedWriter();
+-        this.stdout = new PipedReader();
+-        this.interp = new SparkILoop(
+-                new BufferedReader(new PipedReader(stdin)),
+-                new PrintWriter(System.out)); //new PipedWriter(stdout)));
+-
+-
+-        Main.interp_$eq(interp);
+-
+-        thread = new Thread(new Runnable() {
+-            @Override
+-            public void run() {
+-                interp.process(new String[]{"-usejavacp"});
+-            }
+-        });
+-    }
+-
+-    public UUID getUUID() {
+-        return uuid;
+-    }
+-
+-    public void execute(String command) throws IOException {
+-        stdin.write(command);
+-        stdin.write("\n");
+-    }
+-
+-    public void start() throws IOException {
+-        thread.start();
+-    }
+-
+-    @Override
+-    public void close() throws Exception {
+-        stdin.close();
+-        stdout.close();
+-        thread.join();
+-    }
+-}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
+deleted file mode 100644
+index cfbc880..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
++++ /dev/null
+@@ -1,97 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.servlet.ServletContextHandler;
+-import org.eclipse.jetty.servlet.ServletHolder;
+-
+-public class SparkerMain {
+-
+-    public static void main(String[] args) throws Exception {
+-        SessionManager manager = new SessionManager();
+-
+-        Server httpServer = new Server(8080);
+-
+-        ServletContextHandler context = new ServletContextHandler();
+-        httpServer.setHandler(context);
+-
+-        context.setContextPath("/");
+-        context.addServlet(new ServletHolder(new SparkerServlet(manager)), "/*");
+-
+-        /*
+-        //InetSocketAddress address = NetUtils.createSocketAddr()
+-        ServletContextHandler.Context context = new ServletContextHandler.Context();
+-        context.setContextPath("");
+-        context.addServlet(JMXJsonServlet.class, "/jmx");
+-        context.addServlet(SparkerServlet.class, "/*");
+-
+-        httpServer.addHandler(context);
+-        */
+-
+-        httpServer.start();
+-        httpServer.join();
+-
+-        /*
+-        BufferedReader reader = new BufferedReader(new StringReader(""));
+-        StringWriter writer = new StringWriter();
+-        String master = "erickt-1.ent.cloudera.com";
+-
+-        SparkILoop interp = new SparkILoop(reader, new PrintWriter(writer));
+-        Main.interp_$eq(interp);
+-        interp.process(new String[] { "-usejavacp" });
+-        */
+-
+-        /*
+-        SparkerInterpreter session = new SparkerInterpreter(UUID.randomUUID());
+-
+-        try {
+-            session.start();
+-
+-            session.execute("sc");
+-            session.execute("1 + 1");
+-
+-        } finally {
+-            session.close();
+-        }
+-        */
+-
+-        /*
+-        SessionManager manager = new SessionManager();
+-
+-        try {
+-            Session session = manager.create();
+-
+-            session.execute("sc");
+-            session.execute("1 + 1");
+-
+-            for (String input : session.getInputLines()) {
+-                System.out.print("input: " + input + "\n");
+-            }
+-
+-            for (String output : session.getOutputLines()) {
+-                System.out.print("output: " + output + "\n");
+-            }
+-
+-        } finally {
+-            manager.close();
+-        }
+-        */
+-    }
+-}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+deleted file mode 100644
+index 639c82d..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
++++ /dev/null
+@@ -1,155 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import org.codehaus.jackson.map.ObjectMapper;
+-import org.codehaus.jackson.map.ObjectWriter;
+-
+-import javax.servlet.http.HttpServlet;
+-import javax.servlet.http.HttpServletRequest;
+-import javax.servlet.http.HttpServletResponse;
+-import java.io.BufferedReader;
+-import java.io.IOException;
+-import java.util.regex.Matcher;
+-import java.util.regex.Pattern;
+-
+-public class SparkerServlet extends HttpServlet {
+-
+-    public static final String SESSION_DATA = "sparky.sessions";
+-
+-    private static final String ROOT = "/";
+-    private static final Pattern SESSION_ID = Pattern.compile("^/([-A-Za-z90-9]+)$");
+-
+-    private static final String APPLICATION_JSON_MIME = "application/json";
+-
+-    private ObjectWriter jsonWriter;
+-
+-    private final SessionManager manager;
+-
+-    public SparkerServlet(SessionManager manager) {
+-        this.manager = manager;
+-
+-        ObjectMapper mapper = new ObjectMapper();
+-        jsonWriter = mapper.defaultPrettyPrintingWriter();
+-    }
+-
+-    @Override
+-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            getSessions(req, resp);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                getSession(req, resp, key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    private void getSessions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        jsonWriter.writeValue(resp.getOutputStream(), manager.getSessionKeys());
+-    }
+-
+-    private void getSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
+-        Session session = manager.get(key);
+-        if (session == null) {
+-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            return;
+-        }
+-
+-        jsonWriter.writeValue(resp.getOutputStream(), session.getOutputLines());
+-    }
+-
+-    @Override
+-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            createSession(req, resp);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                writeToSession(req, resp, key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    @Override
+-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        resp.setContentType(APPLICATION_JSON_MIME);
+-        resp.setStatus(HttpServletResponse.SC_OK);
+-
+-        String requestType = req.getPathInfo();
+-        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
+-
+-        if (requestType.equals(ROOT)) {
+-            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+-        } else {
+-            Matcher m = SESSION_ID.matcher(requestType);
+-            if (m.matches()) {
+-                String key = m.group(1);
+-                manager.close(key);
+-            } else {
+-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            }
+-        }
+-    }
+-
+-    private void createSession(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+-        try {
+-            Session session = manager.create();
+-
+-            jsonWriter.writeValue(resp.getOutputStream(), session.getKey());
+-        } catch (InterruptedException e) {
+-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+-            e.printStackTrace();
+-        }
+-    }
+-
+-    private void writeToSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
+-        Session session = manager.get(key);
+-        if (session == null) {
+-            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+-            return;
+-        }
+-
+-        BufferedReader reader = req.getReader();
+-        String line;
+-
+-        while ((line = reader.readLine()) != null) {
+-            session.execute(line);
+-        }
+-    }
+-
+-}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
+deleted file mode 100644
+index 147748f..0000000
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
++++ /dev/null
+@@ -1,139 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.sparker;
+-
+-import com.google.common.collect.Lists;
+-
+-import java.io.BufferedReader;
+-import java.io.IOException;
+-import java.io.InputStreamReader;
+-import java.util.List;
+-import java.util.Queue;
+-import java.util.concurrent.ConcurrentLinkedQueue;
+-import java.util.concurrent.CountDownLatch;
+-import java.util.concurrent.TimeoutException;
+-
+-public class SparkerSession implements Session {
+-
+-    private final String key;
+-    private final Process process;
+-    private final Thread readerThread;
+-
+-    private final Queue<String> inputLines = new ConcurrentLinkedQueue<String>();
+-    private final Queue<String> outputLines = new ConcurrentLinkedQueue<String>();
+-
+-    public SparkerSession(String key) throws IOException, InterruptedException {
+-        this.touchLastActivity();
+-
+-        this.key = key;
+-
+-        ProcessBuilder pb = new ProcessBuilder("spark-shell")
+-                .redirectInput(ProcessBuilder.Redirect.PIPE)
+-                .redirectOutput(ProcessBuilder.Redirect.PIPE)
+-                .redirectErrorStream(true);
+-
+-        this.process = pb.start();
+-
+-        final CountDownLatch latch = new CountDownLatch(1);
+-
+-        this.readerThread = new Thread(new Runnable() {
+-            @Override
+-            public void run() {
+-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+-
+-                try {
+-                    String line;
+-
+-                    /*
+-                    while ((line = reader.readLine()) != null) {
+-                        outputLines.add(line);
+-                        if (line.equals("Spark context available as sc.")) {
+-                            latch.countDown();
+-                        }
+-                    }
+-                    */
+-
+-                    while ((line = reader.readLine()) != null) {
+-                        outputLines.add(line);
+-                    }
+-
+-                    process.waitFor();
+-                } catch (IOException e) {
+-                    e.printStackTrace();
+-                } catch (InterruptedException e) {
+-                    e.printStackTrace();
+-                }
+-            }
+-        });
+-
+-        readerThread.start();
+-
+-        //latch.await();
+-    }
+-
+-    @Override
+-    public String getKey() {
+-        return key;
+-    }
+-
+-    public void execute(String command) throws IOException {
+-        this.touchLastActivity();
+-        if (!command.endsWith("\n")) {
+-            command += "\n";
+-        }
+-
+-        inputLines.add(command);
+-        process.getOutputStream().write(command.getBytes("UTF-8"));
+-        process.getOutputStream().flush();
+-    }
+-
+-    @Override
+-    public List<String> getInputLines() {
+-        this.touchLastActivity();
+-        return Lists.newArrayList(inputLines);
+-    }
+-
+-    @Override
+-    public List<String> getOutputLines() {
+-        this.touchLastActivity();
+-        return Lists.newArrayList(outputLines);
+-    }
+-
+-    public void close() throws IOException, InterruptedException, TimeoutException {
+-        process.getOutputStream().close();
+-
+-        readerThread.join();
+-        if (readerThread.isAlive()) {
+-            readerThread.interrupt();
+-            process.destroy();
+-            throw new TimeoutException();
+-        }
+-    }
+-
+-    protected long lastActivity = Long.MAX_VALUE;
+-
+-    public void touchLastActivity() {
+-        long now = System.currentTimeMillis();
+-        this.lastActivity = now;
+-    }
+-
+-    public long getLastActivity() {
+-        return this.lastActivity;
+-    }
+-}
+-- 
+1.7.9.5
+

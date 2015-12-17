@@ -1,0 +1,117 @@
+From 4ac78854541a6209ce09b36d9e724692d7a89142 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 4 Nov 2014 19:34:46 +0000
+Subject: [PATCH 0239/1173] [oozie] Support creating a fork
+
+---
+ .../templates/editor/gen2/workflow-fork.xml.mako   |    6 +--
+ .../templates/editor/gen2/workflow-join.xml.mako   |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   53 ++++++++++++++++----
+ 3 files changed, 46 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
+index fd2aec8..e329e72 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-fork.xml.mako
+@@ -15,8 +15,8 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ 
+-    <fork name="${ node }">
+-        % for child in node.get_children('start'):
+-        <path start="${ child }" />
++    <fork name="${ node['name'] }">
++        % for child in node['children']:
++        <path start="${ node_mapping[child['to']] }" />
+         % endfor
+     </fork>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
+index be10684..833bb19 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-join.xml.mako
+@@ -15,4 +15,4 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ 
+-    <join name="${ node }" to="${ node.get_oozie_child('to') }"/>
++    <join name="${ node['name'] }" to="${ node_mapping[node['children'][0]['to']] }"/>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 70309ce..2d7c3e1 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -180,14 +180,46 @@ var Workflow = function (vm, workflow) {
+ 
+        // if node != kill node
+ 
+-        // if was dragged on the sides ?
+-    	  // get neighbor
+-    	
+-    	// else    	
+-    	  // get parent
+-
+-        var parentWidget = vm.getWidgetPredecessor(node.id());
+-        var parent = self.getNodeById(parentWidget.id());
++        // Added to the side ?
++        if (true) {
++          var parent = self.getNodeById('3f107997-04cc-8733-60a9-a4bb62cebffc');
++          
++          if (parent.type() != 'fork-widget') {          
++            var fork = new Node({});
++            fork.name('fork' + '-' + fork.id().slice(0, 4));
++            fork.type('fork-widget');
++          
++            var join = new Node({});
++            join.name('join' + '-' + fork.id().slice(0, 4));
++            join.type('join-widget');
++            
++            // Start node
++            var afterStartId = ko.mapping.toJS(parent.get_link('to')).to;
++            var afterStart = self.getNodeById(afterStartId);
++            fork.children.push({'to': afterStartId});
++            fork.children.push({'to': node.id()});
++            
++            parent.get_link('to')['to'] = fork.id();
++            
++            join.set_link('to', afterStart.get_link('ok')['ok']);
++
++            afterStart.set_link('ok', join.id());
++	        node.set_link('ok', join.id());
++	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');   
++	        
++	        var end = self.nodes.pop();
++	        self.nodes.push(fork);
++	        self.nodes.push(join);
++	        self.nodes.push(end)	        
++            // Regular node
++          
++            // Join node
++          } else {
++            // Just add to existing fork
++          }
++        } else {
++          var parentWidget = vm.getWidgetPredecessor(node.id());
++          var parent = self.getNodeById(parentWidget.id());
+ 
+           if (parentWidget.widgetType() == 'start-widget') {	
+ 	        // Star node link to new node	
+@@ -197,15 +229,14 @@ var Workflow = function (vm, workflow) {
+ 	        node.set_link('ok', '33430f0f-ebfa-c3ec-f237-3e77efa03d0a');
+ 	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+           } else if (parentWidget.widgetType() == 'pig-widget') {
+-          // Parent regular node        	
+-
++            // Parent regular node        	
+   	        node.set_link('ok', parent.get_link('ok')['ok']);
+   	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+   	
+   	        parent.set_link('ok', node.id());        	
+           }
+     	  // Parent fork/decision/join...
+-
++        }
+ 
+       } else {
+         $(document).trigger("error", data.message);
+-- 
+1.7.9.5
+

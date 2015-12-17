@@ -1,0 +1,241 @@
+From 2828d0d97c84db4e553e8bf5ef0728b65b14b0ae Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 26 Feb 2015 14:34:17 +0100
+Subject: [PATCH 0927/1173] [oozie] Disable save button while saving
+
+---
+ .../src/oozie/static/oozie/js/bundle-editor.ko.js  |   37 ++++++++------
+ .../oozie/static/oozie/js/coordinator-editor.ko.js |   39 ++++++++-------
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |   51 +++++++++++---------
+ .../src/oozie/templates/editor2/bundle_editor.mako |    2 +-
+ .../templates/editor2/coordinator_editor.mako      |    2 +-
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ 6 files changed, 74 insertions(+), 59 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
+index 3a7a31d..5b2830d 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
+@@ -64,6 +64,7 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+   self.toggleEditing = function () {
+     self.isEditing(!self.isEditing());
+   };
++  self.isSaving = ko.observable(false);
+ 
+   self.bundle = new Bundle(self, bundle_json);
+ 
+@@ -98,23 +99,27 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+ 
+ 
+   self.save = function () {
+-    $.post("/oozie/editor/bundle/save/", {
+-      "bundle": ko.mapping.toJSON(self.bundle)
+-    }, function (data) {
+-      if (data.status == 0) {
+-        self.bundle.id(data.id);
+-        self.bundle.tracker().markCurrentStateAsClean();
+-        $(document).trigger("info", data.message);
+-        if (window.location.search.indexOf("bundle") == -1) {
+-          window.location.hash = '#bundle=' + data.id;
++    if (! self.isSaving()) {
++      self.isSaving(true);
++      $.post("/oozie/editor/bundle/save/", {
++        "bundle": ko.mapping.toJSON(self.bundle)
++      }, function (data) {
++        if (data.status == 0) {
++          self.bundle.id(data.id);
++          self.bundle.tracker().markCurrentStateAsClean();
++          $(document).trigger("info", data.message);
++          if (window.location.search.indexOf("bundle") == -1) {
++            window.location.hash = '#bundle=' + data.id;
++          }
+         }
+-      }
+-      else {
+-        $(document).trigger("error", data.message);
+-      }
+-    }).fail(function (xhr, textStatus, errorThrown) {
+-      $(document).trigger("error", xhr.responseText);
+-    });
++        else {
++          $(document).trigger("error", data.message);
++        }
++        self.isSaving(false);
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    }
+   };
+ 
+   self.showSubmitPopup = function () {
+diff --git a/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
+index d385ae7..b0071c9 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
+@@ -153,6 +153,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   self.toggleEditing = function () {
+     self.isEditing(!self.isEditing());
+   };
++  self.isSaving = ko.observable(false);
+ 
+   self.workflows = ko.mapping.fromJS(workflows_json);
+   self.coordinator = new Coordinator(self, coordinator_json);
+@@ -190,24 +191,28 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+ 
+ 
+   self.save = function () {
+-    $(".jHueNotify").hide();
+-    $.post("/oozie/editor/coordinator/save/", {
+-      "coordinator": ko.mapping.toJSON(self.coordinator)
+-    }, function (data) {
+-      if (data.status == 0) {
+-        self.coordinator.id(data.id);
+-        self.coordinator.tracker().markCurrentStateAsClean();
+-        $(document).trigger("info", data.message);
+-        if (window.location.search.indexOf("coordinator") == -1) {
+-          window.location.hash = '#coordinator=' + data.id;
++    if (! self.isSaving()) {
++      self.isSaving(true);
++      $(".jHueNotify").hide();
++      $.post("/oozie/editor/coordinator/save/", {
++        "coordinator": ko.mapping.toJSON(self.coordinator)
++      }, function (data) {
++        if (data.status == 0) {
++          self.coordinator.id(data.id);
++          self.coordinator.tracker().markCurrentStateAsClean();
++          $(document).trigger("info", data.message);
++          if (window.location.search.indexOf("coordinator") == -1) {
++            window.location.hash = '#coordinator=' + data.id;
++          }
+         }
+-      }
+-      else {
+-        $(document).trigger("error", data.message);
+-      }
+-    }).fail(function (xhr, textStatus, errorThrown) {
+-      $(document).trigger("error", xhr.responseText);
+-    });
++        else {
++          $(document).trigger("error", data.message);
++        }
++        self.isSaving(false);
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    }
+   };
+ 
+   self.gen_xml = function () {
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index e7852d3..252bec4 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -470,6 +470,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.toggleEditing = function () {
+     self.isEditing(!self.isEditing());
+   };
++  self.isSaving = ko.observable(false);
+ 
+   self.isRunning = ko.observable(false);
+ 
+@@ -1026,31 +1027,35 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   }
+ 
+   self.save = function () {
+-    $(".jHueNotify").hide();
+-    $.post("/oozie/editor/workflow/save/", {
+-      "layout": ko.mapping.toJSON(self.oozieColumns),
+-      "workflow": ko.mapping.toJSON(self.workflow)
+-    }, function (data) {
+-      if (data.status == 0) {
+-        if (data.url) {
+-          window.location.replace(data.url);
+-        }
+-        if (self.workflow.id() == null) {
+-          shareViewModel.setDocId(data.doc1_id);
++    if (! self.isSaving()) {
++      self.isSaving(true);
++      $(".jHueNotify").hide();
++      $.post("/oozie/editor/workflow/save/", {
++        "layout": ko.mapping.toJSON(self.oozieColumns),
++        "workflow": ko.mapping.toJSON(self.workflow)
++      }, function (data) {
++        if (data.status == 0) {
++          if (data.url) {
++            window.location.replace(data.url);
++          }
++          if (self.workflow.id() == null) {
++            shareViewModel.setDocId(data.doc1_id);
++          }
++          self.workflow.id(data.id);
++          $(document).trigger("info", data.message);
++          if (window.location.search.indexOf("workflow") == -1) {
++            window.location.hash = '#workflow=' + data.id;
++          }
++          self.workflow.tracker().markCurrentStateAsClean();
+         }
+-        self.workflow.id(data.id);
+-        $(document).trigger("info", data.message);
+-        if (window.location.search.indexOf("workflow") == -1) {
+-          window.location.hash = '#workflow=' + data.id;
++        else {
++          $(document).trigger("error", data.message);
+         }
+-        self.workflow.tracker().markCurrentStateAsClean();
+-      }
+-      else {
+-        $(document).trigger("error", data.message);
+-      }
+-    }).fail(function (xhr, textStatus, errorThrown) {
+-      $(document).trigger("error", xhr.responseText);
+-    });
++        self.isSaving(false);
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    }
+   };
+ 
+   self.gen_xml = function () {
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index c5103f0..a96cea4 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -57,7 +57,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+ 
+     &nbsp;&nbsp;&nbsp;
+ 
+-    <a type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}, visible: canEdit() && bundle.coordinators().length > 0">
++    <a type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true, 'disabled': $root.isSaving()}, visible: canEdit() && bundle.coordinators().length > 0">
+       <i class="fa fa-save"></i>
+     </a>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index b069f22..042603b 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -61,7 +61,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+     &nbsp;&nbsp;&nbsp;
+ 
+     <a title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }"
+-        data-bind="click: $root.save, css: {'btn': true}, visible: coordinator.properties.workflow() && canEdit">
++        data-bind="click: $root.save, css: {'btn': true, 'disabled': $root.isSaving()}, visible: coordinator.properties.workflow() && canEdit">
+       <i class="fa fa-save"></i>
+     </a>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 8882dd1..1ef723f 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -179,7 +179,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     &nbsp;&nbsp;&nbsp;
+ 
+-    <a title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}, visible: canEdit">
++    <a title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true, 'disabled': $root.isSaving()}, visible: canEdit">
+       <i class="fa fa-fw fa-save"></i>
+     </a>
+ 
+-- 
+1.7.9.5
+

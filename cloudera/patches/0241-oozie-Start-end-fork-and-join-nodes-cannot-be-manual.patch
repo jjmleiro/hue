@@ -1,0 +1,35 @@
+From f0ba3ec5fce9ba238b76065f1d3030e02b54cf0d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 00:23:10 +0100
+Subject: [PATCH 0241/1173] [oozie] Start, end, fork and join nodes cannot be
+ manually removed
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index bcc292c..205159f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -243,8 +243,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <h2 class="card-heading simple">
+       <span data-bind="visible: $root.isEditing">
+         <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
+-        <a href="javascript:void(0)" data-bind="click: compress, visible: size() > 1"><i class="fa fa-step-backward"></i></a>
+-        <a href="javascript:void(0)" data-bind="click: expand, visible: size() < 12"><i class="fa fa-step-forward"></i></a>
+         &nbsp;
+       </span>
+       <!-- ko if: $root.collection && $root.collection.getFacetById(id()) -->
+@@ -255,7 +253,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       <!-- ko if: typeof $root.collection == 'undefined' || $root.collection.getFacetById(id()) == null -->
+         <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+       <!-- /ko -->
+-      <div class="inline pull-right" data-bind="visible: $root.isEditing">
++      <div class="inline pull-right" data-bind="visible: $root.isEditing() && ['start-widget', 'end-widget', 'fork-widget', 'join-widget'].indexOf(widgetType()) == -1">
+         <a href="javascript:void(0)" data-bind="click: $root.removeWidget"><i class="fa fa-times"></i></a>
+       </div>
+     </h2>
+-- 
+1.7.9.5
+

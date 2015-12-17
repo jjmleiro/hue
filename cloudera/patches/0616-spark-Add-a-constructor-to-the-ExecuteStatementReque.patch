@@ -1,0 +1,28 @@
+From d7a7d4b1229cba65b9ca00471e2ba004b3f750de Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 15:32:31 -0800
+Subject: [PATCH 0616/1173] [spark] Add a constructor to the
+ ExecuteStatementRequest
+
+---
+ .../sparker/server/resources/SessionResource.java  |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index 174d578..d9877c0 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -104,6 +104,10 @@ public class SessionResource {
+         @NotEmpty
+         private String statement;
+ 
++        public ExecuteStatementRequest(String statement) {
++            this.statement = statement;
++        }
++
+         public String getStatement() {
+             return statement;
+         }
+-- 
+1.7.9.5
+

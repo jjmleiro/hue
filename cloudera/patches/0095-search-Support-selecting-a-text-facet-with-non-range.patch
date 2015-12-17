@@ -1,0 +1,26 @@
+From 942d2723d87565a9982b873707eea0bbba03f687 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 7 Nov 2014 09:35:01 +0000
+Subject: [PATCH 0095/1173] [search] Support selecting a text facet with non
+ range dates
+
+---
+ desktop/libs/libsolr/src/libsolr/api.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 00c1174..832de60 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -74,7 +74,7 @@ class SolrApi(object):
+         for field in fields:
+           f = []
+           for _filter in fq['filter']:
+-            values = _filter['value'].split(':')
++            values = _filter['value'].split(':') if len(fields) > 1 else [_filter['value']]
+             if fields.index(field) < len(values): # Lowest common field denominator
+               value = values[fields.index(field)]
+               exclude = '-' if _filter['exclude'] else ''
+-- 
+1.7.9.5
+

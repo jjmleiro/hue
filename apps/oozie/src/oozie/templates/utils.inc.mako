@@ -266,15 +266,17 @@
 <%def name="slaForm()">
   <div data-bind="foreach: { 'data': sla, 'afterRender': addSLATextAndPlaceholder }">
     <div class="control-group control-row" style="margin-bottom: 2px">
+      <!-- ko if:  key() == 'enabled' -->
+      <label class="checkbox" style="text-align: left"><span class="control-label"></span> <input type="checkbox" data-bind="checked: value"/></label>
+      <!-- /ko -->
+      <!-- ko if:  key() != 'enabled' -->
+      <span data-bind="visible: ko.utils.arrayFilter($parent.sla(), function(item) { return item.key() == 'enabled' && item.value()==true }).length == 1">
       <label class="control-label" style="text-align: left"></label>
       <div class="controls">
-        <!-- ko if:  key() == 'enabled' -->
-        <input type="checkbox" data-bind="checked: value"/>
-        <!-- /ko -->
-        <!-- ko if:  key() != 'enabled' -->
         <input type="text" data-bind="value: value" class="span7">
-        <!-- /ko -->
       </div>
+      </span>
+      <!-- /ko -->
     </div>
   </div>
 </%def>
@@ -410,8 +412,8 @@
 
 <%def name="decorate_datetime_fields(is_range=True)">
 
-  <link rel="stylesheet" href="/static/ext/css/bootstrap-datepicker.min.css" type="text/css" media="screen" title="no title" charset="utf-8" />
-  <link rel="stylesheet" href="/static/ext/css/bootstrap-timepicker.min.css" type="text/css" media="screen" title="no title" charset="utf-8" />
+  <link rel="stylesheet" href="${ static('desktop/ext/css/bootstrap-datepicker.min.css') }" type="text/css" media="screen" title="no title" charset="utf-8" />
+  <link rel="stylesheet" href="${ static('desktop/ext/css/bootstrap-timepicker.min.css') }" type="text/css" media="screen" title="no title" charset="utf-8" />
 
   <style type="text/css">
     .datepicker {
@@ -419,9 +421,9 @@
     }
   </style>
 
-  <script src="/static/ext/js/moment.min.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/ext/js/bootstrap-datepicker.min.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/ext/js/bootstrap-timepicker.min.js" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/moment-with-locales.min.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/bootstrap-datepicker.min.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/bootstrap-timepicker.min.js') }" type="text/javascript" charset="utf-8"></script>
 
   <script type="text/javascript" charset="utf-8">
 

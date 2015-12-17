@@ -1,0 +1,62 @@
+From 3e1af62d506c73dfd2341839a064039074492bc9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 23 Jan 2015 16:58:47 -0800
+Subject: [PATCH 0659/1173] [livy] Catch JSON parse/extraction errors
+
+---
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |    9 ++++++++-
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    9 ++++++++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index eeb6661..19a686d 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -2,7 +2,8 @@ package com.cloudera.hue.livy.repl
+ 
+ import akka.util.Timeout
+ import com.cloudera.hue.livy.ExecuteRequest
+-import org.json4s.{DefaultFormats, Formats}
++import com.fasterxml.jackson.core.JsonParseException
++import org.json4s.{MappingException, DefaultFormats, Formats}
+ import org.scalatra.json._
+ import org.scalatra.{Accepted, AsyncResult, FutureSupport, ScalatraServlet}
+ 
+@@ -54,4 +55,10 @@ class WebApp(interpreter: SparkInterpreter) extends ScalatraServlet with FutureS
+     }
+     Accepted()
+   }
++
++  error {
++    case e: JsonParseException => halt(400, e.getMessage)
++    case e: MappingException => halt(400, e.getMessage)
++    case t => throw t
++  }
+ }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 1ec4869..c0f8110 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.server
+ 
+-import org.json4s.{DefaultFormats, Formats}
++import com.fasterxml.jackson.core.JsonParseException
++import org.json4s.{MappingException, DefaultFormats, Formats}
+ import org.scalatra._
+ import org.scalatra.json.JacksonJsonSupport
+ 
+@@ -86,4 +87,10 @@ class WebApp(sessionManager: SessionManager)
+       case None => NotFound("Session not found")
+     }
+   }
++
++  error {
++    case e: JsonParseException => halt(400, e.getMessage)
++    case e: MappingException => halt(400, e.getMessage)
++    case t => throw t
++  }
+ }
+-- 
+1.7.9.5
+

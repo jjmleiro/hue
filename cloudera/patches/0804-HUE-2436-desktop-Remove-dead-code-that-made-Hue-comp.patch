@@ -1,0 +1,177 @@
+From 2a06d2fb607001ab02c65dff3f851a5f6f300e19 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 16:15:50 -0800
+Subject: [PATCH 0804/1173] HUE-2436 [desktop] Remove dead code that made Hue
+ compatible with Python 2.4 and 2.5
+
+---
+ desktop/core/src/desktop/lib/apputil.py       |   70 +------------------------
+ desktop/core/src/desktop/middleware.py        |    6 ++-
+ desktop/core/src/desktop/views.py             |   10 +---
+ desktop/libs/hadoop/src/hadoop/fs/__init__.py |    9 +---
+ 4 files changed, 7 insertions(+), 88 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/apputil.py b/desktop/core/src/desktop/lib/apputil.py
+index 105ae0d..104e2be 100644
+--- a/desktop/core/src/desktop/lib/apputil.py
++++ b/desktop/core/src/desktop/lib/apputil.py
+@@ -30,7 +30,7 @@ def get_current_app(frame=None):
+     frame = inspect.currentframe().f_back
+ 
+   while frame:
+-    module = getmodule_wrapper(frame.f_code)
++    module = inspect.getmodule(frame.f_code)
+     if not module:
+       raise Exception(("No module for code %s (frame %s). Perhaps you have an old " +
+                        ".pyc file hanging around?") % (repr(frame.f_code), repr(frame)))
+@@ -49,71 +49,3 @@ def get_app_for_module(module):
+     if module.__name__.startswith(app) and not module.__name__.startswith("desktop.lib"):
+       return app
+   return None
+-
+-
+-def getmodule_wrapper(obj):
+-  """
+-  inspect.getmodule() does not work with symlink well before Python 2.5. It
+-  uses realpath() to determine the locations of sys.modules.
+-
+-  So we borrow the getmodule() code from Python 2.5 and do it ourselves.
+-  """
+-  if sys.version_info >= (2, 5):
+-    return inspect.getmodule(obj)
+-  return getmodule_2_5(obj)
+-
+-
+-#
+-# The following is taken from Python-2.5.4's inspect.py.
+-#
+-modulesbyfile = {}
+-_filesbymodname = {}
+-
+-def getmodule_2_5(object, _filename=None):
+-    """Return the module an object was defined in, or None if not found."""
+-    global modulesbyfile
+-    global _filesbymodname
+-
+-    if inspect.ismodule(object):
+-        return object
+-    if hasattr(object, '__module__'):
+-        return sys.modules.get(object.__module__)
+-    # Try the filename to modulename cache
+-    if _filename is not None and _filename in modulesbyfile:
+-        return sys.modules.get(modulesbyfile[_filename])
+-    # Try the cache again with the absolute file name
+-    try:
+-        file = inspect.getabsfile(object)
+-    except TypeError:
+-        return None
+-    if file in modulesbyfile:
+-        return sys.modules.get(modulesbyfile[file])
+-    # Update the filename to module name cache and check yet again
+-    # Copy sys.modules in order to cope with changes while iterating
+-    for modname, module in sys.modules.items():
+-        if inspect.ismodule(module) and hasattr(module, '__file__'):
+-            f = module.__file__
+-            if f == _filesbymodname.get(modname, None):
+-                # Have already mapped this module, so skip it
+-                continue
+-            _filesbymodname[modname] = f
+-            f = inspect.getabsfile(module)
+-            # Always map to the name the module knows itself by
+-            modulesbyfile[f] = modulesbyfile[
+-                os.path.realpath(f)] = module.__name__
+-    if file in modulesbyfile:
+-        return sys.modules.get(modulesbyfile[file])
+-    # Check the main module
+-    main = sys.modules['__main__']
+-    if not hasattr(object, '__name__'):
+-        return None
+-    if hasattr(main, object.__name__):
+-        mainobject = getattr(main, object.__name__)
+-        if mainobject is object:
+-            return main
+-    # Check builtins
+-    builtin = sys.modules['__builtin__']
+-    if hasattr(builtin, object.__name__):
+-        builtinobject = getattr(builtin, object.__name__)
+-        if builtinobject is object:
+-            return builtin
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 7220f63..58eab14 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -15,11 +15,13 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-import logging
++import inspect
+ import json
++import logging
+ import os.path
+ import re
+ import tempfile
++
+ import kerberos
+ 
+ from datetime import datetime
+@@ -163,7 +165,7 @@ class AppSpecificMiddleware(object):
+   def augment_request_with_app(cls, request, view_func):
+     """ Stuff the app into the request for use in later-stage middleware """
+     if not hasattr(request, "_desktop_app"):
+-      module = apputil.getmodule_wrapper(view_func)
++      module = inspect.getmodule(view_func)
+       request._desktop_app = apputil.get_app_for_module(module)
+       if not request._desktop_app and not module.__name__.startswith('django.'):
+         logging.debug("no app for view func: %s in %s" % (view_func, module))
+diff --git a/desktop/core/src/desktop/views.py b/desktop/core/src/desktop/views.py
+index ec71944..9572557 100644
+--- a/desktop/core/src/desktop/views.py
++++ b/desktop/core/src/desktop/views.py
+@@ -219,14 +219,6 @@ def dump_config(request):
+     conf_dir=conf_dir,
+     apps=apps))
+ 
+-if sys.version_info[0:2] <= (2,4):
+-  def _threads():
+-    import threadframe
+-    return threadframe.dict().iteritems()
+-else:
+-  def _threads():
+-    return sys._current_frames().iteritems()
+-
+ @access_log_level(logging.WARN)
+ def threads(request):
+   """Dumps out server threads.  Useful for debugging."""
+@@ -234,7 +226,7 @@ def threads(request):
+     return HttpResponse(_("You must be a superuser."))
+ 
+   out = []
+-  for thread_id, stack in _threads():
++  for thread_id, stack in sys._current_frames().iteritems():
+     out.append("Thread id: %s" % thread_id)
+     for filename, lineno, name, line in traceback.extract_stack(stack):
+       out.append("  %-20s %s(%d)" % (name, filename, lineno))
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/__init__.py b/desktop/libs/hadoop/src/hadoop/fs/__init__.py
+index 6755f0d..8fc2515 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/__init__.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/__init__.py
+@@ -42,14 +42,7 @@ import shutil
+ import stat
+ import sys
+ 
+-# SEEK_SET and family is found in posixfile or os, depending on the python version
+-if sys.version_info[:2] < (2, 5):
+-  import posixfile
+-  _tmp_mod = posixfile
+-else:
+-  _tmp_mod = os
+-SEEK_SET, SEEK_CUR, SEEK_END = _tmp_mod.SEEK_SET, _tmp_mod.SEEK_CUR, _tmp_mod.SEEK_END
+-del _tmp_mod
++SEEK_SET, SEEK_CUR, SEEK_END = os.SEEK_SET, os.SEEK_CUR, os.SEEK_END
+ 
+ 
+ # The web (and POSIX) always uses forward slash as a separator
+-- 
+1.7.9.5
+

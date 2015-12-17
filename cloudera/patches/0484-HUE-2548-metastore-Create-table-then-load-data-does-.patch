@@ -1,0 +1,29 @@
+From 2c7794e01c72388aad249084f8fae1d2e7ad0474 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 21 Jan 2015 21:10:59 +0100
+Subject: [PATCH 0484/1173] HUE-2548 [metastore] Create table then load data
+ does redirect to the table page
+
+Added timeout to redirect
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index e5a7cbf..7778613 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -2785,7 +2785,9 @@ viewModel.design.fileResources.values.subscribe(function() {
+   });
+   $(document).on('stop_watch.query', function(e) {
+     if (viewModel.design.results.errors().length == 0) {
+-      window.location.href = "${request.GET['on_success_url']}";
++      window.setTimeout(function(){
++        window.location.href = "${request.GET['on_success_url']}";
++      }, 200);
+     }
+   });
+ % elif action == 'editor-results':
+-- 
+1.7.9.5
+

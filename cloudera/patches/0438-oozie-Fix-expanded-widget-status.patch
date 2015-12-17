@@ -1,0 +1,61 @@
+From 9a318c471e23537a98643e72ea2634cb26548a9a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 17:23:44 +0100
+Subject: [PATCH 0438/1173] [oozie] Fix expanded widget status
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   38 ++++++++++----------
+ 1 file changed, 20 insertions(+), 18 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index ef55337..9e2dfd5 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1988,24 +1988,26 @@ ${ dashboard.import_bindings() }
+   var lastExpandedWidget = null;
+   function setLastExpandedWidget(widget) {
+     lastExpandedWidget = widget;
+-    var _el = $("#wdg_" + widget.id());
+-    if (_el.width() < 400){
+-      _el.css("z-index", "1032");
+-      lastSeenPosition = _el.position();
+-      var _width = _el.width();
+-
+-      _el.css("position", "absolute");
+-      _el.css({
+-        "top": (lastSeenPosition.top) + "px",
+-        "left": lastSeenPosition.left + "px",
+-        "width": _width
+-      });
+-      _el.width(500);
+-      $("#exposeOverlay").fadeIn(300);  
+-      widget.oozieExpanded(true);
+-    }
+-    else {
+-      widget.oozieExpanded(false);
++    if (!widget.oozieExpanded()){
++      var _el = $("#wdg_" + widget.id());
++      if (_el.width() < 400){
++        _el.css("z-index", "1032");
++        lastSeenPosition = _el.position();
++        var _width = _el.width();
++
++        _el.css("position", "absolute");
++        _el.css({
++          "top": (lastSeenPosition.top) + "px",
++          "left": lastSeenPosition.left + "px",
++          "width": _width
++        });
++        _el.width(500);
++        $("#exposeOverlay").fadeIn(300);  
++        widget.oozieExpanded(true);
++      }
++      else {
++        widget.oozieExpanded(false);
++      }
+     }
+   }
+ 
+-- 
+1.7.9.5
+

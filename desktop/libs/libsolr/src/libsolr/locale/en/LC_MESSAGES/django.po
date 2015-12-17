@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2013-05-10 11:59-0700\n"
+"POT-Creation-Date: 2015-05-07 22:59-0700\n"
 "PO-Revision-Date: 2013-10-28 10:31-0700\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: en <LL@li.org>\n"
@@ -17,25 +17,33 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 0.9.6\n"
 
-#: src/impala/conf.py:26
-msgid "Host of the Impala Server."
+#: src/libsolr/api.py:222 src/libsolr/api.py:234 src/libsolr/api.py:246
+#: src/libsolr/api.py:261 src/libsolr/api.py:281 src/libsolr/api.py:303
+#: src/libsolr/api.py:321 src/libsolr/api.py:339 src/libsolr/api.py:346
+#: src/libsolr/api.py:355 src/libsolr/api.py:365 src/libsolr/api.py:375
+#: src/libsolr/api.py:388 src/libsolr/api.py:398 src/libsolr/api.py:408
+#: src/libsolr/api.py:429 src/libsolr/api.py:445 src/libsolr/api.py:456
+#: src/libsolr/api.py:478 src/libsolr/api.py:501
+msgid "Error while accessing Solr"
 msgstr ""
 
-#: src/impala/conf.py:31
-msgid "Port of the Impala Server."
-msgstr ""
+#~ msgid "Host of the Impala Server."
+#~ msgstr ""
 
-#: src/impala/conf.py:37
-msgid ""
-"Beeswax or Hive Server 2 Thrift API used. Choices are: 'beeswax' or "
-"'hiveserver2'."
-msgstr ""
+#~ msgid "Port of the Impala Server."
+#~ msgstr ""
 
-#: src/impala/conf.py:42
-msgid "Kerberos principal name for Impala. Typically 'impala/hostname.foo.com'."
-msgstr ""
+#~ msgid ""
+#~ "Beeswax or Hive Server 2 Thrift "
+#~ "API used. Choices are: 'beeswax' or "
+#~ "'hiveserver2'."
+#~ msgstr ""
 
-#: src/impala/views.py:35
-msgid "A POST request is required."
-msgstr ""
+#~ msgid ""
+#~ "Kerberos principal name for Impala. "
+#~ "Typically 'impala/hostname.foo.com'."
+#~ msgstr ""
+
+#~ msgid "A POST request is required."
+#~ msgstr ""
 

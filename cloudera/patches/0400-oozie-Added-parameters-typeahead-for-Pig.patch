@@ -1,0 +1,97 @@
+From 0aa25db47d2b859d32a77f43eb2609ef8cdc097b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 6 Jan 2015 13:22:50 +0100
+Subject: [PATCH 0400/1173] [oozie] Added parameters typeahead for Pig
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |    4 ++-
+ desktop/core/static/js/ko.hue-bindings.js          |   29 ++++++++++++++++++--
+ 3 files changed, 30 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 165e930..c11b04f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -609,7 +609,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="span11" data-bind="value: value, attr: { placeholder: $parent.actionParametersUI }"/>
++      <input type="text" class="span11" data-bind="value: value, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index c55d076..8daaf95 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -86,7 +86,9 @@ var Node = function (node) {
+ 
+   self.actionParameters = ko.observableArray([]);
+   self.actionParametersUI = ko.computed(function() { // TODO: remove truncation when autocomplete
+-    return $.map(self.actionParameters().slice(0, 3), function(param) {return param + '=...'}).join();
++    if (self.actionParameters()){
++      return $.map(self.actionParameters().slice(0, 3), function(param) {return param + '=...'}).join();  
++    }
+   });
+   self.actionParametersFetched = ko.observable(false);
+   
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index 8ca8e86..eab0f77 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -734,10 +734,23 @@ ko.bindingHandlers.typeahead = {
+         if (valueAccessor.extraKeywords) {
+           _source = _source.concat(valueAccessor.extraKeywords.split(" "))
+         }
++
++        if (valueAccessor.sourceSuffix && _source) {
++          var _tmp = [];
++          _source.forEach(function(item){
++            _tmp.push(item + valueAccessor.sourceSuffix);
++          });
++          _source = _tmp;
++        }
+         return _source;
+       },
+       onselect: function (val) {
+-        valueAccessor.target(val);
++        if (typeof valueAccessor.target == "function") {
++          valueAccessor.target(val);
++        }
++        else {
++         valueAccessor.target = val;
++        }
+       }
+     }
+ 
+@@ -807,13 +820,23 @@ ko.bindingHandlers.typeahead = {
+     }
+ 
+     elem.blur(function () {
+-      valueAccessor.target(elem.val());
++      if (typeof valueAccessor.target == "function") {
++        valueAccessor.target(elem.val());
++      }
++      else {
++       valueAccessor.target = elem.val();
++      }
+     });
+   },
+   update: function (element, valueAccessor) {
+     var elem = $(element);
+     var value = valueAccessor();
+-    elem.val(value.target());
++    if (typeof value.target == "function") {
++      elem.val(value.target());
++    }
++    else {
++      elem.val(value.target);
++    }
+   }
+ };
+ 
+-- 
+1.7.9.5
+

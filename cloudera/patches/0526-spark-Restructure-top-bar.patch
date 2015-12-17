@@ -1,0 +1,196 @@
+From 4e5d8c819f7ab5b58ded4283b9ac27de54c45e5d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 1 Dec 2014 17:12:09 +0100
+Subject: [PATCH 0526/1173] [spark] Restructure top bar
+
+---
+ apps/spark/src/spark/templates/editor.mako |   80 +++++++++++++---------------
+ apps/spark/static/css/spark.css            |   34 +++++++++++-
+ apps/spark/static/js/spark.vm.js           |    6 ++-
+ 3 files changed, 74 insertions(+), 46 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b397d79..2271890 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -19,38 +19,43 @@
+ %>
+ 
+ 
+-${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+-
+-<div class="card card-toolbar">
+-  <div style="float: left; margin-left: 20px">
+-    <div class="toolbar-label">${_('SPARK')}</div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': false }"
+-         title="${_('Spark Scala')}" rel="tooltip" data-placement="bottom">
+-         <a data-bind="style: { cursor: true ? 'move' : 'default' }">
+-           <img src="/spark/static/art/icon_spark_48.png" class="app-icon" />
+-         </a>
+-    </div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': false }"
+-         title="${_('Spark Scala')}" rel="tooltip" data-placement="bottom">
+-         <a data-bind="style: { cursor: true ? 'move' : 'default' }">
+-           <img src="/spark/static/art/icon_spark_48.png" class="app-icon" />
+-         </a>
+-    </div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': false }"
+-         title="${_('Spark Scala')}" rel="tooltip" data-placement="bottom">
+-         <a data-bind="style: { cursor: true ? 'move' : 'default' }">
+-           <img src="/spark/static/art/icon_spark_48.png" class="app-icon" />
+-         </a>
+-    </div>    
+-    <div class="toolbar-label">${_('SPARK')}</div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': false }"
+-         title="${_('Hive Query')}" rel="tooltip" data-placement="bottom">
+-         <a data-bind="style: { cursor: true ? 'move' : 'default' }">
+-           <img src="/beeswax/static/art/icon_beeswax_48.png" class="app-icon" />
+-         </a>
+-    </div>    
++${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
++
++
++<div class="search-bar">
++  <div class="pull-right" style="padding-right:50px">
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: true, css: {'btn': true}">
++      <i class="fa fa-play"></i>
++    </a>
++    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
++      <i class="fa fa-pencil"></i>
++    </a>
++    &nbsp;&nbsp;&nbsp;
++    % if user.is_superuser:
++      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
++        <i class="fa fa-save"></i>
++      </button>
++      &nbsp;&nbsp;&nbsp;
++      <a class="btn" href="${ url('oozie:new_workflow') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-file-o"></i>
++      </a>
++      <a class="btn" href="${ url('oozie:list_editor_workflows') }" title="${ _('Workflows') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-tags"></i>
++      </a>
++    % endif
+   </div>
+-  <div class="clearfix"></div>
++
++
++  <ul class="nav nav-tabs">
++    <!-- ko foreach: notebooks -->
++      <li data-bind="css: { active: $parent.selectedNotebook() === $data }">
++        <a href="javascript:void(0)" data-bind="text: id, click: $parent.selectedNotebook.bind(null, $data)"></a>
++      </li>
++    <!-- /ko -->
++    <li>
++      <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
++    </li>
++  </ul>
+ </div>
+ 
+ 
+@@ -58,17 +63,6 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+   <div class="row-fluid">
+     <div class="span12">
+ 
+-        <ul class="nav nav-tabs">
+-          <!-- ko foreach: notebooks -->
+-            <li class="tab-pane" data-bind="css: { active: $parent.selectedNotebook() === $data }">
+-              <a href="javascript:void(0)" data-bind="text: id, click: $parent.selectedNotebook.bind(null, $data)"></a>
+-            </li>
+-          <!-- /ko -->
+-          <li class="tab-pane">
+-            <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
+-          </li>
+-        </ul>
+-
+         <div class="tab-content" data-bind="foreach: notebooks">
+           <div class="tab-pane" data-bind="css: { active: $parent.selectedNotebook() === $data }, template: { name: 'notebook'}">
+           </div>
+@@ -125,7 +119,6 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ </script>
+ 
+ 
+-
+ <link rel="stylesheet" href="/static/css/common_dashboard.css">
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+ <link rel="stylesheet" href="/spark/static/css/spark.css">
+@@ -149,6 +142,7 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ 
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/ko.hue-bindings.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/spark/static/js/spark.vm.js" type="text/javascript" charset="utf-8"></script>
+ 
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index ca94fe8..fc2518d 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -50,10 +50,40 @@
+   line-height: 20px!important;
+ }
+ 
+-.card-toolbar {
+-  top: 27px;
++.dropdown-menu li {
++  font-size: 14px;
++}
++
++.dropdown a.dropdown-toggle {
++  padding-left: 10px;
++  padding-right: 10px;
++}
++
++.search-bar {
++  background-color: #F5F5F5;
++  margin: 0;
++  padding-bottom: 0;
++  padding-top: 4px;
++  padding-left: 20px;
++  padding-right: 20px;
++  text-align: left;
++  width: 100%;
++  position: fixed;
++  top: 28px;
++  z-index: 1000;
++}
++
++.search-bar input {
++  margin-left: 10px;
++  padding-right: 20px;
++}
++
++.search-bar ul li {
++  text-align: right;
+ }
+ 
+ .tab-content {
+   background-color: #FFFFFF;
++  border-left: 1px solid #dddddd;
++  border-right: 1px solid #dddddd;
+ }
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 3317476..19a7ab3 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -217,11 +217,15 @@ function EditorViewModel(notebooks) {
+   self.notebooks = ko.observableArray();
+   self.selectedNotebook = ko.observable();
+ 
+-  self.isEditing = ko.observable(false);
++  self.isEditing = ko.observable(true);
++  self.isEditing.subscribe(function(newVal){
++    $(document).trigger("editingToggled");
++  });
+   self.toggleEditing = function () {
+     self.isEditing(! self.isEditing());
+   };
+ 
++
+ //  function bareWidgetBuilder(name, type){
+ //    return new Widget({
+ //      size: 12,
+-- 
+1.7.9.5
+

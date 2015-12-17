@@ -1,0 +1,197 @@
+From 2b3b67b2b3e512c6945cff38d45885bcc934cf27 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 6 Mar 2015 15:04:46 -0800
+Subject: [PATCH 1001/1173] [oozie] Submit jobs from older version
+
+---
+ apps/oozie/src/oozie/models2.py                    |    3 +--
+ .../templates/editor2/list_editor_bundles.mako     |   14 ++++++++++----
+ .../editor2/list_editor_coordinators.mako          |   14 ++++++++++----
+ .../templates/editor2/list_editor_workflows.mako   |   14 ++++++++++----
+ desktop/core/src/desktop/models.py                 |    2 +-
+ 5 files changed, 32 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 1c5fb41..5d5ba8f 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -256,7 +256,7 @@ class Workflow(Job):
+     Submission(user, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
+ 
+   def import_workspace(self, fs, source_deployment_dir, owner):
+-    try:    
++    try:
+       fs.copy_remote_dir(source_deployment_dir, self.deployment_dir, owner=owner)
+     except WebHdfsException, e:
+       msg = _('The copy of the deployment directory failed: %s.') % e
+@@ -1337,7 +1337,6 @@ def import_workflow_from_hue_3_7(old_wf):
+   data['workflow']['properties']['sla'] = old_wf.sla
+   data['workflow']['properties']['sla_enabled'] = old_wf.sla_enabled
+   data['workflow']['properties']['imported'] = True
+-  data['workflow']['properties']['old_deployment_dir'] = old_wf.deployment_dir
+   data['workflow']['properties']['wf1_id'] = old_wf.id
+ 
+   # Layout
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+index 8d7349b..98a05d1 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+@@ -50,7 +50,7 @@ ${ layout.menubar(section='bundles', is_editor=True) }
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
++        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+@@ -146,6 +146,9 @@ ${ commonshare() | n,unicode }
+     self.selectedJobs = ko.computed(function() {
+       return $.grep(self.jobs(), function(job) { return job.isSelected(); });
+     });
++    self.selectedV1Jobs = ko.computed(function() {
++      return $.grep(self.selectedJobs(), function(job) { return job.uuid() == null; });
++    });
+     self.isLoading = ko.observable(false);
+ 
+     self.oneSelected = ko.computed(function() {
+@@ -154,6 +157,9 @@ ${ commonshare() | n,unicode }
+     self.atLeastOneSelected = ko.computed(function() {
+       return self.selectedJobs().length >= 1;
+     });
++    self.atLeastOneSelectedNoV1 = ko.computed(function() {
++      return self.selectedJobs().length >= 1 && self.selectedV1Jobs().length == 0;
++    });
+     self.allSelected = ko.observable(false);
+ 
+     self.handleSelect = function(wf) {
+@@ -171,12 +177,12 @@ ${ commonshare() | n,unicode }
+ 
+     self.showSubmitPopup = function () {
+       if (self.selectedJobs()[0].uuid()) {
+-        var base_url = "/oozie/editor/bundle/submit/";
++        var base_url = "/oozie/editor/bundle/submit/" + self.selectedJobs()[0].id();
+       } else {
+-        var base_url = "/oozie/submit_bundle/";
++        var base_url = "/oozie/submit_bundle/" + self.selectedJobs()[0].object_id();
+       }
+ 
+-      $.get(base_url + self.selectedJobs()[0].id(), {
++      $.get(url, {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+index 988175e..074ea90 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+@@ -50,7 +50,7 @@ ${ layout.menubar(section='coordinators', is_editor=True) }
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
++        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+@@ -146,6 +146,9 @@ ${ commonshare() | n,unicode }
+     self.selectedJobs = ko.computed(function() {
+       return $.grep(self.jobs(), function(job) { return job.isSelected(); });
+     });
++    self.selectedV1Jobs = ko.computed(function() {
++      return $.grep(self.selectedJobs(), function(job) { return job.uuid() == null; });
++    });
+     self.isLoading = ko.observable(false);
+ 
+     self.oneSelected = ko.computed(function() {
+@@ -154,6 +157,9 @@ ${ commonshare() | n,unicode }
+     self.atLeastOneSelected = ko.computed(function() {
+       return self.selectedJobs().length >= 1;
+     });
++    self.atLeastOneSelectedNoV1 = ko.computed(function() {
++      return self.selectedJobs().length >= 1 && self.selectedV1Jobs().length == 0;
++    });
+     self.allSelected = ko.observable(false);
+ 
+     self.handleSelect = function(wf) {
+@@ -171,12 +177,12 @@ ${ commonshare() | n,unicode }
+ 
+     self.showSubmitPopup = function () {
+       if (self.selectedJobs()[0].uuid()) {
+-        var base_url = "/oozie/editor/coordinator/submit/";
++        var url = "/oozie/editor/coordinator/submit/" + self.selectedJobs()[0].id();
+       } else {
+-        var base_url = "/oozie/submit_coordinator/";
++        var url = "/oozie/submit_coordinator/" + self.selectedJobs()[0].object_id();
+       }
+ 
+-      $.get(base_url + self.selectedJobs()[0].id(), {
++      $.get(url, {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+index 0ea2148..562d6dd 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+@@ -51,7 +51,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
++        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelectedNoV1()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+@@ -147,6 +147,9 @@ ${ commonshare() | n,unicode }
+     self.selectedJobs = ko.computed(function() {
+       return $.grep(self.jobs(), function(job) { return job.isSelected(); });
+     });
++    self.selectedV1Jobs = ko.computed(function() {
++      return $.grep(self.selectedJobs(), function(job) { return job.uuid() == null; });
++    });
+     self.isLoading = ko.observable(false);
+ 
+     self.oneSelected = ko.computed(function() {
+@@ -155,6 +158,9 @@ ${ commonshare() | n,unicode }
+     self.atLeastOneSelected = ko.computed(function() {
+       return self.selectedJobs().length >= 1;
+     });
++    self.atLeastOneSelectedNoV1 = ko.computed(function() {
++      return self.selectedJobs().length >= 1 && self.selectedV1Jobs().length == 0;
++    });
+     self.allSelected = ko.observable(false);
+ 
+     self.handleSelect = function(wf) {
+@@ -172,12 +178,12 @@ ${ commonshare() | n,unicode }
+ 
+     self.showSubmitPopup = function () {
+       if (self.selectedJobs()[0].uuid()) {
+-        var base_url = "/oozie/editor/workflow/submit/";
++        var url = "/oozie/editor/workflow/submit/" + self.selectedJobs()[0].id();
+       } else {
+-        var base_url = "/oozie/submit_workflow/";
++        var url = "/oozie/submit_workflow/" + self.selectedJobs()[0].object_id();
+       }
+ 
+-      $.get(base_url + self.selectedJobs()[0].id(), {
++      $.get(url, {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index a931b35..505d65b 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -505,7 +505,7 @@ class Document(models.Model):
+       'owner': self.owner.username,
+       'name': self.name,
+       'description': self.description,
+-      'uuid': None,
++      'uuid': None, # no uuid == v1
+       'id': self.id,
+       'doc1_id': self.id,
+       'object_id': self.object_id,
+-- 
+1.7.9.5
+

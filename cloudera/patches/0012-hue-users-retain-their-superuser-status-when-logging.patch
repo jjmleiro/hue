@@ -1,0 +1,81 @@
+From 8cb67eccd28ee0ce249cd6c19d626fc18da074dd Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Wed, 8 Oct 2014 16:50:18 -0700
+Subject: [PATCH 0012/1173] [hue] users retain their superuser status when
+ logging in with AllowAllBackend
+
+---
+ desktop/core/src/desktop/auth/backend.py |   41 ++++++++++++++++++++----------
+ 1 file changed, 28 insertions(+), 13 deletions(-)
+
+diff --git a/desktop/core/src/desktop/auth/backend.py b/desktop/core/src/desktop/auth/backend.py
+index e69bbda..ae70d63 100644
+--- a/desktop/core/src/desktop/auth/backend.py
++++ b/desktop/core/src/desktop/auth/backend.py
+@@ -98,19 +98,29 @@ class DefaultUserAugmentor(object):
+   def has_hue_permission(self, action, app):
+     return self._get_profile().has_hue_permission(action=action, app=app)
+ 
+-def find_or_create_user(username, password=None):
++def find_user(username):
+   try:
+     user = User.objects.get(username=username)
+     LOG.debug("Found user %s in the db" % username)
+   except User.DoesNotExist:
+-    LOG.info("Materializing user %s in the database" % username)
+-    user = User(username=username)
+-    if password is None:
+-      user.set_unusable_password()
+-    else:
+-      user.set_password(password)
+-    user.is_superuser = True
+-    user.save()
++    user = None
++  return user
++
++def create_user(username, password):
++  LOG.info("Materializing user %s in the database" % username)
++  user = User(username=username)
++  if password is None:
++    user.set_unusable_password()
++  else:
++    user.set_password(password)
++  user.is_superuser = True
++  user.save()
++  return user
++
++def find_or_create_user(username, password=None):
++  user = find_user(username)
++  if user is None:
++    user = create_user(username, password)
+   return user
+ 
+ class DesktopBackendBase(object):
+@@ -215,15 +225,20 @@ class AllowAllBackend(DesktopBackendBase):
+   """
+   Authentication backend that allows any user to login as long
+   as they have a username. The users will be added to the 'default_user_group'.
++
++  We want to ensure that already created users (e.g., from other backends)
++  retain their superuser status, and any new users are not super users by default.
+   """
+   def check_auth(self, username, password):
+-    user = find_or_create_user(username, None)
+-    user.is_superuser = False
+-    user.save()
++    user = find_user(username)
++    if user is None:
++      user = create_user(username, password)
++      user.is_superuser = False
++      user.save()
++      
+     default_group = get_default_user_group()
+     if default_group is not None:
+       user.groups.add(default_group)
+-
+     return user
+ 
+   @classmethod
+-- 
+1.7.9.5
+

@@ -1,0 +1,59 @@
+From 4b0b133d0971d2121f232d216f5abb364ea257c3 Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 8 Oct 2014 13:48:21 -0500
+Subject: [PATCH 0007/1173] HUE-2381 [fb] Right click menu is not always
+ hidden when clicking outside
+
+Added event handler to determine if context click occurs outside of file list in order to close the context menu
+---
+ .../filebrowser/templates/listdir_components.mako  |   23 ++++++++++++++------
+ 1 file changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 1c97d85..7a9a9d0 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -1254,6 +1254,15 @@ from django.utils.translation import ugettext as _
+       };
+     };
+ 
++    // hide the context menu based on specific events
++    var hideContextMenu = function () {
++      var cm = $('.context-menu');
++
++      if (cm.is(':visible')) {
++        cm.css({ display: 'none' });
++      }
++    };
++
+     var viewModel = new FileBrowserModel([], null, [], "/");
+     ko.applyBindings(viewModel);
+ 
+@@ -1274,17 +1283,17 @@ from django.utils.translation import ugettext as _
+ 
+       // hide context menu
+       $('body').on('click', function (e) {
+-        var cm = $('.context-menu');
+-        if (cm.is(':visible')) {
+-          cm.css({ display: 'none' });
++        hideContextMenu();
++      });
++
++      $('body').on('contextmenu', function (e) {
++        if ($.inArray(e.toElement, $('.datatables *')) === -1) {
++          hideContextMenu();
+         }
+       });
+ 
+       $('body').on('contextmenu', '.context-menu', function (e) {
+-        var cm = $('.context-menu');
+-        if (cm.is(':visible')) {
+-          cm.css({ display: 'none' });
+-        }
++        hideContextMenu();
+       });
+ 
+       // Drag and drop uploads from anywhere on filebrowser screen
+-- 
+1.7.9.5
+

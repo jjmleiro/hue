@@ -1,0 +1,179 @@
+From 3dd9af315a13a70cb23a002069e73c9559a57727 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 2 Apr 2015 16:27:06 -0700
+Subject: [PATCH 1149/1173] [oozie] Dashboard dashboard_jobs_access permission
+ do not generate correct filter
+
+---
+ apps/oozie/src/oozie/tests.py           |   51 +++++++++++++++++++++++++++----
+ apps/oozie/src/oozie/views/dashboard.py |   24 +++++++--------
+ 2 files changed, 57 insertions(+), 18 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/tests.py b/apps/oozie/src/oozie/tests.py
+index b4f4718..46bbaf2 100644
+--- a/apps/oozie/src/oozie/tests.py
++++ b/apps/oozie/src/oozie/tests.py
+@@ -112,22 +112,25 @@ class MockOozieApi:
+ 
+   def get_workflows(self, **kwargs):
+     workflows = MockOozieApi.JSON_WORKFLOW_LIST
+-    if 'user' in kwargs:
+-      workflows = filter(lambda wf: wf['user'] == kwargs['user'], workflows)
++    user_filters = [val for key, val in kwargs['filters'] if key == 'user']
++    if user_filters:
++      workflows = filter(lambda wf: wf['user'] == user_filters[0], workflows)
+ 
+     return WorkflowList(self, {'offset': 0, 'total': 4, 'workflows': workflows})
+ 
+   def get_coordinators(self, **kwargs):
+     coordinatorjobs = MockOozieApi.JSON_COORDINATOR_LIST
+-    if 'user' in kwargs:
+-      coordinatorjobs = filter(lambda coord: coord['user'] == kwargs['user'], coordinatorjobs)
++    user_filters = [val for key, val in kwargs['filters'] if key == 'user']
++    if user_filters:
++      coordinatorjobs = filter(lambda coord: coord['user'] == user_filters[0], coordinatorjobs)
+ 
+     return CoordinatorList(self, {'offset': 0, 'total': 5, 'coordinatorjobs': coordinatorjobs})
+ 
+   def get_bundles(self, **kwargs):
+     bundlejobs = MockOozieApi.JSON_BUNDLE_LIST
+-    if 'user' in kwargs:
+-      bundlejobs = filter(lambda coord: coord['user'] == kwargs['user'], bundlejobs)
++    user_filters = [val for key, val in kwargs['filters'] if key == 'user']
++    if user_filters:
++      bundlejobs = filter(lambda coord: coord['user'] == user_filters[0], bundlejobs)
+ 
+     return BundleList(self, {'offset': 0, 'total': 4, 'bundlejobs': bundlejobs})
+ 
+@@ -3262,22 +3265,58 @@ class TestDashboard(OozieMockBase):
+ 
+ 
+   def test_list_workflows(self):
++    response = self.c.get(reverse('oozie:list_oozie_workflows'))
++    assert_true('Running' in response.content, response.content)
++    assert_true('Completed' in response.content, response.content)
++
+     response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json")
+     for wf_id in MockOozieApi.WORKFLOW_IDS:
+       assert_true(wf_id in response.content, response.content)
+ 
++    response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json&type=running")
++    for wf_id in MockOozieApi.WORKFLOW_IDS:
++      assert_true(wf_id in response.content, response.content)
++
++    response = self.c.get(reverse('oozie:list_oozie_workflows') + "?format=json&type=completed")
++    for wf_id in MockOozieApi.WORKFLOW_IDS:
++      assert_true(wf_id in response.content, response.content)
++
+ 
+   def test_list_coordinators(self):
++    response = self.c.get(reverse('oozie:list_oozie_coordinators'))
++    assert_true('Running' in response.content, response.content)
++    assert_true('Completed' in response.content, response.content)
++
+     response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json")
+     for coord_id in MockOozieApi.COORDINATOR_IDS:
+       assert_true(coord_id in response.content, response.content)
+ 
++    response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json&type=running")
++    for coord_id in MockOozieApi.COORDINATOR_IDS:
++      assert_true(coord_id in response.content, response.content)
++
++    response = self.c.get(reverse('oozie:list_oozie_coordinators') + "?format=json&type=completed")
++    for coord_id in MockOozieApi.COORDINATOR_IDS:
++      assert_true(coord_id in response.content, response.content)
++
+ 
+   def test_list_bundles(self):
++    response = self.c.get(reverse('oozie:list_oozie_bundles'))
++    assert_true('Running' in response.content, response.content)
++    assert_true('Completed' in response.content, response.content)
++
+     response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json")
+     for coord_id in MockOozieApi.BUNDLE_IDS:
+       assert_true(coord_id in response.content, response.content)
+ 
++    response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&type=running")
++    for coord_id in MockOozieApi.BUNDLE_IDS:
++      assert_true(coord_id in response.content, response.content)
++
++    response = self.c.get(reverse('oozie:list_oozie_bundles') + "?format=json&type=completed")
++    for coord_id in MockOozieApi.BUNDLE_IDS:
++      assert_true(coord_id in response.content, response.content)
++
+ 
+   def test_list_workflow(self):
+     response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]))
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index a3af2dc..eb723f6 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -161,17 +161,17 @@ def show_oozie_error(view_func):
+ 
+ @show_oozie_error
+ def list_oozie_workflows(request):
+-  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(),}
++  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
+   if not has_dashboard_jobs_access(request.user):
+-    kwargs['user'] = request.user.username
++    kwargs['filters'].append(('user', request.user.username))
+   oozie_api = get_oozie(request.user)
+ 
+   if request.GET.get('format') == 'json':
+     just_sla = request.GET.get('justsla') == 'true'
+     if request.GET.get('type') in ('running', 'progress'):
+-      kwargs['filters'] = [('status', status) for status in OozieWorkflow.RUNNING_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in OozieWorkflow.RUNNING_STATUSES])
+     elif request.GET.get('type') == 'completed':
+-      kwargs['filters'] = [('status', status) for status in OozieWorkflow.FINISHED_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in OozieWorkflow.FINISHED_STATUSES])
+ 
+     json_jobs = oozie_api.get_workflows(**kwargs).jobs
+     if request.GET.get('type') == 'progress':
+@@ -188,18 +188,18 @@ def list_oozie_workflows(request):
+ 
+ @show_oozie_error
+ def list_oozie_coordinators(request):
+-  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(),}
++  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
+   if not has_dashboard_jobs_access(request.user):
+-    kwargs['user'] = request.user.username
++    kwargs['filters'].append(('user', request.user.username))
+   oozie_api = get_oozie(request.user)
+ 
+   enable_cron_scheduling = ENABLE_CRON_SCHEDULING.get()
+ 
+   if request.GET.get('format') == 'json':
+     if request.GET.get('type') in ('running', 'progress'):
+-      kwargs['filters'] = [('status', status) for status in CoordinatorWorkflow.RUNNING_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in CoordinatorWorkflow.RUNNING_STATUSES])
+     elif request.GET.get('type') == 'completed':
+-      kwargs['filters'] = [('status', status) for status in CoordinatorWorkflow.FINISHED_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in CoordinatorWorkflow.FINISHED_STATUSES])
+ 
+     json_jobs = oozie_api.get_coordinators(**kwargs).jobs
+     if request.GET.get('type') == 'progress':
+@@ -216,16 +216,16 @@ def list_oozie_coordinators(request):
+ 
+ @show_oozie_error
+ def list_oozie_bundles(request):
+-  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(),}
++  kwargs = {'cnt': OOZIE_JOBS_COUNT.get(), 'filters': []}
+   if not has_dashboard_jobs_access(request.user):
+-    kwargs['user'] = request.user.username
++    kwargs['filters'].append(('user', request.user.username))
+   oozie_api = get_oozie(request.user)
+ 
+   if request.GET.get('format') == 'json':
+     if request.GET.get('type') in ('running', 'progress'):
+-      kwargs['filters'] = [('status', status) for status in BundleWorkflow.RUNNING_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in BundleWorkflow.RUNNING_STATUSES])
+     elif request.GET.get('type') == 'completed':
+-      kwargs['filters'] = [('status', status) for status in BundleWorkflow.FINISHED_STATUSES]
++      kwargs['filters'].extend([('status', status) for status in BundleWorkflow.FINISHED_STATUSES])
+ 
+     json_jobs = oozie_api.get_bundles(**kwargs).jobs
+     if request.GET.get('type') == 'progress':
+-- 
+1.7.9.5
+

@@ -1,0 +1,31 @@
+From 464948a89162ef892b4167af3bf913b33e81a59d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 8 Dec 2014 17:35:27 -0800
+Subject: [PATCH 0625/1173] [spark] Don't actually do the interruption
+
+---
+ .../sparker/server/resources/SessionResource.java  |    8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index 28505dc..8ebf490 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -123,8 +123,12 @@ public class SessionResource {
+     @Path("/{id}/interrupt")
+     @POST
+     @Timed
+-    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound {
++    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound, Exception, ClosedSessionException {
+         Session session = sessionManager.get(id);
+-        session.interrupt();
++
++        // FIXME: don't actually do anything for now as it doesn't work yet.
++        //  session.interrupt();
++
++        return Response.ok().build();
+     }
+ }
+-- 
+1.7.9.5
+

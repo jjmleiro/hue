@@ -1,0 +1,89 @@
+From f6c8c7cca0fb5cf45c9dd842a9faa0b346736d0c Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 2 Mar 2015 13:15:48 -0800
+Subject: [PATCH 0964/1173] [livy] Clean up some dead code
+
+---
+ .../hue/livy/repl/python/PythonSession.scala       |   62 --------------------
+ 1 file changed, 62 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+index 2b714ef..1be4864 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+@@ -54,13 +54,6 @@ object PythonSession {
+ 
+     val process = builder.start()
+ 
+-    /*
+-    val fakeShell = createFakeShell()
+-    val pb = new ProcessBuilder(driver, fakeShell.toString)
+-    pb.redirectError(Redirect.INHERIT)
+-    val process = pb.start()
+-    */
+-
+     new PythonSession(process, gatewayServer)
+   }
+ 
+@@ -226,58 +219,3 @@ private case class ExecuteRequest(code: String, promise: Promise[JValue]) extend
+ private case class ShutdownRequest(promise: Promise[Unit]) extends Request
+ 
+ case class ExecuteResponse(content: JValue)
+-
+-/*
+-private class Interpreter(process: Process, in: InputStream, out: OutputStream) extends Session {
+-  private implicit def executor: ExecutionContext = ExecutionContext.global
+-
+-  implicit val formats = DefaultFormats
+-
+-  private val stdin = new PrintWriter(out)
+-  private val stdout = new BufferedReader(new InputStreamReader(in), 1)
+-
+-  private var _history = ArrayBuffer[JValue]()
+-  private var _state: Session.State = Session.Starting()
+-
+-  override def state = _state
+-
+-  override def history(): Seq[JValue] = _history
+-
+-  override def history(id: Int): Option[JValue] = {
+-    if (id < _history.length) {
+-      Some(_history(id))
+-    } else {
+-      None
+-    }
+-  }
+-
+-  override def execute(executeRequest: ExecuteRequest): Future[JValue] = {
+-    _state = Session.Busy()
+-
+-    val msg = Map(
+-      "msg_type" -> "execute_request",
+-      "content" -> executeRequest)
+-
+-    stdin.println(write(msg))
+-    stdin.flush()
+-
+-    Future {
+-      val line = stdout.readLine()
+-      val rep = parse(line)
+-      assert((rep \ "msg_type").extract[String] == "execute_reply")
+-
+-      val content = rep \ "content"
+-      _history += content
+-      content
+-    }
+-  }
+-
+-  override def close(): Future[Unit] = {
+-    _state = Session.ShuttingDown()
+-    process.getInputStream.close()
+-    process.getOutputStream.close()
+-    process.destroy()
+-    Future.successful(())
+-  }
+-}
+-*/
+-- 
+1.7.9.5
+

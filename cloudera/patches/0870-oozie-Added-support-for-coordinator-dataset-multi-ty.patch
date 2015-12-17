@@ -1,0 +1,109 @@
+From 52adcb3f1964a534a6157dd114cccffeafb714d4 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 18 Feb 2015 22:12:03 +0100
+Subject: [PATCH 0870/1173] [oozie] Added support for coordinator dataset
+ multi typeahead
+
+---
+ .../templates/editor2/coordinator_editor.mako      |   10 ++++-----
+ desktop/core/static/js/ko.hue-bindings.js          |   23 +++++++++++---------
+ 2 files changed, 18 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index a67a341..4078553 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -30,6 +30,8 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+       location.href = "/oozie/editor/coordinator/edit/?" + window.location.hash.substr(1);
+     }
+   }
++  var datasetTypeaheadSource = ["/data/${'${'}YEAR}/${'${'}MONTH}/${'${'}DAY}", "${'${'}MINUTE}", "${'${'}HOUR}", "${'${'}DAY}", "${'${'}MONTH}", "${'${'}YEAR}", "${'${'}coord:nominalTime()}", "${'${'}coord:formatTime(coord:nominalTime(), 'yyyyMMdd')}"]
++
+ </script>
+ 
+ 
+@@ -253,7 +255,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   dataset_type() == 'input_path' ? '${ _("Required data path dependency to start the worklow") }' : 
+                   dataset_type() == 'output_path' ? '${ _("Data path created by the workflow") }' : 
+                   '${ _("e.g. 1, 2, 3, /data/logs, coord:nominalTime()") }' },
+-                  valueUpdate: 'afterkeydown'" style="margin-bottom:0; width: 380px" />
++                  valueUpdate: 'afterkeydown', typeahead: { target: dataset_variable, source: datasetTypeaheadSource, triggerOnFocus: true, multipleValues: true, multipleValuesSeparator: '/', multipleValuesExtractor: '/' }" style="margin-bottom:0; width: 380px" />
+               </span>
+ 
+               <span data-bind="text: dataset_variable, visible: ! $root.isEditing()"></span>
+@@ -554,8 +556,10 @@ ${ dashboard.import_bindings() }
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+   viewModel.coordinator.properties.cron_advanced.valueHasMutated(); // Update jsCron enabled status
++  viewModel.isEditing(true)
+   viewModel.coordinator.tracker().markCurrentStateAsClean();
+ 
++
+   var shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+ 
+@@ -587,10 +591,6 @@ ${ dashboard.import_bindings() }
+     $("#chooseWorkflowDemiModal").modal({
+       show: false
+     });
+-    
+-    $(".dataset-input").typeahead({
+-      source: ["/data/${'${'}YEAR}/${'${'}MONTH}/${'${'}DAY}", "${'${'}MINUTE}", "${'${'}HOUR}", "${'${'}DAY}", "${'${'}MONTH}", "${'${'}YEAR}", "${'${'}coord:nominalTime()}", "${'${'}coord:formatTime(coord:nominalTime(), 'yyyyMMdd')}"]
+-    });
+   });
+ </script>
+ 
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index b170acc..5edf758 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -824,8 +824,11 @@ ko.bindingHandlers.typeahead = {
+       }
+     }
+ 
+-    function extractor(query) {
++    function extractor(query, extractorSeparator) {
+       var result = /([^ ]+)$/.exec(query);
++      if (extractorSeparator){
++        result = new RegExp("([^\\" + extractorSeparator + "]+)$").exec(query);
++      }
+       if (result && result[1])
+         return result[1].trim();
+       return "";
+@@ -838,24 +841,24 @@ ko.bindingHandlers.typeahead = {
+         if (valueAccessor.extraKeywords && valueAccessor.extraKeywords.split(" ").indexOf(item) > -1) {
+           _separator = "";
+         }
+-        if (_val.indexOf(" ") > -1) {
+-          return _val.substring(0, _val.lastIndexOf(" ")) + " " + item + _separator;
++        if (_val.indexOf((valueAccessor.multipleValuesExtractor || " ")) > -1) {
++          return _val.substring(0, _val.lastIndexOf((valueAccessor.multipleValuesExtractor || " "))) + (valueAccessor.multipleValuesExtractor || " ") + item + _separator;
+         }
+         else {
+           return item + _separator;
+         }
+       }
+       _options.matcher = function (item) {
+-        var _tquery = extractor(this.query);
++        var _tquery = extractor(this.query, valueAccessor.multipleValuesExtractor);
+         if (!_tquery) return false;
+         return ~item.toLowerCase().indexOf(_tquery.toLowerCase());
+       },
+-          _options.highlighter = function (item) {
+-            var _query = extractor(this.query).replace(/[\-\[\]{}()*+?.:\\\^$|#\s]/g, '\\$&');
+-            return item.replace(new RegExp('(' + _query + ')', 'ig'), function ($1, match) {
+-              return '<strong>' + match + '</strong>'
+-            });
+-          }
++      _options.highlighter = function (item) {
++        var _query = extractor(this.query, valueAccessor.multipleValuesExtractor).replace(/[\-\[\]{}()*+?.:\\\^$|#\s]/g, '\\$&');
++        return item.replace(new RegExp('(' + _query + ')', 'ig'), function ($1, match) {
++          return '<strong>' + match + '</strong>'
++        });
++      }
+     }
+ 
+     if (valueAccessor.completeSolrRanges) {
+-- 
+1.7.9.5
+

@@ -17,24 +17,35 @@
 
 import logging
 import os
+
 from datetime import datetime, timedelta
 
-from django.core.management.base import NoArgsCommand
+from django.contrib.auth.models import User
+from django.core.management.base import BaseCommand
 from django.utils.translation import ugettext as _
 
 from desktop.lib.paths import get_apps_root
 
+from useradmin.models import install_sample_user
+
 from hbased.ttypes import AlreadyExists
 from hbase.api import HbaseApi
+
 
 LOG = logging.getLogger(__name__)
 
 
-class Command(NoArgsCommand):
+class Command(BaseCommand):
   help = 'Create and fill some demo tables in the first configured cluster.'
+  args = '<username>'
 
-  def handle_noargs(self, **options):
-    api = HbaseApi()
+  def handle(self, *args, **options):
+    if args:
+      user = args[0]
+    else:
+      user = install_sample_user()
+
+    api = HbaseApi(user=user)
     cluster_name = api.getClusters()[0]['name'] # Currently pick first configured cluster
 
     # Check connectivity
@@ -49,7 +60,7 @@ class Command(NoArgsCommand):
 
   def create_analytics_table(self, api, cluster_name):
     try:
-      api.createTable(cluster_name, 'analytics_demo', 'hour', 'day', 'total')
+      api.createTable(cluster_name, 'analytics_demo', [{'properties': {'name': 'hour'}}, {'properties': {'name': 'day'}}, {'properties': {'name': 'total'}}])
     except AlreadyExists:
       pass
 
@@ -59,7 +70,7 @@ class Command(NoArgsCommand):
 
   def create_binary_table(self, api, cluster_name):
     try:
-      api.createTable(cluster_name, 'document_demo', 'doc')
+      api.createTable(cluster_name, 'document_demo', [{'properties': {'name': 'doc'}}])
     except AlreadyExists:
       pass
 

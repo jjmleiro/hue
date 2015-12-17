@@ -1,0 +1,362 @@
+From 3b5e7f23e54bba28f277f007e96e17293e918429 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 26 Jan 2015 09:09:39 +0800
+Subject: [PATCH 0669/1173] [livy] Turn statements into a class, clean up
+ output
+
+---
+ .../com/cloudera/hue/livy/server/Statement.scala   |   22 +++++
+ .../com/cloudera/hue/livy/server/WebApp.scala      |   94 ++++++++++++--------
+ .../livy/server/sessions/SparkProcessSession.scala |    2 +-
+ .../hue/livy/server/sessions/SparkWebSession.scala |   54 ++++-------
+ .../hue/livy/server/sessions/session.scala         |   13 +--
+ 5 files changed, 103 insertions(+), 82 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+new file mode 100644
+index 0000000..f9a8008
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+@@ -0,0 +1,22 @@
++package com.cloudera.hue.livy.server
++
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
++import scala.util.{Failure, Success}
++
++class Statement(val id: Int, val input: String, val output: Future[List[String]]) {
++  sealed trait State
++  case class Running() extends State
++  case class Available() extends State
++  case class Error() extends State
++
++  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++
++  private[this] var _state: State = Running()
++
++  def state = _state
++
++  output.onComplete {
++    case Success(_) => _state = Available()
++    case Failure(_) => _state = Error()
++  }
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 263d470..fd8b4a8 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -1,13 +1,13 @@
+ package com.cloudera.hue.livy.server
+ 
+-import com.cloudera.hue.livy.server.sessions.{SessionFailedtoStart, Session}
++import com.cloudera.hue.livy.server.sessions.{SessionFailedToStart, Session}
+ import com.fasterxml.jackson.core.JsonParseException
+ import org.json4s.{DefaultFormats, Formats, MappingException}
+ import org.scalatra._
+ import org.scalatra.json.JacksonJsonSupport
+ 
+ import scala.concurrent.duration.Duration
+-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor}
++import scala.concurrent.{Future, Await, ExecutionContext, ExecutionContextExecutor}
+ 
+ object WebApp {
+   case class CreateSessionRequest(lang: String)
+@@ -43,7 +43,7 @@ class WebApp(sessionManager: SessionManager)
+     }
+ 
+     val rep = sessionFuture.map {
+-      case session => Map("id" -> session.id, "state" -> session.state)
++      case session => formatSession(session)
+     }
+ 
+     // FIXME: this is silently eating exceptions.
+@@ -51,35 +51,9 @@ class WebApp(sessionManager: SessionManager)
+     Await.result(rep, Duration.Inf)
+   }
+ 
+-  val getStatements = get("/sessions/:sessionId/statements") {
++  get("/sessions/:sessionId") {
+     sessionManager.get(params("sessionId")) match {
+-      case Some(session: Session) =>
+-        val statements = session.statements()
+-
+-        // FIXME: this is silently eating exceptions.
+-        //new AsyncResult() { val is = statements }
+-        Await.result(statements, Duration.Inf)
+-      case None => NotFound("Session not found")
+-    }
+-  }
+-
+-  val getSession = get("/sessions/:sessionId") {
+-    sessionManager.get(params("sessionId")) match {
+-      case Some(session) => Map("id" -> session.id, "state" -> session.state)
+-      case None => NotFound("Session not found")
+-    }
+-  }
+-
+-  post("/sessions/:sessionId/statements") {
+-    val req = parsedBody.extract[ExecuteStatementRequest]
+-
+-    sessionManager.get(params("sessionId")) match {
+-      case Some(session) =>
+-        val statement = session.executeStatement(req.statement)
+-
+-        // FIXME: this is silently eating exceptions.
+-        //new AsyncResult() { val is = statement }
+-        Await.result(statement, Duration.Inf)
++      case Some(session) => formatSession(session)
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -99,7 +73,9 @@ class WebApp(sessionManager: SessionManager)
+   post("/sessions/:sessionId/interrupt") {
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+-        val future = session.interrupt()
++        val future = for {
++          _ <- session.interrupt()
++        } yield Accepted()
+ 
+         // FIXME: this is silently eating exceptions.
+         //new AsyncResult() { val is = for { _ <- future } yield NoContent }
+@@ -109,22 +85,47 @@ class WebApp(sessionManager: SessionManager)
+   }
+ 
+   delete("/sessions/:sessionId") {
+-    val future = sessionManager.delete(params("sessionId"))
++    val future = for {
++      _ <- sessionManager.delete(params("sessionId"))
++    } yield Accepted()
+ 
+     // FIXME: this is silently eating exceptions.
+     //new AsyncResult() { val is = for { _ <- future } yield NoContent }
+     Await.result(future, Duration.Inf)
+   }
+ 
++  get("/sessions/:sessionId/statements") {
++    sessionManager.get(params("sessionId")) match {
++      case Some(session: Session) => session.statements().map(formatStatement)
++      case None => NotFound("Session not found")
++    }
++  }
++
++  post("/sessions/:sessionId/statements") {
++    val req = parsedBody.extract[ExecuteStatementRequest]
+ 
+-  val getStatement = get("/sessions/:sessionId/statements/:statementId") {
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+-        val statement = session.statement(params("statementId").toInt)
++        Future {
++          val statement: Statement = session.executeStatement(req.statement)
+ 
+-        // FIXME: this is silently eating exceptions.
+-        //new AsyncResult() { val is = statement }
+-        Await.result(statement, Duration.Inf)
++          // FIXME: this is silently eating exceptions.
++          //new AsyncResult() { val is = statement }
++          Await.result(statement.output, Duration.Inf)
++        }
++
++        Accepted()
++      case None => NotFound("Session not found")
++    }
++  }
++
++  get("/sessions/:sessionId/statements/:statementId") {
++    sessionManager.get(params("sessionId")) match {
++      case Some(session) =>
++        session.statement(params("statementId").toInt) match {
++          case Some(statement) => formatStatement(statement)
++          case None => NotFound("Statement not found")
++        }
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -132,8 +133,23 @@ class WebApp(sessionManager: SessionManager)
+   error {
+     case e: JsonParseException => halt(400, e.getMessage)
+     case e: MappingException => halt(400, e.getMessage)
+-    case e: SessionFailedtoStart => halt(500, e.getMessage)
++    case e: SessionFailedToStart => halt(500, e.getMessage)
+     case e: dispatch.StatusCode => halt(e.code, e.getMessage)
+     case t => throw t
+   }
++
++  private def formatSession(session: Session) = {
++    Map(
++      "id" -> session.id,
++      "state" -> session.state.getClass.getSimpleName.toLowerCase
++    )
++  }
++
++  private def formatStatement(statement: Statement) = {
++    Map(
++      "id" -> statement.id,
++      "state" -> statement.state.getClass.getSimpleName.toLowerCase,
++      "output" -> statement.output
++    )
++  }
+ }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkProcessSession.scala
+index a30c4f7..0cc2390 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkProcessSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkProcessSession.scala
+@@ -54,7 +54,7 @@ object SparkProcessSession extends Logging {
+         case None =>
+           // Make sure to reap the process.
+           process.waitFor()
+-          throw new SessionFailedtoStart("Couldn't start livy-repl")
++          throw new SessionFailedToStart("Couldn't start livy-repl")
+       }
+     }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
+index 6d171fa..c04fe4d 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+ import com.cloudera.hue.livy._
++import com.cloudera.hue.livy.server.Statement
+ import dispatch._
+ import org.json4s.jackson.Serialization.write
+ import org.json4s.{DefaultFormats, Formats}
+@@ -19,78 +20,57 @@ abstract class SparkWebSession(val id: String, hostname: String, port: Int) exte
+   private[this] val svc = host(hostname, port)
+ 
+   private[this] var executedStatements = 0
+-  private[this] var statements_ = new ArrayBuffer[ExecuteResponse]
++  private[this] var statements_ = new ArrayBuffer[Statement]
+ 
+   override def lastActivity: Long = _lastActivity
+ 
+   override def state: State = _state
+ 
+-  override def executeStatement(statement: String): (Int, Future[ExecuteResponse]) = {
++  override def executeStatement(statement: String): Statement = {
+     ensureIdle {
+       _state = Busy()
+       touchLastActivity()
+ 
+-      executedStatements += 1
+-
+       var req = (svc / "statements").setContentType("application/json", "UTF-8")
+       req = req << write(ExecuteRequest(statement))
+ 
+       val future = Http(req OK as.json4s.Json).map { case (resp) =>
+         synchronized {
+           transition(Idle())
+-          val response: ExecuteResponse = resp.extract[ExecuteResponse]
+-          statements_ += response
+-          response
++          resp.extract[ExecuteResponse].output
+         }
+       }
+ 
+-      (executedStatements - 1, future)
++      executedStatements += 1
++      var statement_ = new Statement(executedStatements, statement, future)
++      statements_ += statement_
++
++      statement_
+     }
+   }
+ 
+-  override def statement(statementId: Int): Future[ExecuteResponse] = {
++  override def statement(statementId: Int): Option[Statement] = {
+     ensureRunning {
+       if (statementId < statements_.length) {
+-        Future.successful(statements_(statementId))
++        Some(statements_(statementId))
+       } else {
+-        val req = svc / "statements" / statementId
+-
+-        for {
+-          body <- Http(req OK as.json4s.Json)
+-        } yield body.extract[ExecuteResponse]
++        None
+       }
+     }
+   }
+ 
+-  override def statements(): Future[List[ExecuteResponse]] = {
++  override def statements(): List[Statement] = {
+     ensureRunning {
+-      if (_state == Idle()) {
+-        Future.successful(statements_.toList)
+-      } else {
+-        val req = svc / "statements"
+-
+-        for {
+-          body <- Http(req OK as.json4s.Json)
+-        } yield body.extract[List[ExecuteResponse]]
+-      }
++      statements_.toList
+     }
+   }
+ 
+-  override def statements(fromIndex: Integer, toIndex: Integer): Future[List[ExecuteResponse]] = {
++  override def statements(fromIndex: Integer, toIndex: Integer): List[Statement] = {
+     ensureRunning {
+-      if (_state == Idle()) {
+-        Future.successful(statements_.slice(fromIndex, toIndex).toList)
+-      } else {
+-        val req = (svc / "statements")
+-          .addQueryParameter("from", fromIndex.toString)
+-          .addQueryParameter("to", toIndex.toString)
+-
+-        for {
+-          body <- Http(req OK as.json4s.Json)
+-        } yield body.extract[List[ExecuteResponse]]
+-      }
++      statements_.slice(fromIndex, toIndex).toList
+     }
+   }
++
+   override def interrupt(): Future[Unit] = {
+     stop()
+   }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+index 4b723a7..d7d234a 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+ import com.cloudera.hue.livy.ExecuteResponse
++import com.cloudera.hue.livy.server.Statement
+ 
+ import scala.concurrent.Future
+ 
+@@ -11,13 +12,13 @@ trait Session {
+ 
+   def state: State
+ 
+-  def executeStatement(statement: String): Future[ExecuteResponse]
++  def executeStatement(statement: String): Statement
+ 
+-  def statement(statementId: Int): Future[ExecuteResponse]
++  def statement(statementId: Int): Option[Statement]
+ 
+-  def statements(): Future[List[ExecuteResponse]]
++  def statements(): List[Statement]
+ 
+-  def statements(fromIndex: Integer, toIndex: Integer): Future[List[ExecuteResponse]]
++  def statements(fromIndex: Integer, toIndex: Integer): List[Statement]
+ 
+   def interrupt(): Future[Unit]
+ 
+@@ -30,4 +31,6 @@ case class Idle() extends State
+ case class Busy() extends State
+ case class Dead() extends State
+ 
+-class SessionFailedtoStart(msg: String) extends Exception(msg) {}
++class SessionFailedToStart(msg: String) extends Exception(msg)
++
++class StatementNotFound extends Exception
+\ No newline at end of file
+-- 
+1.7.9.5
+

@@ -1,0 +1,56 @@
+From 665dca8c3f90dc3044ea4d3802654f397f1110c1 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 5 Nov 2014 18:42:37 -0800
+Subject: [PATCH 0100/1173] HUE-2458 [core] Expose a POST logout URL
+
+This is not backwards compatible with the old djangosaml2
+---
+ desktop/libs/libsaml/src/libsaml/saml_settings.py |    3 ++-
+ desktop/libs/libsaml/src/libsaml/views.py         |    7 +++++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/saml_settings.py b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+index 80aaca4..0076a74 100644
+--- a/desktop/libs/libsaml/src/libsaml/saml_settings.py
++++ b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+@@ -54,10 +54,11 @@ SAML_CONFIG = {
+         'assertion_consumer_service': [
+           ("%s/saml2/acs/" % BASE_URL, saml2.BINDING_HTTP_POST),
+         ],
+-        # url and binding to the single logout service view
++        # url and binding to the logout service view
+         # do not change the binding or service name
+         'single_logout_service': [
+           ("%s/saml2/ls/" % BASE_URL, saml2.BINDING_HTTP_REDIRECT),
++          ("%s/saml2/ls/post/" % BASE_URL, saml2.BINDING_HTTP_POST),
+         ],
+       },
+ 
+diff --git a/desktop/libs/libsaml/src/libsaml/views.py b/desktop/libs/libsaml/src/libsaml/views.py
+index 5525297..3781fd3 100644
+--- a/desktop/libs/libsaml/src/libsaml/views.py
++++ b/desktop/libs/libsaml/src/libsaml/views.py
+@@ -18,7 +18,9 @@ from django.views.decorators.http import require_POST
+ from django.views.decorators.csrf import csrf_exempt
+ 
+ from djangosaml2.views import login, echo_attributes, metadata,\
+-							  assertion_consumer_service, logout_service
++                              assertion_consumer_service, \
++                              logout_service_redirect, \
++                              logout_service_post
+ 
+ import libsaml.conf
+ 
+@@ -33,7 +35,8 @@ def acs(request, config_loader_path=None, attribute_mapping=None, create_unknown
+   return assertion_consumer_service(request, config_loader_path, attribute_mapping, create_unknown_user, username_source)
+ 
+ 
+-setattr(logout_service, 'login_notrequired', True)
++setattr(logout_service_redirect, 'login_notrequired', True)
++setattr(logout_service_post, 'login_notrequired', True)
+ setattr(login, 'login_notrequired', True)
+ setattr(echo_attributes, 'login_notrequired', True)
+ setattr(acs, 'login_notrequired', True)
+-- 
+1.7.9.5
+

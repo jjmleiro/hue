@@ -1,0 +1,101 @@
+From 238d5d630d5356647e009dc8b802b9da383893be Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 11:36:27 +0100
+Subject: [PATCH 0771/1173] HUE-2556 [core] Cannot update project tags of a
+ document
+
+Fixed wrong viewModel property referral
+Moved document modal to the proper html node
+---
+ desktop/core/src/desktop/templates/home.mako |   55 ++++++++++++++------------
+ 1 file changed, 29 insertions(+), 26 deletions(-)
+
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index bd5bfcb..d5bdc87 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -208,6 +208,33 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+     </div>
+ 
+   </div>
++
++
++
++  <div id="documentMoveModal" class="modal fade">
++    <div class="modal-header">
++        <a href="#" class="close" data-dismiss="modal">&times;</a>
++        <h3>${_('Move to a project')}</h3>
++    </div>
++    <div class="modal-body">
++        <p>
++          ${_('Select the project you want to move this document to')}
++          <ul class="unstyled">
++            <!-- ko foreach: myTags -->
++              <li>
++                <a href="javascript:void(0)" style="padding-left: 4px" data-bind="click: moveDocFinal">
++                  <i class="fa fa-tag"></i> <span data-bind="text: name"></span>
++                </a>
++              </li>
++            <!-- /ko -->
++          </ul>
++        </p>
++    </div>
++    <div class="modal-footer">
++        <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
++    </div>
++</div>
++
+ </div>
+ 
+ 
+@@ -291,30 +318,6 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+     </div>
+ </div>
+ 
+-<div id="documentMoveModal" class="modal hide fade">
+-    <div class="modal-header">
+-        <a href="#" class="close" data-dismiss="modal">&times;</a>
+-        <h3>${_('Move to a project')}</h3>
+-    </div>
+-    <div class="modal-body">
+-        <p>
+-          ${_('Select the project you want to move this document to')}
+-          <ul class="unstyled">
+-            <!-- ko foreach: myTags -->
+-              <li>
+-                <a href="javascript:void(0)" style="padding-left: 4px" data-bind="click: moveDocFinal">
+-                  <i class="fa fa-tag"></i> <span data-bind="text: name"></span>
+-                </a>
+-              </li>
+-            <!-- /ko -->
+-          </ul>
+-        </p>
+-    </div>
+-    <div class="modal-footer">
+-        <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
+-    </div>
+-</div>
+-
+ ${ commonshare() | n,unicode }
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+@@ -428,14 +431,14 @@ ${ commonshare() | n,unicode }
+   }
+ 
+   function moveDoc(doc) {
+-    viewModel.selectedDoc(doc);
++    shareViewModel.selectedDoc(doc);
+     $("#documentMoveModal").modal("show");
+   }
+ 
+   function moveDocFinal(tag) {
+     $.post("/desktop/api/doc/update_tags", {
+       data: JSON.stringify({
+-        doc_id: viewModel.selectedDoc().id,
++        doc_id: shareViewModel.selectedDoc().id,
+         tag_ids: [tag.id()]
+       })
+     }, function (response) {
+-- 
+1.7.9.5
+

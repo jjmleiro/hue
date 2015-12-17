@@ -1,0 +1,1206 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"margin",
+				"margin-bottom"
+			],
+			[
+				"work",
+				"workflow"
+			],
+			[
+				"top",
+				"margin-top"
+			],
+			[
+				"ta",
+				"table-height"
+			],
+			[
+				"ba",
+				"background"
+			],
+			[
+				"back",
+				"background-color"
+			],
+			[
+				"or",
+				"ordered_row"
+			],
+			[
+				"val",
+				"value"
+			],
+			[
+				"res",
+				"response"
+			],
+			[
+				"co",
+				"connect"
+			],
+			[
+				"events",
+				"events_source"
+			],
+			[
+				"event",
+				"events_source"
+			],
+			[
+				"bac",
+				"background-color"
+			],
+			[
+				"curr",
+				"currentDay"
+			],
+			[
+				"json",
+				"jsonFile"
+			],
+			[
+				"jso",
+				"jsonFile"
+			],
+			[
+				"user",
+				"user_sessions"
+			],
+			[
+				"default",
+				"default_theme"
+			],
+			[
+				"new",
+				"newTheme"
+			],
+			[
+				"change",
+				"changeTheme"
+			],
+			[
+				"ne",
+				"newTheme"
+			],
+			[
+				"h",
+				"h1	Tag"
+			],
+			[
+				"connec",
+				"connectionID"
+			],
+			[
+				"coo",
+				"connectionID"
+			],
+			[
+				"conn",
+				"connectionID"
+			],
+			[
+				"ws",
+				"wsPort"
+			],
+			[
+				"sR",
+				"sRestPort"
+			],
+			[
+				"sRpc",
+				"sRpcPort"
+			],
+			[
+				"sRes",
+				"sRestPort"
+			],
+			[
+				"rest",
+				"restPort"
+			],
+			[
+				"sett",
+				"settings"
+			],
+			[
+				"getR",
+				"getRpcPort"
+			],
+			[
+				"lo",
+				"log"
+			],
+			[
+				"sWs",
+				"sWsPort"
+			],
+			[
+				"sW",
+				"sWsPort"
+			],
+			[
+				"pai",
+				"pais_Origen"
+			],
+			[
+				"localidad",
+				"localidad_Origen"
+			],
+			[
+				"to",
+				"toString"
+			],
+			[
+				"coordea",
+				"coordenadasOrigen"
+			],
+			[
+				"cons",
+				"console"
+			],
+			[
+				"refre",
+				"refreshDasboard"
+			],
+			[
+				"xym",
+				"xymin"
+			],
+			[
+				"time",
+				"timestampedData"
+			],
+			[
+				"feat",
+				"features"
+			],
+			[
+				"un",
+				"undefined"
+			],
+			[
+				"iCo",
+				"iColor"
+			],
+			[
+				"Kee",
+				"KeedioB"
+			],
+			[
+				"strok",
+				"strokeTarget"
+			],
+			[
+				"str",
+				"strokeOrigin"
+			],
+			[
+				"la",
+				"latitude"
+			],
+			[
+				"sed",
+				"sendLines"
+			],
+			[
+				"le",
+				"length"
+			],
+			[
+				"pus",
+				"push"
+			],
+			[
+				"js",
+				"jsonFile"
+			],
+			[
+				"cs",
+				"csvJSON"
+			],
+			[
+				"ty",
+				"type"
+			],
+			[
+				"poi",
+				"pointa"
+			],
+			[
+				"map",
+				"mapWorld"
+			],
+			[
+				"con",
+				"console"
+			],
+			[
+				"J",
+				"JsonResponse"
+			],
+			[
+				"2h",
+				"2hr"
+			],
+			[
+				"di",
+				"divErrorNoData"
+			],
+			[
+				"divGrap",
+				"divGraph0NoData"
+			],
+			[
+				"divGr",
+				"divGraph0NoData"
+			],
+			[
+				"vale",
+				"values"
+			],
+			[
+				"graph",
+				"graph0"
+			],
+			[
+				"grap",
+				"graph0"
+			],
+			[
+				"tr",
+				"true"
+			],
+			[
+				"sGr",
+				"sGranularity"
+			],
+			[
+				"sG",
+				"sGranularity"
+			],
+			[
+				"tool",
+				"tooltip"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "apps/oozie/src/oozie/templates/editor/list_workflows.mako",
+			"settings":
+			{
+				"buffer_size": 12256,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "apps/oozie/src/oozie/views/dashboard.py",
+			"settings":
+			{
+				"buffer_size": 33439,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "apps/oozie/src/oozie/views/editor.py",
+			"settings":
+			{
+				"buffer_size": 35980,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "Searching 549 files for \"submit_workflow\" (case sensitive)\n\n/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor/edit_workflow.mako:\n   64          % if user_can_access_job:\n   65            <li>\n   66:             <a id=\"submit-btn\" href=\"javascript:void(0)\" data-submit-url=\"${ url('oozie:submit_workflow', workflow=workflow.id) }\" title=\"${ _('Submit this workflow') }\" rel=\"tooltip\" data-placement=\"right\"><i class=\"fa fa-play\"></i> ${ _('Submit') }</a>\n   67            </li>\n   68            <li>\n\n/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor/list_workflows.mako:\n   87               <div class=\"hueCheckbox workflowCheck fa\" data-row-selector-exclude=\"true\"\n   88                % if workflow.can_read(user):\n   89:                   data-submit-url=\"${ url('oozie:submit_workflow', workflow=workflow.id) }\"\n   90                    data-schedule-url=\"${ url('oozie:schedule_workflow', workflow=workflow.id) }\"\n   91                    data-clone-url=\"${ url('oozie:clone_workflow', workflow=workflow.id) }\"\n\n/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/tests.py:\n 1811  \n 1812  \n 1813:   def test_submit_workflow(self):\n 1814      # Check param popup\n 1815:     response = self.c.get(reverse('oozie:submit_workflow', args=[self.wf.id]))\n 1816      assert_equal([{'name': u'output', 'value': ''},\n 1817                    {'name': u'SLEEP', 'value': ''},\n ....\n 2523      finish = SHARE_JOBS.set_for_testing(False)\n 2524      try:\n 2525:       response = client_not_me.post(reverse('oozie:submit_workflow', args=[self.wf.id]))\n 2526        assert_true('Permission denied' in response.content, response.content)\n 2527      finally:\n ....\n 2531      try:\n 2532        try:\n 2533:         response = client_not_me.post(reverse('oozie:submit_workflow', args=[self.wf.id]))\n 2534          assert_false('Permission denied' in response.content, response.content)\n 2535        except IOError:\n ....\n 2973      assert_equal('sample', wf.owner.username)\n 2974  \n 2975:     response = self.c.post(reverse('oozie:submit_workflow', args=[wf.id]), data=post_data, follow=True)\n 2976      job = OozieServerProvider.wait_until_completion(response.context['oozie_workflow'].id)\n 2977      assert_equal('SUCCEEDED', job.status)\n ....\n 3008      wf.save()\n 3009  \n 3010:     response = self.c.post(reverse('oozie:submit_workflow', args=[wf.id]),\n 3011                             data={u'form-MAX_NUM_FORMS': [u''],\n 3012                                  u'form-0-name': [u'records'], u'form-0-value': [u'10'],\n ....\n 3023      wf.save()\n 3024  \n 3025:     response = self.c.post(reverse('oozie:submit_workflow', args=[wf.id]),\n 3026                             data={\n 3027                               u'form-MAX_NUM_FORMS': [u''], u'form-TOTAL_FORMS': [u'3'], u'form-INITIAL_FORMS': [u'3'],\n\n/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/urls.py:\n   32    url(r'^restore_workflow/$', 'restore_workflow', name='restore_workflow'),\n   33    url(r'^clone_workflow/(?P<workflow>\\d+)$', 'clone_workflow', name='clone_workflow'),\n   34:   url(r'^submit_workflow/(?P<workflow>\\d+)$', 'submit_workflow', name='submit_workflow'),\n   35    url(r'^schedule_workflow/(?P<workflow>\\d+)$', 'schedule_workflow', name='schedule_workflow'),\n   36    url(r'^import_workflow/$', 'import_workflow', name='import_workflow'),\n\n/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views/editor.py:\n  327  \n  328  @check_job_access_permission()\n  329: def submit_workflow(request, workflow):\n  330    ParametersFormSet = formset_factory(ParameterForm, extra=0)\n  331  \n  ...\n  336        mapping = dict([(param['name'], param['value']) for param in params_form.cleaned_data])\n  337  \n  338:       job_id = _submit_workflow(request.user, request.fs, request.jt, workflow, mapping)\n  339  \n  340        request.info(_('Workflow submitted'))\n  ...\n  349    popup = render('editor/submit_job_popup.mako', request, {\n  350                     'params_form': params_form,\n  351:                    'action': reverse('oozie:submit_workflow', kwargs={'workflow': workflow.id})\n  352                   }, force_template=True).content\n  353    return HttpResponse(json.dumps(popup), mimetype=\"application/json\")\n  354  \n  355  \n  356: def _submit_workflow(user, fs, jt, workflow, mapping):\n  357    try:\n  358      submission = Submission(user, workflow, fs, jt, mapping)\n\n16 matches across 5 files\n",
+			"settings":
+			{
+				"buffer_size": 4464,
+				"line_ending": "Unix",
+				"name": "Find Results",
+				"scratch": true
+			}
+		},
+		{
+			"file": "apps/oozie/src/oozie/tests.py",
+			"settings":
+			{
+				"buffer_size": 170786,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "apps/oozie/src/oozie/templates/editor/edit_workflow.mako",
+			"settings":
+			{
+				"buffer_size": 43437,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "sftp-config.json",
+			"settings":
+			{
+				"buffer_size": 1405,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 67.0,
+		"selected_items":
+		[
+			[
+				"Instll",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 449.0
+	},
+	"console":
+	{
+		"height": 0.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/Users/jjmartinez/Documents/Proyectos/hue.ini",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/common_header.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/static/css/hue3.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views/editor.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/api.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static/js/api.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor/list_workflows.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor/submit_job_popup.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/templates/app.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/gen-py/hbased/Hbase.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static/js/controls.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static/js/app.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/common_dashboard.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor/edit_workflow.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/decorators.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/sftp-config.json",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views/dashboard.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/home.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/static/ext/css/bootplus.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/static/css/common_dashboard.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/static/ext/css/bootplus-responsive.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/login.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/about/src/about/templates/admin_wizard.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/about_layout.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser/templates/listdir_components.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/thrift/Hbase.thrift",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/management/commands/hbase_setup.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser/templates/listdir.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/jobsub/src/jobsub/templates/designs.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/api.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/dump_config.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/appmanager.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/forms.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/templates/execute.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/settings.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/about/src/about/settings.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/static/desktop/css/hue3.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/README.rst",
+		"/Users/jjmartinez/Documents/Proyectos/hue/README.rst",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/dbms.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/sqlserver_lib.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/metastore/src/metastore/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/metastore/src/metastore/templates/tables.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/beeswax/src/beeswax/templates/execute.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/beeswax/src/beeswax/api.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/beeswax/thrift/TCLIService.thrift",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/useradmin/src/useradmin/forms.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser/forms.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/settings.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/models.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/static/rdbms/js/rdbms.vm.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/beeswax/src/beeswax/templates/watch_results.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/rdbms_base_lib.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/oracle_lib.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/mysql_lib.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/design.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/postgresql_lib.py",
+		"/Users/jjmartinez/Library/Application Support/Sublime Text 2/Packages/User/SFTP.errors.log",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms/src/librdbms/server/sqlite_lib.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/templates/common.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/lib/paths.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/about/src/about/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/management/commands/create_desktop_app.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/management/commands/create_proxy_app.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/actionbar.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/about/src/about/templates/header.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar/app.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar/calendar.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/css/calendar/calendar.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar/templates/events.json.php",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/lib/conf.py",
+		"/Users/jjmartinez/Downloads/hue.ini",
+		"/Users/jjmartinez/Documents/Proyectos/RestServer/rest_server.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/dashboard/rest_server.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar/templates/year.html",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/coordinator.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/dashboard-utils.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views/api.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/liboozie/src/liboozie/types.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/liboozie/src/liboozie/oozie_api.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/css/workflow.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar/underscore-min.js",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/indexer/src/indexer/static/indexer/css/admin.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop/templates/check_config.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue/VERSION",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/oozie/src/oozie/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/oozie/src/oozie/views/dashboard.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/common_header.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css/hue3.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/check_config.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/about/src/about/templates/admin_wizard.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/home.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/dump_config.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/beeswax/src/beeswax/settings.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/about/src/about/templates/header.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css/common_dashboard.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/ext/css/bootplus.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/libs/indexer/src/indexer/static/indexer/css/admin.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/login.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css/custom/keedio.css",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/models.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/conf.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/auth/views.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/ext-py/Django-1.6.10/django/contrib/auth/__init__.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/ko_components.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/filebrowser/src/filebrowser/templates/listdir_components.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/filebrowser/src/filebrowser/urls.py",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/hbase/src/hbase/templates/app.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/beeswax/src/beeswax/templates/my_queries.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates/actionbar.mako",
+		"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/hbase/src/hbase/static/hbase/css/hbase.css"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/templates/editor",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/static/js",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/static",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static/js",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static/js",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/static",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase/src/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/hbase",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/beeswax/src/beeswax/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src/filebrowser",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/filebrowser/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src/rdbms/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/rdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/core/src/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs",
+			"/Users/jjmartinez/Documents/Proyectos/hue/desktop/libs/librdbms",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/static/oozie/js/calendar",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie/src/oozie/views",
+			"/Users/jjmartinez/Documents/Proyectos/hue/apps/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/oozie/src/oozie",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/oozie/src/oozie/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/about",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/ext/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0,-*.csv",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps,-*.csv",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps/about",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/apps",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/auth",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/templates",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src/desktop/static/desktop/css",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0/desktop/core/src",
+			"/Users/jjmartinez/Documents/Proyectos/hue-release-3.9.0",
+			"/Users/jjmartinez/Documents/Proyectos/matrix-world-dashboard",
+			"/Users/jjmartinez/Documents/Proyectos/matrix-world-dashboard/js"
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": true,
+		"find_history":
+		[
+			"security_enabled",
+			"submit_workflow",
+			"formset_factory",
+			"submit_workflow",
+			"brand",
+			"nav-pills",
+			"28",
+			"nav-tooltip",
+			"submit_workflow",
+			"submit_job_popup",
+			"= Client (",
+			"Client",
+			"getColumn",
+			"getColumnDescriptors",
+			"key",
+			"scanner",
+			"getRowQuerySet",
+			"getScanner",
+			"getRowQuerySet",
+			"row_key",
+			"data.row",
+			"h5",
+			"getRows",
+			"connectCluster",
+			"def submit_workflow",
+			"submit_workflow",
+			"Schedule",
+			"resume",
+			"resumeUrl",
+			"operation",
+			"resume",
+			"container-fluid",
+			"28",
+			"nokids",
+			"navbar-fixed-top",
+			"navbar-fixed",
+			"28",
+			"nav-fixed",
+			"css",
+			"container-fluid",
+			"left-",
+			"properties",
+			"section ",
+			"nav-tabs",
+			"EC0000",
+			"top",
+			"50",
+			"28",
+			"Server Logs",
+			"Quick Start",
+			"EC0000",
+			"template",
+			"body",
+			"table-height",
+			"login-content",
+			"height",
+			"360",
+			"backLogo",
+			"height",
+			"background",
+			"fondo.png",
+			"fondo",
+			"#logo",
+			"left",
+			"login-content",
+			"28",
+			"30px",
+			"navigator",
+			"queries",
+			"def scannerGetList",
+			"columns",
+			"clusterNames",
+			"AppViewModel",
+			"apply",
+			"applybin",
+			"SmartViewModel",
+			"applyBindings",
+			"apply",
+			"initialize",
+			"clusters",
+			"Switch Cluster",
+			"datasource",
+			"getClusters",
+			"getCluster",
+			"app.js",
+			"getRows",
+			"getColumnFamilies",
+			"require",
+			"API",
+			"def getRow",
+			"getRows",
+			"getTableList",
+			"readMessageBegin",
+			"send_getTableNames",
+			"getTableNames",
+			"def getTableNames",
+			"connectCluster",
+			"navbar-fixed-top",
+			"currentApp",
+			"87BAAC",
+			"55A08E",
+			"55A",
+			"h3",
+			"dd4b39",
+			"login-content",
+			"background-color",
+			"837D93",
+			"666484",
+			"352B5B",
+			"Dsignes Bold",
+			"Zip/Tgz",
+			"keedio",
+			"url",
+			"hue3.css",
+			"getClusters",
+			", callba",
+			"getStats",
+			"$.getJSON",
+			"getjson",
+			"Allow-Origin",
+			"Access-Control-Allow-Origin",
+			"routie",
+			"stepDetails",
+			"DesktopModuleInfo",
+			"DESKTOP_MODULES",
+			"appmanager",
+			"dump_config.mako",
+			"MENU_INDEX"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+			"50",
+			"",
+			"50",
+			"333333",
+			"FFFFFF",
+			"EC0000",
+			"444444",
+			"990000",
+			"CC0000",
+			"B30000",
+			"OpenSansRegular",
+			"",
+			"oldTheme",
+			"change_theme",
+			"",
+			"-primary-",
+			"FFFF00",
+			"info",
+			"\"",
+			"TypeTX",
+			"transaction",
+			"typeTX",
+			"type",
+			"tx",
+			"targetLong",
+			"targetLat",
+			"targetCity",
+			"targetCountry",
+			"removeOLDInterval",
+			"headTooltip",
+			"divTooltip",
+			"txtTooltip",
+			"hideTooltip",
+			"showTooltip",
+			"headerNames",
+			"dataRemoveOLDInterval",
+			"removeOLDInterval",
+			"oData",
+			"sendLines",
+			"mapWorld",
+			"${Templates.divExport('temp')}",
+			"#f5f5f5",
+			"fff"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 6,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "apps/oozie/src/oozie/templates/editor/list_workflows.mako",
+					"settings":
+					{
+						"buffer_size": 12256,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/JavaScript/JavaScript.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "apps/oozie/src/oozie/views/dashboard.py",
+					"settings":
+					{
+						"buffer_size": 33439,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1945,
+								1954
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 2.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "apps/oozie/src/oozie/views/editor.py",
+					"settings":
+					{
+						"buffer_size": 35980,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								11789,
+								11804
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 7316.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"settings":
+					{
+						"buffer_size": 4464,
+						"regions":
+						{
+							"match":
+							{
+								"flags": 112,
+								"regions":
+								[
+									[
+										318,
+										333
+									],
+									[
+										834,
+										849
+									],
+									[
+										1185,
+										1200
+									],
+									[
+										1287,
+										1302
+									],
+									[
+										1576,
+										1591
+									],
+									[
+										1818,
+										1833
+									],
+									[
+										2088,
+										2103
+									],
+									[
+										2381,
+										2396
+									],
+									[
+										2663,
+										2678
+									],
+									[
+										3129,
+										3144
+									],
+									[
+										3167,
+										3182
+									],
+									[
+										3191,
+										3206
+									],
+									[
+										3531,
+										3546
+									],
+									[
+										3782,
+										3797
+									],
+									[
+										4092,
+										4107
+									],
+									[
+										4305,
+										4320
+									]
+								],
+								"scope": ""
+							}
+						},
+						"selection":
+						[
+							[
+								1195,
+								1195
+							]
+						],
+						"settings":
+						{
+							"detect_indentation": false,
+							"incomplete_sync": null,
+							"output_tag": 1,
+							"remote_loading": false,
+							"result_base_dir": "",
+							"result_file_regex": "^([A-Za-z\\\\/<].*):$",
+							"result_line_regex": "^ +([0-9]+):",
+							"scroll_past_end": true,
+							"synced": false,
+							"syntax": "Packages/Default/Find Results.hidden-tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "apps/oozie/src/oozie/tests.py",
+					"settings":
+					{
+						"buffer_size": 170786,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								90783,
+								90783
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 20.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "apps/oozie/src/oozie/templates/editor/edit_workflow.mako",
+					"settings":
+					{
+						"buffer_size": 43437,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3359,
+								3359
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/JavaScript/JavaScript.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 1302.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "sftp-config.json",
+					"settings":
+					{
+						"buffer_size": 1405,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1104,
+								1104
+							]
+						],
+						"settings":
+						{
+							"incomplete_sync": null,
+							"remote_loading": false,
+							"synced": false,
+							"syntax": "Packages/JavaScript/JSON.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 83.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 34.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 100.0
+	},
+	"output.sftp":
+	{
+		"height": 209.0
+	},
+	"replace":
+	{
+		"height": 64.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 265.0,
+	"status_bar_visible": true
+}

@@ -1,0 +1,68 @@
+From 47dd529eb0a55e6b4457569be2c4f731280ac0d8 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 30 Dec 2014 17:16:59 -0800
+Subject: [PATCH 0383/1173] [oozie] Streaming action UX
+
+---
+ .../editor/gen2/workflow-streaming.xml.mako        |    4 ++++
+ .../oozie/templates/editor/workflow_editor.mako    |   15 +++++++++++++--
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+index cd2db95..c59fcb1 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-streaming.xml.mako
+@@ -22,8 +22,12 @@
+             <job-tracker>${ '${' }jobTracker}</job-tracker>
+             <name-node>${ '${' }nameNode}</name-node>
+             <streaming>
++                % if node['properties']['mapper']:
+                 <mapper>${ node['properties']['mapper'] }</mapper>
++                % endif
++                % if node['properties']['reducer']:
+                 <reducer>${ node['properties']['reducer'] }</reducer>
++                % endif
+             </streaming>
+             ${ common.configuration(node['properties']['properties']) }
+             ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 84b09e7..58b889d 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1472,12 +1472,23 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()">
+         <span data-bind="text: $root.workflow_properties.mapper.label"></span>
+         <input type="text" data-bind="value: properties.mapper" />
++        <span data-bind='template: { name: "common-fs-link", data: {path: properties.mapper(), with_label: false} }'></span>
+         <br/>
+-        <span data-bind="text: $root.workflow_properties.reducer.label"></span>
++        
++        <span data-bind="text: $root.workflow_properties.reducer.label"></span
+         <input type="text" data-bind="value: properties.reducer" />
++        <span data-bind='template: { name: "common-fs-link", data: {path: properties.reducer(), with_label: false} }'></span>
+       </div>
+     </div>
+ 
++    <div data-bind="visible: ! $root.isEditing()">
++      <span data-bind="text: $root.workflow_properties.mapper.label, visible: properties.mapper().length > 0"></span>
++      <span data-bind='template: { name: "common-fs-link", data: {path: properties.mapper(), with_label: true} }, visible: properties.mapper().length > 0'></span>
++      </br>
++      <span data-bind="text: $root.workflow_properties.reducer.label, visible: properties.reducer().length > 0"></span>
++      <span data-bind='template: { name: "common-fs-link", data: {path: properties.reducer(), with_label: true} }, visible: properties.reducer().length > 0'></span>
++    </div>
++
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+         <li class="active"><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
+@@ -1609,7 +1620,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <select data-bind="options: $root.subworfklows, optionsText: 'name', optionsValue: 'value', value: value"></select>
+           <!-- /ko -->
+           
+-          <!-- ko if: ['jar_path', 'script_path'].indexOf(name()) != -1 &&  value().length > 0 -->
++          <!-- ko if: ['jar_path', 'script_path', 'mapper', 'reducer'].indexOf(name()) != -1 &&  value().length > 0 -->
+             <span data-bind='template: { name: "common-fs-link", data: {path: value(), with_label: false}}'></span>
+           <!-- /ko -->
+           <!-- ko if: name() == 'workflow' && $root.getSubWorkflow(value())-->
+-- 
+1.7.9.5
+

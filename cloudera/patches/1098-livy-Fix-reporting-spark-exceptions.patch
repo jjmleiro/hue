@@ -1,0 +1,154 @@
+From 16f81b5d540b0521a6b7e92a781560f25c99c765 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 16 Mar 2015 16:43:49 -0700
+Subject: [PATCH 1098/1173] [livy] Fix reporting spark exceptions
+
+---
+ .../scala/com/cloudera/hue/livy/repl/Session.scala |    2 +-
+ .../hue/livy/repl/scala/SparkSession.scala         |    6 ++--
+ .../cloudera/hue/livy/repl/PythonSessionSpec.scala |   37 ++++++++++++++++++++
+ .../cloudera/hue/livy/repl/SparkSessionSpec.scala  |   30 +++++++++++++++-
+ 4 files changed, 69 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+index c7f7061..8504e5f 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+@@ -17,7 +17,7 @@ object Session {
+ }
+ 
+ trait Session {
+-  import com.cloudera.hue.livy.repl.Session._
++  import Session._
+ 
+   def state: State
+ 
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+index 9ea53fd..3ca250d 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+@@ -56,16 +56,14 @@ private class SparkSession extends Session {
+             "status" -> "error",
+             "execution_count" -> executeCount,
+             "ename" -> "Error",
+-            "evalue" -> "output",
+-            "traceback" -> List()
++            "evalue" -> output
+           )
+         case ExecuteError(executeCount, output) =>
+           Map(
+             "status" -> "error",
+             "execution_count" -> executeCount,
+             "ename" -> "Error",
+-            "evalue" -> "output",
+-            "traceback" -> List()
++            "evalue" -> output
+           )
+       }
+ 
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+index 815cea7..b0e9af9 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import com.cloudera.hue.livy.repl.python.PythonSession
++import org.json4s.JsonAST.JValue
+ import org.json4s.{Extraction, DefaultFormats}
+ import org.scalatest.{BeforeAndAfter, FunSpec}
+ import org.scalatest.matchers.ShouldMatchers
+@@ -110,5 +111,41 @@ class PythonSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter
+ 
+       result should equal (expectedResult)
+     }
++
++    it("should report an error if accessing an unknown variable") {
++      val result = Await.result(session.execute("""x"""), Duration.Inf)
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "error",
++        "execution_count" -> 0,
++        "traceback" -> List(
++          "Traceback (most recent call last):\n",
++          "NameError: name 'x' is not defined\n"
++        ),
++        "ename" -> "NameError",
++        "evalue" -> "name 'x' is not defined"
++      ))
++
++      result should equal (expectedResult)
++    }
++
++    it("should report an error if exception is thrown") {
++      val result = Await.result(session.execute(
++        """def foo():
++          |    raise Exception()
++          |foo()
++          |""".stripMargin), Duration.Inf)
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "error",
++        "execution_count" -> 0,
++        "traceback" -> List(
++          "Traceback (most recent call last):\n",
++          "Exception\n"
++        ),
++        "ename" -> "Exception",
++        "evalue" -> ""
++      ))
++
++      result should equal (expectedResult)
++    }
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+index bb89aa1..f8e2a61 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+@@ -1,9 +1,10 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import com.cloudera.hue.livy.repl.scala.SparkSession
++import org.json4s.JsonAST.JValue
+ import org.json4s.{DefaultFormats, Extraction}
+ import org.scalatest.matchers.ShouldMatchers
+-import org.scalatest.{FunSpec, BeforeAndAfter}
++import org.scalatest.{BeforeAndAfter, FunSpec}
+ 
+ import _root_.scala.concurrent.Await
+ import _root_.scala.concurrent.duration.Duration
+@@ -92,5 +93,32 @@ class SparkSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter {
+ 
+       result should equal (expectedResult)
+     }
++
++    it("should report an error if accessing an unknown variable") {
++      val result = Await.result(session.execute("""x"""), Duration.Inf)
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "error",
++        "execution_count" -> 0,
++        "ename" -> "Error",
++        "evalue" ->
++          """<console>:8: error: not found: value x
++            |              x
++            |              ^""".stripMargin
++      ))
++
++      result should equal (expectedResult)
++    }
++
++    it("should report an error if exception is thrown") {
++      val result = Await.result(session.execute("""throw new Exception()"""), Duration.Inf)
++      val resultMap = result.extract[Map[String, JValue]]
++
++      // Manually extract the values since the line numbers in the exception could change.
++      resultMap("status").extract[String] should equal ("error")
++      resultMap("execution_count").extract[Int] should equal (0)
++      resultMap("ename").extract[String] should equal ("Error")
++      resultMap("evalue").extract[String] should include ("java.lang.Exception")
++      resultMap.get("traceback") should equal (None)
++    }
+   }
+  }
+-- 
+1.7.9.5
+

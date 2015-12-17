@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2014-05-29 17:10-0700\n"
+"POT-Creation-Date: 2015-05-07 22:59-0700\n"
 "PO-Revision-Date: 2012-11-07 13:08-0800\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: zh_CN <LL@li.org>\n"
@@ -109,8 +109,14 @@ msgid "Comma-separated list of whitelisted domains."
 msgstr "白名单域的逗号分隔列表。"
 
 #: src/liboauth/conf.py:161
-msgid "JSON formatted hash of username simplifications. Example: {\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} converts \"email@sub1.domain.com\" to \"email_S1\""
-msgstr "用户名简化的 JSON 格式化号。例如：{\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} 将 \"email@sub1.domain.com\" 转化为 \"email_S1\""
+msgid ""
+"JSON formatted hash of username simplifications. Example: "
+"{\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} converts "
+"\"email@sub1.domain.com\" to \"email_S1\""
+msgstr ""
+"用户名简化的 JSON 格式化号。例如：{\"@sub1.domain.com\":\"_S1\", "
+"\"@sub2.domain.com\":\"_S2\"} 将 \"email@sub1.domain.com\" 转化为 "
+"\"email_S1\""
 
 #: src/liboauth/views.py:72
 #, python-format
@@ -133,19 +139,19 @@ msgstr "访问 gethue.com"
 msgid "Fell asleep? Visit us on gethue.com instead!"
 msgstr "感觉昏昏欲睡？不如访问 gethue.com 提提神吧！"
 
-#: src/liboauth/templates/oauth-login.mako:169
+#: src/liboauth/templates/oauth-login.mako:170
 msgid "Error!"
 msgstr "错误！"
 
-#: src/liboauth/templates/oauth-login.mako:169
+#: src/liboauth/templates/oauth-login.mako:170
 msgid "Invalid username or password."
 msgstr "用户名或密码无效。"
 
-#: src/liboauth/templates/oauth-login.mako:176
+#: src/liboauth/templates/oauth-login.mako:177
 msgid "This is your first time logging in."
 msgstr "这是您第一次登录。"
 
-#: src/liboauth/templates/oauth-login.mako:177
+#: src/liboauth/templates/oauth-login.mako:178
 msgid "You will become Hue superuser."
 msgstr "您将成为 Hue 超级用户。"
 

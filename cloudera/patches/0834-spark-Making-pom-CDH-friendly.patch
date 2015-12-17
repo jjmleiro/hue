@@ -1,0 +1,104 @@
+From 669c0c07afdb46a479e7b6a346c122e19a54559e Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 11 Feb 2015 16:29:22 -0800
+Subject: [PATCH 0834/1173] [spark] Making pom CDH friendly
+
+---
+ apps/spark/java/livy-core/pom.xml   |    2 +-
+ apps/spark/java/livy-repl/pom.xml   |    2 +-
+ apps/spark/java/livy-server/pom.xml |    2 +-
+ apps/spark/java/livy-yarn/pom.xml   |    2 +-
+ apps/spark/java/pom.xml             |    4 ++--
+ maven/pom.xml                       |    4 ++--
+ 6 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index b20063e..13aecc7 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -7,7 +7,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+     <artifactId>livy-core</artifactId>
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 1483647..52fb887 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -7,7 +7,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+     <artifactId>livy-repl</artifactId>
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index 9d176cf..5632f8d 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -24,7 +24,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+     <artifactId>livy-server</artifactId>
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 1890b26..14bc232 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -7,7 +7,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+     <artifactId>livy-yarn</artifactId>
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 1e59fa1..2c857e3 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -24,13 +24,13 @@
+         <groupId>com.cloudera.hue</groupId>
+         <artifactId>hue-parent</artifactId>
+         <relativePath>../../../maven/pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+     </parent>
+ 
+     <groupId>com.cloudera.hue.livy</groupId>
+     <artifactId>livy-main</artifactId>
+     <packaging>pom</packaging>
+-    <version>3.7.0-SNAPSHOT</version>
++    <version>3.7.0-cdh5.4.0-SNAPSHOT</version>
+ 
+     <name>livy-main</name>
+     <description>livy-main</description>
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 0c93a6e..6577aae 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -43,8 +43,8 @@
+   </licenses>
+ 
+   <properties>
+-    <hadoop-mr1.version>${cdh.mr1.version}</hadoop.version>
+-    <hadoop.version>2.5.0-cdh5.3.0-SNAPSHOT</hadoop.version> ## To UPDATE
++    <hadoop-mr1.version>${cdh.mr1.version}</hadoop-mr1.version>
++    <hadoop.version>2.5.0-cdh5.3.0-SNAPSHOT</hadoop.version>
+     <spark.version>1.1.0</spark.version>
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+-- 
+1.7.9.5
+

@@ -1,0 +1,143 @@
+From 9e7329473759d1d5c6c54bdebf6ea9c5ddfd43d1 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 1 Dec 2014 04:29:52 +0100
+Subject: [PATCH 0524/1173] [spark] Basic support for on the fly autocomplete
+ change
+
+---
+ apps/spark/src/spark/templates/editor.mako       |   38 +++++++++++++++++++---
+ apps/spark/static/js/spark.vm.js                 |    8 +++++
+ desktop/core/static/js/codemirror-python-hint.js |    4 +--
+ 3 files changed, 44 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index f7fba5c..b397d79 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -94,7 +94,7 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ 
+ <script type="text/html" id="snippet">
+ 
+-  <div class="snippet">
++  <div class="snippet" data-bind="attr: {'id': 'snippet_' + id()}">
+     <span class="muted" data-bind="text: id"></span>
+ 
+     <div class="pull-right">
+@@ -103,7 +103,7 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+     </div>
+     <br/>
+     <br/>
+-    <textarea data-bind="value: statement, codemirror: { 'lineNumbers': true, 'matchBrackets': true, 'mode': 'text/x-hiveql', 'enter': execute }"></textarea>
++    <textarea data-bind="value: statement, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+     <a href="javascript:void(0)" data-bind="click: execute" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+ 
+     <div data-bind="css: klass">
+@@ -133,8 +133,17 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ <script src="/static/ext/js/codemirror-3.11.js"></script>
+ <script src="/static/js/codemirror-pig.js"></script>
+ <script src="/static/js/codemirror-hql.js"></script>
+-<script src="/static/ext/js/codemirror-sql.js"></script>
+-<script src="/static/ext/js/codemirror-markdown.js"></script>
++<script src="/static/js/codemirror-python.js"></script>
++<script src="/static/js/codemirror-clike.js"></script>
++
++<script src="/static/js/codemirror-show-hint.js"></script>
++
++<script src="/static/js/codemirror-isql-hint.js"></script>
++<script src="/static/js/codemirror-hql-hint.js"></script>
++<script src="/static/js/codemirror-pig-hint.js"></script>
++<script src="/static/js/codemirror-python-hint.js"></script>
++<script src="/static/js/codemirror-clike-hint.js"></script>
++
+ <script src="/static/ext/js/markdown.min.js"></script>
+ 
+ 
+@@ -145,17 +154,38 @@ ${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ 
+ <script type="text/javascript" charset="utf-8">
+ 
++  // text/x-pig
++  // text/x-scala
++  // text/x-python
++  // text/x-impalaql
++  // text/x-hiveql
++
+   ko.bindingHandlers.codemirror = {
+     init: function (element, valueAccessor, allBindingsAccessor, viewModel) {
+       var options = $.extend(valueAccessor(), {
+         extraKeys: {
++          "Ctrl-Space": function (cm) {
++            switch (valueAccessor().mode) {
++              case "text/x-pig":
++                CodeMirror.availableVariables = [];
++                CodeMirror.showHint(cm, CodeMirror.pigHint);
++                break;
++              case "text/x-python":
++                CodeMirror.showHint(cm, CodeMirror.pythonHint);
++                break;
++              default:
++                break;
++            }
++          },
+           "Ctrl-Enter": function () {
+             valueAccessor().enter();
+           }
+         }
+       });
+       var editor = CodeMirror.fromTextArea(element, options);
++
+       element.editor = editor;
++      $("#snippet_"+options.id).data("editor", editor);
+       editor.setValue(allBindingsAccessor().value());
+       window.setTimeout(function () {
+         editor.refresh();
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index afee9a0..3317476 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -41,12 +41,20 @@ var Result = function (snippet, result) {
+   };  
+ }
+ 
++var TYPE_EDITOR_MAP = {
++  'hive': 'text/x-hiveql',
++  'impala': 'text/x-impalaql',
++  'python': 'text/x-python',
++  'scala': 'text/x-scala',
++  'pig': 'text/x-pig'
++}
+ 
+ var Snippet = function (notebook, snippet) {
+   var self = this;
+   
+   self.id = ko.observable(typeof snippet.id != "undefined" && snippet.id != null ? snippet.id : UUID());
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : 'hive');
++  self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement = ko.observable('');
+   self.status = ko.observable('loading');
+   self.klass = ko.computed(function(){
+diff --git a/desktop/core/static/js/codemirror-python-hint.js b/desktop/core/static/js/codemirror-python-hint.js
+index dbb5e6a..af0759a 100644
+--- a/desktop/core/static/js/codemirror-python-hint.js
++++ b/desktop/core/static/js/codemirror-python-hint.js
+@@ -65,7 +65,7 @@
+   function getCompletions(token, context) {
+     var found = [], start = token.string;
+     function maybeAdd(str) {
+-      if (str.indexOf(start) == 0 && !arrayContains(found, str)) found.push(str);
++      if ((start == "" || str.indexOf(start) == 0) && !arrayContains(found, str)) found.push(str);
+     }
+ 
+     function gatherCompletions(_obj) {
+@@ -87,7 +87,7 @@
+ 
+       while (base != null && context.length)
+         base = base[context.pop().string];
+-      if (base != null) gatherCompletions(base);
++      if (base != null || typeof base == "undefined") gatherCompletions(base);
+     }
+     return found;
+   }
+-- 
+1.7.9.5
+

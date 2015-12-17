@@ -47,6 +47,7 @@ ${layout.metastore_menubar()}
       </ul>
 
       <form action="${ url(app_name + ':create_database')}" method="POST" id="mainForm" class="form-horizontal">
+        ${ csrf_token(request) | n,unicode }
         <div class="steps">
           <div id="step1" class="stepDetails">
               <fieldset>
@@ -178,7 +179,7 @@ ${layout.metastore_menubar()}
 </div>
 
 
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 $(document).ready(function () {

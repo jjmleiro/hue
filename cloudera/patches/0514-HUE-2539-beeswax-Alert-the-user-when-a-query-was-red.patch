@@ -1,0 +1,84 @@
+From 6cc410f3148075ca810f5363e77ddbe2f878f52c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 3 Feb 2015 14:17:54 -0500
+Subject: [PATCH 0514/1173] HUE-2539 [beeswax] Alert the user when a query was
+ redacted
+
+We do not need to do anything for the query history
+---
+ apps/beeswax/src/beeswax/api.py                 |    6 ++++--
+ apps/beeswax/src/beeswax/templates/execute.mako |    3 +++
+ apps/beeswax/static/js/beeswax.vm.js            |    5 ++++-
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/api.py b/apps/beeswax/src/beeswax/api.py
+index f56b44a..f5240ca 100644
+--- a/apps/beeswax/src/beeswax/api.py
++++ b/apps/beeswax/src/beeswax/api.py
+@@ -145,7 +145,8 @@ def execute_directly(request, query, design, query_server, tablename=None, **kwa
+     'status': 0,
+     'id': history_obj.id,
+     'watch_url': watch_url,
+-    'statement': history_obj.get_current_statement()
++    'statement': history_obj.get_current_statement(),
++    'is_redacted': history_obj.is_redacted
+   }
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+@@ -578,7 +579,8 @@ def design_to_dict(design):
+     'file_resources': hql_design.file_resources,
+     'functions': hql_design.functions,
+     'is_parameterized': hql_design.query.get('is_parameterized', True),
+-    'email_notify': hql_design.query.get('email_notify', True)
++    'email_notify': hql_design.query.get('email_notify', True),
++    'is_redacted': design.is_redacted
+   }
+ 
+ 
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 7778613..a129927 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -204,6 +204,9 @@ ${layout.menubar(section='query')}
+   </div>
+ 
+   <div id="querySide" class="span10">
++    <div class="alert" data-bind="visible: design.isRedacted">
++      ${ _('This query had some sensitive information removed when saved.') }
++    </div>
+     <div id="queryContainer" class="card card-small">
+       <div class="pull-right" style="margin: 10px">
+         <i class="fa fa-question-circle" id="help"></i>
+diff --git a/apps/beeswax/static/js/beeswax.vm.js b/apps/beeswax/static/js/beeswax.vm.js
+index ff8ad39..1e223d1 100644
+--- a/apps/beeswax/static/js/beeswax.vm.js
++++ b/apps/beeswax/static/js/beeswax.vm.js
+@@ -68,7 +68,8 @@ function BeeswaxViewModel(server) {
+     },
+     'isRunning': false,
+     'statement': '',
+-    'isFinished': true
++    'isFinished': true,
++    'isRedacted': false
+   };
+ 
+   self.design = ko.mapping.fromJS(DESIGN_DEFAULTS);
+@@ -183,6 +184,7 @@ function BeeswaxViewModel(server) {
+     self.database(design.database);
+     self.design.isParameterized(design.is_parameterized);
+     self.design.email(design.email_notify);
++    self.design.isRedacted(design.is_redacted);
+ 
+     self.design.settings.values.removeAll();
+     self.design.fileResources.values.removeAll();
+@@ -509,6 +511,7 @@ function BeeswaxViewModel(server) {
+           self.design.watch.url(data.watch_url);
+           self.design.statement(data.statement);
+           self.design.history.id(data.id);
++          self.design.isRedacted(data.is_redacted);
+           self.watchQueryLoop();
+           $(document).trigger('executed.query', data);
+         } else {
+-- 
+1.7.9.5
+

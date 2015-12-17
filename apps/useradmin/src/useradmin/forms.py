@@ -29,6 +29,7 @@ from desktop.lib.django_util import get_username_re_rule, get_groupname_re_rule
 
 from useradmin.models import GroupPermission, HuePermission
 from useradmin.models import get_default_user_group
+from useradmin.password_policy import get_password_validators
 
 
 
@@ -70,8 +71,16 @@ class UserChangeForm(django.contrib.auth.forms.UserChangeForm):
       regex='^%s$' % (get_username_re_rule(),),
       help_text = _t("Required. 30 characters or fewer. No whitespaces or colons."),
       error_messages = {'invalid': _t("Whitespaces and ':' not allowed") })
-  password1 = forms.CharField(label=_t("Password"), widget=forms.PasswordInput, required=False)
-  password2 = forms.CharField(label=_t("Password confirmation"), widget=forms.PasswordInput, required=False)
+
+  password1 = forms.CharField(label=_t("Password"),
+                              widget=forms.
+                              PasswordInput,
+                              required=False,
+                              validators=get_password_validators())
+  password2 = forms.CharField(label=_t("Password confirmation"),
+                              widget=forms.PasswordInput,
+                              required=False,
+                              validators=get_password_validators())
   password_old = forms.CharField(label=_t("Previous Password"), widget=forms.PasswordInput, required=False)
   ensure_home_directory = forms.BooleanField(label=_t("Create home directory"),
                                             help_text=_t("Create home directory if one doesn't already exist."),
@@ -86,6 +95,11 @@ class UserChangeForm(django.contrib.auth.forms.UserChangeForm):
 
     if self.instance.id:
       self.fields['username'].widget.attrs['readonly'] = True
+
+    if desktop_conf.AUTH.BACKEND.get() == 'desktop.auth.backend.LdapBackend':
+      self.fields['password1'].widget.attrs['readonly'] = True
+      self.fields['password2'].widget.attrs['readonly'] = True
+      self.fields['password_old'].widget.attrs['readonly'] = True
 
   def clean_password(self):
     return self.cleaned_data["password"]
@@ -123,6 +137,7 @@ class UserChangeForm(django.contrib.auth.forms.UserChangeForm):
       # groups must be saved after the user
       self.save_m2m()
     return user
+
 
 class SuperUserChangeForm(UserChangeForm):
   class Meta(UserChangeForm.Meta):
@@ -183,9 +198,9 @@ class AddLdapUsersForm(forms.Form):
 class AddLdapGroupsForm(forms.Form):
   groupname_pattern = forms.CharField(
       label=_t("Name"),
-      max_length=80,
-      help_text=_t("Required. 80 characters or fewer."),
-      error_messages={'invalid': _t("80 characters or fewer.") })
+      max_length=256,
+      help_text=_t("Required. 256 characters or fewer."),
+      error_messages={'invalid': _t("256 characters or fewer.") })
   dn = forms.BooleanField(label=_t("Distinguished name"),
                           help_text=_t("Whether or not the group should be imported by "
                                     "distinguished name."),
@@ -292,6 +307,11 @@ class PermissionsEditForm(forms.ModelForm):
   """
   Form to manage the set of groups that have a particular permission.
   """
+
+  class Meta:
+    model = Group
+    fields = ()
+
   def __init__(self, *args, **kwargs):
     super(PermissionsEditForm, self).__init__(*args, **kwargs)
 

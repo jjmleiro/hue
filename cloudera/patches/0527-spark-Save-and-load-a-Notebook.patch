@@ -1,0 +1,494 @@
+From 2ca568c03f0d999f7414e844bc44aee4791f04d9 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 1 Dec 2014 10:58:23 -0600
+Subject: [PATCH 0527/1173] [spark] Save and load a Notebook
+
+---
+ apps/spark/src/spark/api.py                        |   37 ++++++-
+ apps/spark/src/spark/models.py                     |   23 ++++
+ apps/spark/src/spark/templates/editor.mako         |   20 ++--
+ apps/spark/src/spark/templates/list_jobs.mako      |  110 --------------------
+ apps/spark/src/spark/templates/list_notebooks.mako |   39 +++++++
+ apps/spark/src/spark/urls.py                       |    7 +-
+ apps/spark/src/spark/views.py                      |   21 +++-
+ apps/spark/static/js/spark.vm.js                   |   43 ++++++--
+ 8 files changed, 167 insertions(+), 133 deletions(-)
+ delete mode 100644 apps/spark/src/spark/templates/list_jobs.mako
+ create mode 100644 apps/spark/src/spark/templates/list_notebooks.mako
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 2d8138e..e1310d1 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -23,9 +23,10 @@ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
++from desktop.models import Document2
+ 
+ from spark.decorators import json_error_handler
+-from spark.models import get_api
++from spark.models import get_api, Notebook
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -96,3 +97,37 @@ def fetch_result(request):
+     response['error'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def save_notebook(request):
++  response = {'status': -1}
++
++  notebook = json.loads(request.POST.get('notebook', '{}')) # TODO perms
++
++  if notebook.get('id'):
++    notebook_doc = Document2.objects.get(id=notebook['id'])
++  else:      
++    notebook_doc = Document2.objects.create(name=notebook['name'], type='notebook', owner=request.user)
++
++  notebook_doc.update_data(notebook)
++  notebook_doc.name = notebook['name']
++  notebook_doc.save()
++  
++  response['status'] = 0
++  response['id'] = notebook_doc.id
++  response['message'] = _('Notebook saved !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def open_notebook(request):
++  response = {'status': -1}
++
++  notebook_id = request.GET.get('notebook')
++  notebook = Notebook(document=Document2.objects.get(id=notebook_id)) # Todo perms
++  
++  response['status'] = 0
++  response['notebook'] = notebook.get_json()
++  response['message'] = _('Notebook saved !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index a502b5f..a370fa3 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -15,6 +15,8 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import json
++
+ from beeswax import models as beeswax_models
+ from beeswax.design import hql_query
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory
+@@ -26,6 +28,27 @@ from desktop.lib.i18n import smart_str
+ from desktop.lib.rest.http_client import RestException
+ 
+ 
++class Notebook():
++  
++  def __init__(self, document=None):
++    if document is not None:
++      self.data = document.data
++    else:    
++      self.data = json.dumps({
++          'name': 'My Notebook', 
++          'snippets': [{'type': 'scala', 'result': {}}]
++      })
++
++  def get_json(self):
++    _data = self.get_data()
++    
++    return json.dumps(_data)
++ 
++  def get_data(self):
++    _data = json.loads(self.data)
++  
++    return _data
++
+ 
+ def get_api(user, snippet):
+   if snippet['type'] == 'hive':
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 2271890..cee9b36 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -32,15 +32,21 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     </a>
+     &nbsp;&nbsp;&nbsp;
+     % if user.is_superuser:
+-      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
++      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }"
++          data-bind="click: saveNotebook, css: {'btn': true}">
+         <i class="fa fa-save"></i>
+       </button>
+       &nbsp;&nbsp;&nbsp;
+-      <a class="btn" href="${ url('oozie:new_workflow') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++      <button type="button" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
++          data-bind="click: newNotebook, css: {'btn': true}">
+         <i class="fa fa-file-o"></i>
+-      </a>
+-      <a class="btn" href="${ url('oozie:list_editor_workflows') }" title="${ _('Workflows') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+-        <i class="fa fa-tags"></i>
++      </button>
++      <button type="button" title="${ _('Open') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
++          data-bind="click: newNotebook, css: {'btn': true}">
++        <i class="fa fa-folder-open-o"></i>
++      </button>      
++      <a class="btn" href="${ url('spark:list_notebooks') }" title="${ _('Notebooks') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-terminal"></i>
+       </a>
+     % endif
+   </div>
+@@ -49,7 +55,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   <ul class="nav nav-tabs">
+     <!-- ko foreach: notebooks -->
+       <li data-bind="css: { active: $parent.selectedNotebook() === $data }">
+-        <a href="javascript:void(0)" data-bind="text: id, click: $parent.selectedNotebook.bind(null, $data)"></a>
++        <a href="javascript:void(0)" data-bind="text: name, click: $parent.selectedNotebook.bind(null, $data)"></a>
+       </li>
+     <!-- /ko -->
+     <li>
+@@ -87,7 +93,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ 
+ <script type="text/html" id="snippet">
+-
+   <div class="snippet" data-bind="attr: {'id': 'snippet_' + id()}">
+     <span class="muted" data-bind="text: id"></span>
+ 
+@@ -115,7 +120,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </table>
+     </div>
+   </div>
+-
+ </script>
+ 
+ 
+diff --git a/apps/spark/src/spark/templates/list_jobs.mako b/apps/spark/src/spark/templates/list_jobs.mako
+deleted file mode 100644
+index ca1a9d9..0000000
+--- a/apps/spark/src/spark/templates/list_jobs.mako
++++ /dev/null
+@@ -1,110 +0,0 @@
+-## Licensed to Cloudera, Inc. under one
+-## or more contributor license agreements.  See the NOTICE file
+-## distributed with this work for additional information
+-## regarding copyright ownership.  Cloudera, Inc. licenses this file
+-## to you under the Apache License, Version 2.0 (the
+-## "License"); you may not use this file except in compliance
+-## with the License.  You may obtain a copy of the License at
+-##
+-##     http://www.apache.org/licenses/LICENSE-2.0
+-##
+-## Unless required by applicable law or agreed to in writing, software
+-## distributed under the License is distributed on an "AS IS" BASIS,
+-## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-## See the License for the specific language governing permissions and
+-## limitations under the License.
+-<%!
+-  from desktop.views import commonheader, commonfooter
+-  from django.utils.translation import ugettext as _
+-%>
+-
+-<%namespace name="common" file="common.mako" />
+-
+-${ commonheader(_('Jobs'), app_name, user) | n,unicode }
+-
+-${ common.navbar('jobs') }
+-
+-<div class="container-fluid">
+-  <div class="card card-small">
+-    <h1 class="card-heading simple">${_('Jobs')}</h1>
+-
+-    <table class="table table-condensed datatables">
+-     <thead>
+-        <tr>
+-          <th>${_('Status')}</th>
+-          <th>${_('Job id')}</th>
+-          <th>${_('Class path')}</th>
+-          <th>${_('Context')}</th>
+-          <th>${_('Start time')}</th>
+-          <th>${_('Duration')}</th>
+-        </tr>
+-      </thead>
+-      <tbody>
+-        % for job in jobs:
+-        <tr>
+-          <td>${ job.get('status') }</td>
+-          <td>
+-            <%
+-              can_view = job.get('status') == 'FINISHED'
+-            %>
+-            % if can_view:
+-              <a href="${ url('spark:view_job', job.get('jobId')) }" data-row-selector="true" title="${ _('Click to open') }">
+-            % endif
+-            ${ job.get('jobId') }
+-            % if can_view:
+-              </a>
+-            % endif
+-          </td>
+-          <td>${ job.get('classPath') }</td>
+-          <td>${ job.get('context') }</td>
+-          <td>${ job.get('startTime') }</td>
+-          <td>${ job.get('duration') }</td>
+-        </tr>
+-        % endfor
+-      </tbody>
+-    </table>
+-    <div class="card-body">
+-      <p>
+-        ## ${ comps.pagination(page) }
+-      </p>
+-    </div>
+-  </div>
+-</div>
+-
+-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+-
+-<script type="text/javascript" charset="utf-8">
+-  $(document).ready(function () {
+-
+-    var jobs = $(".datatables").dataTable({
+-      "sDom":"<'row'r>t<'row'<'span8'i><''p>>",
+-      "bPaginate":false,
+-      "bLengthChange":false,
+-      "bInfo":false,
+-      "aaSorting":[
+-        [4, "desc"]
+-      ],
+-      "aoColumns":[
+-        null,
+-        null,
+-        null,
+-        null,
+-        null,
+-        null
+-      ],
+-      "oLanguage":{
+-        "sEmptyTable":"${_('No data available')}",
+-        "sZeroRecords":"${_('No matching records')}",
+-      },
+-      "bStateSave": true
+-    });
+-
+-    $("#filterInput").keyup(function () {
+-      jobs.fnFilter($(this).val());
+-    });
+-
+-    $("a[data-row-selector='true']").jHueRowSelector();
+-  });
+-</script>
+-
+-${ commonfooter(messages) | n,unicode }
+diff --git a/apps/spark/src/spark/templates/list_notebooks.mako b/apps/spark/src/spark/templates/list_notebooks.mako
+new file mode 100644
+index 0000000..3da29a9
+--- /dev/null
++++ b/apps/spark/src/spark/templates/list_notebooks.mako
+@@ -0,0 +1,39 @@
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  from desktop.views import commonheader, commonfooter
++  from django.utils.translation import ugettext as _
++%>
++
++${ commonheader(_("Notebooks"), "spark", user) | n,unicode }
++
++<div class="container-fluid">
++  <div class="card card-small">
++  <h1 class="card-heading simple">${ _('Notebooks') }</h1>
++
++  % for notebook in notebooks:
++    <div>
++      <a href="${ url('spark:editor') }?notebook=${ notebook.id }">
++        ${ notebook.name }
++      </a>
++    </div>
++  % endfor
++
++  </div>
++</div>
++
++${ commonfooter(messages) | n,unicode }
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 653f016..67bcec9 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -21,13 +21,18 @@ from django.conf.urls.defaults import patterns, url
+ # Views
+ urlpatterns = patterns('spark.views',
+   url(r'^$', 'editor', name='index'),
++  url(r'^editor$', 'editor', name='editor'),
++  url(r'^list_notebooks$', 'list_notebooks', name='list_notebooks'),  
+ )
+ 
+ # APIs
+ urlpatterns += patterns('spark.api',
+   url(r'^api/create_session$', 'create_session', name='create_session'),
+   url(r'^api/execute$', 'execute', name='execute'),
+-  url(r'^api/check_status', 'check_status', name='check_status'),
++  url(r'^api/check_status$', 'check_status', name='check_status'),
+   url(r'^api/fetch_result$', 'fetch_result', name='fetch_result'),
++
++  url(r'^api/notebook/save$', 'save_notebook', name='save_notebook'),
++  url(r'^api/notebook/open$', 'open_notebook', name='open_notebook'),
+ )
+ 
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index fa90550..625c838 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -19,14 +19,31 @@ import json
+ import logging
+ 
+ from desktop.lib.django_util import render
+-from spark.decorators import view_error_handler
++from desktop.models import Document2
+ 
++from spark.decorators import view_error_handler
++from spark.models import Notebook
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
+ @view_error_handler
+ def editor(request):
++  notebook_id = request.GET.get('notebook')
++  
++  if notebook_id:
++    notebook = Notebook(document=Document2.objects.get(id=notebook_id)) # Todo perms
++  else:
++    notebook = Notebook()
++    
+   return render('editor.mako', request, {
+-      'notebooks_json': json.dumps([{'snippets': [{'type': 'scala', 'result': {}}]}])
++      'notebooks_json': json.dumps([notebook.get_data()])
+   })
++
++
++def list_notebooks(request):
++  notebooks = Document2.objects.filter(type='notebook', owner=request.user)
++
++  return render('list_notebooks.mako', request, {
++      'notebooks': notebooks
++  })
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 19a7ab3..fade39b 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -55,7 +55,7 @@ var Snippet = function (notebook, snippet) {
+   self.id = ko.observable(typeof snippet.id != "undefined" && snippet.id != null ? snippet.id : UUID());
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : 'hive');
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+-  self.statement = ko.observable('');
++  self.statement = ko.observable(typeof snippet.statement != "undefined" && snippet.statement != null ? snippet.statement : '');
+   self.status = ko.observable('loading');
+   self.klass = ko.computed(function(){
+     return 'results ' + self.type();
+@@ -168,11 +168,13 @@ var Snippet = function (notebook, snippet) {
+ var Notebook = function (vm, notebook) {
+   var self = this;
+ 
+-  self.id = ko.observable(typeof notebook.id != "undefined" && notebook.id != null ? notebook.id : UUID());
++  self.id = ko.observable(typeof notebook.id != "undefined" && notebook.id != null ? notebook.id : null);
++  self.uuid = ko.observable(typeof notebook.uuid != "undefined" && notebook.uuid != null ? notebook.uuid : UUID());
++  self.name = ko.observable(typeof notebook.name != "undefined" && notebook.name != null ? notebook.name : 'My Notebook');
+   self.snippets = ko.observableArray();
+   self.selectedSnippet = ko.observable('scala');
+   self.availableSnippets = ko.observableArray(['hive', 'scala', 'sql', 'python', 'pig', 'impala']); // presto, mysql, oracle, sqlite, postgres, phoenix
+-  self.sessions = ko.observableArray(); // {'hive': ..., scala: ...}
++  self.sessions = ko.observableArray(); // [{'hive': {...}, 'scala': {...}]
+ 
+   self.getSession = function(session_type) {
+     var _s = null;
+@@ -192,7 +194,7 @@ var Notebook = function (vm, notebook) {
+ 	if (self.getSession(self.selectedSnippet()) == null) {
+ 	  _snippet.create_session();
+     }	
+-  }  
++  };  
+ 
+   self.newSnippet = function() {
+ 	var snippet = new Snippet(self, {type: self.selectedSnippet()});	  
+@@ -201,13 +203,32 @@ var Notebook = function (vm, notebook) {
+ 	if (self.getSession(self.selectedSnippet()) == null) {
+ 	  snippet.create_session();
+ 	}
+-  }  
++  };  
+   
+   if (notebook.snippets) {
+     $.each(notebook.snippets, function(index, snippet) {
+       self.addSnippet(snippet);
+     });
+-  }  
++  } 
++  
++  self.save = function () {
++    $.post("/spark/api/notebook/save", {
++        "notebook": ko.mapping.toJSON(self)
++    }, function (data) {
++      if (data.status == 0) {
++        self.id(data.id);
++        $(document).trigger("info", data.message);
++        if (window.location.search.indexOf("notebook") == -1) {
++          window.location.hash = '#notebook=' + data.id;
++        }
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
+ }
+ 
+ 
+@@ -244,19 +265,19 @@ function EditorViewModel(notebooks) {
+         self.selectedNotebook(self.notebooks()[0]);
+       }
+     });
+-  }
++  };
+ 
+   self.loadNotebook = function(notebook) {
+     self.notebooks.push(new Notebook(self, notebook));
+-  }
++  };
+ 
+   self.newNotebook = function() {
+ 	self.notebooks.push(new Notebook(self, {}));
+     self.selectedNotebook(self.notebooks()[self.notebooks().length - 1]);
+-  }
+-  
+-  self.save = function() {
++  };
+ 
++  self.saveNotebook = function() {
++    self.selectedNotebook().save();
+   };
+ }
+ 
+-- 
+1.7.9.5
+

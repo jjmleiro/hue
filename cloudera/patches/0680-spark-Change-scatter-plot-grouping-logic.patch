@@ -1,0 +1,123 @@
+From bec201c95604fb39d47e5231bd7285b4b775eb28 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 27 Jan 2015 02:34:58 +0100
+Subject: [PATCH 0680/1173] [spark] Change scatter plot grouping logic
+
+---
+ apps/spark/src/spark/templates/editor.mako |   40 ++++++++++++++++------------
+ apps/spark/static/js/spark.ko.js           |    2 +-
+ desktop/core/static/js/ko.charts.js        |    4 +--
+ 3 files changed, 26 insertions(+), 20 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index ff74642..dac20ff 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -240,10 +240,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+       <h1 class="empty" data-bind="visible: snippets().length == 0">${ _('Add a snippet to start your new notebook') }</h1>
+ 
+-      <div class="add-snippet">
+-        <div class="overlay">
++      <div class="add-snippet pointer">
++        <div class="overlay pointer" data-bind="click: function(notebook, e){ if (!($(e.target).is('select'))){ newSnippet(); } }">
+           <select data-bind="options: $root.availableSnippets, value: selectedSnippet, optionsText: 'name', optionsValue: 'type'" style="width: 115px"></select>
+-          <i class="fa fa-plus-circle fa-5x" data-bind="click: newSnippet" title="${ _('Add a new snippet') }"></i>
++          <i class="fa fa-plus-circle fa-5x" title="${ _('Add a new snippet') }"></i>
+         </div>
+       </div>
+     </div>
+@@ -461,15 +461,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               </a>
+             </div>
+             <div>
+-              <ul class="nav nav-list" style="border: none; background-color: #FFF" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART">
+-                <li class="nav-header">${_('scatter groups')}</li>
+-              </ul>
+-              <div style="overflow-y: scroll; max-height: 220px" data-bind="visible: chartType() != '' && (chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART)">
+-                <ul class="unstyled" data-bind="foreach: result.cleanedMeta">
+-                  <li><input type="checkbox" data-bind="checkedValue: name, checked: $parent.chartScatterGroups" /> <span data-bind="text: $data.name"></span></li>
+-                </ul>
+-              </div>
+-
+               <ul class="nav nav-list" style="border: none; background-color: #FFF" data-bind="visible: chartType() != ''">
+                 <li data-bind="visible: chartType() != ko.HUE_CHARTS.TYPES.MAP" class="nav-header">${_('x-axis')}</li>
+                 <li data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.MAP" class="nav-header">${_('latitude')}</li>
+@@ -499,6 +490,13 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                 <select data-bind="options: result.cleanedMeta, value: chartMapLabel, optionsText: 'name', optionsValue: 'name', optionsCaption: '${_('Choose a column...')}', select2: { width: '100%', placeholder: '${ _("Choose a column...") }', update: chartMapLabel}" class="input-medium"></select>
+               </div>
+ 
++              <ul class="nav nav-list" style="border: none; background-color: #FFF" data-bind="visible: chartType() != '' && chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART">
++                <li class="nav-header">${_('scatter group')}</li>
++              </ul>
++              <div data-bind="visible: chartType() != '' && chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART">
++                <select data-bind="options: result.cleanedMeta, value: chartScatterGroup, optionsText: 'name', optionsValue: 'name', optionsCaption: '${_('Choose a column...')}', select2: { width: '100%', placeholder: '${ _("Choose a column...") }', update: chartScatterGroup}" class="input-medium"></select>
++              </div>
++
+               <ul class="nav nav-list" style="border: none; background-color: #FFF" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART">
+                 <li class="nav-header">${_('scatter size')}</li>
+               </ul>
+@@ -1319,8 +1317,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+   function scatterChartDataTransformer(rawDatum) {
+     var _datum = [];
+-
+-    if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle().length > 0) {
++    
++    if (rawDatum.snippet.chartX() != null && rawDatum.snippet.chartYSingle() != null) {
+       function addToDatum(col) {
+         var _idxX = -1;
+         var _idxY = -1;
+@@ -1355,10 +1353,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }
+       }
+ 
+-      if (rawDatum.snippet.chartScatterGroups().length > 0){
+-        rawDatum.snippet.chartScatterGroups().forEach(function (col) {
+-          addToDatum(col);
++      if (rawDatum.snippet.chartScatterGroup() != null){
++        var _idxGroup = -1;
++        rawDatum.snippet.result.meta().forEach(function (icol, idx) {
++          if (icol.name == rawDatum.snippet.chartScatterGroup()) {
++            _idxGroup = idx;
++          }
+         });
++        if (_idxGroup > -1) {
++        $(rawDatum.counts()).each(function (cnt, item) {
++          addToDatum(item[_idxGroup]);
++        });
++        }
+       }
+       else {
+         addToDatum('${ _('Distribution') }');
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 9be5bf3..496f42a 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -204,7 +204,7 @@ var Snippet = function (notebook, snippet) {
+ 
+   self.chartType = ko.observable(typeof snippet.chartType != "undefined" && snippet.chartType != null ? snippet.chartType : ko.HUE_CHARTS.TYPES.BARCHART);
+   self.chartSorting = ko.observable(typeof snippet.chartSorting != "undefined" && snippet.chartSorting != null ? snippet.chartSorting : "none");
+-  self.chartScatterGroups = ko.observableArray(typeof snippet.chartScatterGroups != "undefined" && snippet.chartScatterGroups != null ? snippet.chartScatterGroups : []);
++  self.chartScatterGroup = ko.observable(typeof snippet.chartScatterGroup != "undefined" && snippet.chartScatterGroup != null ? snippet.chartScatterGroup : null);
+   self.chartScatterSize = ko.observable(typeof snippet.chartScatterSize != "undefined" && snippet.chartScatterSize != null ? snippet.chartScatterSize : null);
+   self.chartX = ko.observable(typeof snippet.chartX != "undefined" && snippet.chartX != null ? snippet.chartX : null);
+   self.chartYSingle = ko.observable(typeof snippet.chartYSingle != "undefined" && snippet.chartYSingle != null ? snippet.chartYSingle : null);
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index cdd2755..f25f5ee 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -398,8 +398,8 @@ ko.bindingHandlers.scatterChart = {
+           .transitionDuration(350)
+           .color(d3.scale.category10().range());
+ 
+-        _chart.tooltipContent(function(key) {
+-            return '<h3>' + key + '</h3>';
++        _chart.tooltipContent(function(key, x, y, obj) {
++            return '<h3>' + key + '</h3><div class="center">' + obj.point.size + '</div>';
+         });
+ 
+         _chart.xAxis.tickFormat(d3.format('.02f'));
+-- 
+1.7.9.5
+

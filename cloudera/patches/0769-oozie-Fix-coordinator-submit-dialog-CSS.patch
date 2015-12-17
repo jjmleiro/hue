@@ -1,0 +1,46 @@
+From 587d380693a41386465b61981929dba6a4af7560 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 15:43:59 +0100
+Subject: [PATCH 0769/1173] [oozie] Fix coordinator submit dialog CSS
+
+---
+ apps/oozie/static/css/coordinator-editor.css |   14 --------------
+ 1 file changed, 14 deletions(-)
+
+diff --git a/apps/oozie/static/css/coordinator-editor.css b/apps/oozie/static/css/coordinator-editor.css
+index 3a08129..893d417 100644
+--- a/apps/oozie/static/css/coordinator-editor.css
++++ b/apps/oozie/static/css/coordinator-editor.css
+@@ -388,22 +388,10 @@ em {
+   width: 90px;
+ }
+ 
+-.modal-body .control-label {
+-  width: 160px;
+-}
+-
+ .form-horizontal .controls {
+   margin-left: 98px;
+ }
+ 
+-.modal-body .controls {
+-  margin-left: 180px;
+-}
+-
+-.modal-body .control-group {
+-  display: inline-block;
+-}
+-
+ .inline-block {
+   display: inline-block;
+ }
+@@ -415,5 +403,3 @@ em {
+ .datepicker {
+   z-index: 1300;
+ }
+-
+-}
+\ No newline at end of file
+-- 
+1.7.9.5
+

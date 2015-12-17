@@ -1,0 +1,26 @@
+From b1b25b08ddd45022fece9e75643d2642f989a7a5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 8 Apr 2015 16:48:12 -0700
+Subject: [PATCH 1150/1173] [core] Enable link on Job Designer install example
+ button
+
+---
+ apps/about/src/about/templates/admin_wizard.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/about/src/about/templates/admin_wizard.mako b/apps/about/src/about/templates/admin_wizard.mako
+index 602709d..e106b91 100644
+--- a/apps/about/src/about/templates/admin_wizard.mako
++++ b/apps/about/src/about/templates/admin_wizard.mako
+@@ -134,7 +134,7 @@ ${ header.menubar() }
+           % endif
+           % if 'jobsub' in app_names:
+               <li>
+-                <a href="javascript:void(0)" data-loading-text="${ _('Installing...') }"
++                <a href="javascript:void(0)" class="installBtn" data-loading-text="${ _('Installing...') }"
+                    data-sample-url="${ url('oozie:install_examples') }">
+                   <i class="fa fa-download"></i> ${ apps['jobsub'].nice_name }
+                 </a>
+-- 
+1.7.9.5
+

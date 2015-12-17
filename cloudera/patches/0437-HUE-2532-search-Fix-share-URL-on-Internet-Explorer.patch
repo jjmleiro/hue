@@ -1,0 +1,28 @@
+From e37d57e840aef5fb7ccce797d8466a5cbb0e574d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 16:22:21 +0100
+Subject: [PATCH 0437/1173] HUE-2532 [search] Fix share URL on Internet
+ Explorer
+
+Added window.location.origin support on IE
+---
+ apps/search/src/search/templates/search.mako |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index f8c972a..263bbc3 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -1656,6 +1656,9 @@ $(document).ready(function () {
+       $("#shareModal input[type='text']").on("focus", function () {
+         this.select();
+       });
++      if (!window.location.origin) {
++        window.location.origin = window.location.protocol + "//" + window.location.hostname + (window.location.port ? ":" + window.location.port: "");
++      }
+       var _search = window.location.search;
+       var _pathname = window.location.pathname;
+       if (_pathname.indexOf("${ url('search:new_search') }") > -1) {
+-- 
+1.7.9.5
+

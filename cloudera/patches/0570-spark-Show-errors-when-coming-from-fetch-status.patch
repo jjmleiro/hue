@@ -1,0 +1,67 @@
+From f571ff40d69d2212baaba1f122be38903bbf94bb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 8 Dec 2014 12:54:15 -0800
+Subject: [PATCH 0570/1173] [spark] Show errors when coming from fetch status
+
+---
+ apps/spark/src/spark/models.py   |   20 ++++++++++----------
+ apps/spark/static/js/spark.vm.js |    1 +
+ 2 files changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 34f123d..2b47587 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -24,7 +24,7 @@ from desktop.lib.rest.http_client import RestException
+ 
+ from beeswax import models as beeswax_models, data_export
+ from beeswax.design import hql_query
+-from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory
++from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory, HiveServerQueryHistory
+ from beeswax.views import safe_get_design, save_design
+ from beeswax.server import dbms
+ from beeswax.server.dbms import get_query_server_config, QueryServerException
+@@ -164,19 +164,19 @@ class HS2Api():
+ 
+   @query_error_handler
+   def check_status(self, notebook, snippet):
++    response = {}
+     db = self._get_db(snippet)
+       
+     handle = self._get_handle(snippet)
+-    status =  db.get_state(handle)      
++    operation =  db.get_operation_status(handle)
++    status = HiveServerQueryHistory.STATE_MAP[operation.operationState]
+ 
+-    return {
+-        'status':
+-          'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index)
+-          else (
+-             'failed' if status.index in (QueryHistory.STATE.failed.index, QueryHistory.STATE.expired.index)
+-              else 'available'
+-          )
+-    }
++    if status.index in (QueryHistory.STATE.failed.index, QueryHistory.STATE.expired.index):
++      raise QueryError(operation.errorMessage)
++
++    response['status'] = 'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index) else 'available'
++    
++    return response
+ 
+   @query_error_handler
+   def fetch_result(self, notebook, snippet, rows, start_over):
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index e2ef05a..e591364 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -67,6 +67,7 @@ var Snippet = function (notebook, snippet) {
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : '');
+   self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
++  self.settings = ko.mapping.fromJS(typeof snippet.settings != "undefined" && snippet.settings != null ? snippet.settings : {});
+   self.variables = ko.observableArray([]);
+   self.variableNames = ko.computed(function() {
+ 	var matches = [];
+-- 
+1.7.9.5
+

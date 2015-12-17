@@ -1,0 +1,35 @@
+From 5a2b80aa1747210ebd0b3a512fb9a803ac8fe459 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 12 Mar 2015 22:13:29 -0500
+Subject: [PATCH 1066/1173] [oozie] Remove seconds from Coordinator from/to
+ and add Z at the end
+
+---
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index c753dea..a5aade4 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -1278,10 +1278,16 @@ ko.bindingHandlers.timepicker = {
+ 
+       _el.timepicker({
+         minuteStep: 1,
+-        showSeconds: true,
++        showSeconds: false,
+         showMeridian: false,
+         defaultTime: false
+       });
+ 
++      _el.on("change", function () {
++        if (_el.val().substr(-1) != "Z") {
++          _el.val(_el.val() + "Z");
++        }
++      });
++
+     }
+ }
+-- 
+1.7.9.5
+

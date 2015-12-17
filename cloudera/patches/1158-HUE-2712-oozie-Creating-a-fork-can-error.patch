@@ -1,0 +1,26 @@
+From 4d3c41e5d9e6e2987e2a7d0e03970d93bc55dff7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 28 Apr 2015 15:47:50 -0700
+Subject: [PATCH 1158/1173] HUE-2712 [oozie] Creating a fork can error
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index af37ca5..ff7e727 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -311,7 +311,8 @@ var Workflow = function (vm, workflow) {
+ 
+             // In case of Fork of Fork, we need to pick the link of the neighbor of new node instead of just the first forkParent.get_link('to')
+             var newParentLink = $.grep(forkParent.children(), function (link) {
+-              return vm.getWidgetPredecessor(ko.mapping.toJS(link)['to']).id() == fork.id();
++              var _link = ko.mapping.toJS(link)
++              return 'to' in _link && vm.getWidgetPredecessor(_link['to']).id() == fork.id();
+             })[0];
+ 
+             var afterParentId = ko.mapping.toJS(newParentLink).to;
+-- 
+1.7.9.5
+

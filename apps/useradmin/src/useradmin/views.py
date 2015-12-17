@@ -26,7 +26,8 @@ import ldap
 import ldap_access
 
 from django.contrib.auth.models import User, Group
-from desktop.lib.django_util import render
+
+from desktop.lib.django_util import JsonResponse, render
 from desktop.lib.exceptions_renderable import PopupException
 from django.core.urlresolvers import reverse
 from django.utils.encoding import smart_str
@@ -86,11 +87,14 @@ def list_for_autocomplete(request):
     if request.GET.get('only_mygroups'):
       groups = request.user.groups.all()
 
+    users = users[:2000]
+    groups = groups[:2000]
+
     response = {
       'users': massage_users_for_json(users, extended_user_object),
       'groups': massage_groups_for_json(groups)
     }
-    return HttpResponse(json.dumps(response), mimetype="application/json")
+    return JsonResponse(response)
 
   return HttpResponse("")
 
@@ -190,6 +194,8 @@ def edit_user(request, username=None):
 
   if request.method == 'POST':
     form = form_class(request.POST, instance=instance)
+    if request.user.is_superuser and request.user.username != username:
+      form.fields.pop("password_old")
     if form.is_valid(): # All validation rules pass
       if instance is None:
         instance = form.save()
@@ -235,6 +241,8 @@ def edit_user(request, username=None):
       'groups': default_user_group and [default_user_group] or []
     }
     form = form_class(instance=instance, initial=initial)
+    if request.user.is_superuser and request.user.username != username:
+      form.fields.pop("password_old")
 
   return render('edit_user.mako', request, dict(form=form, username=username))
 

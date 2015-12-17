@@ -1,0 +1,89 @@
+From a7e629e6f92ad38fb30581d8fe4aa8a263ee6c48 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 19 Nov 2014 14:47:49 -0800
+Subject: [PATCH 0296/1173] [oozie] Generate XML of Decision node
+
+Also support dropping / moving a node into a Decision
+---
+ .../editor/gen2/workflow-decision.xml.mako         |   18 ++++++++++++------
+ .../oozie/templates/editor/workflow_editor.mako    |    3 +--
+ apps/oozie/static/js/workflow-editor.ko.js         |    4 ++--
+ 3 files changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
+index 38a9fee..183a013 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-decision.xml.mako
+@@ -15,13 +15,19 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ 
+-    <decision name="${ node }">
++    <decision name="${ node['name'] }">
+         <switch>
+-        % for link in node.get_children_links('start'):
+-            <case to="${ link.child }">
+-              ${ link.comment }
++          % for child in node['children']:
++            % if child['condition'] != 'default':
++            <case to="${ node_mapping[child['to']].name }">
++              ${ child['condition'] }
+             </case>
+-        % endfor
+-            <default to="${ node.get_oozie_child('default') }"/>
++            % endif
++          % endfor
++          % for child in node['children']:
++            % if child['condition'] == 'default':          
++            <default to="${ node_mapping[child['to']].name }"/>
++            % endif
++          % endfor            
+         </switch>
+     </decision>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index cad9c5a..213e1fe 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -376,9 +376,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div>
+       To:
+       <span data-bind="foreach: children">
+-        <span data-bind="text: $data['to']"></span> if <input data-bind="value: $data['decision']" />
++        <span data-bind="text: $data['to']"></span> if <input data-bind="value: $data['condition']" />
+       </span>
+-      <span data-bind="text: properties.default['to']"></span> by default
+       <a>${ _('Jump to another node') } <i class="fa fa-plus"></i></a>
+     </div>
+   </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 7b0cc96..86af556 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -211,7 +211,6 @@ var Workflow = function (vm, workflow) {
+ 
+         	vm.currentlyCreatedJoin.properties['fork_id'] = vm.currentlyCreatedFork.id;
+             vm.currentlyCreatedFork.properties['join_id'] = vm.currentlyCreatedJoin.id;
+-            vm.currentlyCreatedFork.properties['default'] = {'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'};
+         	  
+             var fork = new Node(vm.currentlyCreatedFork);
+             var join = new Node(vm.currentlyCreatedJoin);
+@@ -222,6 +221,7 @@ var Workflow = function (vm, workflow) {
+             var afterParent = self.getNodeById(afterParentId);
+             fork.children.push({'to': afterParentId, 'condition': ''});
+             fork.children.push({'to': node.id(), 'condition': ''});
++            fork.children.push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a', 'condition': 'default'});
+             
+             forkParent.get_link('to')['to'] = fork.id();
+             
+@@ -246,7 +246,7 @@ var Workflow = function (vm, workflow) {
+             node.set_link('to', join.id());
+     	    node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+ 
+-    	    parent.children.push({'to': node.id()});          	  
++    	    parent.children.push({'to': node.id(), 'condition': ''});          	  
+           }
+         } else {
+           var parentWidget = vm.getWidgetPredecessor(node.id());
+-- 
+1.7.9.5
+

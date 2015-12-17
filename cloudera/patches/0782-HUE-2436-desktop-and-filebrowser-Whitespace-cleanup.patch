@@ -1,0 +1,61 @@
+From 2cbb2f48313a77dcd7ccf9a553ede81223bc3b09 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 08:51:30 -0800
+Subject: [PATCH 0782/1173] HUE-2436 [desktop and filebrowser] Whitespace
+ cleanup
+
+---
+ apps/filebrowser/src/filebrowser/views.py      |    4 ++--
+ desktop/libs/hadoop/src/hadoop/mini_cluster.py |    6 +++---
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 0797392..f9ec68b 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -93,9 +93,9 @@ class ParquetOptions(object):
+ 
+ def index(request):
+   # Redirect to home directory by default
+-  path = request.user.get_home_directory()  
++  path = request.user.get_home_directory()
+ 
+-  try: 
++  try:
+     if not request.fs.isdir(path):
+        path = '/'
+   except Exception:
+diff --git a/desktop/libs/hadoop/src/hadoop/mini_cluster.py b/desktop/libs/hadoop/src/hadoop/mini_cluster.py
+index 64d90a7..99c8ee4 100644
+--- a/desktop/libs/hadoop/src/hadoop/mini_cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/mini_cluster.py
+@@ -155,7 +155,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
+         "jar",
+         hadoop.conf.HADOOP_TEST_JAR.get(),
+         "minicluster",
+-        "-writeConfig", tmppath("config.xml"), 
++        "-writeConfig", tmppath("config.xml"),
+         "-writeDetails", tmppath("details.json"),
+         "-datanodes", str(self.num_datanodes),
+         "-tasktrackers", str(self.num_tasktrackers),
+@@ -255,7 +255,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
+ 
+     # Parse the configuration using XPath and place into self.config.
+     config = lxml.etree.parse(tmppath("config.xml"))
+-    self.config = dict( (property.find("./name").text, property.find("./value").text) 
++    self.config = dict( (property.find("./name").text, property.find("./value").text)
+       for property in config.xpath("/configuration/property"))
+ 
+     # Write out Hadoop-style configuration directory, 
+@@ -265,7 +265,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
+ 
+     hadoop.conf.HADOOP_CONF_DIR.set_for_testing(self.config_dir)
+ 
+-    write_config(self.config, tmppath("conf/core-site.xml"), 
++    write_config(self.config, tmppath("conf/core-site.xml"),
+       ["fs.defaultFS", "jobclient.completion.poll.interval",
+        "dfs.namenode.checkpoint.period", "dfs.namenode.checkpoint.dir",
+        'hadoop.proxyuser.'+self.superuser+'.groups', 'hadoop.proxyuser.'+self.superuser+'.hosts'])
+-- 
+1.7.9.5
+

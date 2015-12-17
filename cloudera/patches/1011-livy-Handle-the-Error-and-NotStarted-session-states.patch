@@ -1,0 +1,41 @@
+From 138eae2a4263290cdcc2bb49f8bf09ef1e2745ae Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 9 Mar 2015 11:43:15 -0700
+Subject: [PATCH 1011/1173] [livy] Handle the Error and NotStarted session
+ states
+
+---
+ .../hue/livy/server/sessions/ThreadSession.scala   |    1 +
+ .../hue/livy/server/sessions/WebSession.scala      |    4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+index 454dcf2..590dbf1 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+@@ -41,6 +41,7 @@ private class ThreadSession(val id: String, session: com.cloudera.hue.livy.repl.
+       case repl.Session.Busy() => Busy()
+       case repl.Session.ShuttingDown() => Dead()
+       case repl.Session.ShutDown() => Dead()
++      case repl.Session.Error() => Error()
+     }
+   }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index a816a0b..a32483d 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -94,6 +94,10 @@ class WebSession(val id: String) extends Session with Logging {
+ 
+             Unit
+           }
++        case NotStarted() =>
++          Future {
++            waitForStateChangeFrom(NotStarted(), { stop() })
++          }
+         case Starting() =>
+           Future {
+             waitForStateChangeFrom(Starting(), { stop() })
+-- 
+1.7.9.5
+

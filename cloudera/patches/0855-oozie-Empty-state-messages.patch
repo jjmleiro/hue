@@ -1,0 +1,42 @@
+From 6d27e0a0a83c3fc2ec6d8d7db8106867a7db95ab Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 18 Feb 2015 16:25:09 +0100
+Subject: [PATCH 0855/1173] [oozie] Empty state messages
+
+---
+ .../src/oozie/templates/editor2/bundle_editor.mako |    3 ++-
+ .../templates/editor2/coordinator_editor.mako      |    4 +++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index 96c6603..d44adb3 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -94,7 +94,8 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('Which schedules to bundle?') }</h1>
+ 
+         <div class="card-body">
+-          <a class="pointer" data-bind="visible: ! isEditing(), click: function() { showChooseCoordinator(); }, visible: $root.isEditing">
++          <span class="muted" data-bind="visible: bundle.coordinators().length == 0 && ! isEditing()">${ _('This bundle has no defined coordinators.') }</span>
++          <a class="pointer" data-bind="click: function() { showChooseCoordinator(); }, visible: $root.isEditing">
+             <i class="fa fa-plus"></i> ${ _('Add a coordinator') }
+           </a>
+         </div>
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index afaa2e2..0f040bb 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -204,7 +204,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('Workflow Parameters') }</h1>
+ 
+         <div class="card-body">
+-          <ul data-bind="foreach: coordinator.variables" class="unstyled">
++          <span class="muted" data-bind="visible: coordinator.variables().length == 0 && ! isEditing()">${ _('This coordinator has no defined parameters.') }</span>
++
++          <ul data-bind="foreach: coordinator.variables, visible: coordinator.variables().length > 0" class="unstyled">
+             <li style="margin-bottom: 10px">
+               <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name', optionsValue: 'name', select2: { placeholder: '${ _("Select a parameter") }', update: workflow_variable, type: 'parameter'}, visible: $root.isEditing" style="width: 250px"></select>
+ 
+-- 
+1.7.9.5
+

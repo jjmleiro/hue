@@ -1,0 +1,88 @@
+From 9c140935053aff497943bfb8274405c353123f45 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 10:54:50 -0800
+Subject: [PATCH 0648/1173] [spark] Capture access logs
+
+---
+ apps/spark/java/livy-repl/pom.xml                  |    6 ++++++
+ .../src/main/resources/logback-access.xml          |   13 +++++++++++++
+ .../com/cloudera/hue/livy/repl/WebServer.scala     |   16 ++++++++++++++--
+ 3 files changed, 33 insertions(+), 2 deletions(-)
+ create mode 100644 apps/spark/java/livy-repl/src/main/resources/logback-access.xml
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 9cfd9f0..7d6a54e 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -66,6 +66,12 @@
+             <version>${project.version}</version>
+         </dependency>
+ 
++        <dependency>
++            <groupId>ch.qos.logback</groupId>
++            <artifactId>logback-access</artifactId>
++            <version>1.1.2</version>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+diff --git a/apps/spark/java/livy-repl/src/main/resources/logback-access.xml b/apps/spark/java/livy-repl/src/main/resources/logback-access.xml
+new file mode 100644
+index 0000000..e365e91
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/resources/logback-access.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<configuration>
++    <!-- always a good activate OnConsoleStatusListener -->
++    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" />
++
++    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
++        <encoder>
++            <pattern>%h %l %u %user %date "%r" %s %b</pattern>
++        </encoder>
++    </appender>
++
++    <appender-ref ref="STDOUT" />
++</configuration>
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+index 0d4376d..1daa958 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+@@ -2,9 +2,11 @@ package com.cloudera.hue.livy.repl
+ 
+ import javax.servlet.ServletContext
+ 
++import ch.qos.logback.access.jetty.RequestLogImpl
+ import com.cloudera.hue.livy.Logging
+ import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+-import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.server.{NCSARequestLog, Server}
++import org.eclipse.jetty.server.handler.{RequestLogHandler, HandlerCollection}
+ import org.eclipse.jetty.servlet.DefaultServlet
+ import org.eclipse.jetty.webapp.WebAppContext
+ import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
+@@ -25,7 +27,17 @@ class WebServer(var port: Int) extends Logging {
+ 
+   context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+ 
+-  server.setHandler(context)
++  val handlers = new HandlerCollection
++  handlers.addHandler(context)
++
++  // configure the access log
++  val requestLogHandler = new RequestLogHandler
++  val requestLog = new RequestLogImpl
++  requestLog.setResource("/logback-access.xml")
++  requestLogHandler.setRequestLog(requestLog)
++  handlers.addHandler(requestLogHandler)
++
++  server.setHandler(handlers)
+ 
+   def start() = {
+     server.start()
+-- 
+1.7.9.5
+

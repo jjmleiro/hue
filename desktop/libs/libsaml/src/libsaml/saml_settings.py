@@ -47,16 +47,18 @@ SAML_CONFIG = {
   'service': {
     'sp' : {
       'name': 'hue',
+      'name_id_format': libsaml.conf.NAME_ID_FORMAT.get(),
       'endpoints': {
         # url and binding to the assetion consumer service view
         # do not change the binding or service name
         'assertion_consumer_service': [
           ("%s/saml2/acs/" % BASE_URL, saml2.BINDING_HTTP_POST),
         ],
-        # url and binding to the single logout service view
+        # url and binding to the logout service view
         # do not change the binding or service name
         'single_logout_service': [
           ("%s/saml2/ls/" % BASE_URL, saml2.BINDING_HTTP_REDIRECT),
+          ("%s/saml2/ls/post/" % BASE_URL, saml2.BINDING_HTTP_POST),
         ],
       },
 
@@ -88,3 +90,6 @@ SAML_CONFIG = {
 
 SAML_ATTRIBUTE_MAPPING = libsaml.conf.USER_ATTRIBUTE_MAPPING.get()
 SAML_CREATE_UNKNOWN_USER = libsaml.conf.CREATE_USERS_ON_LOGIN.get()
+
+if libsaml.conf.USERNAME_SOURCE.get() == 'nameid':
+  SAML_USE_NAME_ID_AS_USERNAME = True

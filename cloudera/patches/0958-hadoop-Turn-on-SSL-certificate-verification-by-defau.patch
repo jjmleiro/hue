@@ -1,0 +1,54 @@
+From 0060a95491bda6138bda7ca97e23818e718db52a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 27 Feb 2015 15:36:13 -0800
+Subject: [PATCH 0958/1173] [hadoop] Turn on SSL certificate verification by
+ default
+
+---
+ desktop/conf.dist/hue.ini                |    2 +-
+ desktop/conf/pseudo-distributed.ini.tmpl |    2 +-
+ desktop/libs/hadoop/src/hadoop/conf.py   |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 1fa60cc..03fd325 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -691,7 +691,7 @@
+ 
+       # In secure mode (HTTPS), if SSL certificates from from YARN Rest APIs
+       # have to be verified against certificate authority
+-      ## ssl_cert_ca_verify=False
++      ## ssl_cert_ca_verify=True
+ 
+     # HA support by specifying multiple clusters
+     # e.g.
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 50be40d..df31a99 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -697,7 +697,7 @@
+ 
+       # In secure mode (HTTPS), if SSL certificates from YARN Rest APIs
+       # have to be verified against certificate authority
+-      ## ssl_cert_ca_verify=False
++      ## ssl_cert_ca_verify=True
+ 
+     # HA support by specifying multiple clusters
+     # e.g.
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index cc68e18..2e4466f 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -149,7 +149,7 @@ YARN_CLUSTERS = UnspecifiedConfigSection(
+                   help="URL of the HistoryServer API"),
+       SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
+                   help="In secure mode (HTTPS), if SSL certificates from YARN Rest APIs have to be verified against certificate authority",
+-                  default=False,
++                  default=True,
+                   type=coerce_bool)
+     )
+   )
+-- 
+1.7.9.5
+

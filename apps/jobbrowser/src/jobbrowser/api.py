@@ -29,7 +29,7 @@ import hadoop.yarn.node_manager_api as node_manager_api
 
 from jobbrowser.conf import SHARE_JOBS
 from jobbrowser.models import Job, JobLinkage, TaskList, Tracker
-from jobbrowser.yarn_models import Application, Job as YarnJob, KilledJob as KilledYarnJob, Container
+from jobbrowser.yarn_models import Application, Job as YarnJob, KilledJob as KilledYarnJob, Container, SparkJob
 from hadoop.cluster import get_next_ha_mrcluster, get_next_ha_yarncluster
 from desktop.lib.exceptions_renderable import PopupException
 
@@ -60,6 +60,8 @@ def jt_ha(funct):
         LOG.info('JobTracker not available, trying JT plugin HA: %s.' % ex)
         jt_ha = get_next_ha_mrcluster()
         if jt_ha is not None:
+          if jt_ha[1].host == api.jt.host:
+            raise ex
           config, api.jt = jt_ha
           return funct(api, *args, **kwargs)
       raise ex
@@ -79,6 +81,8 @@ def rm_ha(funct):
         LOG.info('Resource Manager not available, trying another RM: %s.' % ex)
         rm_ha = get_next_ha_yarncluster()
         if rm_ha is not None:
+          if rm_ha[1].url == api.resource_manager_api.url:
+            raise ex
           config, api.resource_manager_api = rm_ha
           return funct(api, *args, **kwargs)
       raise ex
@@ -263,19 +267,26 @@ class YarnApi(JobBrowserApi):
       elif job['state'] == 'KILLED':
         return KilledYarnJob(self.resource_manager_api, job)
 
-      # MR id, assume 'applicationType': 'MAPREDUCE'
-      jobid = jobid.replace('application', 'job')
+      if job.get('applicationType') == 'SPARK':
+        job = SparkJob(job, self.resource_manager_api)
+      elif job.get('applicationType') == 'MAPREDUCE':
+        jobid = jobid.replace('application', 'job')
 
-      if job['state'] in ('NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'):
-        json = self.mapreduce_api.job(self.user, jobid)
-        job = YarnJob(self.mapreduce_api, json['job'])
+        if job['state'] in ('NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'):
+          json = self.mapreduce_api.job(self.user, jobid)
+          job = YarnJob(self.mapreduce_api, json['job'])
+        else:
+          json = self.history_server_api.job(self.user, jobid)
+          job = YarnJob(self.history_server_api, json['job'])
       else:
-        json = self.history_server_api.job(self.user, jobid)
-        job = YarnJob(self.history_server_api, json['job'])
+        job = Application(job, self.resource_manager_api)
     except ApplicationNotRunning, e:
       raise e
     except Exception, e:
-      raise PopupException('Job %s could not be found: %s' % (jobid, e), detail=e)
+      if 'NotFoundException' in str(e):
+        raise JobExpired(jobid)
+      else:
+        raise PopupException('Job %s could not be found: %s' % (jobid, e), detail=e)
 
     return job
 
@@ -295,4 +306,11 @@ class ApplicationNotRunning(Exception):
 
   def __init__(self, application_id, job):
     self.application_id = application_id
+    self.job = job
+
+
+class JobExpired(Exception):
+
+  def __init__(self, job):
+    super(JobExpired, self).__init__('JobExpired: %s' %job)
     self.job = job

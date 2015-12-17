@@ -1,0 +1,213 @@
+From 8dd1996c3f02c1c6aa0fb032edb33aca6636f885 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 20 Dec 2014 22:15:02 -0800
+Subject: [PATCH 0636/1173] [spark] Wire the repl into the yarn app master
+
+---
+ apps/spark/java/livy-yarn/pom.xml                  |   70 ++++++++------------
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |   28 ++++++++
+ apps/spark/java/pom.xml                            |    2 +-
+ 3 files changed, 55 insertions(+), 45 deletions(-)
+
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index bbbf53a..fb7e02c 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -4,13 +4,13 @@
+          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+     <parent>
+-        <groupId>com.cloudera.hue.sparker</groupId>
+-        <artifactId>sparker-main</artifactId>
++        <groupId>com.cloudera.hue.livy</groupId>
++        <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+         <version>3.7.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <artifactId>sparker-yarn</artifactId>
++    <artifactId>livy-yarn</artifactId>
+     <packaging>jar</packaging>
+ 
+     <properties>
+@@ -47,10 +47,18 @@
+             <artifactId>scala-library</artifactId>
+             <version>${scala.version}</version>
+         </dependency>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-repl</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+         <plugins>
++
+             <plugin>
+                 <groupId>org.scala-tools</groupId>
+                 <artifactId>maven-scala-plugin</artifactId>
+@@ -63,53 +71,26 @@
+                         </goals>
+                     </execution>
+                 </executions>
++                <!--
+                 <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration
+-            <plugin>
+-                <artifactId>maven-assembly-plugin</artifactId>
+-                <version>2.4</version>
+-                <configuration>
+-                    <descriptor>src/main/assembly/dist.xml</descriptor>
++                    <compilerPlugins>
++                        <compilerPlugin>
++                            <groupId>org.scalamacros</groupId>
++                            <artifactId>paradise_${scala.version}</artifactId>
++                            <version>${scala.macros.version}</version>
++                        </compilerPlugin>
++                    </compilerPlugins>
+                 </configuration>
++                -->
+             </plugin>
+ 
+-						<!--
+             <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
+                 <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
++                    <descriptor>src/main/assembly/dist.xml</descriptor>
+                 </configuration>
+-                <executions>
+-                    <execution>
+-                        <phase>package</phase>
+-                        <goals>
+-                            <goal>shade</goal>
+-                        </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.sparker.yarn.Client</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+             </plugin>
+--->
+ 
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+@@ -130,6 +111,7 @@
+                     </execution>
+                 </executions>
+             </plugin>
++
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-jar-plugin</artifactId>
+@@ -138,10 +120,10 @@
+                         <manifest>
+                             <addClasspath>true</addClasspath>
+                             <classpathPrefix>lib/</classpathPrefix>
+-                            <maisparkerss>com.cloudera.hue.livy.yarn.Client</mainClass>
++                            <mainClass>com.cloudera.hue.livy.yarn.Client</mainClass>
+                         </manifest>
+                     </archive>
+-                </configuratio>>
++                </configuration>
+             </plugin>
+ 
+         </plugins>
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index aa9e5c9..0a6d109 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -6,6 +6,12 @@ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+ import org.apache.hadoop.yarn.client.api.AMRMClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+ import org.apache.hadoop.yarn.util.ConverterUtils
++import org.mortbay.jetty.Server
++import org.mortbay.jetty.servlet.DefaultServlet
++import org.mortbay.jetty.webapp.WebAppContext
++import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
++
++import scala.concurrent.ExecutionContext
+ 
+ object AppMaster extends Logging {
+ 
+@@ -29,10 +35,28 @@ object AppMaster extends Logging {
+     amRMClient.start()
+ 
+     try {
++      val server = new Server(0)
++      val context = new WebAppContext()
++
++      context.setContextPath("/")
++      context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
++      context.addEventListener(new ScalatraListener)
++
++      context.addServlet(classOf[DefaultServlet], "/")
++
++      context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
++
++      server.setHandler(context)
++
++      server.start()
++
++      // Now that the server is up and running register it with YARN.
+       val appMasterHostname = NetUtils.getHostname
+       val appMasterRpcPort = -1
+       val appMasterTrackingUrl = ""
+ 
++      val port =  server.getConnectors()(0).getLocalPort
++
+       val response = amRMClient.registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl)
+ 
+       val maxMem = response.getMaximumResourceCapability.getMemory
+@@ -40,6 +64,10 @@ object AppMaster extends Logging {
+ 
+       val maxVCores = response.getMaximumResourceCapability.getVirtualCores
+       info("max vcore capacity on this cluster: %s" format maxMem)
++
++      // Finallay, wait for the web service to shut down.
++      server.join()
++
+     } finally {
+       val appStatus = FinalApplicationStatus.SUCCEEDED
+       val appMessage = "wee"
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index f810d0f..971983b 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -54,9 +54,9 @@
+     <modules>
+         <!--
+         <module>livy-assembly</module>
+-        <module>livy-repl</module>
+         <module>livy-server</module>
+         -->
++        <module>livy-repl</module>
+         <module>livy-yarn</module>
+     </modules>
+ 
+-- 
+1.7.9.5
+

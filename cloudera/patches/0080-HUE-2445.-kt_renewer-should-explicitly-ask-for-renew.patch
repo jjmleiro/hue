@@ -1,0 +1,29 @@
+From a7a9f1abc947bd3064cc1d5bf26da113b145d1a7 Mon Sep 17 00:00:00 2001
+From: bc Wong <bcwalrus@cloudera.com>
+Date: Wed, 29 Oct 2014 22:15:31 -0700
+Subject: [PATCH 0080/1173] HUE-2445. kt_renewer should explicitly ask for
+ renewable tickets
+
+---
+ desktop/core/src/desktop/kt_renewer.py |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/desktop/core/src/desktop/kt_renewer.py b/desktop/core/src/desktop/kt_renewer.py
+index 189c4c5..691a73c 100644
+--- a/desktop/core/src/desktop/kt_renewer.py
++++ b/desktop/core/src/desktop/kt_renewer.py
+@@ -28,7 +28,11 @@ SPEC = DjangoCommandSupervisee("kt_renewer")
+ NEED_KRB181_WORKAROUND=None
+ 
+ def renew_from_kt():
++  # The config is specified in seconds. But we ask for that same amount in
++  # minutes to give ourselves a large renewal buffer.
++  renewal_lifetime = "%sm" % (CONF.KEYTAB_REINIT_FREQUENCY.get(),)
+   cmdv = [CONF.KINIT_PATH.get(),
++          "-r", renewal_lifetime,
+           "-k", # host ticket
+           "-t", CONF.HUE_KEYTAB.get(), # specify keytab
+           "-c", CONF.CCACHE_PATH.get(), # specify credentials cache
+-- 
+1.7.9.5
+

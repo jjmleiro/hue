@@ -1,0 +1,105 @@
+From e06fedc21b3e854043abd3fc94c45130d031c6ca Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 9 Feb 2015 15:46:37 -0800
+Subject: [PATCH 0778/1173] [desktop and beeswax] Fix the beeswax redaction
+ tests
+
+---
+ apps/beeswax/src/beeswax/tests.py           |   25 +++++++++++++++----------
+ desktop/core/src/desktop/redaction/tests.py |    5 ++++-
+ 2 files changed, 19 insertions(+), 11 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index 0935e2e..dacfb7e 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -41,6 +41,7 @@ from django.db import transaction
+ 
+ from desktop import redaction
+ from desktop.redaction import logfilter
++from desktop.redaction.engine import RedactionPolicy, RedactionRule
+ from desktop.lib.django_test_util import make_logged_in_client, assert_equal_mod_whitespace
+ from desktop.lib.test_utils import grant_access, add_to_group
+ from desktop.lib.security_util import get_localhost_name
+@@ -1527,10 +1528,12 @@ for x in sys.stdin:
+   def test_redacting_queries(self):
+     c = make_logged_in_client()
+ 
+-    rule = r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
+-    old_rules = redaction.global_redaction_engine.rules
+-    redaction.global_redaction_engine.rules = []
+-    redaction.global_redaction_engine.add_rules_from_string(rule)
++    old_policies = redaction.global_redaction_engine.policies
++    redaction.global_redaction_engine.policies = [
++      RedactionPolicy([
++        RedactionRule('', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++      ])
++    ]
+ 
+     logfilter.add_log_redaction_filter_to_logger(redaction.global_redaction_engine, logging.root)
+ 
+@@ -1557,7 +1560,7 @@ for x in sys.stdin:
+       assert_equal(history.query, expected_query)
+       assert_false(history.is_redacted)
+     finally:
+-      redaction.global_redaction_engine.rules = old_rules
++      redaction.global_redaction_engine.policies = old_policies
+ 
+ 
+ def test_import_gzip_reader():
+@@ -2165,10 +2168,12 @@ class TestWithMockedServer(object):
+     assert_false(sql in resp.content, resp.content)
+ 
+   def test_redact_saved_design(self):
+-    rule = r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
+-    old_rules = redaction.global_redaction_engine.rules
+-    redaction.global_redaction_engine.rules = []
+-    redaction.global_redaction_engine.add_rules_from_string(rule)
++    old_policies = redaction.global_redaction_engine.policies
++    redaction.global_redaction_engine.policies = [
++      RedactionPolicy([
++        RedactionRule('', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++      ])
++    ]
+ 
+     logfilter.add_log_redaction_filter_to_logger(redaction.global_redaction_engine, logging.root)
+ 
+@@ -2201,7 +2206,7 @@ class TestWithMockedServer(object):
+       assert_equal(data['query']['query'], expected_query)
+       assert_false(design.is_redacted)
+     finally:
+-      redaction.global_redaction_engine.rules = old_rules
++      redaction.global_redaction_engine.policies = old_policies
+ 
+ 
+ class TestDesign():
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+index fb5646b..3f18e89 100644
+--- a/desktop/core/src/desktop/redaction/tests.py
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -20,6 +20,7 @@ import logging
+ import tempfile
+ 
+ from desktop.redaction.engine import RedactionEngine, \
++                                     RedactionPolicy, \
+                                      RedactionRule, \
+                                      parse_redaction_policy_from_file
+ from desktop.redaction.logfilter import add_log_redaction_filter_to_logger
+@@ -137,11 +138,13 @@ class TestRedactionLogFilter(object):
+     cls.handler = MockLoggingHandler()
+     cls.logger.addHandler(cls.handler)
+ 
+-    engine = RedactionEngine([
++    policy = RedactionPolicy([
+       RedactionRule('password=', 'password=".*"', 'password="???"'),
+       RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
+     ])
+ 
++    engine = RedactionEngine([policy])
++
+     add_log_redaction_filter_to_logger(engine, cls.logger)
+ 
+   @classmethod
+-- 
+1.7.9.5
+

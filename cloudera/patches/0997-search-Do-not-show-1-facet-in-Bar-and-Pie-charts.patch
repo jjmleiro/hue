@@ -1,0 +1,26 @@
+From 0f69aca514f7b5e7015afa8f91cf5f2e16148191 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 28 Feb 2015 17:38:27 -0800
+Subject: [PATCH 0997/1173] [search] Do not show +1 facet in Bar and Pie
+ charts
+
+---
+ desktop/libs/libsolr/src/libsolr/api.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 4cefb89..01c4997 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -149,7 +149,7 @@ class SolrApi(object):
+           keys = {
+               'field': facet['field'],
+               'key': '%(field)s-%(id)s' % facet,
+-              'limit': int(facet['properties'].get('limit', 10)) + 1,
++              'limit': int(facet['properties'].get('limit', 10)) + (1 if facet['widgetType'] == 'facet-widget' else 0),
+               'mincount': int(facet['properties']['mincount'])
+           }
+           params += (
+-- 
+1.7.9.5
+

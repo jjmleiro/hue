@@ -1,0 +1,29 @@
+From aa439b1c891e146a7de6f8de75b6a2dbeb893ee8 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 21 Jan 2015 12:54:32 -0800
+Subject: [PATCH 0807/1173] HUE-2436 [useradmin] Add ModelForms now require a
+ Meta.model
+
+---
+ apps/useradmin/src/useradmin/forms.py |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/apps/useradmin/src/useradmin/forms.py b/apps/useradmin/src/useradmin/forms.py
+index 2f3be80..acec7e7 100644
+--- a/apps/useradmin/src/useradmin/forms.py
++++ b/apps/useradmin/src/useradmin/forms.py
+@@ -307,6 +307,11 @@ class PermissionsEditForm(forms.ModelForm):
+   """
+   Form to manage the set of groups that have a particular permission.
+   """
++
++  class Meta:
++    model = Group
++    fields = ()
++
+   def __init__(self, *args, **kwargs):
+     super(PermissionsEditForm, self).__init__(*args, **kwargs)
+ 
+-- 
+1.7.9.5
+

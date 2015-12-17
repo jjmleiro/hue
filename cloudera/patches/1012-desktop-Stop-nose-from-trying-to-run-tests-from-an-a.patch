@@ -1,0 +1,97 @@
+From 55bda64a38274921ad9d4a5a50b5948e529434fb Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 9 Mar 2015 12:16:12 -0700
+Subject: [PATCH 1012/1173] [desktop] Stop nose from trying to run tests from
+ an abstract base class
+
+---
+ desktop/core/src/desktop/tests.py |   34 +++++++++++++++++++++++++++++-----
+ 1 file changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index edbd837..06c3167 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -31,7 +31,7 @@ import proxy.conf
+ 
+ from nose.plugins.attrib import attr
+ from nose.plugins.skip import SkipTest
+-from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises
++from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises, nottest
+ from django.conf.urls import patterns, url
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+@@ -700,7 +700,8 @@ class BaseTestPasswordConfig(object):
+   def get_password(self):
+     raise NotImplementedError
+ 
+-  def test_read_password_from_script(self):
++  @nottest
++  def run_test_read_password_from_script(self):
+     resets = [
+       self.get_config_password().set_for_testing(None),
+       self.get_config_password_script().set_for_testing(self.SCRIPT)
+@@ -712,9 +713,8 @@ class BaseTestPasswordConfig(object):
+       for reset in resets:
+         reset()
+ 
+-
+-  def test_config_password_overrides_script_password(self):
+-
++  @nottest
++  def run_test_config_password_overrides_script_password(self):
+     resets = [
+       self.get_config_password().set_for_testing(' password from config '),
+       self.get_config_password_script().set_for_testing(self.SCRIPT),
+@@ -738,6 +738,12 @@ class TestDatabasePasswordConfig(BaseTestPasswordConfig):
+   def get_password(self):
+     return desktop.conf.get_database_password()
+ 
++  def test_read_password_from_script(self):
++    self.run_test_read_password_from_script()
++
++  def test_config_password_overrides_script_password(self):
++    self.run_test_config_password_overrides_script_password()
++
+ 
+ class TestLDAPPasswordConfig(BaseTestPasswordConfig):
+ 
+@@ -750,6 +756,12 @@ class TestLDAPPasswordConfig(BaseTestPasswordConfig):
+   def get_password(self):
+     return desktop.conf.get_ldap_password()
+ 
++  def test_read_password_from_script(self):
++    self.run_test_read_password_from_script()
++
++  def test_config_password_overrides_script_password(self):
++    self.run_test_config_password_overrides_script_password()
++
+ class TestLDAPBindPasswordConfig(BaseTestPasswordConfig):
+ 
+   def setup(self):
+@@ -767,6 +779,12 @@ class TestLDAPBindPasswordConfig(BaseTestPasswordConfig):
+   def get_password(self):
+     return desktop.conf.get_ldap_bind_password(desktop.conf.LDAP.LDAP_SERVERS['test'])
+ 
++  def test_read_password_from_script(self):
++    self.run_test_read_password_from_script()
++
++  def test_config_password_overrides_script_password(self):
++    self.run_test_config_password_overrides_script_password()
++
+ class TestSMTPPasswordConfig(BaseTestPasswordConfig):
+ 
+   def get_config_password(self):
+@@ -777,3 +795,9 @@ class TestSMTPPasswordConfig(BaseTestPasswordConfig):
+ 
+   def get_password(self):
+     return desktop.conf.get_smtp_password()
++
++  def test_read_password_from_script(self):
++    self.run_test_read_password_from_script()
++
++  def test_config_password_overrides_script_password(self):
++    self.run_test_config_password_overrides_script_password()
+-- 
+1.7.9.5
+

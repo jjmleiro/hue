@@ -1,0 +1,81 @@
+From a30e16255b42694cb96a4bf59c25b8c845204aeb Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Fri, 14 Nov 2014 09:15:34 -0600
+Subject: [PATCH 0115/1173] HUE-2462 [beeswax] Escape HTML when printing field
+ schema
+
+Escaped column type output to ensure entire column information is displayed
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index ec98f6e..00171ec 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -1081,7 +1081,7 @@ $(document).ready(function () {
+       $("#recentQueries").show().css("width", "100%");
+       reinitializeTableExtenders();
+     });
+-  }
++  };
+ 
+   $(document).on("click", "#recentQueries code", function(){
+     codeMirror.setValue($(this).text());
+@@ -1114,7 +1114,7 @@ $(document).ready(function () {
+   resizeNavigator = function () {
+     $("#navigator .card").css("min-height", ($(window).height() - 150) + "px");
+     $("#navigatorTables").css("max-height", ($(window).height() - 280) + "px").css("overflow-y", "auto");
+-  }
++  };
+ 
+   resetNavigator = function () {
+     var _db = viewModel.database();
+@@ -1131,7 +1131,7 @@ $(document).ready(function () {
+         $.totalStorage(hac_getTotalStorageUserPrefix() + 'timestamp_tables_' + _db, null);
+       });
+     }
+-  }
++  };
+ 
+   renderNavigator = function () {
+     $("#navigatorTables").empty();
+@@ -1165,7 +1165,7 @@ $(document).ready(function () {
+                   _table.find(".fa-spinner").removeClass("fa-spinner").removeClass("fa-spin").addClass("fa-table");
+                   $(extended_columns).each(function (iCnt, col) {
+                     var _column = $("<li>");
+-                    _column.html("<a href='javascript:void(0)' style='padding-left:10px'" + (col.comment != null && col.comment != "" ? " title='" + col.comment + "'" : "") + "><i class='fa fa-columns'></i> " + col.name + ($.trim(col.type) != "" ? " (" + $.trim(col.type) + ")" : "") + "</a>");
++                    _column.html("<a href='javascript:void(0)' style='padding-left:10px'" + (col.comment != null && col.comment != "" ? " title='" + col.comment + "'" : "") + "><i class='fa fa-columns'></i> " + col.name + ($('<span>').text(col.type).html().trim()  != "" ? " (" + $('<span>').text(col.type).html().trim() + ")" : "") + "</a>");
+                     _column.appendTo(_table.find("ul"));
+                     _column.on("dblclick", function () {
+                       codeMirror.replaceSelection($.trim(col.name) + ', ');
+@@ -1222,7 +1222,7 @@ $(document).ready(function () {
+         }
+       });
+     }
+-  }
++  };
+ 
+   $("#expandResults").on("click", function(){
+     if ($(this).find("i").hasClass("fa-expand")){
+@@ -1270,7 +1270,7 @@ $(document).ready(function () {
+             }
+           }
+         });
+-      }
++      };
+ 
+       window.setTimeout(syncWithHive, 100);
+ 
+@@ -1548,7 +1548,7 @@ $(document).ready(function () {
+         }
+       });
+     }
+-  }
++  };
+ 
+   function fieldsAutocomplete(cm) {
+     CodeMirror.possibleSoloField = true;
+-- 
+1.7.9.5
+

@@ -1,0 +1,81 @@
+From ea9340f180322e2b9889cd45761a50f7cbb1eb94 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 16:46:13 -0800
+Subject: [PATCH 0101/1173] HUE-2458 [core] make SAML2 urls backwards
+ compatible
+
+---
+ desktop/libs/libsaml/src/libsaml/urls.py  |   14 ++++++++++++--
+ desktop/libs/libsaml/src/libsaml/views.py |   16 +++++++++++-----
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/urls.py b/desktop/libs/libsaml/src/libsaml/urls.py
+index 9773710..deed5aa 100644
+--- a/desktop/libs/libsaml/src/libsaml/urls.py
++++ b/desktop/libs/libsaml/src/libsaml/urls.py
+@@ -17,15 +17,25 @@
+ 
+ from django.conf.urls.defaults import patterns, url
+ 
++try:
++  from djangosaml2.views import logout_service_post
++except ImportError:
++  # We are on an older version of djangosaml2
++  logout_service_post = None
++
++
+ urlpatterns = patterns(
+     'djangosaml2.views',
+     url(r'^logout/$', 'logout', name='saml2_logout')
+ )
+ 
+ urlpatterns += patterns('libsaml.views',
+-                        url(r'^ls/$', 'logout_service_redirect', name='saml2_ls_redirect'),
+-                        url(r'^ls/post/$', 'logout_service_post', name='saml2_ls_post'),
++                        url(r'^ls/$', 'logout_service', name='saml2_ls'),
+                         url(r'^acs/$', 'acs', name='saml2_acs'),
+                         url(r'^login/$', 'login', name='saml2_login'),
+                         url(r'^metadata/$', 'metadata', name='saml2_metadata'),
+                         url(r'^test/$', 'echo_attributes'))
++
++if logout_service_post is not None:
++  urlpatterns += patterns('libsaml.views',
++                          url(r'^ls/post/$', 'logout_service_post', name='saml2_ls_post'))
+diff --git a/desktop/libs/libsaml/src/libsaml/views.py b/desktop/libs/libsaml/src/libsaml/views.py
+index 3781fd3..2a2295b 100644
+--- a/desktop/libs/libsaml/src/libsaml/views.py
++++ b/desktop/libs/libsaml/src/libsaml/views.py
+@@ -18,9 +18,13 @@ from django.views.decorators.http import require_POST
+ from django.views.decorators.csrf import csrf_exempt
+ 
+ from djangosaml2.views import login, echo_attributes, metadata,\
+-                              assertion_consumer_service, \
+-                              logout_service_redirect, \
+-                              logout_service_post
++                              assertion_consumer_service, logout_service
++
++try:
++  from djangosaml2.views import logout_service_post
++except ImportError:
++  # We are on an older version of djangosaml2
++  logout_service_post = None
+ 
+ import libsaml.conf
+ 
+@@ -35,9 +39,11 @@ def acs(request, config_loader_path=None, attribute_mapping=None, create_unknown
+   return assertion_consumer_service(request, config_loader_path, attribute_mapping, create_unknown_user, username_source)
+ 
+ 
+-setattr(logout_service_redirect, 'login_notrequired', True)
+-setattr(logout_service_post, 'login_notrequired', True)
++setattr(logout_service, 'login_notrequired', True)
+ setattr(login, 'login_notrequired', True)
+ setattr(echo_attributes, 'login_notrequired', True)
+ setattr(acs, 'login_notrequired', True)
+ setattr(metadata, 'login_notrequired', True)
++
++if logout_service_post is not None:
++  setattr(logout_service_post, 'login_notrequired', True)
+-- 
+1.7.9.5
+

@@ -1,0 +1,99 @@
+From 383f8bc6a0646a6113cf0c700856ae88f497d986 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 13 Feb 2015 13:16:30 -0600
+Subject: [PATCH 0840/1173] [oozie] Support submitting old format directly
+ from the editor list
+
+---
+ .../templates/editor2/list_editor_bundles.mako     |   10 ++++++++--
+ .../editor2/list_editor_coordinators.mako          |   10 ++++++++--
+ .../templates/editor2/list_editor_workflows.mako   |   10 ++++++++--
+ 3 files changed, 24 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+index a9615aa..f4590b6 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_bundles.mako
+@@ -85,7 +85,7 @@ ${ layout.menubar(section='bundles', is_editor=True) }
+           <!-- /ko -->
+           <!-- ko if: uuid() -->
+             <a data-bind="attr: { 'href': '${ url('oozie:edit_bundle') }?bundle=' + id() }" data-row-selector="true"></a>
+-          <!-- /ko -->                     
++          <!-- /ko -->
+         </td>
+         <td data-bind="text: name"></td>
+         <td data-bind="text: description"></td>
+@@ -169,7 +169,13 @@ ${ commonshare() | n,unicode }
+     self.datatable = null;
+ 
+     self.showSubmitPopup = function () {
+-      $.get("/oozie/editor/bundle/submit/" + self.selectedJobs()[0].id(), {
++      if (self.selectedJobs()[0].uuid()) {
++        var base_url = "/oozie/editor/bundle/submit/";
++      } else {
++        var base_url = "/oozie/submit_bundle/";
++      }
++
++      $.get(base_url + self.selectedJobs()[0].id(), {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+index 03bb0a2..148e8df 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_coordinators.mako
+@@ -85,7 +85,7 @@ ${ layout.menubar(section='coordinators', is_editor=True) }
+           <!-- /ko -->
+           <!-- ko if: uuid() -->
+             <a data-bind="attr: { 'href': '${ url('oozie:edit_coordinator') }?coordinator=' + id() }" data-row-selector="true"></a>
+-          <!-- /ko -->                    
++          <!-- /ko -->
+         </td>
+         <td data-bind="text: name"></td>
+         <td data-bind="text: description"></td>
+@@ -169,7 +169,13 @@ ${ commonshare() | n,unicode }
+     self.datatable = null;
+ 
+     self.showSubmitPopup = function () {
+-      $.get("/oozie/editor/coordinator/submit/" + self.selectedJobs()[0].id(), {
++      if (self.selectedJobs()[0].uuid()) {
++        var base_url = "/oozie/editor/coordinator/submit/";
++      } else {
++        var base_url = "/oozie/submit_coordinator/";
++      }
++
++      $.get(base_url + self.selectedJobs()[0].id(), {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+index 1caaa63..69ef88d 100644
+--- a/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor2/list_editor_workflows.mako
+@@ -80,7 +80,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+     <tbody data-bind="foreach: { data: jobs }">
+       <tr>
+         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
+-          <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>          
++          <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>
+           <!-- ko if: ! uuid() -->
+             <a data-bind="attr: { 'href': '${ url('oozie:open_old_workflow') }?workflow=' + id() }" data-row-selector="true"></a>
+           <!-- /ko -->
+@@ -170,7 +170,13 @@ ${ commonshare() | n,unicode }
+     self.datatable = null;
+ 
+     self.showSubmitPopup = function () {
+-      $.get("/oozie/editor/workflow/submit/" + self.selectedJobs()[0].id(), {
++      if (self.selectedJobs()[0].uuid()) {
++        var base_url = "/oozie/editor/workflow/submit/";
++      } else {
++        var base_url = "/oozie/submit_workflow/";
++      }
++
++      $.get(base_url + self.selectedJobs()[0].id(), {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+       }).fail(function (xhr, textStatus, errorThrown) {
+-- 
+1.7.9.5
+

@@ -1,0 +1,63 @@
+From 7e316b2808b5963e8028bbc6b2fcfd99c19ce518 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 19 Feb 2015 17:48:59 -0800
+Subject: [PATCH 0913/1173] HUE-2417 [desktop] Expose staticfiles.static to
+ the mako templates
+
+---
+ desktop/core/src/desktop/lib/django_mako.py |   25 ++++++++++++++++++-------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/django_mako.py b/desktop/core/src/desktop/lib/django_mako.py
+index c56b243..2a1382c 100644
+--- a/desktop/core/src/desktop/lib/django_mako.py
++++ b/desktop/core/src/desktop/lib/django_mako.py
+@@ -17,23 +17,28 @@
+ #
+ # Adapted from http://code.google.com/p/django-mako/source/browse/trunk/djangomako/shortcuts.py
+ 
+-from django.http import HttpResponse
+-from desktop.lib import apputil, i18n
+ import os
+ import tempfile
+-from mako.lookup import TemplateLookup, TemplateCollection
++
+ import django.template
+-from django import template
++from django.conf import settings
++from django.contrib.staticfiles.storage import staticfiles_storage
++from django.http import HttpResponse
++
++from mako.lookup import TemplateLookup, TemplateCollection
+ 
+-register = template.Library()
++from desktop.lib import apputil, i18n
++
++register = django.template.Library()
+ 
+ ENCODING_ERRORS = 'replace'
+ 
+ # Things to automatically import into all template namespaces
+ IMPORTS=[
+-  "from desktop.lib.django_mako import url",
+   "from django.utils.html import escape",
+-  "from desktop.lib.django_mako import csrf_token"
++  "from desktop.lib.django_mako import url",
++  "from desktop.lib.django_mako import csrf_token",
++  "from desktop.lib.django_mako import static",
+ ]
+ 
+ class DesktopLookup(TemplateCollection):
+@@ -134,3 +139,9 @@ def csrf_token(request):
+   """
+   csrf_token = unicode(csrf(request)["csrf_token"])
+   return str.format("<input type='hidden' name='csrfmiddlewaretoken' value='{0}' />", csrf_token)
++
++def static(path):
++  """
++  Returns the URL to a file using the staticfiles's storage engine
++  """
++  return staticfiles_storage.url(path)
+-- 
+1.7.9.5
+

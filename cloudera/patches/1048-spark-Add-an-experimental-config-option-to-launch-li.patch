@@ -1,0 +1,116 @@
+From 5b1141d60aad80e99c87af55c0741025a510acd2 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 11 Mar 2015 12:09:26 -0700
+Subject: [PATCH 1048/1173] [spark] Add an experimental config option to
+ launch livy
+
+---
+ apps/spark/src/spark/conf.py           |    9 +++++-
+ apps/spark/src/spark/monkey_patches.py |   47 ++++++++++++++++++++++++++++++++
+ apps/spark/src/spark/urls.py           |    9 ++++++
+ 3 files changed, 64 insertions(+), 1 deletion(-)
+ create mode 100644 apps/spark/src/spark/monkey_patches.py
+
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index cd8ec8c..199bdf2 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -21,7 +21,7 @@ import sys
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+ 
+-from desktop.lib.conf import Config
++from desktop.lib.conf import Config, coerce_bool
+ from spark.settings import NICE_NAME
+ 
+ 
+@@ -68,6 +68,13 @@ LIVY_YARN_JAR = Config(
+   help=_t("Path to livy-assembly.jar inside HDFS"),
+   private=True)
+ 
++START_LIVY_SERVER = Config(
++  key="start_livy_server",
++  help=_t("Experimental option to launch livy"),
++  default=False,
++  type=coerce_bool,
++  private=True)
++
+ def get_livy_server_url():
+   return 'http://%s:%s' % (LIVY_SERVER_HOST.get(), LIVY_SERVER_PORT.get())
+ 
+diff --git a/apps/spark/src/spark/monkey_patches.py b/apps/spark/src/spark/monkey_patches.py
+new file mode 100644
+index 0000000..6e1f986
+--- /dev/null
++++ b/apps/spark/src/spark/monkey_patches.py
+@@ -0,0 +1,47 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import spark.conf
++
++def _start_livy_server():
++  import atexit
++  import subprocess
++  import sys
++  import time
++  import os
++
++  p = subprocess.Popen(['hadoop', 'classpath'], stdout=subprocess.PIPE)
++  classpath = p.communicate()[0]
++  env = os.environ.copy()
++  env['CLASSPATH'] = env.get('CLASSPATH', '') + os.pathsep + classpath
++
++  p = subprocess.Popen([sys.executable, sys.argv[0], 'livy_server'], env=env)
++
++  def cleanup():
++    p.terminate()
++    for _ in xrange(5):
++      if p.poll() == None:
++        time.sleep(1)
++      else:
++        break
++    else:
++      p.kill()
++
++  atexit.register(cleanup)
++
++if spark.conf.START_LIVY_SERVER.get():
++  _start_livy_server()
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 20aa9fd..c93cb4c 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -17,6 +17,15 @@
+ 
+ from django.conf.urls import patterns, url
+ 
++# FIXME: This could be replaced with hooking into the `AppConfig.ready()`
++# signal in Django 1.7:
++#
++# https://docs.djangoproject.com/en/1.7/ref/applications/#django.apps.AppConfig.ready
++#
++# For now though we have to load in the monkey patches here because we know
++# this file has been loaded after `desktop.settings` has been loaded.
++import spark.monkey_patches
++
+ 
+ # Views
+ urlpatterns = patterns('spark.views',
+-- 
+1.7.9.5
+

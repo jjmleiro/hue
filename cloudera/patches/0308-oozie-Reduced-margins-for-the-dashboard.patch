@@ -1,0 +1,34 @@
+From 135c97793b6f350778c34965587c9653d37bded4 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 24 Nov 2014 20:43:04 +0100
+Subject: [PATCH 0308/1173] [oozie] Reduced margins for the dashboard
+
+---
+ apps/oozie/static/css/workflow-editor.css |   12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 523d287..1e5a996 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -333,4 +333,16 @@ em {
+ 
+ .readonly .card-widget {
+   border: 1px solid #d8d8d8!important;
++}
++
++.row-fluid [class*="span"] {
++  margin-left: 0.5%;
++}
++
++.row-fluid .span10 {
++  width: 90%;
++}
++
++.row-fluid .span1 {
++  width: 4.5%;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

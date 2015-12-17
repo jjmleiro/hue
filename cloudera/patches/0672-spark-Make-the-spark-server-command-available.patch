@@ -1,0 +1,19 @@
+From 56718605e467f0a7acfa1dfc287675c240f32074 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 26 Jan 2015 10:59:39 +0800
+Subject: [PATCH 0672/1173] [spark] Make the spark server command available
+
+---
+ 0 files changed
+ create mode 100644 apps/spark/src/spark/management/__init__.py
+ create mode 100644 apps/spark/src/spark/management/commands/__init__.py
+
+diff --git a/apps/spark/src/spark/management/__init__.py b/apps/spark/src/spark/management/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/apps/spark/src/spark/management/commands/__init__.py b/apps/spark/src/spark/management/commands/__init__.py
+new file mode 100644
+index 0000000..e69de29
+-- 
+1.7.9.5
+

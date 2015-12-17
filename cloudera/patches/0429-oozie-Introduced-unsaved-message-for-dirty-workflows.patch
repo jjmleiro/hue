@@ -1,0 +1,162 @@
+From a99dfb81c44c192ac031a4b0974c5b7872686433 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 12 Jan 2015 18:24:48 +0100
+Subject: [PATCH 0429/1173] [oozie] Introduced unsaved message for dirty
+ workflows
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   28 +++++++++++++++++---
+ apps/oozie/static/css/common-editor.css            |    5 ++++
+ apps/oozie/static/js/workflow-editor.ko.js         |   28 ++++++++++++++++++++
+ 3 files changed, 58 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 8cfc3bc..6e2c9a9 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -143,7 +143,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+ 
+-    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}, visible: workflow.id() != null">
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+     </a>
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+@@ -196,6 +196,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </form>
+ </div>
+ 
++<div class="ribbon-wrapper" data-bind="visible: workflow.isDirty">
++  <div class="ribbon">${ _('Unsaved') }</div>
++</div>
++
+ 
+ 
+ <div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && oozieColumns().length == 0">
+@@ -1841,8 +1845,10 @@ ${ dashboard.import_bindings() }
+ 
+ 
+   $(document).on("showSubmitPopup", function(event, data){
+-    $('#submit-wf-modal').html(data);
+-    $('#submit-wf-modal').modal('show');
++    if (! viewModel.workflow.isDirty()){
++      $('#submit-wf-modal').html(data);
++      $('#submit-wf-modal').modal('show');
++    }
+   });
+ 
+ 
+@@ -2069,6 +2075,22 @@ ${ dashboard.import_bindings() }
+ 
+     $.jHueScrollUp();
+ 
++    window.onbeforeunload = function (e) {
++      if (viewModel.workflow.isDirty()) {
++        var message = "${ _('You have unsaved changes in this workflow.') }";
++
++        if (!e) e = window.event;
++        e.cancelBubble = true;
++        e.returnValue = message;
++
++        if (e.stopPropagation) {
++          e.stopPropagation();
++          e.preventDefault();
++        }
++        return message;
++      }
++    };
++
+   });
+ 
+ </script>
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+index 3611f84..f6fac6c 100644
+--- a/apps/oozie/static/css/common-editor.css
++++ b/apps/oozie/static/css/common-editor.css
+@@ -47,3 +47,8 @@
+ .demi-modal {
+   z-index: 1033;
+ }
++
++.ribbon-wrapper {
++  top: 70px;
++}
++
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 3c2f38a..33d54e2 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -173,6 +173,8 @@ var Workflow = function (vm, workflow) {
+   self.uuid = ko.observable(typeof workflow.uuid != "undefined" && workflow.uuid != null ? workflow.uuid : UUID());
+   self.name = ko.observable(typeof workflow.name != "undefined" && workflow.name != null ? workflow.name : "");
+ 
++  self.isDirty = ko.observable(false);
++
+   self.properties = ko.mapping.fromJS(typeof workflow.properties != "undefined" && workflow.properties != null ? workflow.properties : {});
+   self.nodes = ko.observableArray([]);
+ 
+@@ -187,6 +189,28 @@ var Workflow = function (vm, workflow) {
+     }
+   });
+ 
++  self.nodesProperties = ko.computed(function () {
++    var isDirtyContainer = [];
++    $.each(self.nodes(), function (index, node) {
++      for(var property in node.properties) {
++         if (typeof node.properties[property] == "function"){
++           isDirtyContainer.push(node.properties[property]()); 
++         }
++      }
++    });
++    return isDirtyContainer;
++  });
++
++  self.oldNodesPropertiesHash = "";
++  self.nodesProperties.subscribe(function(newVal){
++    if (self.oldNodesPropertiesHash == ""){
++      self.oldNodesPropertiesHash = JSON.stringify(newVal);
++    }
++    if (JSON.stringify(newVal) !== self.oldNodesPropertiesHash){
++      self.oldNodesPropertiesHash = JSON.stringify(newVal);
++      self.isDirty(true);
++    }
++  });
+ 
+   self.nodeIds = ko.computed(function () {
+     var mapping = [];
+@@ -256,6 +280,7 @@ var Workflow = function (vm, workflow) {
+           if (callback) {
+             callback(widget, sourceNode);
+           }
++          self.isDirty(true);
+         }
+       },
+       async: false
+@@ -350,6 +375,7 @@ var Workflow = function (vm, workflow) {
+         }
+ 
+         vm.currentlyCreatingFork = false;
++        self.isDirty(true);
+ 
+       } else {
+         $(document).trigger("error", data.message);
+@@ -406,6 +432,7 @@ var Workflow = function (vm, workflow) {
+       } else if (parent.type() == 'decision-widget') {
+         parent.remove_link('to', childId);
+       }
++      self.isDirty(true);
+     }
+     else {
+       self.nodes.remove(node);
+@@ -1013,6 +1040,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         if (window.location.search.indexOf("workflow") == -1) {
+           window.location.hash = '#workflow=' + data.id;
+         }
++        self.workflow.isDirty(false);
+       }
+       else {
+         $(document).trigger("error", data.message);
+-- 
+1.7.9.5
+

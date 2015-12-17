@@ -1,0 +1,23 @@
+From 8f0eae23e302175366661433dd0db4cfbe556456 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 19 Dec 2014 11:51:22 -0800
+Subject: [PATCH 0165/1173] [search] Add newline at the end of the file
+
+---
+ apps/search/src/search/tests.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/search/src/search/tests.py b/apps/search/src/search/tests.py
+index 5baf069..330ae49 100644
+--- a/apps/search/src/search/tests.py
++++ b/apps/search/src/search/tests.py
+@@ -1304,4 +1304,4 @@ SOLR_SCHEMA = """
+     -->
+ 
+ </schema>
+-"""
+\ No newline at end of file
++"""
+-- 
+1.7.9.5
+

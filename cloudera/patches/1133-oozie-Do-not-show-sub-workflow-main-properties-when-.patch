@@ -1,0 +1,81 @@
+From 94369a144c1818b94590162752525eebcf9cf026 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Mar 2015 18:17:22 -0700
+Subject: [PATCH 1133/1173] [oozie] Do not show sub-workflow main properties
+ when expanding node
+
+---
+ .../oozie/templates/editor2/common_workflow.mako   |   43 ++++++++++----------
+ 1 file changed, 21 insertions(+), 22 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index f01d9e4..ce72293 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -500,7 +500,7 @@
+   <em data-bind="visible: $root.credentials() == null || $root.credentials().length == 0">${ _('No available credentials.') }</em>
+   <select data-bind="visible: $root.credentials() != null && $root.credentials().length > 0, options: $root.credentials, selectedOptions: properties.credentials" size="5" multiple="true"></select>
+ 
+-  <em data-bind="visible: properties.credentials.indexOf('hbase') != -1">
++  <em data-bind="visible: properties.credentials && properties.credentials.indexOf('hbase') != -1">
+     ${ _('Requires hbase-site.xml in job path') }
+   </em>
+ </script>
+@@ -1056,6 +1056,26 @@
+             <i class="fa fa-external-link-square"></i>
+           </a>
+         </span>
++
++        <h6>
++          <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
++            ${ _('Properties') } <i class="fa fa-plus"></i>
++          </a>
++        </h6>
++        <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
++          <li>
++            <input type="text" data-bind="value: name"/>
++
++            <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: value, attr: { placeholder:  $root.workflow_properties.spark_arguments.help_text }" />
++            <span data-bind='template: { name: "common-fs-link", data: {path: value, with_label: false}}'></span>
++
++            <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); $(document).trigger('drawArrows') }">
++              <i class="fa fa-minus"></i>
++             </a>
++           </li>
++         </ul>
++        <em data-bind="visible: properties.job_properties().length == 0">${ _('No properties defined.') }</em>
++
+       </div>
+     </div>
+ 
+@@ -1070,27 +1090,6 @@
+       <!-- /ko -->
+     </div>
+ 
+-    <div data-bind="visible: $root.isEditing()">
+-      <h6>
+-        <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
+-          ${ _('Properties') } <i class="fa fa-plus"></i>
+-        </a>
+-      </h6>
+-      <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
+-        <li>
+-          <input type="text" data-bind="value: name"/>
+-
+-          <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: value, attr: { placeholder:  $root.workflow_properties.spark_arguments.help_text }" />
+-          <span data-bind='template: { name: "common-fs-link", data: {path: value, with_label: false}}'></span>
+-
+-           <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); $(document).trigger('drawArrows') }">
+-             <i class="fa fa-minus"></i>
+-           </a>
+-         </li>
+-       </ul>
+-      <em data-bind="visible: properties.job_properties().length == 0">${ _('No properties defined.') }</em>
+-    </div>
+-
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+         <li class="active"><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
+-- 
+1.7.9.5
+

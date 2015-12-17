@@ -1,0 +1,33 @@
+From a69fc4f02276d9d10bea773db145fdfe0158124c Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 16 Dec 2014 15:17:28 -0800
+Subject: [PATCH 0158/1173] HUE-2478 [pig] ignore variables with escape
+ character before $
+
+---
+ apps/pig/static/js/pig.ko.js |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/static/js/pig.ko.js b/apps/pig/static/js/pig.ko.js
+index 6768d63..9beac43 100644
+--- a/apps/pig/static/js/pig.ko.js
++++ b/apps/pig/static/js/pig.ko.js
+@@ -68,13 +68,13 @@ var PigScript = function (pigScript) {
+   };
+   self.getParameters = function () {
+     var params = {};
+-    var variables = this.script().match(/\$[^\d'"](\w*)/g);
++    var variables = this.script().match(/([^\\]|^)\$[^\d'"](\w*)/g);
+     var macro_defines = this.script().match(/define [^ ]+ \(([^\)]*)\)/gi); // no multiline
+     var macro_returns = this.script().match(/returns +([^\{]*)/gi); // no multiline
+ 
+     if (variables) {
+       $.each(variables, function(index, param) {
+-        var p = param.substring(1);
++        var p = param.substring(param.indexOf('$') + 1);
+         params[p] = '';
+       });
+     }
+-- 
+1.7.9.5
+

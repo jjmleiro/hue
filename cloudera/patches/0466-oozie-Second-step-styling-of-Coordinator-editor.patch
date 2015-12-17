@@ -1,0 +1,356 @@
+From baa77faf49afbe67aef9d0d837154a3548b98a35 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 15 Jan 2015 19:56:23 +0100
+Subject: [PATCH 0466/1173] [oozie] Second step styling of Coordinator editor
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |  139 ++++++++++++--------
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/css/coordinator-editor.css       |   13 ++
+ apps/oozie/static/js/coordinator-editor.ko.js      |    7 +-
+ desktop/core/static/js/ko.hue-bindings.js          |   76 ++++++++---
+ 5 files changed, 162 insertions(+), 75 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 8b3dcc5..b826da6 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -108,47 +108,98 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+ 
+-      <div class="card card-home" data-bind="visible: coordinator.properties.workflow">
++      <div class="card card-home" data-bind="visible: coordinator.properties.workflow" style="margin-top: 20px">
+         <h1 class="card-heading simple">${ _('How often?') }</h1>
+ 
+         <div class="card-body">
+-          
+-          <div class="controls">
+-            <div class="row-fluid">
+-              <div class="span9">
+-                <a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" class="pull-right" target="_blank">
+-                  &nbsp;<i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i>
+-                </a>
+-                <input data-bind="visible: coordinator.properties.cron_advanced" id="coord-frequency" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency" class="pull-right"/>
+-                <span data-bind="visible: coordinator.properties.cron_advanced" class="pull-right" style="padding-right:20px">
+-                  ${ _('Crontab') }
+-                </span>
++          <div class="btn-group" data-toggle="buttons-radio">
++            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'hours'}, click: function(){ coordinator.properties.frequency_unit('hours') }">${ _('Hourly') }</a>
++            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'days'}, click: function(){ coordinator.properties.frequency_unit('days') }">${ _('Daily') }</a>
++            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'weeks'}, click: function(){ coordinator.properties.frequency_unit('weeks') }">${ _('Weekly') }</a>
++            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'months'}, click: function(){ coordinator.properties.frequency_unit('months') }">${ _('Monthly') }</a>
++          </div>
++
++          <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
++            <i class="fa fa-sliders"></i>
++          </a>
++
++          <div data-bind="visible: coordinator.showAdvancedFrequencyUI" style="padding-top: 20px">
++            <form class="form-horizontal">
++              <div class="control-group">
++                <label class="control-label">${ _('Repeats every') }</label>
++                <div class="controls">
++                  <input type="number" class="input-small" /> 
++                  <span class="help-inline"><span data-bind="visible: coordinator.properties.frequency_unit() == 'hours'">${ _('hours') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'days'">${ _('days') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'weeks'">${ _('weeks') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'months'">${ _('months') }</span></span>
++                </div>
++              </div>
++              <div class="control-group" data-bind="visible: coordinator.properties.frequency_unit() == 'weeks'">
++                <label class="control-label">${ _('On') }</label>
++                <div class="controls">
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('M') }</label> 
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('T') }</label>
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('W') }</label>
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('T') }</label>
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('F') }</label>
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('S') }</label>
++                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('S') }</label>
++                </div>
++              </div>
++              <div class="control-group">
++                <label class="control-label">${ _('Starts on') }</label>
++                <div class="controls">
++                  <div class="input-prepend input-group">
++                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.start, datepicker: {}" />
++                  </div>
++                  <div class="input-prepend input-group">
++                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.start, timepicker: {}" />
++                  </div>
++                  <span class="help-inline"></span>
++                </div>
++              </div>
++              <div class="control-group">
++                <label class="control-label">${ _('Ends on') }</label>
++                <div class="controls">
++                  <div class="input-prepend input-group">
++                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.end, datepicker: {}" />
++                  </div>
++                  <div class="input-prepend input-group">
++                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.end, timepicker: {}" />
++                  </div>
++                  <span class="help-inline"></span>
++                </div>
++              </div>
++              <div class="control-group" style="margin-bottom: 0">
++                <label class="control-label">${ _('Timezone') }</label>
++                <div class="controls">
++                  <select data-bind="options: $root.availableTimezones, value: coordinator.properties.timezone, chosen: { width: '200px'}"></select>
++                  <span class="help-inline"></span>
++                </div>
++              </div>
++              <div class="control-group" style="margin-bottom: 0">
++                <label class="control-label"><hr/></label>
++                <div class="controls">
++                  <label class="checkbox" style="display: inline-block; margin-top: 10px">
++                    <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
++                  </label>
++                </div>
+               </div>
+-              <div class="span3">
++              <div class="control-group" data-bind="visible: coordinator.properties.cron_advanced">
++                <label class="control-label">${ _('Crontab') }</label>
++                <div class="controls">
++                  <input data-bind="value: coordinator.properties.cron_frequency" />
++                  <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" class="pull-right" target="_blank"><i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i>
++                </a></span>
++                </div>
+               </div>
+-            </div>
+-          </div>          
+-                    
+-          <div data-bind="visible: coordinator.showAdvancedFrequencyUI" style="padding-left: 20px">
+-            Start
+-            <input data-bind="value: coordinator.properties.start" />
+-            End
+-            <input data-bind="value: coordinator.properties.end" />
+-            Timezone
+-            <input data-bind="value: coordinator.properties.timezone" />
+-              
+-            <label class="checkbox" style="display: inline-block">
+-               <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
+-            </label>
++            </form>
++            
+           </div>
+           
+-          <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
+-            <i class="fa fa-sliders"></i>
+-          </a>          
++          
+         </div>
+       </div>
+ 
+-      <div class="card card-home" data-bind="visible: coordinator.properties.workflow()">
++      <div class="card card-home" data-bind="visible: coordinator.properties.workflow()" style="margin-top: 20px; margin-bottom: 20px">
+         <h1 class="card-heading simple">${ _('Workflow Parameters') }</h1>
+ 
+         <div class="card-body">
+@@ -297,8 +348,8 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+     <div>
+       <ul data-bind="foreach: $root.filteredModalWorkflows().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalWorkflows().length > 0"
+           class="unstyled inline fields-chooser" style="height: 100px; overflow-y: auto">
+-        <li data-bind="click: selectWorkflow">
+-          <span class="badge badge-info">
++        <li>
++          <span class="badge badge-info" data-bind="click: selectWorkflow">
+             <span data-bind="text: name(), attr: {'title': uuid()}"></span>
+           </span>
+           <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + uuid() }" target="_blank" title="${ _('Open') }">
+@@ -388,28 +439,6 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-  ${ utils.cron_js() }
+-  
+-  var coordCron =
+-    $('#coord-frequency')
+-      .jqCron({
+-        texts: {
+-          i18n: cron_i18n
+-        },
+-        enabled_minute: false,
+-        multiple_dom: true,
+-        multiple_month: true,
+-        multiple_mins: true,
+-        multiple_dow: true,
+-        multiple_time_hours: true,
+-        multiple_time_minutes: false,
+-        default_period: 'day',
+-        default_value: ${ coordinator_json | n,unicode }.properties.cron_frequency,
+-        no_reset_button: true,
+-        lang: 'i18n'
+-      })
+-      .jqCronGetInstance();
+-
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 4b27e15..2528244 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1697,7 +1697,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <div id="settingsModal" class="modal fade hide">
+   <div class="modal-header" style="padding-bottom: 2px">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+-    <h3 id="myModalLabel">${ _('Workflow Settings') }</h3>
++    <h3>${ _('Workflow Settings') }</h3>
+   </div>
+   <div class="modal-body">
+       <h4>${ _('Variables') }</h4>
+diff --git a/apps/oozie/static/css/coordinator-editor.css b/apps/oozie/static/css/coordinator-editor.css
+index c8893a7..9797acd 100644
+--- a/apps/oozie/static/css/coordinator-editor.css
++++ b/apps/oozie/static/css/coordinator-editor.css
+@@ -383,3 +383,16 @@ em {
+ #settingsModal h4 {
+   margin-top: 30px;
+ }
++
++.form-horizontal .control-label {
++  width: 90px;
++}
++
++.form-horizontal .controls {
++  margin-left: 98px;
++}
++
++.inline-block {
++  display: inline-block;
++}
++
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 8a24ee3..ed4b7f4 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -50,9 +50,9 @@ var Coordinator = function (vm, coordinator) {
+ 
+   self.properties.cron_advanced.subscribe(function(value) {
+     if (value || ! vm.isEditing()) {
+-      coordCron.disable();
++      //coordCron.disable();
+     } else {
+-      coordCron.enable();
++      //coordCron.enable();
+     }
+   });
+   
+@@ -89,7 +89,6 @@ var Coordinator = function (vm, coordinator) {
+   };
+ }
+ 
+-
+ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, workflows_json, can_edit_json) {
+   var self = this;
+ 
+@@ -107,6 +106,8 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   self.coordinator = new Coordinator(self, coordinator_json);
+   self.credentials = ko.mapping.fromJS(credentials_json);
+ 
++  self.availableTimezones = ko.observableArray(["Africa/Abidjan","Africa/Accra","Africa/Addis_Ababa","Africa/Algiers","Africa/Asmara","Africa/Asmera","Africa/Bamako","Africa/Bangui","Africa/Banjul","Africa/Bissau","Africa/Blantyre","Africa/Brazzaville","Africa/Bujumbura","Africa/Cairo","Africa/Casablanca","Africa/Ceuta","Africa/Conakry","Africa/Dakar","Africa/Dar_es_Salaam","Africa/Djibouti","Africa/Douala","Africa/El_Aaiun","Africa/Freetown","Africa/Gaborone","Africa/Harare","Africa/Johannesburg","Africa/Juba","Africa/Kampala","Africa/Khartoum","Africa/Kigali","Africa/Kinshasa","Africa/Lagos","Africa/Libreville","Africa/Lome","Africa/Luanda","Africa/Lubumbashi","Africa/Lusaka","Africa/Malabo","Africa/Maputo","Africa/Maseru","Africa/Mbabane","Africa/Mogadishu","Africa/Monrovia","Africa/Nairobi","Africa/Ndjamena","Africa/Niamey","Africa/Nouakchott","Africa/Ouagadougou","Africa/Porto-Novo","Africa/Sao_Tome","Africa/Timbuktu","Africa/Tripoli","Africa/Tunis","Africa/Windhoek","America/Adak","America/Anchorage","America/Anguilla","America/Antigua","America/Araguaina","America/Argentina/Buenos_Aires","America/Argentina/Catamarca","America/Argentina/ComodRivadavia","America/Argentina/Cordoba","America/Argentina/Jujuy","America/Argentina/La_Rioja","America/Argentina/Mendoza","America/Argentina/Rio_Gallegos","America/Argentina/Salta","America/Argentina/San_Juan","America/Argentina/San_Luis","America/Argentina/Tucuman","America/Argentina/Ushuaia","America/Aruba","America/Asuncion","America/Atikokan","America/Atka","America/Bahia","America/Bahia_Banderas","America/Barbados","America/Belem","America/Belize","America/Blanc-Sablon","America/Boa_Vista","America/Bogota","America/Boise","America/Buenos_Aires","America/Cambridge_Bay","America/Campo_Grande","America/Cancun","America/Caracas","America/Catamarca","America/Cayenne","America/Cayman","America/Chicago","America/Chihuahua","America/Coral_Harbour","America/Cordoba","America/Costa_Rica","America/Creston","America/Cuiaba","America/Curacao","America/Danmarkshavn","America/Dawson","America/Dawson_Creek","America/Denver","America/Detroit","America/Dominica","America/Edmonton","America/Eirunepe","America/El_Salvador","America/Ensenada","America/Fort_Wayne","America/Fortaleza","America/Glace_Bay","America/Godthab","America/Goose_Bay","America/Grand_Turk","America/Grenada","America/Guadeloupe","America/Guatemala","America/Guayaquil","America/Guyana","America/Halifax","America/Havana","America/Hermosillo","America/Indiana/Indianapolis","America/Indiana/Knox","America/Indiana/Marengo","America/Indiana/Petersburg","America/Indiana/Tell_City","America/Indiana/Vevay","America/Indiana/Vincennes","America/Indiana/Winamac","America/Indianapolis","America/Inuvik","America/Iqaluit","America/Jamaica","America/Jujuy","America/Juneau","America/Kentucky/Louisville","America/Kentucky/Monticello","America/Knox_IN","America/Kralendijk","America/La_Paz","America/Lima","America/Los_Angeles","America/Louisville","America/Lower_Princes","America/Maceio","America/Managua","America/Manaus","America/Marigot","America/Martinique","America/Matamoros","America/Mazatlan","America/Mendoza","America/Menominee","America/Merida","America/Metlakatla","America/Mexico_City","America/Miquelon","America/Moncton","America/Monterrey","America/Montevideo","America/Montreal","America/Montserrat","America/Nassau","America/New_York","America/Nipigon","America/Nome","America/Noronha","America/North_Dakota/Beulah","America/North_Dakota/Center","America/North_Dakota/New_Salem","America/Ojinaga","America/Panama","America/Pangnirtung","America/Paramaribo","America/Phoenix","America/Port-au-Prince","America/Port_of_Spain","America/Porto_Acre","America/Porto_Velho","America/Puerto_Rico","America/Rainy_River","America/Rankin_Inlet","America/Recife","America/Regina","America/Resolute","America/Rio_Branco","America/Rosario","America/Santa_Isabel","America/Santarem","America/Santiago","America/Santo_Domingo","America/Sao_Paulo","America/Scoresbysund","America/Shiprock","America/Sitka","America/St_Barthelemy","America/St_Johns","America/St_Kitts","America/St_Lucia","America/St_Thomas","America/St_Vincent","America/Swift_Current","America/Tegucigalpa","America/Thule","America/Thunder_Bay","America/Tijuana","America/Toronto","America/Tortola","America/Vancouver","America/Virgin","America/Whitehorse","America/Winnipeg","America/Yakutat","America/Yellowknife","Antarctica/Casey","Antarctica/Davis","Antarctica/DumontDUrville","Antarctica/Macquarie","Antarctica/Mawson","Antarctica/McMurdo","Antarctica/Palmer","Antarctica/Rothera","Antarctica/South_Pole","Antarctica/Syowa","Antarctica/Vostok","Arctic/Longyearbyen","Asia/Aden","Asia/Almaty","Asia/Amman","Asia/Anadyr","Asia/Aqtau","Asia/Aqtobe","Asia/Ashgabat","Asia/Ashkhabad","Asia/Baghdad","Asia/Bahrain","Asia/Baku","Asia/Bangkok","Asia/Beijing","Asia/Beirut","Asia/Bishkek","Asia/Brunei","Asia/Calcutta","Asia/Choibalsan","Asia/Chongqing","Asia/Chungking","Asia/Colombo","Asia/Dacca","Asia/Damascus","Asia/Dhaka","Asia/Dili","Asia/Dubai","Asia/Dushanbe","Asia/Gaza","Asia/Harbin","Asia/Hebron","Asia/Ho_Chi_Minh","Asia/Hong_Kong","Asia/Hovd","Asia/Irkutsk","Asia/Istanbul","Asia/Jakarta","Asia/Jayapura","Asia/Jerusalem","Asia/Kabul","Asia/Kamchatka","Asia/Karachi","Asia/Kashgar","Asia/Kathmandu","Asia/Katmandu","Asia/Kolkata","Asia/Krasnoyarsk","Asia/Kuala_Lumpur","Asia/Kuching","Asia/Kuwait","Asia/Macao","Asia/Macau","Asia/Magadan","Asia/Makassar","Asia/Manila","Asia/Muscat","Asia/Nicosia","Asia/Novokuznetsk","Asia/Novosibirsk","Asia/Omsk","Asia/Oral","Asia/Phnom_Penh","Asia/Pontianak","Asia/Pyongyang","Asia/Qatar","Asia/Qyzylorda","Asia/Rangoon","Asia/Riyadh","Asia/Riyadh87","Asia/Riyadh88","Asia/Riyadh89","Asia/Saigon","Asia/Sakhalin","Asia/Samarkand","Asia/Seoul","Asia/Shanghai","Asia/Singapore","Asia/Taipei","Asia/Tashkent","Asia/Tbilisi","Asia/Tehran","Asia/Tel_Aviv","Asia/Thimbu","Asia/Thimphu","Asia/Tokyo","Asia/Ujung_Pandang","Asia/Ulaanbaatar","Asia/Ulan_Bator","Asia/Urumqi","Asia/Vientiane","Asia/Vladivostok","Asia/Yakutsk","Asia/Yekaterinburg","Asia/Yerevan","Atlantic/Azores","Atlantic/Bermuda","Atlantic/Canary","Atlantic/Cape_Verde","Atlantic/Faeroe","Atlantic/Faroe","Atlantic/Jan_Mayen","Atlantic/Madeira","Atlantic/Reykjavik","Atlantic/South_Georgia","Atlantic/St_Helena","Atlantic/Stanley","Australia/ACT","Australia/Adelaide","Australia/Brisbane","Australia/Broken_Hill","Australia/Canberra","Australia/Currie","Australia/Darwin","Australia/Eucla","Australia/Hobart","Australia/LHI","Australia/Lindeman","Australia/Lord_Howe","Australia/Melbourne","Australia/NSW","Australia/North","Australia/Perth","Australia/Queensland","Australia/South","Australia/Sydney","Australia/Tasmania","Australia/Victoria","Australia/West","Australia/Yancowinna","Brazil/Acre","Brazil/DeNoronha","Brazil/East","Brazil/West","CET","CST6CDT","Canada/Atlantic","Canada/Central","Canada/East-Saskatchewan","Canada/Eastern","Canada/Mountain","Canada/Newfoundland","Canada/Pacific","Canada/Saskatchewan","Canada/Yukon","Chile/Continental","Chile/EasterIsland","Cuba","EET","EST","EST5EDT","Egypt","Eire","Etc/GMT","Etc/GMT+0","Etc/GMT+1","Etc/GMT+10","Etc/GMT+11","Etc/GMT+12","Etc/GMT+2","Etc/GMT+3","Etc/GMT+4","Etc/GMT+5","Etc/GMT+6","Etc/GMT+7","Etc/GMT+8","Etc/GMT+9","Etc/GMT-0","Etc/GMT-1","Etc/GMT-10","Etc/GMT-11","Etc/GMT-12","Etc/GMT-13","Etc/GMT-14","Etc/GMT-2","Etc/GMT-3","Etc/GMT-4","Etc/GMT-5","Etc/GMT-6","Etc/GMT-7","Etc/GMT-8","Etc/GMT-9","Etc/GMT0","Etc/Greenwich","Etc/UCT","Etc/UTC","Etc/Universal","Etc/Zulu","Europe/Amsterdam","Europe/Andorra","Europe/Athens","Europe/Belfast","Europe/Belgrade","Europe/Berlin","Europe/Bratislava","Europe/Brussels","Europe/Bucharest","Europe/Budapest","Europe/Chisinau","Europe/Copenhagen","Europe/Dublin","Europe/Gibraltar","Europe/Guernsey","Europe/Helsinki","Europe/Isle_of_Man","Europe/Istanbul","Europe/Jersey","Europe/Kaliningrad","Europe/Kiev","Europe/Lisbon","Europe/Ljubljana","Europe/London","Europe/Luxembourg","Europe/Madrid","Europe/Malta","Europe/Mariehamn","Europe/Minsk","Europe/Monaco","Europe/Moscow","Europe/Nicosia","Europe/Oslo","Europe/Paris","Europe/Podgorica","Europe/Prague","Europe/Riga","Europe/Rome","Europe/Samara","Europe/San_Marino","Europe/Sarajevo","Europe/Simferopol","Europe/Skopje","Europe/Sofia","Europe/Stockholm","Europe/Tallinn","Europe/Tirane","Europe/Tiraspol","Europe/Uzhgorod","Europe/Vaduz","Europe/Vatican","Europe/Vienna","Europe/Vilnius","Europe/Volgograd","Europe/Warsaw","Europe/Zagreb","Europe/Zaporozhye","Europe/Zurich","Factory","GB","GB-Eire","GMT","GMT+0","GMT+1","GMT+10","GMT+11","GMT+12","GMT+13","GMT+14","GMT+2","GMT+3","GMT+4","GMT+5","GMT+6","GMT+7","GMT+8","GMT+9","GMT-0","GMT-1","GMT-10","GMT-11","GMT-12","GMT-2","GMT-3","GMT-4","GMT-5","GMT-6","GMT-7","GMT-8","GMT-9","GMT0","Greenwich","HST","Hongkong","Iceland","Indian/Antananarivo","Indian/Chagos","Indian/Christmas","Indian/Cocos","Indian/Comoro","Indian/Kerguelen","Indian/Mahe","Indian/Maldives","Indian/Mauritius","Indian/Mayotte","Indian/Reunion","Iran","Israel","Jamaica","Japan","Kwajalein","Libya","MET","MST","MST7MDT","Mexico/BajaNorte","Mexico/BajaSur","Mexico/General","Mideast/Riyadh87","Mideast/Riyadh88","Mideast/Riyadh89","NZ","NZ-CHAT","Navajo","PRC","PST8PDT","Pacific/Apia","Pacific/Auckland","Pacific/Chatham","Pacific/Chuuk","Pacific/Easter","Pacific/Efate","Pacific/Enderbury","Pacific/Fakaofo","Pacific/Fiji","Pacific/Funafuti","Pacific/Galapagos","Pacific/Gambier","Pacific/Guadalcanal","Pacific/Guam","Pacific/Honolulu","Pacific/Johnston","Pacific/Kiritimati","Pacific/Kosrae","Pacific/Kwajalein","Pacific/Majuro","Pacific/Marquesas","Pacific/Midway","Pacific/Nauru","Pacific/Niue","Pacific/Norfolk","Pacific/Noumea","Pacific/Pago_Pago","Pacific/Palau","Pacific/Pitcairn","Pacific/Pohnpei","Pacific/Ponape","Pacific/Port_Moresby","Pacific/Rarotonga","Pacific/Saipan","Pacific/Samoa","Pacific/Tahiti","Pacific/Tarawa","Pacific/Tongatapu","Pacific/Truk","Pacific/Wake","Pacific/Wallis","Pacific/Yap","Poland","Portugal","ROC","ROK","Singapore","Turkey","UCT","US/Alaska","US/Aleutian","US/Arizona","US/Central","US/East-Indiana","US/Eastern","US/Hawaii","US/Indiana-Starke","US/Michigan","US/Mountain","US/Pacific","US/Pacific-New","US/Samoa","Universal","W-SU","WET","Zulu"]);
++
+   self.workflowModalFilter = ko.observable("");
+   self.filteredModalWorkflows = ko.computed(function() {
+     var _filter = self.workflowModalFilter().toLowerCase();
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index 2994a69..e00cf53 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -750,15 +750,27 @@ ko.bindingHandlers.codemirror = {
+ };
+ 
+ ko.bindingHandlers.chosen = {
+-  init: function (element) {
+-    ko.bindingHandlers.options.init(element);
+-    $(element).chosen({disable_search_threshold: 5});
+-  },
+-  update: function (element, valueAccessor, allBindings) {
+-    ko.bindingHandlers.options.update(element, valueAccessor, allBindings);
+-    $(element).trigger('chosen:updated');
+-  }
+-};
++    init: function(element, valueAccessor, allBindings, viewModel, bindingContext){
++        var $element = $(element);
++        var options = ko.unwrap(valueAccessor());
++        
++        if (typeof options === 'object')
++            $element.chosen(options);
++        else
++            $element.chosen();
++                
++        ['options', 'selectedOptions', 'value'].forEach(function(propName){
++            if (allBindings.has(propName)){
++                var prop = allBindings.get(propName);
++                if (ko.isObservable(prop)){
++                    prop.subscribe(function(){
++                        $element.trigger('chosen:updated');
++                    });
++                }
++            }
++        });        
++    }
++}
+ 
+ ko.bindingHandlers.tooltip = {
+   init: function (element, valueAccessor) {
+@@ -772,6 +784,11 @@ ko.bindingHandlers.tooltip = {
+     ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+       $(element).tooltip("destroy");
+     });
++  },
++  update: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
++    var options = ko.utils.unwrapObservable(valueAccessor());
++    var self = $(element);
++    self.tooltip(options);
+   }
+ };
+ 
+@@ -1170,10 +1187,37 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+   return _btn;
+ }
+ 
+-ko.bindingHandlers.tooltip = {
+-  update: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+-    var options = ko.utils.unwrapObservable(valueAccessor());
+-    var self = $(element);
+-    self.tooltip(options);
+-  }
+-};
+\ No newline at end of file
++ko.bindingHandlers.datepicker = {
++    init: function(element, valueAccessor, allBindings, viewModel, bindingContext){
++      var DATE_FORMAT = "YYYY-MM-DD";
++      var TIME_FORMAT = "HH:mm:ss";
++      var DATETIME_FORMAT = DATE_FORMAT + " " + TIME_FORMAT;
++      var _el = $(element);
++      var options = ko.unwrap(valueAccessor());
++      _el.datepicker({
++        format: DATE_FORMAT.toLowerCase()
++      }).on("changeDate", function () {
++        allBindings().value(_el.val());
++      });
++
++    }
++}
++
++
++ko.bindingHandlers.timepicker = {
++    init: function(element, valueAccessor, allBindings, viewModel, bindingContext){
++      var DATE_FORMAT = "YYYY-MM-DD";
++      var TIME_FORMAT = "HH:mm:ss";
++      var DATETIME_FORMAT = DATE_FORMAT + " " + TIME_FORMAT;
++      var _el = $(element);
++      var options = ko.unwrap(valueAccessor());
++
++      _el.timepicker({
++        minuteStep: 1,
++        showSeconds: true,
++        showMeridian: false,
++        defaultTime: false
++      });
++
++    }
++}
+-- 
+1.7.9.5
+

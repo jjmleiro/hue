@@ -17,6 +17,7 @@
 
 import json
 import os
+import subprocess
 
 from django.utils.translation import ugettext_lazy as _t, ugettext as _
 
@@ -26,6 +27,17 @@ from desktop.lib.conf import Config, coerce_bool, coerce_csv
 BASEDIR = os.path.dirname(os.path.abspath(__file__))
 
 USERNAME_SOURCES = ('attributes', 'nameid')
+
+
+def xmlsec():
+  """
+  xmlsec path
+  """
+  try:
+    proc = subprocess.Popen(['which', 'xmlsec1'], stdout=subprocess.PIPE)
+    return proc.stdout.read().strip()
+  except subprocess.CalledProcessError:
+    return '/usr/local/bin/xmlsec1'
 
 
 def dict_list_map(value):
@@ -41,7 +53,7 @@ def dict_list_map(value):
 
 XMLSEC_BINARY = Config(
   key="xmlsec_binary",
-  default="/usr/local/bin/xmlsec1",
+  dynamic_default=xmlsec,
   type=str,
   help=_t("Xmlsec1 binary path. This program should be executable by the user running Hue."))
 
@@ -130,6 +142,12 @@ LOGOUT_ENABLED = Config(
   default=True,
   type=coerce_bool,
   help=_t("Performs the logout or not."))
+
+NAME_ID_FORMAT = Config(
+  key="name_id_format",
+  default="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+  type=str,
+  help=_t("Request this NameID format from the server"))
 
 
 def config_validator(user):

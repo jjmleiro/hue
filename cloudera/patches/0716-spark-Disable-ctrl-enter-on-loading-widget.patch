@@ -1,0 +1,36 @@
+From a31c75e91dc8e204a6c5a64ce0ad6dbcaad30457 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 29 Jan 2015 05:18:00 +0100
+Subject: [PATCH 0716/1173] [spark] Disable ctrl-enter on loading widget
+
+---
+ apps/spark/src/spark/templates/editor.mako |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index e40be15..5962ac5 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -334,7 +334,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <button data-bind="visible: result.hasSomeResults(), click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }">
+             <i class="fa fa-th"></i>
+           </button>
+-          <div class="btn-group" data-bind="visible: result.hasSomeResults()">
++          <div class="btn-group" data-bind="visible: type() != 'scala' && type() != 'python' && result.hasSomeResults()">
+             <button class="btn" data-bind="css: {'active': $data.showChart}, click: function(){ $data.showChart(true); }">
+               <i class="hcha hcha-bar-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART"></i>
+               <i class="hcha hcha-line-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART"></i>
+@@ -909,7 +909,9 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           },
+           "Ctrl-Enter": function () {
+             allBindingsAccessor().value(editor.getValue());
+-            valueAccessor().enter();
++            if (snippet.status() != 'running' && snippet.status() != 'loading'){
++              valueAccessor().enter();
++            }
+           }
+         },
+         onKeyEvent: function (cm, e) {
+-- 
+1.7.9.5
+

@@ -1,0 +1,43 @@
+From 7ac38db9477a59aac12a969b877d8e32721c3235 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 10 Mar 2015 11:15:46 +0100
+Subject: [PATCH 1019/1173] [oozie] Fix datepicker values on the submit
+ coordinator popup
+
+---
+ .../oozie/templates/editor2/submit_job_popup.mako  |   16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako b/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
+index f5726ff..59bae02 100644
+--- a/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
++++ b/apps/oozie/src/oozie/templates/editor2/submit_job_popup.mako
+@@ -125,11 +125,23 @@
+   $(".calendar-link").on("click", function(){
+     var DATE_FORMAT = "YYYY-MM-DD";
+     var _el = $(this).parents(".controls").find("input[type='text']");
++    _el.off("keyup");
++    _el.on("keyup", function(){
++      _el.data("lastValue", _el.val());
++    });
++    _el.data("lastValue", _el.val());
+     _el.datepicker({
+       format: DATE_FORMAT.toLowerCase()
+      }).on("changeDate", function () {
+-      _el.datepicker('hide');
+-      _el.val(_el.val() + "T00:00Z");
++      _el.datepicker("hide");
++    }).on("hide", function () {
++      var _val = _el.data("lastValue") ? _el.data("lastValue") : _el.val();
++      if (_val.indexOf("T") == -1){
++        _el.val(_el.val() + "T00:00Z");
++      }
++      else if (_el.val().indexOf("T") == "-1") {
++        _el.val(_el.val() + "T" +  _val.split("T")[1]);
++      }
+     });
+    _el.datepicker('show');
+   });
+-- 
+1.7.9.5
+

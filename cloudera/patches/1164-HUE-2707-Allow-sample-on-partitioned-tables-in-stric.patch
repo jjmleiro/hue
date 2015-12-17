@@ -1,0 +1,30 @@
+From a4279e5108729b693615a12bcfdad6423734028e Mon Sep 17 00:00:00 2001
+From: Simon Beale <simon.beale@booking.com>
+Date: Thu, 30 Apr 2015 12:35:48 +0100
+Subject: [PATCH 1164/1173] HUE-2707 Allow sample on partitioned tables in
+ strict mode.
+
+---
+ apps/beeswax/src/beeswax/server/dbms.py |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/dbms.py b/apps/beeswax/src/beeswax/server/dbms.py
+index 75d7eb6..d175e4c 100644
+--- a/apps/beeswax/src/beeswax/server/dbms.py
++++ b/apps/beeswax/src/beeswax/server/dbms.py
+@@ -188,7 +188,11 @@ class HiveServer2Dbms(object):
+     """No samples if it's a view (HUE-526)"""
+     if not table.is_view:
+       limit = min(100, BROWSE_PARTITIONED_TABLE_LIMIT.get())
+-      hql = "SELECT * FROM %s.%s LIMIT %s" % (database, table.name, limit)
++      partition_query = ""
++      if table.partition_keys:
++        partitions = self.get_partitions(database, table, 1)
++        partition_query = 'WHERE ' + ' AND '.join(["%s='%s'" % (table.partition_keys[idx].name, key) for idx, key in enumerate(partitions[0].values)])
++      hql = "SELECT * FROM `%s.%s` %s LIMIT %s" % (database, table.name, partition_query, limit)
+       query = hql_query(hql)
+       handle = self.execute_and_wait(query, timeout_sec=5.0)
+ 
+-- 
+1.7.9.5
+

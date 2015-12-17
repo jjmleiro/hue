@@ -1,0 +1,126 @@
+From 337103695e389db3762dcacc634f3f429c5d46dd Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 24 Mar 2015 15:34:25 -0700
+Subject: [PATCH 1145/1173] [oozie] Koify some Workflow properties list
+
+That way editing in a new action will persit their value when saving.
+---
+ apps/oozie/src/oozie/models2.py                    |   15 ++++++---------
+ .../oozie/templates/editor2/common_workflow.mako   |   20 ++++++++++----------
+ 2 files changed, 16 insertions(+), 19 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index c13cf48..84d4bcc 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1144,7 +1144,7 @@ class SparkAction(Action):
+           'label': _('Main class'),
+           'value': '',
+           'help_text': _("e.g. org.apache.spark.examples.mllib.JavaALS."),
+-          'type': ''
++          'type': 'text'
+      },
+      'jars': {
+           'name': 'jars',
+@@ -1164,28 +1164,25 @@ class SparkAction(Action):
+           'name': 'spark_arguments',
+           'label': _('Arguments'),
+           'value': [],
+-          'help_text': _('Arguments, one by one, e.g. 1000, /path/a.'),
+-          'type': ''
++          'help_text': _('Arguments, one by one, e.g. 1000, /path/a.')
+      },
+      # Common
+      'job_properties': {
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('value, e.g. production'),
+-          'type': ''
++          'help_text': _('value, e.g. production')
+      },
+      'prepares': {
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Path to manipulate before starting the application.'),
+-          'type': ''
++          'help_text': _('Path to manipulate before starting the application.')
+      },
+      'job_xml': {
+           'name': 'job_xml',
+           'label': _('Job XML'),
+-          'value': [],
++          'value': '',
+           'help_text': _('Refer to a Hadoop JobConf job.xml'),
+           'type': ''
+      }
+@@ -1193,7 +1190,7 @@ class SparkAction(Action):
+ 
+   @classmethod
+   def get_mandatory_fields(cls):
+-    return [cls.FIELDS['spark_master'], cls.FIELDS['mode'], cls.FIELDS['class'], cls.FIELDS['jars']]
++    return [cls.FIELDS['spark_master'], cls.FIELDS['mode'], cls.FIELDS['jars'], cls.FIELDS['class']]
+ 
+ 
+ class KillAction(Action):
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index 0b49abe..f31a3e9 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -728,8 +728,8 @@
+       <span data-bind="text: properties.spark_master" />
+       <span data-bind="text: properties.mode" />
+       <br/>
+-      <span data-bind="text: properties.class" />
+       <span data-bind="text: properties.jars" />
++      <span data-bind="text: properties.class" />
+     </div>
+ 
+     <div data-bind="visible: $root.isEditing">
+@@ -751,17 +751,17 @@
+ 
+         <br/>
+ 
+-        <span data-bind="text: $root.workflow_properties.class.label" style="display: inline-block; width: 75px"></span>
+-        <input type="text" class="input-xlarge" data-bind="value: properties.class, attr: { placeholder: $root.workflow_properties.class.help_text }" />
+-
+-        <br/>
+-
+         <span data-bind="text: $root.workflow_properties.jars.label" style="display: inline-block; width: 75px"></span>
+         <input type="text" class="filechooser-input" data-bind="filechooser: properties.jars, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: properties.jars, attr: { placeholder:  $root.workflow_properties.jars.help_text }" />
+         <span data-bind='template: { name: "common-fs-link", data: {path: properties.jars(), with_label: false}}'></span>
+ 
++        <br/>
++
++        <span data-bind="text: $root.workflow_properties.class.label" style="display: inline-block; width: 75px"></span>
++        <input type="text" class="input-xlarge" data-bind="value: properties.class, attr: { placeholder: $root.workflow_properties.class.help_text }" />
++
+         <h6>
+-          <a class="pointer" data-bind="click: function(){ properties.spark_arguments.push({'value': ''}); $(document).trigger('drawArrows') }">
++          <a class="pointer" data-bind="click: function(){ properties.spark_arguments.push(ko.mapping.fromJS({'value': ''})); $(document).trigger('drawArrows') }">
+             ${ _('Arguments') } <i class="fa fa-plus"></i>
+           </a>
+         </h6>
+@@ -1058,15 +1058,15 @@
+         </span>
+ 
+         <h6>
+-          <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
++          <a class="pointer" data-bind="click: function(){ properties.job_properties.push(ko.mapping.fromJS({'name': '', 'value': ''})); $(document).trigger('drawArrows') }">
+             ${ _('Properties') } <i class="fa fa-plus"></i>
+           </a>
+         </h6>
+         <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
+           <li>
+-            <input type="text" data-bind="value: name"/>
++            <input type="text" data-bind="value: name" placeholder="${ _('Name, e.g. input') }"/>
+ 
+-            <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: value, attr: { placeholder:  $root.workflow_properties.spark_arguments.help_text }" />
++            <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: value, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: value, attr: { placeholder:  $root.workflow_properties.job_properties.help_text }" />
+             <span data-bind='template: { name: "common-fs-link", data: {path: value, with_label: false}}'></span>
+ 
+             <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); $(document).trigger('drawArrows') }">
+-- 
+1.7.9.5
+

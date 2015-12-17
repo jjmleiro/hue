@@ -1,0 +1,209 @@
+From 1f2131d9f950336ab5c9f04e6eeac055ae5bca6f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 17 Dec 2014 11:07:51 -0800
+Subject: [PATCH 0344/1173] [oozie] Add all the field of a Coordinator in the
+ UI
+
+---
+ apps/oozie/src/oozie/models2.py                    |   50 ++++++++++----------
+ .../oozie/templates/editor/coordinator_editor.mako |   47 ++++++++++++++----
+ .../templates/editor/gen2/coordinator.xml.mako     |    4 +-
+ apps/oozie/static/js/coordinator-editor.ko.js      |    9 +++-
+ 4 files changed, 74 insertions(+), 36 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index fd2cdbe..f4e6fff 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1204,31 +1204,31 @@ class Coordinator():
+       self._data = data
+     else:
+       self._data = {
+-          "id": None, 
+-          "uuid": None,
+-          "name": "My Coordinator",
+-          "variables": [],
+-          "properties": {
+-              "deployment_dir": "",
+-              "schema_version": "uri:oozie:coordinator:0.2",
+-              "frequency_number": 1,
+-              "frequency_unit": "days",
+-              "cron_frequency": "0 0 * * *",
+-              "cron_advanced": False,
+-              "timezone": "America/Los_Angeles",
+-              "start": datetime.today(),
+-              "end": datetime.today() + timedelta(days=3),
+-              "workflow": None,
+-              "timeout": None,
+-              "concurrency": None,
+-              "execution": None,
+-              "throttle": None,
+-              "job_xml": "",
+-              "sla_enabled": False,
+-              "sla_workflow_enabled": False,
+-              "credentials": [],
+-              "properties": [],
+-              "sla": Workflow.SLA_DEFAULT
++          'id': None, 
++          'uuid': None,
++          'name': 'My Coordinator',
++          'variables': [],
++          'properties': {
++              'deployment_dir': '',
++              'schema_version': 'uri:oozie:coordinator:0.2',
++              'frequency_number': 1,
++              'frequency_unit': 'days',
++              'cron_frequency': '0 0 * * *',
++              'cron_advanced': False,
++              'timezone': 'America/Los_Angeles',
++              'start': datetime.today(),
++              'end': datetime.today() + timedelta(days=3),
++              'workflow': None,
++              'timeout': None,
++              'concurrency': None,
++              'execution': None,
++              'throttle': None,
++              'job_xml': '',
++              'sla_enabled': False,
++              'sla_workflow_enabled': False,
++              'credentials': [],
++              'properties': [],
++              'sla': Workflow.SLA_DEFAULT
+           }
+       }
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 0339acd..be291a2 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -99,6 +99,19 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <div class="card-body">
+           [hourly] [daily] [weekly] [monthly]
+           <input data-bind="value: coordinator.properties.cron_frequency" />
++          
++          <div data-bind="visible: coordinator.showAdvancedFrequencyUI" style="padding-left: 20px">
++            Start
++            <input data-bind="value: coordinator.properties.start" />
++            End
++            <input data-bind="value: coordinator.properties.end" />
++            Timezone
++            <input data-bind="value: coordinator.properties.timezone" />  
++          </div>
++          
++          <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
++            <i class="fa fa-sliders"></i>
++          </a>          
+         </div>
+       </div>
+ 
+@@ -143,20 +156,29 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               </div>
+               <input data-bind="value: dataset_variable"/>
+ 
+-              <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->
+-              [hourly] [daily] [weekly] [monthly]
++              <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->              
++              [hourly] [daily] [weekly] [monthly] <input data-bind="value: cron_frequency" />
+ 
+-              <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }">
+-                <i class="fa fa-minus"></i>
+-              </a>
+               <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
+                 <i class="fa fa-sliders"></i>
+               </a>
++              <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }">
++                <i class="fa fa-minus"></i>
++              </a>
+ 
+               <div data-bind="visible: show_advanced" style="padding-left: 20px">
+-                Done flag <input data-bind="value: done_flag"/>
+-                Range
+-
++                Done flag 
++                <input type="checkbox" data-bind="checked: use_done_flag" />
++                <input data-bind="value: done_flag, visible: use_done_flag"/>
++                
++                Same start
++                <input type="checkbox" data-bind="checked: same_start" />                
++                <input data-bind="value: start, visible: ! same_start()" />
++                
++                Same timezone
++                <input type="checkbox" data-bind="checked: same_timezone" />
++                <input data-bind="value: timezone, visible: ! same_timezone()" />
++                
+                 <div class="control-group">
+                   <label class="control-label">${ _('Instance') }</label>
+ 
+@@ -230,6 +252,15 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+   <div class="modal-body">
+ 
++      <h4>${ _('Timeout') }</h4>
++      <input data-bind="value: coordinator.properties.timeout"/>
++
++      <h4>${ _('Concurrency') }</h4>
++      <input data-bind="value: coordinator.properties.concurrency"/>
++      
++      <h4>${ _('Execution') }</h4>
++      <input data-bind="value: coordinator.properties.execution"/>
++
+       <h4>${ _('Throttle') }</h4>
+       <input data-bind="value: coordinator.properties.throttle"/>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index f20b55b..5048b5a 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -83,8 +83,10 @@
+     <dataset name="${ dataset.data['name'] }" frequency="${ dataset.frequency }"
+              initial-instance="${ dataset.start_utc }" timezone="${ dataset.data['timezone'] }">
+       <uri-template>${ smart_path(dataset.data['dataset_variable'], mapping) }</uri-template>
+-      % if dataset.data['done_flag'] is not None:
++      % if dataset.data['use_done_flag']:
+       <done-flag>${ dataset.data['done_flag'] }</done-flag>
++      % else:
++      <done-flag></done-flag>
+       % endif
+     </dataset>
+     % endfor
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index fdee747..64f75c8 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -44,6 +44,7 @@ var Coordinator = function (vm, coordinator) {
+   self.variables = ko.mapping.fromJS(typeof coordinator.variables != "undefined" && coordinator.variables != null ? coordinator.variables : []);
+ 
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
++  self.showAdvancedFrequencyUI = ko.observable(typeof coordinator.showAdvancedFrequencyUI != "undefined" && coordinator.showAdvancedFrequencyUI != null ? coordinator.showAdvancedFrequencyUI : false);
+ 
+   self.properties.workflow.subscribe(function(newVal) {
+     if (newVal) {
+@@ -65,9 +66,11 @@ var Coordinator = function (vm, coordinator) {
+        
+        'uuid': UUID(),
+        'dataset_variable': '',       
+-       'show_advanced': false,       
+-       'done_flag': '',
++       'show_advanced': false,
++       'use_done_flag': false,
++       'done_flag': '_SUCCESS',
+        'timezone': 'America/Los_Angeles',
++       'same_timezone': true,
+        'instance_choice': 'default',
+        'is_advanced_start_instance': false,
+        'start_instance': '0',
+@@ -75,9 +78,11 @@ var Coordinator = function (vm, coordinator) {
+        'is_advanced_end_instance': false,
+        'advanced_end_instance': '${coord:current(0)}',
+        'end_instance': '0',
++       'cron_frequency': '0 0 * * *',
+        'frequency_number': 1,
+        'frequency_unit': 'days',
+        'start': new Date(),
++       'same_start': true,
+ 
+        'shared_dataset_uuid': '' // If reusing a shared dataset
+     };
+-- 
+1.7.9.5
+

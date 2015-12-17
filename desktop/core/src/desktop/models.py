@@ -15,14 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import calendar
 import logging
+import json
+import uuid
+
 from itertools import chain
 
-from django.db import models
-from django.db.models import Q
 from django.contrib.auth import models as auth_models
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.staticfiles.storage import staticfiles_storage
+from django.core.urlresolvers import reverse
+from django.db import models, transaction
+from django.db.models import Q
 from django.utils.translation import ugettext as _, ugettext_lazy as _t
 
 from desktop.lib.i18n import force_unicode
@@ -165,7 +171,11 @@ class DocumentTag(models.Model):
 class DocumentManager(models.Manager):
 
   def documents(self, user):
-    return Document.objects.filter(Q(owner=user) | Q(documentpermission__users=user) | Q(documentpermission__groups__in=user.groups.all())).defer('description', 'extra').distinct()
+    return Document.objects.filter(
+        Q(owner=user) |
+        Q(documentpermission__users=user) |
+        Q(documentpermission__groups__in=user.groups.all())
+    ).defer('description', 'extra').distinct()
 
   def get_docs(self, user, model_class=None, extra=None):
     docs = Document.objects.documents(user).exclude(name='pig-app-hue-script')
@@ -252,65 +262,96 @@ class DocumentManager(models.Manager):
   def sync(self):
 
     try:
-      from oozie.models import Workflow, Coordinator, Bundle
+      with transaction.atomic():
+        from oozie.models import Workflow, Coordinator, Bundle
 
-      for job in list(chain(Workflow.objects.all(), Coordinator.objects.all(), Bundle.objects.all())):
-        if job.doc.count() > 1:
-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
-          job.doc.all().delete()
+        for job in list(chain(Workflow.objects.all(), Coordinator.objects.all(), Bundle.objects.all())):
+          if job.doc.count() > 1:
+            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+            job.doc.all().delete()
 
-        if not job.doc.exists():
-          doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description)
-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
-          doc.tags.add(tag)
-          if job.is_trashed:
-            doc.send_to_trash()
-          if job.is_shared:
+          if not job.doc.exists():
+            doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description)
+            tag = DocumentTag.objects.get_example_tag(user=job.owner)
+            doc.tags.add(tag)
+            if job.is_trashed:
+              doc.send_to_trash()
+            if job.is_shared:
+              doc.share_to_default()
+            if hasattr(job, 'managed'):
+              if not job.managed:
+                doc.extra = 'jobsub'
+                doc.save()
+          if job.owner.username == SAMPLE_USERNAME:
+            job.doc.get().share_to_default()
+    except Exception, e:
+      LOG.warn(force_unicode(e))
+
+    try:
+      with transaction.atomic():
+        from beeswax.models import SavedQuery
+
+        for job in SavedQuery.objects.all():
+          if job.doc.count() > 1:
+            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+            job.doc.all().delete()
+
+          if not job.doc.exists():
+            doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.desc, extra=job.type)
+            tag = DocumentTag.objects.get_example_tag(user=job.owner)
+            doc.tags.add(tag)
+            if job.is_trashed:
+              doc.send_to_trash()
+          if job.owner.username == SAMPLE_USERNAME:
+            job.doc.get().share_to_default()
+    except Exception, e:
+      LOG.warn(force_unicode(e))
+
+    try:
+      with transaction.atomic():
+        from pig.models import PigScript
+
+        for job in PigScript.objects.all():
+          if job.doc.count() > 1:
+            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+            job.doc.all().delete()
+
+          if not job.doc.exists():
+            doc = Document.objects.link(job, owner=job.owner, name=job.dict['name'], description='')
+            tag = DocumentTag.objects.get_example_tag(user=job.owner)
+            doc.tags.add(tag)
+          if job.owner.username == SAMPLE_USERNAME:
+            job.doc.get().share_to_default()
+    except Exception, e:
+      LOG.warn(force_unicode(e))
+
+    try:
+      with transaction.atomic():
+        for job in Document2.objects.all():
+          if job.doc.count() > 1:
+            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+            job.doc.all().delete()
+
+          if not job.doc.exists():
+            if job.type == 'oozie-workflow2':
+              extra = 'workflow2'
+            elif job.type == 'oozie-coordinator2':
+              extra = 'coordinator2'
+            elif job.type == 'oozie-bundle2':
+              extra = 'bundle2'
+            elif job.type == 'notebook':
+              extra = 'notebook'
+            else:
+              extra = ''
+            doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description, extra=extra)
+          if job.owner.username == SAMPLE_USERNAME:
+            doc = job.doc.get()
             doc.share_to_default()
-          if hasattr(job, 'managed'):
-            if not job.managed:
-              doc.extra = 'jobsub'
-              doc.save()
-        if job.owner.username == SAMPLE_USERNAME:
-          job.doc.get().share_to_default()
+            tag = DocumentTag.objects.get_example_tag(user=job.owner)
+            doc.tags.add(tag)
     except Exception, e:
       LOG.warn(force_unicode(e))
 
-    try:
-      from beeswax.models import SavedQuery
-
-      for job in SavedQuery.objects.all():
-        if job.doc.count() > 1:
-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
-          job.doc.all().delete()
-
-        if not job.doc.exists():
-          doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.desc, extra=job.type)
-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
-          doc.tags.add(tag)
-          if job.is_trashed:
-            doc.send_to_trash()
-        if job.owner.username == SAMPLE_USERNAME:
-          job.doc.get().share_to_default()
-    except Exception, e:
-      LOG.warn(force_unicode(e))
-
-    try:
-      from pig.models import PigScript
-
-      for job in PigScript.objects.all():
-        if job.doc.count() > 1:
-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
-          job.doc.all().delete()
-
-        if not job.doc.exists():
-          doc = Document.objects.link(job, owner=job.owner, name=job.dict['name'], description='')
-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
-          doc.tags.add(tag)
-        if job.owner.username == SAMPLE_USERNAME:
-          job.doc.get().share_to_default()
-    except Exception, e:
-      LOG.warn(force_unicode(e))
 
     # Make sure doc have at least a tag
     try:
@@ -335,6 +376,9 @@ class DocumentManager(models.Manager):
           doc.delete()
     except Exception, e:
       LOG.warn(force_unicode(e))
+
+
+UTC_TIME_FORMAT = "%Y-%m-%dT%H:%MZ"
 
 
 class Document(models.Model):
@@ -390,6 +434,10 @@ class Document(models.Model):
     tag = DocumentTag.objects.get_history_tag(user=self.owner)
     self.tags.add(tag)
 
+  def remove_from_history(self):
+    tag = DocumentTag.objects.get_history_tag(user=self.owner)
+    self.tags.remove(tag)
+
   def share_to_default(self, name='read'):
     DocumentPermission.objects.share_to_default(self, name=name)
 
@@ -435,25 +483,33 @@ class Document(models.Model):
     apps = appmanager.get_apps_dict()
 
     try:
-      if self.content_type.app_label == 'beeswax':
+      if self.extra == 'workflow2':
+        return staticfiles_storage.url('oozie/art/icon_oozie_workflow_48.png')
+      elif self.extra == 'coordinator2':
+        return staticfiles_storage.url('oozie/art/icon_oozie_coordinator_48.png')
+      elif self.extra == 'bundle2':
+        return staticfiles_storage.url('oozie/art/icon_oozie_bundle_48.png')
+      elif self.extra == 'notebook':
+        return staticfiles_storage.url('spark/art/icon_spark_48.png')
+      elif self.content_type.app_label == 'beeswax':
         if self.extra == '0':
-          return apps['beeswax'].icon_path
+          return staticfiles_storage.url(apps['beeswax'].icon_path)
         elif self.extra == '3':
-          return apps['spark'].icon_path
+          return staticfiles_storage.url(apps['spark'].icon_path)
         else:
-          return apps['impala'].icon_path
+          return staticfiles_storage.url(apps['impala'].icon_path)
       elif self.content_type.app_label == 'oozie':
         if self.extra == 'jobsub':
-          return apps['jobsub'].icon_path
+          return staticfiles_storage.url(apps['jobsub'].icon_path)
         else:
-          return self.content_type.model_class().ICON
+          return staticfiles_storage.url(self.content_type.model_class().ICON)
       elif self.content_type.app_label in apps:
-        return apps[self.content_type.app_label].icon_path
+        return staticfiles_storage.url(apps[self.content_type.app_label].icon_path)
       else:
-        return '/static/art/icon_hue_48.png'
+        return staticfiles_storage.url('desktop/art/icon_hue_48.png')
     except Exception, e:
       LOG.warn(force_unicode(e))
-      return '/static/art/icon_hue_48.png'
+      return staticfiles_storage.url('desktop/art/icon_hue_48.png')
 
   def share(self, users, groups, name='read'):
     DocumentPermission.objects.filter(document=self, name=name).update(users=users, groups=groups, add=True)
@@ -483,6 +539,21 @@ class Document(models.Model):
   def list_permissions(self, perm='read'):
     return DocumentPermission.objects.list(document=self, perm=perm)
 
+  def to_dict(self):
+    return {
+      'owner': self.owner.username,
+      'name': self.name,
+      'description': self.description,
+      'uuid': None, # no uuid == v1
+      'id': self.id,
+      'doc1_id': self.id,
+      'object_id': self.object_id,
+      'type': str(self.content_type),
+      'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
+      'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+      'isSelected': False
+    }
+
 
 class DocumentPermissionManager(models.Manager):
 
@@ -495,7 +566,7 @@ class DocumentPermissionManager(models.Manager):
 
   def share_to_default(self, document, name='read'):
     from useradmin.models import get_default_user_group # Remove build dependency
-    
+
     self._check_perm(name)
 
     if name == DocumentPermission.WRITE_PERM:
@@ -576,5 +647,78 @@ class DocumentPermission(models.Model):
   unique_together = ('doc', 'perms')
 
 
-# HistoryTable
-# VersionTable
+
+class Document2Manager(models.Manager):
+  def get_by_natural_key(self, uuid, version, is_history):
+    return self.get(uuid=uuid, version=version, is_history=is_history)
+
+
+def uuid_default():
+  return str(uuid.uuid4())
+
+
+class Document2(models.Model):
+  owner = models.ForeignKey(auth_models.User, db_index=True, verbose_name=_t('Owner'), help_text=_t('Creator.'), related_name='doc2_owner')
+  name = models.CharField(default='', max_length=255)
+  description = models.TextField(default='')
+  uuid = models.CharField(default=uuid_default, max_length=36, db_index=True)
+  type = models.CharField(default='', max_length=32, db_index=True, help_text=_t('Type of document, e.g. Hive query, Oozie workflow, Search Dashboard...'))
+
+  data = models.TextField(default='{}')
+  extra = models.TextField(default='')
+
+  last_modified = models.DateTimeField(auto_now=True, db_index=True, verbose_name=_t('Time last modified'))
+  version = models.SmallIntegerField(default=1, verbose_name=_t('Document version'), db_index=True)
+  is_history = models.BooleanField(default=False, db_index=True)
+
+  tags = models.ManyToManyField('self', db_index=True)
+  dependencies = models.ManyToManyField('self', db_index=True)
+  doc = generic.GenericRelation(Document, related_name='doc_doc') # Compatibility with Hue 3
+
+  objects = Document2Manager()
+  unique_together = ('uuid', 'version', 'is_history')
+
+  def natural_key(self):
+    return (self.uuid, self.version, self.is_history)
+
+  @property
+  def data_dict(self):
+    if not self.data:
+      self.data = json.dumps({})
+    data_python = json.loads(self.data)
+
+    return data_python
+
+  def update_data(self, post_data):
+    data_dict = self.data_dict
+
+    data_dict.update(post_data)
+
+    self.data = json.dumps(data_dict)
+
+  def get_absolute_url(self):
+    if self.type == 'oozie-coordinator2':
+      return reverse('oozie:edit_coordinator') + '?coordinator=' + str(self.id)
+    elif self.type == 'oozie-bundle2':
+      return reverse('oozie:edit_bundle') + '?bundle=' + str(self.id)
+    elif self.type == 'notebook':
+      return reverse('spark:editor') + '?notebook=' + str(self.id)
+    else:
+      return reverse('oozie:edit_workflow') + '?workflow=' + str(self.id)
+
+  def to_dict(self):
+    return {
+      'owner': self.owner.username,
+      'name': self.name,
+      'description': self.description,
+      'uuid': self.uuid,
+      'id': self.id,
+      'doc1_id': self.doc.get().id if self.doc.exists() else -1,
+      'type': self.type,
+      'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
+      'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+      'isSelected': False
+    }
+
+  def can_read_or_exception(self, user):
+    self.doc.get().can_read_or_exception(user)

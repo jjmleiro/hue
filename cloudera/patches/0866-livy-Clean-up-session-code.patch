@@ -1,0 +1,150 @@
+From 3796d8406f6ed26e3bd82da86d9a4bdcd0697d22 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 11 Feb 2015 13:47:32 -0800
+Subject: [PATCH 0866/1173] [livy] Clean up session code
+
+---
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    3 +-
+ .../hue/livy/server/sessions/ProcessSession.scala  |    1 +
+ .../hue/livy/server/sessions/Session.scala         |   41 ++++++++++++++++++++
+ .../hue/livy/server/sessions/WebSession.scala      |    3 +-
+ .../hue/livy/server/sessions/session.scala         |   36 -----------------
+ 5 files changed, 46 insertions(+), 38 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+ delete mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 1654c4c..5ae3e77 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -2,7 +2,8 @@ package com.cloudera.hue.livy.server
+ 
+ import com.cloudera.hue.livy.Logging
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+-import com.cloudera.hue.livy.server.sessions.{SessionFailedToStart, Session}
++import com.cloudera.hue.livy.server.sessions.Session
++import com.cloudera.hue.livy.server.sessions.Session.SessionFailedToStart
+ import com.fasterxml.jackson.core.JsonParseException
+ import org.json4s.{DefaultFormats, Formats, MappingException}
+ import org.scalatra._
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+index 2a57073..b21ff5a 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+@@ -3,6 +3,7 @@ package com.cloudera.hue.livy.server.sessions
+ import java.lang.ProcessBuilder.Redirect
+ 
+ import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.server.sessions.Session.SessionFailedToStart
+ 
+ import scala.annotation.tailrec
+ import scala.concurrent.Future
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+new file mode 100644
+index 0000000..68ea19e
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+@@ -0,0 +1,41 @@
++package com.cloudera.hue.livy.server.sessions
++
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import com.cloudera.hue.livy.server.Statement
++
++import scala.concurrent.Future
++
++object Session {
++  sealed trait State
++  case class Starting() extends State
++  case class Idle() extends State
++  case class Busy() extends State
++  case class Dead() extends State
++
++  class SessionFailedToStart(msg: String) extends Exception(msg)
++
++  class StatementNotFound extends Exception
++}
++
++trait Session {
++  import Session._
++
++  def id: String
++
++  def lastActivity: Long
++
++  def state: State
++
++  def executeStatement(content: ExecuteRequest): Statement
++
++  def statement(statementId: Int): Option[Statement]
++
++  def statements(): Seq[Statement]
++
++  def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement]
++
++  def interrupt(): Future[Unit]
++
++  def stop(): Future[Unit]
++}
++
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index 91fcb19..c697620 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -3,9 +3,10 @@ package com.cloudera.hue.livy.server.sessions
+ import com.cloudera.hue.livy._
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
++import com.cloudera.hue.livy.server.sessions.Session._
+ import dispatch._
+ import org.json4s.jackson.Serialization.write
+-import org.json4s.{JValue, DefaultFormats, Formats}
++import org.json4s.{DefaultFormats, Formats}
+ 
+ import scala.annotation.tailrec
+ import scala.collection.mutable.ArrayBuffer
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+deleted file mode 100644
+index 690370d..0000000
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
++++ /dev/null
+@@ -1,36 +0,0 @@
+-package com.cloudera.hue.livy.server.sessions
+-
+-import com.cloudera.hue.livy.msgs.ExecuteRequest
+-import com.cloudera.hue.livy.server.Statement
+-
+-import scala.concurrent.Future
+-
+-trait Session {
+-  def id: String
+-
+-  def lastActivity: Long
+-
+-  def state: State
+-
+-  def executeStatement(content: ExecuteRequest): Statement
+-
+-  def statement(statementId: Int): Option[Statement]
+-
+-  def statements(): Seq[Statement]
+-
+-  def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement]
+-
+-  def interrupt(): Future[Unit]
+-
+-  def stop(): Future[Unit]
+-}
+-
+-sealed trait State
+-case class Starting() extends State
+-case class Idle() extends State
+-case class Busy() extends State
+-case class Dead() extends State
+-
+-class SessionFailedToStart(msg: String) extends Exception(msg)
+-
+-class StatementNotFound extends Exception
+\ No newline at end of file
+-- 
+1.7.9.5
+

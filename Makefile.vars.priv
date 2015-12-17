@@ -65,9 +65,6 @@ APP_REG := $(ENV_PYTHON) $(TOOLS_DIR)/app_reg/app_reg.py
 VIRTUAL_BOOTSTRAP := $(TOOLS_DIR)/virtual-bootstrap/virtual-bootstrap.py
 
 
-# <<<< DEV ONLY
-STRIP_DEV = sed -e '/<<<< DEV ONLY/,/.*END DEV ONLY >>>>$$/D' $(1) > $(2)
-# END DEV ONLY >>>>
 
 # Verbosity control
 ifeq ($(VERBOSE),1)

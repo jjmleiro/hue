@@ -1,0 +1,1105 @@
+From 98df71eecdad19d24d1c5d14340d64d4e8e295ec Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 27 Nov 2014 10:25:49 -0600
+Subject: [PATCH 0331/1173] [oozie] Coordinator editor skeleton page
+
+---
+ apps/oozie/src/oozie/models2.py                    |   75 ++++
+ .../oozie/templates/editor/coordinator_editor.mako |  184 ++++++++++
+ .../templates/editor/gen2/coordinator.xml.mako     |  140 +++++++
+ .../templates/editor/list_editor_coordinators.mako |   44 +++
+ apps/oozie/src/oozie/urls.py                       |    4 +
+ apps/oozie/src/oozie/views/editor2.py              |   79 +++-
+ apps/oozie/static/css/coordinator-editor.css       |  381 ++++++++++++++++++++
+ apps/oozie/static/js/coordinator-editor.ko.js      |  108 ++++++
+ 8 files changed, 1013 insertions(+), 2 deletions(-)
+ create mode 100644 apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+ create mode 100644 apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+ create mode 100644 apps/oozie/static/css/coordinator-editor.css
+ create mode 100644 apps/oozie/static/js/coordinator-editor.ko.js
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index ca967c3..8cfeb0c 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1183,3 +1183,78 @@ def import_workflow_from_hue_3_7(old_wf):
+ 
+   return Workflow(data=json.dumps(data))
+ 
++
++
++class Coordinator():
++  XML_FILE_NAME = 'coordinator.xml'
++  PROPERTY_APP_PATH = 'oozie.coord.application.path'
++
++  def __init__(self, data=None, document=None):
++    self.document = document
++
++    if document is not None:
++      self.data = document.data
++    elif data is not None:
++      self.data = data
++    else:
++      self.data = json.dumps({
++          'coordinator': {
++              "id": None, 
++              "uuid": None,
++              "name": "My Coordinator",
++              "properties": {
++                  "job_xml": "",
++                  "sla_enabled": False,
++                  "sla_workflow_enabled": False,
++                  "credentials": [],
++                  "properties": [],
++                  "sla": Workflow.SLA_DEFAULT
++              }
++          }
++      })
++
++  def get_json(self):
++    _data = self.get_data()
++
++    return json.dumps(_data)
++ 
++  def get_data(self):
++    _data = json.loads(self.data)
++
++    return _data
++
++
++#frequency_number = models.SmallIntegerField(default=1, choices=FREQUENCY_NUMBERS, verbose_name=_t('Frequency number'),
++#                                              help_text=_t('The number of units of the rate at which '
++#                                                           'data is periodically created.')) # unused
++#  frequency_unit = models.CharField(max_length=20, choices=FREQUENCY_UNITS, default='days', verbose_name=_t('Frequency unit'),
++#                                    help_text=_t('The unit of the rate at which data is periodically created.')) # unused
++#  timezone = models.CharField(max_length=24, choices=TIMEZONES, default='America/Los_Angeles', verbose_name=_t('Timezone'),
++#                              help_text=_t('The timezone of the coordinator. Only used for managing the daylight saving time changes when combining several coordinators.'))
++#  start = models.DateTimeField(default=datetime.today(), verbose_name=_t('Start'),
++#                               help_text=_t('When to start the first workflow.'))
++#  end = models.DateTimeField(default=datetime.today() + timedelta(days=3), verbose_name=_t('End'),
++#                             help_text=_t('When to start the last workflow.'))
++#  workflow = models.ForeignKey(Workflow, null=True, verbose_name=_t('Workflow'),
++#                               help_text=_t('The workflow to schedule repeatedly.'))
++#  timeout = models.SmallIntegerField(null=True, blank=True, verbose_name=_t('Timeout'),
++#                                     help_text=_t('Number of minutes the coordinator action will be in '
++#                                                  'WAITING or READY status before giving up on its execution.'))
++#  concurrency = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_NUMBERS, verbose_name=_t('Concurrency'),
++#                                 help_text=_t('The number of coordinator actions that are allowed to run concurrently (RUNNING status) '
++#                                              'before the coordinator engine starts throttling them.'))
++#  execution = models.CharField(max_length=10, null=True, blank=True, verbose_name=_t('Execution'),
++#                               choices=(('FIFO', _t('FIFO (oldest first) default')),
++#                                        ('LIFO', _t('LIFO (newest first)')),
++#                                        ('LAST_ONLY', _t('LAST_ONLY (discards all older materializations)'))),
++#                                 help_text=_t('Execution strategy of its coordinator actions when there is backlog of coordinator '
++#                                              'actions in the coordinator engine. The different execution strategies are \'oldest first\', '
++#                                              '\'newest first\' and \'last one only\'. A backlog normally happens because of delayed '
++#                                              'input data, concurrency control or because manual re-runs of coordinator jobs.'))
++#  throttle = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_NUMBERS, verbose_name=_t('Throttle'),
++#                                 help_text=_t('The materialization or creation throttle value for its coordinator actions. '
++#                                              'Number of maximum coordinator actions that are allowed to be in WAITING state concurrently.'))
++#  job_properties = models.TextField(default='[]', verbose_name=_t('Workflow properties'),
++#                                    help_text=_t('Additional properties to transmit to the workflow, e.g. limit=100, and EL functions, e.g. username=${coord:user()}'))
++
++
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+new file mode 100644
+index 0000000..93717ca
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -0,0 +1,184 @@
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++<%!
++from desktop.views import commonheader, commonfooter
++from django.utils.translation import ugettext as _
++%>
++
++<%namespace name="dashboard" file="/common_dashboard.mako" />
++<%namespace name="utils" file="../utils.inc.mako" />
++
++${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
++
++<script type="text/javascript">
++  if (window.location.hash != "") {
++    if (window.location.hash.indexOf("coordinator") > -1) {
++      location.href = "/oozie/editor/coordinator/edit/?" + window.location.hash.substr(1);
++    }
++  }
++</script>
++
++
++
++
++
++<div class="search-bar">
++  <div class="pull-right" style="padding-right:50px">
++    <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
++      <i class="fa fa-file-code-o"></i>
++    </a>
++    <a title="${ _('Import coordinators') }" rel="tooltip" data-placement="bottom" data-bind="click: import_coordinators, css: {'btn': true}">
++      <i class="fa fa fa-download"></i>
++    </a>
++    &nbsp;&nbsp;&nbsp;
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
++      <i class="fa fa-play"></i>
++    </a>
++    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
++      <i class="fa fa-pencil"></i>
++    </a>
++    &nbsp;&nbsp;&nbsp;
++    % if user.is_superuser:
++      <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsDemiModal" data-bind="css: {'btn': true}">
++        <i class="fa fa-cog"></i>
++      </button>
++      &nbsp;&nbsp;&nbsp;
++      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
++        <i class="fa fa-save"></i>
++      </button>
++      &nbsp;&nbsp;&nbsp;
++      <a class="btn" href="${ url('oozie:new_coordinator') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-file-o"></i>
++      </a>
++      <a class="btn" href="${ url('oozie:list_editor_coordinators') }" title="${ _('Coordinators') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-tags"></i>
++      </a>
++    % endif
++  </div>
++
++  <form class="form-search" style="margin: 0">
++    <strong>${_("Name")}</strong>
++    <input data-bind="value: $root.coordinator.name"/>
++  </form>
++</div>
++
++<div>
++  <div class="span6">
++    ss
++  </div>
++  <div class="span6">
++    Datasets
++  </div>
++</div>
++
++
++<div id="settingsDemiModal" class="demi-modal hide" data-backdrop="false">
++  <div class="modal-body">
++    <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
++    <div style="float: left; margin-right: 30px; text-align: center; line-height: 28px">
++
++      ${ _('Oozie Parameters') }
++      <ul data-bind="foreach: $root.coordinator.properties.parameters">
++        <li>
++          <input data-bind="value: name"/>
++          <input data-bind="value: value"/>
++          <a href="#" data-bind="click: function(){ $root.coordinator.properties.parameters.remove(this); }">
++            <i class="fa fa-minus"></i>
++          </a>
++        </li>
++      </ul>
++      <button data-bind="click: function(){ $root.coordinator.properties.parameters.push({'name': '', 'value': ''}); }">
++        <i class="fa fa-plus"></i>
++      </button>
++
++	  <br/>
++	  ${ _('Hadoop Properties') }
++	  <ul data-bind="foreach: $root.coordinator.properties.properties">
++	    <li>
++	      <input data-bind="value: name"/>
++	      <input data-bind="value: value"/>
++	      <a href="#" data-bind="click: function(){ $root.coordinator.properties.properties.remove(this); }">
++	        <i class="fa fa-minus"></i>
++	      </a>
++	    </li>
++	  </ul>
++	  <button data-bind="click: function(){ $root.coordinator.properties.properties.push({'name': '', 'value': ''}); }">
++	    <i class="fa fa-plus"></i>
++	  </button>
++
++      <br/>
++      ${ _("Job XML") }
++      <input data-bind="value: $root.coordinator.properties.job_xml"/>
++
++      <br/>
++      <div class="control-group">
++        <label class="control-label">${ _('SLA Configuration') }</label>
++        <div class="controls" data-bind="with: $root.coordinator.properties">
++          ${ utils.slaForm() }
++        </div>
++      </div>
++    </div>
++  </div>
++</div>
++
++
++<div id="submit-wf-modal" class="modal hide"></div>
++
++<div id="exposeOverlay"></div>
++
++<link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
++<link rel="stylesheet" href="/static/ext/css/hue-charts.css">
++<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
++<link rel="stylesheet" href="/oozie/static/css/coordinator-editor.css">
++
++
++<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
++
++
++<script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/hue.utils.js"></script>
++<script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
++
++
++<script src="/oozie/static/js/coordinator-editor.ko.js" type="text/javascript" charset="utf-8"></script>
++
++
++<script type="text/javascript">
++  ${ utils.slaGlobal() }
++
++  var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode });
++  ko.applyBindings(viewModel);
++
++  function showAddActionDemiModal(widget) {
++    newAction = widget;
++    $("#addActionDemiModal").modal("show");
++  }
++
++  function addActionDemiModalFieldPreview(field) {
++    if (newAction != null) {
++      viewModel.coordinator.addNode(newAction);
++      $("#addActionDemiModal").modal("hide");
++    }
++  }
++
++  function addActionDemiModalFieldCancel() {
++    viewModel.removeWidgetById(newAction.id());
++  }
++</script>
++
++${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+new file mode 100644
+index 0000000..db35cfc
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -0,0 +1,140 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  from oozie.utils import smart_path
++  from oozie.conf import ENABLE_CRON_SCHEDULING
++%>
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++
++<%def name="render_dataset_instance(dataset)">
++  % if dataset.instance_choice == 'default':
++    <instance>${ '${'}coord:current(0)}</instance>
++  % elif dataset.instance_choice == 'single':
++    % if not dataset.is_advanced_start_instance:
++      <instance>${ '${'}coord:current(${ dataset.start_instance })}</instance>
++    % else:
++      <instance>${ dataset.advanced_start_instance }</instance>
++    % endif
++  % else:
++    <start-instance>
++      % if not dataset.is_advanced_start_instance:
++        ${ '${'}coord:current(${ dataset.start_instance })}
++      % else:
++        ${ dataset.advanced_start_instance }
++      % endif
++    </start-instance>
++    <end-instance>
++      % if not dataset.is_advanced_end_instance:
++        ${ '${'}coord:current(${ dataset.end_instance })}
++      % else:
++        ${ dataset.advanced_end_instance }
++      % endif
++    </end-instance>
++  % endif
++</%def>
++
++
++<coordinator-app name="${ coord.name }"
++  % if ENABLE_CRON_SCHEDULING.get():
++  frequency="${ coord.cron_frequency['frequency'] }"
++  % else:
++  frequency="${ coord.frequency }"
++  % endif
++  start="${ coord.start_utc }" end="${ coord.end_utc }" timezone="${ coord.timezone }"
++  xmlns="${ 'uri:oozie:coordinator:0.4' if coord.sla_enabled else coord.schema_version | n,unicode }"
++  ${ 'xmlns:sla="uri:oozie:sla:0.2"' if coord.sla_enabled else '' | n,unicode }>
++  % if coord.timeout is not None or coord.concurrency is not None or coord.execution or coord.throttle is not None:
++  <controls>
++    % if coord.timeout is not None:
++    <timeout>${ coord.timeout }</timeout>
++    % endif
++    % if coord.concurrency is not None:
++    <concurrency>${ coord.concurrency }</concurrency>
++    % endif
++    % if coord.execution:
++    <execution>${ coord.execution }</execution>
++    % endif
++    % if coord.throttle is not None:
++    <throttle>${ coord.throttle }</throttle>
++    % endif
++  </controls>
++  % endif
++
++  % if coord.dataset_set.exists():
++  <datasets>
++    % for dataset in coord.dataset_set.all():
++    <dataset name="${ dataset.name }" frequency="${ dataset.frequency }"
++             initial-instance="${ dataset.start_utc }" timezone="${ dataset.timezone }">
++      <uri-template>${ smart_path(dataset.uri, mapping) }</uri-template>
++      <done-flag>${ dataset.done_flag }</done-flag>
++    </dataset>
++    % endfor
++  </datasets>
++  % endif
++
++  % if coord.datainput_set.exists():
++  <input-events>
++    % for input in coord.datainput_set.all():
++    <data-in name="${ input.name }" dataset="${ input.dataset.name }">
++      ${ render_dataset_instance(input.dataset) }
++    </data-in>
++    % endfor
++  </input-events>
++  % endif
++
++  % if coord.dataoutput_set.exists():
++  <output-events>
++    % for output in coord.dataoutput_set.all():
++    <data-out name="${ output.name }" dataset="${ output.dataset.name }">
++      ${ render_dataset_instance(output.dataset) }
++    </data-out>
++    % endfor
++  </output-events>
++  % endif
++
++  <action>
++    <workflow>
++      <app-path>${'${'}wf_application_path}</app-path>
++      % if coord.datainput_set.exists() or coord.dataoutput_set.exists() or coord.get_properties():
++      <configuration>
++        % for input in coord.datainput_set.all():
++          <property>
++            <name>${ input.name }</name>
++            <value>${'${'}coord:dataIn('${ input.name }')}</value>
++          </property>
++        % endfor
++        % for output in coord.dataoutput_set.all():
++        <property>
++          <name>${ output.name }</name>
++          <value>${'${'}coord:dataOut('${ output.name }')}</value>
++        </property>
++        % endfor
++        % for property in coord.get_properties():
++        <property>
++          <name>${ property['name'] }</name>
++          <value>${ property['value'] }</value>
++        </property>
++        % endfor
++      </configuration>
++      % endif
++   </workflow>
++   ${ common.sla(coord) }
++  </action>
++</coordinator-app>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+new file mode 100644
+index 0000000..756e79c
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+@@ -0,0 +1,44 @@
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%!
++  from desktop.views import commonheader, commonfooter
++  from django.utils.translation import ugettext as _
++%>
++<%namespace name="actionbar" file="../actionbar.mako" />
++<%namespace name="layout" file="../navigation-bar.mako" />
++<%namespace name="utils" file="../utils.inc.mako" />
++
++${ commonheader(_("Coordinators"), "oozie", user) | n,unicode }
++${ layout.menubar(section='Coordinators') }
++
++
++<div class="container-fluid">
++  <div class="card card-small">
++  <h1 class="card-heading simple">${ _('Coordinator Editor') }</h1>
++
++  % for coordinator in coordinators:
++    <div>
++      <a href="${ url('oozie:edit_coordinator') }?coordinator=${ coordinator.id }">
++        ${ coordinator.name }
++      </a>
++    </div>
++  % endfor
++
++  </div>
++</div>
++
++${commonfooter(messages) | n,unicode}
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index f8f1b8f..67ba9fc 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -80,6 +80,10 @@ urlpatterns += patterns(
+   
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+   url(r'^editor/workflow/import_workflows/$', 'import_hue_3_7_workflows', name='import_hue_3_7_workflows'), # Temporary
++  
++  url(r'^editor/coordinator/list/$', 'list_editor_coordinators', name='list_editor_coordinators'),
++  url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
++  url(r'^editor/coordinator/new/$', 'new_coordinator', name='new_coordinator'),
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 5b5949b..401f567 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -35,7 +35,7 @@ from liboozie.oozie_api import get_oozie
+ from liboozie.submission2 import Submission
+ 
+ from oozie.forms import ParameterForm
+-from oozie.models2 import Workflow, NODES, WORKFLOW_NODE_PROPERTIES, import_workflows_from_hue_3_7
++from oozie.models2 import Workflow, Coordinator, NODES, WORKFLOW_NODE_PROPERTIES, import_workflows_from_hue_3_7
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -230,4 +230,79 @@ def import_hue_3_7_workflows(request):
+     response['message'] = str(e)
+     
+   return HttpResponse(json.dumps(response), mimetype="application/json") 
+-  
+\ No newline at end of file
++
++
++
++def list_editor_coordinators(request):
++  coordinators = Document2.objects.filter(type='oozie-coordinator2', owner=request.user)
++
++  return render('editor/list_editor_coordinators.mako', request, {
++      'coordinators': coordinators
++  })
++
++
++def edit_coordinator(request):
++
++  coordinator_id = request.GET.get('coordinator')
++  
++  if coordinator_id:
++    coordinator = Coordinator(document=Document2.objects.get(id=coordinator_id)) # Todo perms
++  else:
++    coordinator = Coordinator()
++  
++  coordinator_data = coordinator.get_data()
++
++  api = get_oozie(request.user)
++  credentials = Credentials()
++  
++  try:  
++    credentials.fetch(api)
++  except Exception, e:
++    LOG.error(smart_str(e))
++
++  return render('editor/coordinator_editor.mako', request, {
++      'coordinator_json': json.dumps(coordinator_data['coordinator']),
++      'credentials_json': json.dumps(credentials.credentials.keys()),
++  })
++
++
++def new_coordinator(request):
++  return edit_coordinator(request)
++
++
++def save_coordinator(request):
++  response = {'status': -1}
++
++  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  layout = json.loads(request.POST.get('layout', '{}'))
++
++  name = 'test'
++
++  if workflow.get('id'):
++    workflow_doc = Document2.objects.get(id=workflow['id'])
++  else:      
++    workflow_doc = Document2.objects.create(name=name, type='oozie-workflow2', owner=request.user)
++
++  subworkflows = [node['properties']['subworkflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
++  if subworkflows:
++    dependencies = Document2.objects.filter(uuid__in=subworkflows)
++    workflow_doc.dependencies = dependencies
++
++  workflow_doc.update_data({'workflow': workflow})
++  workflow_doc.update_data({'layout': layout})
++  workflow_doc.name = name
++  workflow_doc.save()
++  
++  workflow_instance = Workflow(document=workflow_doc)
++  workflow_instance.check_workspace(request.fs)
++  
++  response['status'] = 0
++  response['id'] = workflow_doc.id
++  response['message'] = _('Page saved !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++
++def submit_coordinator(request, doc_id):
++  pass
+diff --git a/apps/oozie/static/css/coordinator-editor.css b/apps/oozie/static/css/coordinator-editor.css
+new file mode 100644
+index 0000000..f585dda
+--- /dev/null
++++ b/apps/oozie/static/css/coordinator-editor.css
+@@ -0,0 +1,381 @@
++/*
++ Licensed to Cloudera, Inc. under one
++ or more contributor license agreements.  See the NOTICE file
++ distributed with this work for additional information
++ regarding copyright ownership.  Cloudera, Inc. licenses this file
++ to you under the Apache License, Version 2.0 (the
++ "License"); you may not use this file except in compliance
++ with the License.  You may obtain a copy of the License at
++
++     http://www.apache.org/licenses/LICENSE-2.0
++
++ Unless required by applicable law or agreed to in writing, software
++ distributed under the License is distributed on an "AS IS" BASIS,
++ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ See the License for the specific language governing permissions and
++ limitations under the License.
++*/
++
++.dropdown-menu li {
++  font-size: 14px;
++}
++
++.dropdown a.dropdown-toggle {
++  padding-left: 10px;
++  padding-right: 10px;
++}
++
++.search-bar {
++  background-color: #F5F5F5;
++  border-bottom: 1px solid #e3e3e3;
++  -webkit-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  -moz-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  margin: 0;
++  padding: 10px;
++  padding-left: 20px;
++  padding-right: 20px;
++  text-align: left;
++  width: 100%;
++  position: fixed;
++  top: 28px;
++  z-index: 1000;
++}
++
++.search-bar input {
++  margin-left: 10px;
++  padding-right: 20px;
++}
++
++.search-bar ul li {
++  text-align: right;
++}
++
++.sort-by {
++  font-size: 11px;
++  height: 24px;
++  width: 120px;
++  margin-top: -2px;
++}
++
++.nav-header {
++  padding-left: 0 !important;
++  padding-top: 8px;
++}
++
++.facet-list {
++  list-style: none outside none;
++  padding: 0;
++  margin: 0;
++}
++
++.facet-list li {
++  padding-left: 8px;
++  padding-right: 3px;
++}
++
++.facet-list li a {
++  word-wrap: break-word;
++}
++
++.counter {
++  color: #999999;
++  font-size: 13px;
++}
++
++.pagination {
++  border-radius: 4px 4px 4px 4px;
++  list-style: none outside none;
++  margin: 0 0 20px;
++  padding: 8px 15px;
++}
++
++.results.container {
++  width: 1180px;
++}
++
++.results.span2 {
++  width: 180px;
++}
++
++.results.span10 {
++  width: 980px;
++}
++
++.results.span12 {
++  width: 1180px;
++}
++
++.errorlist {
++  display: none;
++}
++
++.breadcrumb {
++  background-color: #FFFFFF;
++  padding-left: 0;
++  margin-bottom: 0;
++}
++
++#result-container {
++  margin-top: 20px;
++}
++
++.facetItem {
++  display: none;
++}
++
++.selectMask {
++  background-color: #F9F9F9;
++  background-image: linear-gradient(to bottom, #FFFFFF, #F1F1F1);
++  background-repeat: repeat-x;
++  border: 1px solid #C0C0C0;
++  border-right-color: rgba(0, 0, 0, 0.1);
++  border-radius: 2px;
++  border-bottom-right-radius: 0;
++  border-top-right-radius: 0;
++  box-shadow: none;
++  color: #444444;
++  display: inline-block;
++  font-size: 13px;
++  height: 29px;
++  line-height: 29px;
++  margin: 0;
++  margin-left: 5px;
++  min-height: 29px;
++  min-width: 120px;
++  padding: 0 8px;
++  text-shadow: none;
++  vertical-align: middle;
++  overflow: hidden;
++  text-overflow: ellipsis;
++}
++
++.download-btn-group {
++  min-width: auto;
++}
++
++.download-btn-group > ul > li {
++  text-align: left;
++}
++
++em {
++  font-weight: bold;
++  background-color: yellow;
++}
++
++.fields-chooser li {
++  cursor: pointer;
++  margin-bottom: 10px;
++}
++
++.fields-chooser li .badge {
++  font-weight: normal;
++  font-size: 12px;
++}
++
++.badge-left {
++  border-radius: 9px 0px 0px 9px;
++  padding-right: 5px;
++}
++
++.badge-right {
++  border-radius: 0px 9px 9px 0px;
++  padding-left: 5px;
++}
++
++.trash-filter {
++  cursor: pointer;
++}
++
++.editable-click {
++  cursor: pointer;
++}
++
++.CodeMirror {
++  border: 1px dotted #DDDDDD;
++}
++
++[contenteditable=true] {
++  border: 1px dotted #DDDDDD;
++  outline: 0;
++  margin-top: 20px;
++  margin-bottom: 20px;
++  min-height: 150px;
++}
++
++[contenteditable=true] [class*="span"], .tmpl [class*="span"] {
++  background-color: #eee;
++  -webkit-border-radius: 3px;
++  -moz-border-radius: 3px;
++  border-radius: 3px;
++  min-height: 40px;
++  line-height: 40px;
++  background-color: #F3F3F3;
++  border: 2px dashed #DDD;
++}
++
++.tmpl {
++  margin: 10px;
++  height: 60px;
++}
++
++.tmpl [class*="span"] {
++  color: #999;
++  font-size: 12px;
++  text-align: center;
++  font-weight: bold;
++}
++
++.editor-title {
++  font-weight: bold;
++  color: #262626;
++  border-bottom: 1px solid #338bb8;
++}
++
++.document-details {
++  background-color: #F6F6F6;
++  padding: 10px;
++  border: 1px solid #e5e5e5;
++}
++
++.result-row:nth-child(even) {
++  background-color: #F6F6F6;
++}
++
++.result-row td {
++  white-space: nowrap;
++  padding: 3px;
++}
++
++#result-container thead tr {
++  border-bottom: 1px solid #e5e5e5;
++}
++
++.demi-modal {
++  min-height: 80px;
++}
++
++.filter-box {
++  float: left;
++  margin-right: 10px;
++  margin-bottom: 10px;
++  background-color: #F6F6F6;
++  padding: 5px;
++  border: 1px solid #d8d8d8;
++  -webkit-border-radius: 3px;
++  -moz-border-radius: 3px;
++  border-radius: 3px;
++}
++
++.field-selector {
++  display: inline-block;
++  margin-left: 3px;
++  min-height: 20px;
++  line-height: 20px
++}
++
++.field-selector.hoverable {
++  cursor: pointer;
++}
++
++.field-selector.hoverable:hover {
++  background-color: #DDD;
++}
++
++.draggable-icon {
++  cursor: move;
++}
++
++.chosen-container .chosen-results li {
++  text-align: left;
++}
++
++#emptyDashboard {
++  right: 70px!important;
++}
++
++.drop-target {
++  background-color: #F6F6F6;
++  min-height: 20px;
++  border: 2px dashed #DDD;
++  text-align: center;
++  padding: 4px;
++}
++
++.ui-sortable.drop-target {
++  min-height: 20px;
++}
++
++.drop-target-highlight {
++  min-height: 20px;
++  background-color: #CCC;
++}
++
++.drop-target-disabled {
++  background-color: #FFFFFF;
++  border-color: #FFFFFF;
++}
++
++
++.drop-target-side {
++  min-height: 100px;
++  height: 100%;
++}
++
++.dashboard .row-fluid .span10.readonly {
++  width: 100%;
++  margin-left: 0;
++}
++
++.dashboard .row-fluid .span1.readonly {
++  width: 0;
++}
++
++.readonly .card-widget {
++  border: 1px solid #d8d8d8!important;
++}
++
++.row-fluid [class*="span"] {
++  margin-left: 0.5%;
++}
++
++.row-fluid .span10 {
++  width: 90%;
++}
++
++.row-fluid .span1 {
++  width: 4.5%;
++}
++
++.prop-editor {
++  display: none;
++}
++
++.prop-editor .tab-pane {
++  overflow-y: auto;
++  max-height: 350px;
++}
++
++.card-widget {
++  position:relative;
++}
++
++#exposeOverlay {
++  background-color:#000;
++  opacity: 0.3;
++  display:none;
++  width:100%;
++  height:100%;
++  position:fixed;
++  top:0;
++  left:0;
++  z-index:1031;
++}
++
++.ui-sortable-disabled {
++  background-color: #f1f1f1!important;
++}
++
++.card-column-disabled {
++  background-color: #f1f1f1;
++}
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+new file mode 100644
+index 0000000..4945006
+--- /dev/null
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -0,0 +1,108 @@
++// Licensed to Cloudera, Inc. under one
++// or more contributor license agreements.  See the NOTICE file
++// distributed with this work for additional information
++// regarding copyright ownership.  Cloudera, Inc. licenses this file
++// to you under the Apache License, Version 2.0 (the
++// "License"); you may not use this file except in compliance
++// with the License.  You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++
++
++
++// End dashboard lib
++
++var Coordinator = function (vm, coordinator) {
++  var self = this;
++
++  self.id = ko.observable(typeof coordinator.id != "undefined" && coordinator.id != null ? coordinator.id : null);
++  self.uuid = ko.observable(typeof coordinator.uuid != "undefined" && coordinator.uuid != null ? coordinator.uuid : UUID());
++  self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "");
++
++  self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
++  self.datasets = ko.observableArray([]);
++  self.inputDatasets = ko.observableArray([]);
++  self.outputDatasets = ko.observableArray([]);
++}
++
++
++var CoordinatorEditorViewModel = function (coordinator_json, credentials_json) {
++  var self = this;
++
++  self.isEditing = ko.observable(true);
++  self.isEditing.subscribe(function(newVal){
++    $(document).trigger("editingToggled");
++  });
++  self.toggleEditing = function () {
++    self.isEditing(! self.isEditing());
++  };
++
++  self.coordinator = new Coordinator(self, coordinator_json);
++  self.credentials = ko.mapping.fromJSON(credentials_json);
++
++  self.save = function () {
++    $.post("/oozie/editor/coodinator/save/", {
++        "coordinator": ko.mapping.toJSON(self.coordinator)
++    }, function (data) {
++      if (data.status == 0) {
++        self.coordinator.id(data.id);
++        $(document).trigger("info", data.message);
++        if (window.location.search.indexOf("coordinator") == -1) {
++          window.location.hash = '#coordinator=' + data.id;
++        }
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
++
++  self.gen_xml = function () {
++    $.post("/oozie/editor/coodinator/gen_xml/", {
++        "coordinator": ko.mapping.toJSON(self.coordinator)
++    }, function (data) {
++      if (data.status == 0) {
++        console.log(data.xml);
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
++
++  self.import_coordinators = function () {
++    $.post("/oozie/editor/coodinator/import_coordinators/", {
++    }, function (data) {
++      if (data.status == 0) {
++        console.log(data.json);
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
++  
++  self.showSubmitPopup = function () {
++    // If self.coordinator.id() == null, need to save wf for now
++
++    $.get("/oozie/editor/coordinator/submit/" + self.coordinator.id(), {
++      }, function (data) {
++        $(document).trigger("showSubmitPopup", data);
++    }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++    });
++  };
++};
+-- 
+1.7.9.5
+

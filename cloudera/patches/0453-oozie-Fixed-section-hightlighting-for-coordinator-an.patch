@@ -1,0 +1,44 @@
+From 62318191e77c783b7256a9318a7350f470f26d98 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 15 Jan 2015 13:27:16 +0100
+Subject: [PATCH 0453/1173] [oozie] Fixed section hightlighting for
+ coordinator and bundles list
+
+---
+ .../templates/editor/list_editor_bundles.mako      |    4 +---
+ .../templates/editor/list_editor_coordinators.mako |    4 +---
+ 2 files changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+index ceb68cc..56bbea8 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+@@ -23,9 +23,7 @@
+ <%namespace name="utils" file="../utils.inc.mako" />
+ 
+ ${ commonheader(_("Bundles"), "oozie", user) | n,unicode }
+-${ layout.menubar(section='Bundles', is_editor=True) }
+-
+-
++${ layout.menubar(section='bundles', is_editor=True) }
+ 
+ <div id="editor">
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+index 76e6c8c..86b301f 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+@@ -23,9 +23,7 @@
+ <%namespace name="utils" file="../utils.inc.mako" />
+ 
+ ${ commonheader(_("Coordinators"), "oozie", user) | n,unicode }
+-${ layout.menubar(section='Coordinators', is_editor=True) }
+-
+-
++${ layout.menubar(section='coordinators', is_editor=True) }
+ 
+ <div id="editor">
+ 
+-- 
+1.7.9.5
+

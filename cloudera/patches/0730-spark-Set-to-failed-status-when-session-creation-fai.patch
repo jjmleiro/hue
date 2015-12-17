@@ -1,0 +1,62 @@
+From 7f1fa1aec06bc8456dc7cb5322cfabaee3d9dff2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sun, 1 Feb 2015 14:44:55 -0500
+Subject: [PATCH 0730/1173] [spark] Set to failed status when session creation
+ failed
+
+---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ apps/spark/static/js/spark.ko.js           |   10 +++++++---
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 6fdbc6b..05ba424 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -338,7 +338,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'viewportMargin': Infinity, 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }">
+             </textarea>
+             <span data-bind="visible: status() == 'loading'" class="codeMirror-overlaybtn pointer">
+-              <i class='fa fa-spinner fa-spin fa-2x'></i>
++              <i class='fa fa-spinner fa-spin fa-2x'></i> ${ _('Creating session') }
+             </span>
+             <a title="${ _('CTRL + ENTER') }" data-bind="click: execute, visible: status() != 'running' && status() != 'loading'" class="btn codeMirror-overlaybtn pointer">
+               ${ _('Go!') }
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 9de93ee..48c9ebd 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -33,9 +33,7 @@ var Result = function (snippet, result) {
+   self.endTime = ko.observable(typeof result.endTime != "undefined" && result.endTime != null ? new Date(result.endTime) : new Date());
+   self.executionTime = ko.computed(function() {
+     return self.endTime().getTime() - self.startTime().getTime();
+-  });
+-  self.type = ko.observable(typeof result.type != "undefined" && result.type != null ? result.type : 'plain');
+-  
++  });  
+   
+   function isNumericColumn(type) {
+     return $.inArray(type, ['TINYINT_TYPE', 'SMALLINT_TYPE', 'INT_TYPE', 'BIGINT_TYPE', 'FLOAT_TYPE', 'DOUBLE_TYPE', 'DECIMAL_TYPE', 'TIMESTAMP_TYPE', 'DATE_TYPE']) > -1;
+@@ -289,6 +287,7 @@ var Snippet = function (vm, notebook, snippet) {
+ 	      self.status('ready');
+ 	    }
+ 	    else {
++	      self.status('failed');
+ 	      $(document).trigger("error", data.message);
+ 	    }
+ 	}).fail(function (xhr, textStatus, errorThrown) {
+@@ -482,6 +481,11 @@ var Snippet = function (vm, notebook, snippet) {
+   self.init = function() {
+ 	if (self.status() == 'running') {
+ 	  self.checkStatus();
++	}
++	
++	if (self.status() == 'loading') {
++	  self.status('failed');
++	  self.progress(0);
+ 	} 
+ 	
+ 	if (self.status() != 'loading' && self.status() != 'ready') {
+-- 
+1.7.9.5
+

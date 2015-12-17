@@ -1,0 +1,156 @@
+From 471315bbeaf85f5596ac9c18e894e9d059d97d04 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 7 Jan 2015 14:46:01 -0800
+Subject: [PATCH 0407/1173] [oozie] Friendler UX for action with a script with
+ parameters
+
+Invite the user to fill up parameters if some are required
+Remove used parameters from the autocomplete list
+---
+ .../templates/editor/gen2/workflow-distcp.xml.mako |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   52 ++++++++++++--------
+ 3 files changed, 35 insertions(+), 23 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
+index fce86d3..15c5f92 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-distcp.xml.mako
+@@ -30,7 +30,7 @@
+             % endif
+ 
+             % for argument in node['properties']['distcp_parameters']:
+-              <argument>${ argument['value'] }</argument>
++              <arg>${ argument['value'] }</arg>
+             % endfor
+         </distcp>
+         <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 06faa98..86cbde5 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -603,13 +603,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+ <script type="text/html" id="common-properties-parameters">
+   <h6>
+-    <a class="pointer" data-bind="click: function(){ properties.parameters.push({'value': ''}); $(document).trigger('drawArrows')}">
++    <a class="pointer" data-bind="click: function(){ properties.parameters.push(ko.mapping.fromJS({'value': ''})); $(document).trigger('drawArrows')}">
+       ${ _('Parameters') } <i class="fa fa-plus"></i>
+     </a>
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser, keyup: enableFilechooser }, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
++      <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser, keyup: enableFilechooser }, attr: { placeholder: ' ${ _("Fill me up!") }' }, typeahead: { target: value, source: $parent.actionParametersUI, sourceSuffix: '=', triggerOnFocus: true }"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 9728958..1012091 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -85,10 +85,13 @@ var Node = function (node) {
+   self.children = ko.mapping.fromJS(typeof node.children != "undefined" && node.children != null ? node.children : []);
+ 
+   self.actionParameters = ko.observableArray([]);
+-  self.actionParametersUI = ko.computed(function() { // TODO: remove truncation when autocomplete
+-    if (self.actionParameters()){
+-      return $.map(self.actionParameters().slice(0, 3), function(param) {return param + '=...'}).join();  
+-    }
++  self.actionParametersUI = ko.computed(function() {
++	if (typeof self.properties.parameters != "undefined") {
++      var _vars = $.map(self.properties.parameters(), function(p, i) { return p.value().split('=', 1)[0]; });
++      return $.grep(self.actionParameters(), function(param) {
++        return _vars.indexOf(param) == -1;
++      });
++	}
+   });
+   self.actionParametersFetched = ko.observable(false);
+   
+@@ -101,7 +104,7 @@ var Node = function (node) {
+       }
+     });
+     return _link;
+-  }
++  };
+ 
+   self.set_link = function (name, node_id) {
+     var _link = self.get_link(name);
+@@ -112,7 +115,7 @@ var Node = function (node) {
+     }
+     _link[name] = node_id;
+     self.children.valueHasMutated();
+-  }
++  };
+ 
+   self.remove_link = function (name, child) {
+     var _link = null;
+@@ -126,19 +129,28 @@ var Node = function (node) {
+     if (_link != null) {
+       self.children.remove(_link);
+     }
+-  }
++  };
++  
++  self.fetch_parameters = function() {
++    if (typeof self.properties.parameters != "undefined" && ! self.actionParametersFetched()) { // Fetch once the possible variable when they exist 
++      $.post("/oozie/editor/workflow/action/parameters/", {
++         "node": ko.mapping.toJSON(self),
++	  }, function (data) {
++	    self.actionParametersFetched(true);
++	    self.actionParameters(data.parameters);
++	    if (data.parameters.length > 0 && self.properties.parameters().length == 0) { // If new node with variables, give a hint by adding a parameter
++	      self.properties.parameters.push(ko.mapping.fromJS({'value': ''}));
++	    }
++	  }).fail(function (xhr, textStatus, errorThrown) {
++	    $(document).trigger("error", xhr.responseText);
++      });
++    }
++  };  
+   
+-  if (typeof self.properties.parameters != "undefined") { // Fetch once the possible variable when they exist 
+-    self.properties.parameters.subscribe(function(newVal) { // TODO: only fetch when first time focus on one of the parameters and showing the autocomplete.
+-      if (newVal && ! self.actionParametersFetched()) {
+-	    $.post("/oozie/editor/workflow/action/parameters/", {
+-		  "node": ko.mapping.toJSON(self),
+-	     }, function (data) {
+-	       self.actionParametersFetched(true);
+-  	       self.actionParameters(data.parameters);
+-	    }).fail(function (xhr, textStatus, errorThrown) {
+-	      $(document).trigger("error", xhr.responseText);
+-	    });
++  if (typeof self.properties.parameters != "undefined") { 
++    self.properties.parameters.subscribe(function(newVal) {
++      if (newVal) {
++	    self.fetch_parameters();
+ 	  }
+     });  
+   }
+@@ -229,6 +241,7 @@ var Workflow = function (vm, workflow) {
+           if (data.workflows.length > 0) {
+             viewModel.subworfklows(data.workflows);
+           }
++
+           if (callback) {
+             callback(widget);
+           }
+@@ -253,6 +266,7 @@ var Workflow = function (vm, workflow) {
+           var node = self.movedNode;
+         } else {
+           var node = new Node(_node);
++          node.fetch_parameters();
+         }
+ 
+         self.nodes.push(node);
+@@ -1027,8 +1041,6 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   };
+ 
+   self.showSubmitPopup = function () {
+-    // If self.workflow.id() == null, need to save wf for now
+-
+     $.get("/oozie/editor/workflow/submit/" + self.workflow.id(), {
+     }, function (data) {
+       $(document).trigger("showSubmitPopup", data);
+-- 
+1.7.9.5
+

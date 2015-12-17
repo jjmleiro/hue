@@ -1,0 +1,32 @@
+From 02e34c366c454c73e0f3d01c3bdabf01a97d116e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 11 Dec 2014 18:20:22 -0800
+Subject: [PATCH 0146/1173] [beeswax] Handle case where a PartitionKey
+ includes extra ','s or ':'s
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index ecab681..093f741 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -676,10 +676,10 @@ class PartitionKeyCompatible:
+ 
+   def __init__(self, partition):
+     # Parses: ['name:datehour, type:int, comment:null']
+-    name, type, comment = partition.split(', ')
+-    self.name = name.split(':')[1]
+-    self.type = type.split(':')[1]
+-    self.comment = comment.split(':')[1]
++    name, type, comment = partition.split(', ', 2)
++    self.name = name.split(':', 1)[1]
++    self.type = type.split(':', 1)[1]
++    self.comment = comment.split(':', 1)[1]
+ 
+ 
+ class PartitionValueCompatible:
+-- 
+1.7.9.5
+

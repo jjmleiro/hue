@@ -1,0 +1,33 @@
+From b1f2f2d74efba6f67ca788579d809f33e39df4a5 Mon Sep 17 00:00:00 2001
+From: dbeech <dbeech@cloudera.com>
+Date: Fri, 23 Jan 2015 12:45:49 +0100
+Subject: [PATCH 0502/1173] [metastore] Replace 'None' with 'NULL' in table
+ sample
+
+https://github.com/cloudera/hue/pull/144
+---
+ apps/metastore/src/metastore/templates/sample.mako |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/apps/metastore/src/metastore/templates/sample.mako b/apps/metastore/src/metastore/templates/sample.mako
+index 0b63986..ce29f04 100644
+--- a/apps/metastore/src/metastore/templates/sample.mako
++++ b/apps/metastore/src/metastore/templates/sample.mako
+@@ -37,7 +37,13 @@ from django.utils.translation import ugettext as _
+       % for i, row in enumerate(sample):
+       <tr>
+         % for item in row:
+-        <td>${ smart_unicode(item, errors='ignore') }</td>
++        <td>
++          % if item is None:
++            NULL
++          % else:
++            ${ escape(smart_unicode(item, errors='ignore')).replace(' ', '&nbsp;') | n,unicode }
++          % endif
++        </td>
+         % endfor
+       </tr>
+       % endfor
+-- 
+1.7.9.5
+

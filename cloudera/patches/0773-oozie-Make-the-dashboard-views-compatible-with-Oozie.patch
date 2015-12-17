@@ -1,0 +1,258 @@
+From e8797f3c66a1df1a17b5c0afb800f4bc49781a6d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 5 Feb 2015 21:22:30 -0800
+Subject: [PATCH 0773/1173] [oozie] Make the dashboard views compatible with
+ Oozie v1
+
+---
+ apps/oozie/src/oozie/conf.py                       |    4 +-
+ apps/oozie/src/oozie/models.py                     |   13 ++---
+ apps/oozie/src/oozie/models2.py                    |   20 ++++++-
+ .../dashboard/list_oozie_coordinator.mako          |   14 ++++-
+ apps/oozie/src/oozie/views/dashboard.py            |   59 ++++++++++++++------
+ 5 files changed, 80 insertions(+), 30 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/conf.py b/apps/oozie/src/oozie/conf.py
+index 370201d..7deefec 100644
+--- a/apps/oozie/src/oozie/conf.py
++++ b/apps/oozie/src/oozie/conf.py
+@@ -63,12 +63,11 @@ OOZIE_JOBS_COUNT = Config(
+ 
+ ENABLE_V2 = Config( # Until Hue 4
+   key='enable_v2',
+-  default=False,
++  default=True,
+   type=coerce_bool,
+   help=_t('Use version 2 of Editor.')
+ )
+ 
+-
+ ENABLE_CRON_SCHEDULING = Config( # Until Hue 3.8
+   key='enable_cron_scheduling',
+   default=True,
+@@ -76,6 +75,7 @@ ENABLE_CRON_SCHEDULING = Config( # Until Hue 3.8
+   help=_t('Use Cron format for defining the frequency of a Coordinator instead of the old frequency number/unit.')
+ )
+ 
++
+ def config_validator(user):
+   res = []
+ 
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index df7f09b..a01b66d 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -42,7 +42,7 @@ from desktop.log.access import access_warn
+ from desktop.lib import django_mako
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.json_utils import JSONEncoderForHTML
+-from desktop.models import Document, Document2
++from desktop.models import Document
+ from hadoop.fs.exceptions import WebHdfsException
+ 
+ from hadoop.fs.hadoopfs import Hdfs
+@@ -50,7 +50,6 @@ from liboozie.submittion import Submission
+ from liboozie.submittion import create_directories
+ 
+ from oozie.conf import REMOTE_SAMPLE_DIR
+-from oozie.models2 import Workflow as NewWorkflow, Coordinator as NewCoordinator
+ from oozie.utils import utc_datetime_format
+ from oozie.timezones import TIMEZONES
+ 
+@@ -1909,17 +1908,15 @@ class History(models.Model):
+   @classmethod
+   def get_workflow_from_config(self, conf_dict):
+     try:
+-      doc = Document2.objects.get(type='oozie-workflow2', id=conf_dict.get(Workflow.HUE_ID))
+-      return NewWorkflow(document=doc)
+-    except Document2.DoesNotExist:
++      return Workflow.objects.get(id=conf_dict.get(Workflow.HUE_ID))
++    except Workflow.DoesNotExist:
+       pass
+ 
+   @classmethod
+   def get_coordinator_from_config(self, conf_dict):
+     try:
+-      doc = Document2.objects.get(type='oozie-coordinator2', id=conf_dict.get(Coordinator.HUE_ID))
+-      return NewCoordinator(document=doc)
+-    except Document2.DoesNotExist:
++      return Coordinator.objects.get(id=conf_dict.get(Coordinator.HUE_ID))
++    except Coordinator.DoesNotExist:
+       pass
+ 
+   @classmethod
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 817343e..c7fc02a 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1790,7 +1790,6 @@ class Bundle(Job):
+                 'mapping': mapping
+            })))
+ 
+-
+   @property
+   def name(self):
+     return self.data['name']
+@@ -1812,3 +1811,22 @@ class Bundle(Job):
+ 
+   def find_parameters(self):
+     return {}
++
++
++class History(object):
++
++  @classmethod
++  def get_workflow_from_config(self, conf_dict):
++    try:
++      doc = Document2.objects.get(type='oozie-workflow2', id=conf_dict.get(Workflow.HUE_ID))
++      return Workflow(document=doc)
++    except Document2.DoesNotExist:
++      pass
++
++  @classmethod
++  def get_coordinator_from_config(self, conf_dict):
++    try:
++      doc = Document2.objects.get(type='oozie-coordinator2', id=conf_dict.get(Coordinator.HUE_ID))
++      return Coordinator(document=doc)
++    except Document2.DoesNotExist:
++      pass
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+index 7785fe5..7f3f7b3 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+@@ -18,6 +18,8 @@
+ <%!
+   from desktop.views import commonheader, commonfooter
+   from django.utils.translation import ugettext as _
++  
++  from oozie.conf import ENABLE_V2
+ %>
+ 
+ <%namespace name="layout" file="../navigation-bar.mako" />
+@@ -70,15 +72,25 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+               <li class="white">${ oozie_coordinator.id }</li>
+ 
+               % if coordinator:
++              % if ENABLE_V2.get():
+                   <li class="nav-header">${ _('Datasets') }</li>
+                 % for dataset in coordinator.datasets:
+                   <li rel="tooltip" title="${ dataset.data['dataset_variable'] }" class="white">
+-                    <i class="fa fa-eye"></i> <span class="dataset">${ dataset.data['workflow_variable'] }</span>
++                    <i class="fa fa-eye"></i> <span class="dataset">${ dataset.data['workflow_variable'][:20] }</span>
+                   </li>
+                 % endfor
+                 % if not coordinator.datasets:
+                   <li class="white">${ _('No available datasets') }</li>
+                 % endif
++              % else:
++                  <li class="nav-header">${ _('Datasets') }</li>
++                % for dataset in coordinator.dataset_set.all():
++                  <li rel="tooltip" title="${ dataset.name } : ${ dataset.uri }" class="white"><i class="fa fa-eye"></i> <span class="dataset">${ dataset.name }</span></li>
++                % endfor
++                % if not coordinator.dataset_set.all():
++                  <li class="white">${ _('No available datasets') }</li>
++                % endif
++              % endif
+               % endif
+ 
+               % if has_job_edition_permission(oozie_coordinator, user) and oozie_coordinator.status not in ('KILLED', 'KILLED', 'SUCCEEDED'):
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 0eab3b6..4b4fcd8 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -41,17 +41,22 @@ from liboozie.oozie_api import get_oozie
+ from liboozie.submittion import Submission
+ from liboozie.types import Workflow as OozieWorkflow, Coordinator as CoordinatorWorkflow, Bundle as BundleWorkflow
+ 
+-from oozie.conf import OOZIE_JOBS_COUNT, ENABLE_CRON_SCHEDULING
+-from oozie.forms import RerunForm, ParameterForm, RerunCoordForm,\
+-  RerunBundleForm
+-from oozie.models import History, Job, Workflow, utc_datetime_format, Bundle,\
+-  Coordinator, get_link
++from oozie.conf import OOZIE_JOBS_COUNT, ENABLE_CRON_SCHEDULING, ENABLE_V2
++from oozie.forms import RerunForm, ParameterForm, RerunCoordForm, RerunBundleForm
++from oozie.models import Workflow, Job, utc_datetime_format, Bundle, Coordinator, get_link
+ from oozie.settings import DJANGO_APPS
+ 
+ 
++if ENABLE_V2.get():
++  from oozie.models2 import History
++else:
++  from oozie.models import History
++
++
+ LOG = logging.getLogger(__name__)
+ MAX_COORD_ACTIONS = 250
+ 
++
+ """
+ Permissions:
+ 
+@@ -216,22 +221,40 @@ def list_oozie_workflow(request, job_id):
+   if oozie_bundle is not None:
+     setattr(oozie_workflow, 'oozie_bundle', oozie_bundle)
+ 
+-  # To update with the new History document model
+-  hue_coord = History.get_coordinator_from_config(oozie_workflow.conf_dict)
+-  hue_workflow = (hue_coord and hue_coord.workflow) or History.get_workflow_from_config(oozie_workflow.conf_dict)
++  if ENABLE_V2.get():
++    # To update with the new History document model
++    hue_coord = History.get_coordinator_from_config(oozie_workflow.conf_dict)
++    hue_workflow = (hue_coord and hue_coord.workflow) or History.get_workflow_from_config(oozie_workflow.conf_dict)
++  
++    if hue_coord and hue_coord.workflow: hue_coord.workflow.document.doc.get().can_read_or_exception(request.user)
++    if hue_workflow: hue_workflow.document.doc.get().can_read_or_exception(request.user)
++    
++    if hue_workflow:
++      workflow_graph = hue_workflow.gen_status_graph(oozie_workflow)
++      full_node_list = hue_workflow.nodes
++    else:
++      workflow_graph, full_node_list = '', None    
++  else:
++    history = History.cross_reference_submission_history(request.user, job_id)
++
++    hue_coord = history and history.get_coordinator() or History.get_coordinator_from_config(oozie_workflow.conf_dict)
++    hue_workflow = (hue_coord and hue_coord.workflow) or (history and history.get_workflow()) or History.get_workflow_from_config(oozie_workflow.conf_dict)
+ 
+-  if hue_coord and hue_coord.workflow: hue_coord.workflow.document.doc.get().can_read_or_exception(request.user)
+-  if hue_workflow: hue_workflow.document.doc.get().can_read_or_exception(request.user)
++    if hue_coord and hue_coord.workflow: Job.objects.can_read_or_exception(request, hue_coord.workflow.id)
++    if hue_workflow: Job.objects.can_read_or_exception(request, hue_workflow.id)
++    
++    if hue_workflow:
++      workflow_graph = hue_workflow.gen_status_graph(oozie_workflow)
++      full_node_list = hue_workflow.node_list
++    else:
++      workflow_graph, full_node_list = Workflow.gen_status_graph_from_xml(request.user, oozie_workflow)
+ 
+   parameters = oozie_workflow.conf_dict.copy()
++
+   for action in oozie_workflow.actions:
+     action.oozie_coordinator = oozie_coordinator
+     action.oozie_bundle = oozie_bundle
+ 
+-  if hue_workflow:
+-    workflow_graph = hue_workflow.gen_status_graph(oozie_workflow)
+-    full_node_list = hue_workflow.nodes
+-  # If no saved workflow, we could try to parse the XML like: workflow_graph, full_node_list = Workflow.gen_status_graph_from_xml(request.user, oozie_workflow)
+ 
+   if request.GET.get('format') == 'json':
+     return_obj = {
+@@ -271,10 +294,10 @@ def list_oozie_coordinator(request, job_id):
+ 
+   # Cross reference the submission history (if any)
+   coordinator = History.get_coordinator_from_config(oozie_coordinator.conf_dict)
+-#  try:
+-#    coordinator = History.objects.get(oozie_job_id=job_id).job.get_full_node()
+-#  except History.DoesNotExist:
+-#    pass
++  try:
++    coordinator = History.objects.get(oozie_job_id=job_id).job.get_full_node()
++  except:
++    pass
+ 
+   oozie_bundle = None
+   if request.GET.get('bundle_job_id'):
+-- 
+1.7.9.5
+

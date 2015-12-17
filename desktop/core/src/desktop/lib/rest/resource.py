@@ -17,6 +17,8 @@
 import logging
 import posixpath
 
+from desktop.lib.i18n import smart_unicode
+
 LOG = logging.getLogger(__name__)
 
 
@@ -48,6 +50,9 @@ class Resource(object):
     Decide whether the body should be a json dict or string
     """
 
+    if resp.headers.get('location') and resp.headers.get('location').startswith('http://localhost:8080/'):
+      return resp.headers.get('location').split('sessions/')[1]
+
     if len(resp.content) != 0 and resp.headers.get('content-type') and \
           'application/json' in resp.headers.get('content-type'):
       try:
@@ -72,12 +77,14 @@ class Resource(object):
                                 allow_redirects=allow_redirects,
                                 urlencode=self._urlencode)
 
-    self._client.logger.debug(
-        "%s Got response: %s%s" %
-        (method, resp.content[:32], len(resp.content) > 32 and "..." or ""))
+    if self._client.logger.isEnabledFor(logging.DEBUG):
+      self._client.logger.debug(
+          "%s Got response: %s%s" %
+          (method,
+           smart_unicode(resp.content[:32], errors='replace'),
+           len(resp.content) > 32 and "..." or ""))
 
     return self._format_response(resp)
-
 
   def get(self, relpath=None, params=None, headers=None):
     """
@@ -101,18 +108,18 @@ class Resource(object):
     return self.invoke("DELETE", relpath, params)
 
 
-  def post(self, relpath=None, params=None, data=None, contenttype=None):
+  def post(self, relpath=None, params=None, data=None, contenttype=None, headers=None):
     """
     Invoke the POST method on a resource.
     @param relpath: Optional. A relative path to this resource's path.
     @param params: Key-value data.
     @param data: Optional. Body of the request.
-    @param contenttype: Optional. 
+    @param contenttype: Optional.
+    @param headers: Optional. Base set of headers.
 
     @return: A dictionary of the JSON result.
     """
-    return self.invoke("POST", relpath, params, data,
-                       self._make_headers(contenttype))
+    return self.invoke("POST", relpath, params, data, self._make_headers(contenttype, headers))
 
 
   def put(self, relpath=None, params=None, data=None, contenttype=None):
@@ -121,15 +128,18 @@ class Resource(object):
     @param relpath: Optional. A relative path to this resource's path.
     @param params: Key-value data.
     @param data: Optional. Body of the request.
-    @param contenttype: Optional. 
+    @param contenttype: Optional.
 
     @return: A dictionary of the JSON result.
     """
-    return self.invoke("PUT", relpath, params, data,
-                       self._make_headers(contenttype))
+    return self.invoke("PUT", relpath, params, data, self._make_headers(contenttype))
 
 
-  def _make_headers(self, contenttype=None):
+  def _make_headers(self, contenttype=None, headers=None):
+    if headers is None:
+      headers = {}
+
     if contenttype:
-      return { 'Content-Type': contenttype }
-    return None
+      headers.update({'Content-Type': contenttype})
+
+    return headers

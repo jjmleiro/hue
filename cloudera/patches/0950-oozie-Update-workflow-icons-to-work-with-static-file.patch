@@ -1,0 +1,45 @@
+From 7b3d7aa6f3aab5994bd22bc28d42a4e1a3829fdc Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 25 Feb 2015 16:41:51 -0800
+Subject: [PATCH 0950/1173] [oozie] Update workflow icons to work with static
+ files
+
+---
+ .../oozie/templates/editor2/common_workflow.mako   |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index fe0678d..d6dd7ee 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -153,15 +153,15 @@
+       </span>
+ 
+       <!-- ko if: widgetType() == 'hive-widget' -->
+-      <img src="/oozie/static/art/icon_beeswax_48.png" class="widget-icon">
++      <img src="${ static('oozie/art/icon_beeswax_48.png') }" class="widget-icon">
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'hive2-widget' -->
+-      <img src="/oozie/static/art/icon_beeswax_48.png" class="widget-icon"><sup style="color: #338bb8; margin-left: -4px">2</sup>
++      <img src="${ static('oozie/art/icon_beeswax_48.png') }" class="widget-icon"><sup style="color: #338bb8; margin-left: -4px">2</sup>
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'pig-widget' -->
+-      <img src="/oozie/static/art/icon_pig_48.png" class="widget-icon">
++      <img src="${ static('oozie/art/icon_pig_48.png') }" class="widget-icon">
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'java-widget' -->
+@@ -169,7 +169,7 @@
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'sqoop-widget' -->
+-      <img src="/oozie/static/art/icon_sqoop_48.png" class="widget-icon">
++      <img src="${ static('oozie/art/icon_sqoop_48.png') }" class="widget-icon">
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'mapreduce-widget' -->
+-- 
+1.7.9.5
+

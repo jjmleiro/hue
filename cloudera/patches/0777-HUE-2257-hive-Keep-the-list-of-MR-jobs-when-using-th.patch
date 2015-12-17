@@ -1,0 +1,141 @@
+From bd7a33fc6bdf6cebdefd0c1a81804c15c202c024 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Feb 2015 09:39:58 -0800
+Subject: [PATCH 0777/1173] HUE-2257 [hive] Keep the list of MR jobs when
+ using the new GetLog() API
+
+Fix queries that do not trigger MR jobs anymore in the tests
+---
+ apps/beeswax/src/beeswax/api.py      |    4 +++-
+ apps/beeswax/src/beeswax/tests.py    |   21 +++++++++------------
+ apps/beeswax/static/js/beeswax.vm.js |   18 +++++++++++++++---
+ 3 files changed, 27 insertions(+), 16 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/api.py b/apps/beeswax/src/beeswax/api.py
+index f5240ca..83c570e 100644
+--- a/apps/beeswax/src/beeswax/api.py
++++ b/apps/beeswax/src/beeswax/api.py
+@@ -35,6 +35,7 @@ import beeswax.models
+ from beeswax.forms import QueryForm
+ from beeswax.data_export import upload
+ from beeswax.design import HQLdesign
++from beeswax.conf import USE_GET_LOG_API
+ from beeswax.server import dbms
+ from beeswax.server.dbms import expand_exception, get_query_server_config, QueryServerException
+ from beeswax.views import authorized_get_design, authorized_get_query_history, make_parameterization_form,\
+@@ -190,7 +191,8 @@ def watch_query_refresh_json(request, id):
+     'isFailure': query_history.is_failure(),
+     'id': id,
+     'statement': query_history.get_current_statement(),
+-    'watch_url': reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id})
++    'watch_url': reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id}),
++    'oldLogsApi': USE_GET_LOG_API.get()
+   }
+ 
+   # Run time error
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index ecd85f5..0935e2e 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -266,7 +266,7 @@ for x in sys.stdin:
+     """
+     Testing query with udf
+     """
+-    response = _make_query(self.client, "SELECT my_sqrt(foo), my_float(foo) FROM test WHERE foo=4",
++    response = _make_query(self.client, "SELECT my_sqrt(foo), my_float(foo) FROM test where foo=4 GROUP BY foo", # Force MR job with GROUP BY
+       udfs=[('my_sqrt', 'org.apache.hadoop.hive.ql.udf.UDFSqrt'),
+             ('my_float', 'org.apache.hadoop.hive.ql.udf.UDFToFloat')], local=False)
+     response = wait_for_query_to_finish(self.client, response, max=60.0)
+@@ -274,10 +274,8 @@ for x in sys.stdin:
+ 
+     assert_equal([2.0, 4.0], content["results"][0])
+     log = content['log']
+-    assert_true(search_log_line('parse.SemanticAnalyzer', 'Completed plan generation', log), log)
+-    assert_true(search_log_line('ql.Driver', 'Semantic Analysis Completed', log), log)
+-    assert_true(search_log_line('exec.Task', '100%', log), log)
+-    assert_true(search_log_line('ql.Driver', 'OK', log), log)
++    assert_true(search_log_line('map = 100%', log), log)
++    assert_true(search_log_line('reduce = 100%', log), log)
+     # Test job extraction while we're at it
+     assert_equal(1, len(content["hadoop_jobs"]), "Should have started 1 job and extracted it.")
+ 
+@@ -1785,23 +1783,23 @@ def test_search_log_line():
+     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     org.apache.hadoop.hive.ql.parse.ParseException: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     """
+-  assert_true(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
++  assert_true(search_log_line('FAILED: Parse Error', logs))
+ 
+   logs = "12/08/22 20:50:14 ERROR ql.Driver: FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant'"
+-  assert_true(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
++  assert_true(search_log_line('FAILED: Parse Error', logs))
+ 
+   logs = """
+     FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse XXXX Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     org.apache.hadoop.hive.ql.parse.ParseException: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     """
+-  assert_false(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
++  assert_false(search_log_line('FAILED: Undefined', logs))
+ 
+   logs = """
+     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse
+     Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
+     """
+-  assert_false(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
++  assert_false(search_log_line('FAILED: Parse Error', logs))
+ 
+ 
+ def test_split_statements():
+@@ -2222,9 +2220,8 @@ class TestDesign():
+     assert_equal('\nADD FILE s3://host/my_s3_file\n', statements[2])
+ 
+ 
+-def search_log_line(component, expected_log, all_logs):
+-  """Checks if 'expected_log' can be found in one line of 'all_logs' outputed by the logging component 'component'."""
+-  return re.compile('.+?%(component)s(.+?)%(expected_log)s' % {'component': component, 'expected_log': expected_log}).search(all_logs)
++def search_log_line(expected_log, all_logs):
++  return re.compile('%(expected_log)s' % {'expected_log': expected_log}).search(all_logs)
+ 
+ 
+ def test_hiveserver2_get_security():
+diff --git a/apps/beeswax/static/js/beeswax.vm.js b/apps/beeswax/static/js/beeswax.vm.js
+index 1e223d1..b15a52a 100644
+--- a/apps/beeswax/static/js/beeswax.vm.js
++++ b/apps/beeswax/static/js/beeswax.vm.js
+@@ -629,9 +629,15 @@ function BeeswaxViewModel(server) {
+           if (data.log) {
+             self.applyLogs(data.log)
+             // scroll logs
+-            self.design.watch.jobUrls(data.jobUrls);
++            if (data.oldLogsApi) {
++              self.design.watch.jobUrls(data.jobUrls);
++            } else {
++              $.each(data.jobUrls, function (i, url) {
++                self.design.watch.jobUrls.push(url);
++              });
++            }
+           }
+-          if (!failed) {
++          if (! failed) {
+             $(document).trigger('stop_watch.query');
+ 
+             if (fn) {
+@@ -645,7 +651,13 @@ function BeeswaxViewModel(server) {
+           if (data.log) {
+             self.applyLogs(data.log)
+             // scroll logs
+-            self.design.watch.jobUrls(data.jobUrls);
++            if (data.oldLogsApi) {
++              self.design.watch.jobUrls(data.jobUrls);
++            } else {
++              $.each(data.jobUrls, function (i, url) {
++                self.design.watch.jobUrls.push(url);
++              });
++            }
+           }
+ 
+           TIMEOUT = Math.min(TIMEOUT + 100, 2000);
+-- 
+1.7.9.5
+

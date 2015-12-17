@@ -1,0 +1,30 @@
+From ec0d120d43a597f1204a4fabb63a41fe0afc2ab3 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 23 Feb 2015 21:50:57 -0800
+Subject: [PATCH 0901/1173] HUE-2198 [core] Reduce noise such as "Mutual
+ authentication unavailable on 200 response"
+
+https://github.com/requests/requests-kerberos/issues/45
+---
+ .../requests_kerberos/kerberos_.py                 |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
+index cece26c..c6e09d7 100644
+--- a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
+@@ -191,8 +191,9 @@ class HTTPKerberosAuth(AuthBase):
+                 return response
+ 
+             elif is_http_error or self.mutual_authentication == OPTIONAL:
+-                log.error("handle_other(): Mutual authentication unavailable "
+-                          "on {0} response".format(response.status_code))
++                if not response.ok:
++                    log.error("handle_other(): Mutual authentication unavailable "
++                              "on {0} response".format(response.status_code))
+ 
+                 if self.mutual_authentication == REQUIRED:
+                     return SanitizedResponse(response)
+-- 
+1.7.9.5
+

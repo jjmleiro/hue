@@ -1,0 +1,58 @@
+From cc35dbb65b10062bedd0ca2dcd1d3f60a0a4f4d4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 5 Nov 2014 18:41:30 -0800
+Subject: [PATCH 0099/1173] HUE-2458 [core] Add support for configuring the
+ SAML2 name id
+
+---
+ desktop/libs/libsaml/src/libsaml/conf.py          |    6 ++++++
+ desktop/libs/libsaml/src/libsaml/saml_settings.py |    1 +
+ desktop/libs/libsaml/src/libsaml/urls.py          |    3 ++-
+ 3 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/conf.py b/desktop/libs/libsaml/src/libsaml/conf.py
+index 98a6f14..8ca6034 100644
+--- a/desktop/libs/libsaml/src/libsaml/conf.py
++++ b/desktop/libs/libsaml/src/libsaml/conf.py
+@@ -144,6 +144,12 @@ LOGOUT_ENABLED = Config(
+   type=coerce_bool,
+   help=_t("Performs the logout or not."))
+ 
++NAME_ID_FORMAT = Config(
++  key="name_id_format",
++  default=saml2.saml.NAMEID_FORMAT_PERSISTENT,
++  type=str,
++  help=_t("Request this NameID format from the server"))
++
+ 
+ def config_validator(user):
+   res = []
+diff --git a/desktop/libs/libsaml/src/libsaml/saml_settings.py b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+index 8d5c85b..80aaca4 100644
+--- a/desktop/libs/libsaml/src/libsaml/saml_settings.py
++++ b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+@@ -47,6 +47,7 @@ SAML_CONFIG = {
+   'service': {
+     'sp' : {
+       'name': 'hue',
++      'name_id_format': libsaml.conf.NAME_ID_FORMAT.get(),
+       'endpoints': {
+         # url and binding to the assetion consumer service view
+         # do not change the binding or service name
+diff --git a/desktop/libs/libsaml/src/libsaml/urls.py b/desktop/libs/libsaml/src/libsaml/urls.py
+index b593f59..9773710 100644
+--- a/desktop/libs/libsaml/src/libsaml/urls.py
++++ b/desktop/libs/libsaml/src/libsaml/urls.py
+@@ -23,7 +23,8 @@ urlpatterns = patterns(
+ )
+ 
+ urlpatterns += patterns('libsaml.views',
+-                        url(r'^ls/$', 'logout_service', name='saml2_ls'),
++                        url(r'^ls/$', 'logout_service_redirect', name='saml2_ls_redirect'),
++                        url(r'^ls/post/$', 'logout_service_post', name='saml2_ls_post'),
+                         url(r'^acs/$', 'acs', name='saml2_acs'),
+                         url(r'^login/$', 'login', name='saml2_login'),
+                         url(r'^metadata/$', 'metadata', name='saml2_metadata'),
+-- 
+1.7.9.5
+

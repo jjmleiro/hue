@@ -1,0 +1,84 @@
+From e43287ea2ddec27181a380e2803cc24c1236f24f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sun, 1 Feb 2015 08:15:02 +0900
+Subject: [PATCH 0727/1173] [jb] Support killing generic YARN apps
+
+---
+ apps/jobbrowser/src/jobbrowser/api.py         |    9 +++++----
+ apps/jobbrowser/src/jobbrowser/yarn_models.py |    7 ++++++-
+ apps/spark/src/spark/models.py                |    2 +-
+ 3 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index 82d5736..3ede1d0 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -269,9 +269,8 @@ class YarnApi(JobBrowserApi):
+         return KilledYarnJob(self.resource_manager_api, job)
+ 
+       if job.get('applicationType') == 'SPARK':
+-        job = SparkJob(job)
+-      else:
+-        # MR id, assume 'applicationType': 'MAPREDUCE'
++        job = YarnJob(job)
++      elif job.get('applicationType') == 'MAPREDUCE':
+         jobid = jobid.replace('application', 'job')
+ 
+         if job['state'] in ('NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'):
+@@ -280,6 +279,8 @@ class YarnApi(JobBrowserApi):
+         else:
+           json = self.history_server_api.job(self.user, jobid)
+           job = YarnJob(self.history_server_api, json['job'])
++      else:
++        job = Application(job, self.resource_manager_api)
+     except ApplicationNotRunning, e:
+       raise e
+     except Exception, e:
+@@ -313,4 +314,4 @@ class JobExpired(Exception):
+ 
+   def __init__(self, job):
+     super(JobExpired, self).__init__('JobExpired: %s' %job)
+-    self.job = job
+\ No newline at end of file
++    self.job = job
+diff --git a/apps/jobbrowser/src/jobbrowser/yarn_models.py b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+index 4a6112e..bca9e75 100644
+--- a/apps/jobbrowser/src/jobbrowser/yarn_models.py
++++ b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+@@ -38,7 +38,8 @@ LOGGER = logging.getLogger(__name__)
+ 
+ class Application(object):
+ 
+-  def __init__(self, attrs):
++  def __init__(self, attrs, rm_api=None):
++    self.api = rm_api
+     for attr in attrs.keys():
+       setattr(self, attr, attrs[attr])
+ 
+@@ -76,6 +77,10 @@ class Application(object):
+     if not hasattr(self, 'acls'):
+       setattr(self, 'acls', {})
+ 
++  def kill(self):
++    return self.api.kill(self.id)
++
++
+ class SparkJob(Application):
+ 
+   def __init__(self, job):
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 68da20e..79532f9 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -291,7 +291,7 @@ class SparkApi():
+       }
+     except Exception, e:
+       message = force_unicode(str(e)).lower()
+-      if 'session not found' in message:
++      if 'session not found' in message or 'connection refused' in message or 'session is in state busy' in message:
+         raise SessionExpired(e)
+       else:
+         raise e
+-- 
+1.7.9.5
+

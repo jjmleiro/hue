@@ -15,25 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# <<<< DEV ONLY
-#
-# This Makefile essentially lists the applications, and delegates build targets
-# through to them.
-#
-# The interesting bit is done by the recursive_app_make_target macro (see below).
-# In essence, the important targets are:
-#
-#   install-binary-apps
-#      installs built applications into the install dir, without
-#      installing them into a virtual environment.
-#
-#   env-install
-#      installs all of the applications into the virtual environment
-#
-#   clean
-#      cleans up
-#
-# END DEV ONLY >>>>
 
 export ROOT := $(realpath ..)
 DESKTOP_ROOT := $(realpath .)
@@ -58,29 +39,11 @@ default:: hue syncdb
 ###################################
 
 
-# <<<< DEV ONLY
-CONF_INI := $(patsubst $(CONF_DIR)/%.ini.tmpl,$(CONF_DIR)/%.ini,\
-              $(wildcard $(CONF_DIR)/*.ini.tmpl))
-
-# Template ini to generate (only if it doesn't exist)
-$(CONF_DIR)/%.ini:: | $(CONF_DIR)/%.ini.tmpl
-	echo "--- Generating $@"
-	sed -e 's:$$HADOOP_HOME:$(HADOOP_HOME):' $| > $@
-
-# Pattern rule for HUE config file
-.PHONY: conf
-conf: $(CONF_INI)
-
-default:: conf
-# END DEV ONLY >>>>
 
 ###################################
 # Build apps
 ###################################
 
-# <<<< DEV ONLY
-include $(DESKTOP_ROOT)/devtools.mk
-# END DEV ONLY >>>>
 
 .PHONY: syncdb
 syncdb: $(DESKTOP_DB)
@@ -130,9 +93,6 @@ ext-clean: $(EXT_CLEAN_TARGETS)
 # hue target
 #
 .PHONY: hue
-# <<<< DEV ONLY
-hue: $(BLD_DIR)/.devtools
-# END DEV ONLY >>>>
 hue: env-install
 	@# Make symlink for backward compatibility
 	@ln -sf hue $(BLD_DIR_BIN)/desktop
@@ -171,13 +131,4 @@ install-source-parts:
 	@# Remove the application configuration files
 	@find $(INSTALL_DIR)/desktop/conf -type l -exec rm {} \;
 
-# <<<< DEV ONLY
-###################################
-# Internationalization
-###################################
-COMPILE_LOCALE_TARGETS := $(APPS:%=.recursive-compile-locales/%)
-compile-locales: $(COMPILE_LOCALE_TARGETS)
-.recursive-compile-locales/%:
-	@$(MAKE) -C $* compile-locale
-# END DEV ONLY >>>>
 	

@@ -1,0 +1,50 @@
+From 635892ba3467a1930ba1a8ac0f0b7d8fa25bff68 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 12 Jan 2015 21:41:23 +0100
+Subject: [PATCH 0434/1173] HUE-2531 [impala] Autogrow missing result list
+
+Added of automatic retrieval of at least 100 results at time on Impala
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index eff5bb3..8b00d8a 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -1398,7 +1398,7 @@ function reinitializeTable(max) {
+         heightAfterCorrection: 0
+       });
+       reinitializeTableExtenders();
+-      container.height($("#results .dataTables_wrapper").height());
++      container.height($(window).height() - 150);
+       $("#results .dataTables_wrapper").jHueScrollUp();
+     } else if ($('#resultEmpty').height() > 0) {
+       container.height($('#resultEmpty').height());
+@@ -2017,6 +2017,8 @@ function datatableScroll() {
+ 
+ var firstFnDrawcallback = false;
+ 
++var manualFetchResultCounter = 0;
++
+ function addResults(viewModel, dataTable, startRow, nextRow) {
+   if (startRow == 0) {
+     firstFnDrawcallback = true;
+@@ -2024,9 +2026,13 @@ function addResults(viewModel, dataTable, startRow, nextRow) {
+   dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(startRow, nextRow), startRow));
+ 
+   % if app_name == 'impala':
+-  if (startRow == 0 && viewModel.scrollNotWorking() && viewModel.hasMoreResults()){
++  manualFetchResultCounter += (nextRow - startRow);
++  if (manualFetchResultCounter < 100 && viewModel.scrollNotWorking() && viewModel.hasMoreResults()){
+     manualFetch();
+   }
++  else {
++    manualFetchResultCounter = 0;
++  }
+   %endif
+ }
+ 
+-- 
+1.7.9.5
+

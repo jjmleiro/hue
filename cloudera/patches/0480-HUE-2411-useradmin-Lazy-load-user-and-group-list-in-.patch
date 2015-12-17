@@ -1,0 +1,431 @@
+From 22bdc38847091c0601cf7f5daf2d9a7b8294a5e8 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 21 Jan 2015 15:58:09 +0100
+Subject: [PATCH 0480/1173] HUE-2411 [useradmin] Lazy load user and group list
+ in permission sharing popup
+
+Moved loading on first modal show
+The search input, add button and caret buttons are disabled until the list of users is loaded
+---
+ apps/beeswax/src/beeswax/templates/execute.mako    |    4 +-
+ .../src/oozie/templates/editor/bundle_editor.mako  |    2 +-
+ .../oozie/templates/editor/coordinator_editor.mako |    2 +-
+ .../templates/editor/list_editor_bundles.mako      |    2 +-
+ .../templates/editor/list_editor_coordinators.mako |    2 +-
+ .../templates/editor/list_editor_workflows.mako    |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/pig/src/pig/templates/app.mako                |    4 +-
+ apps/rdbms/src/rdbms/templates/execute.mako        |    2 +-
+ .../core/src/desktop/templates/common_share.mako   |   74 ++++++-----
+ desktop/core/src/desktop/templates/home.mako       |    4 +-
+ desktop/core/static/js/share.vm.js                 |  130 ++++++++++++--------
+ 12 files changed, 129 insertions(+), 101 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 8b00d8a..e5a7cbf 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -2750,8 +2750,8 @@ function setupCodeMirrorSubscription() {
+ viewModel = new BeeswaxViewModel("${app_name}");
+ ko.applyBindings(viewModel, $("#beeswax-execute")[0]);
+ 
+-shareViewModel = setupSharing("#documentShareModal");
+-shareViewModel.setDocId(${doc_id})
++shareViewModel = initSharing("#documentShareModal");
++shareViewModel.setDocId(${doc_id});
+ 
+ % if not beeswax_conf.USE_GET_LOG_API.get() and app_name != 'impala':
+   viewModel.shouldAppendLogs = true;
+diff --git a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+index 443c011..42ddb08 100644
+--- a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+@@ -203,7 +203,7 @@ ${ dashboard.import_bindings() }
+   var viewModel = new BundleEditorViewModel(${ bundle_json | n,unicode }, ${ coordinators_json | n,unicode }, ${ can_edit_json | n,unicode });
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+-  var shareViewModel = setupSharing("#documentShareModal");
++  var shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+ 
+   var tempCoordinator = null;
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 02366a3..2a785c7 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -498,7 +498,7 @@ ${ dashboard.import_bindings() }
+ 
+   viewModel.coordinator.properties.cron_advanced.valueHasMutated(); // Update jsCron enabled status
+ 
+-  var shareViewModel = setupSharing("#documentShareModal");
++  var shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+ 
+   function showChooseWorkflow() {
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+index fadf20f..24d3bc1 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+@@ -206,7 +206,7 @@ ${ commonshare() | n,unicode }
+     viewModel = new Editor();
+     ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+-    shareViewModel = setupSharing("#documentShareModal");
++    shareViewModel = initSharing("#documentShareModal");
+     shareViewModel.setDocId(-1);
+ 
+     $(document).on("showSubmitPopup", function(event, data){
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+index 86b301f..301ee35 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+@@ -205,7 +205,7 @@ ${ commonshare() | n,unicode }
+     viewModel = new Editor();
+     ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+-    shareViewModel = setupSharing("#documentShareModal");
++    shareViewModel = initSharing("#documentShareModal");
+     shareViewModel.setDocId(-1);
+ 
+     $(document).on("showSubmitPopup", function(event, data){
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index 7c150dd..ac70d6c 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -207,7 +207,7 @@ ${ commonshare() | n,unicode }
+     viewModel = new Editor();
+     ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+-    shareViewModel = setupSharing("#documentShareModal");
++    shareViewModel = initSharing("#documentShareModal");
+     shareViewModel.setDocId(-1);
+ 
+     $(document).on("showSubmitPopup", function(event, data){
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f85f2c5..4b57744 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1815,7 +1815,7 @@ ${ dashboard.import_bindings() }
+   var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode }, ${ subworkflows_json | n,unicode }, ${ can_edit_json | n,unicode }); 
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+-  var shareViewModel = setupSharing("#documentShareModal");
++  var shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+ 
+   viewModel.init();
+diff --git a/apps/pig/src/pig/templates/app.mako b/apps/pig/src/pig/templates/app.mako
+index 02b5783..9ecd09d 100644
+--- a/apps/pig/src/pig/templates/app.mako
++++ b/apps/pig/src/pig/templates/app.mako
+@@ -789,12 +789,12 @@ ${ commonshare() | n,unicode }
+ 
+   var viewModel = new PigViewModel(appProperties);
+   ko.applyBindings(viewModel, $("#pig-editor-app")[0]);
+-  var shareViewModel = setupSharing("#documentShareModal");
++  var shareViewModel = initSharing("#documentShareModal");
+ 
+   function tryShareQuery() {
+     if (viewModel.currentScript().docId() != -1) {
+       shareViewModel.setDocId(viewModel.currentScript().docId())
+-      $("#documentShareModal").modal("show");
++      openShareModal();
+     }
+   }
+ 
+diff --git a/apps/rdbms/src/rdbms/templates/execute.mako b/apps/rdbms/src/rdbms/templates/execute.mako
+index d5b4cc7..2305567 100644
+--- a/apps/rdbms/src/rdbms/templates/execute.mako
++++ b/apps/rdbms/src/rdbms/templates/execute.mako
+@@ -672,7 +672,7 @@ ${ commonshare() | n,unicode }
+ 
+   // Knockout
+   viewModel = new RdbmsViewModel();
+-  shareViewModel = setupSharing("#documentShareModal");
++  shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${doc_id});
+ 
+   viewModel.fetchServers();
+diff --git a/desktop/core/src/desktop/templates/common_share.mako b/desktop/core/src/desktop/templates/common_share.mako
+index 3bde13a..4f924f6 100644
+--- a/desktop/core/src/desktop/templates/common_share.mako
++++ b/desktop/core/src/desktop/templates/common_share.mako
+@@ -24,48 +24,46 @@ from django.utils.translation import ugettext as _
+     <h3>${_('Sharing settings')}</h3>
+   </div>
+   <div class="modal-body">
+-    <p>
+-      <div class="row-fluid">
+-        <div class="span6">
+-          <h4 class="muted" style="margin-top:0px">${_('Read')}</h4>
+-          <div data-bind="visible: (selectedDoc().perms.read.users.length == 0 && selectedDoc().perms.read.groups.length == 0)">${_('The document is not shared for read.')}</div>
+-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.users">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
+-          </ul>
+-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.groups">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupReadShare"> <i class="fa fa-times"></i></li>
+-          </ul>
+-        </div>
+-
+-        <div class="span6">
+-          <h4 class="muted" style="margin-top:0px">${_('Read and Modify')}</h4>
+-          <div data-bind="visible: (selectedDoc().perms.write.users.length == 0 && selectedDoc().perms.write.groups.length == 0)">${_('The document is not shared for read and modify.')}</div>
+-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.users">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
+-          </ul>
+-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.groups">
+-            <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupWriteShare"> <i class="fa fa-times"></i></li>
+-          </ul>
+-        </div>
++    <div class="row-fluid">
++      <div class="span6">
++        <h4 class="muted" style="margin-top:0px">${_('Read')}</h4>
++        <div data-bind="visible: (selectedDoc().perms.read.users.length == 0 && selectedDoc().perms.read.groups.length == 0)">${_('The document is not shared for read.')}</div>
++        <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.users">
++          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
++        </ul>
++        <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.groups">
++          <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupReadShare"> <i class="fa fa-times"></i></li>
++        </ul>
++      </div>
+ 
++      <div class="span6">
++        <h4 class="muted" style="margin-top:0px">${_('Read and Modify')}</h4>
++        <div data-bind="visible: (selectedDoc().perms.write.users.length == 0 && selectedDoc().perms.write.groups.length == 0)">${_('The document is not shared for read and modify.')}</div>
++        <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.users">
++          <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
++        </ul>
++        <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.groups">
++          <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupWriteShare"> <i class="fa fa-times"></i></li>
++        </ul>
+       </div>
+-      <div class="clearfix"></div>
+-      <div style="margin-top: 20px">
+-        <div class="input-append">
+-          <input id="documentShareTypeahead" type="text" style="width: 460px" placeholder="${_('Type a username or a group name')}">
+-          <div class="btn-group">
+-            <a id="documentShareAddBtn" class="btn"><i class="fa fa-plus-circle"></i> <span data-bind="text: selectedPermLabel"></span></a>
+-            <a class="btn dropdown-toggle" data-toggle="dropdown">
+-              <span class="caret"></span>
+-            </a>
+-            <ul class="dropdown-menu">
+-              <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'read')" href="javascript:void(0)">${ _('Read') }</a></li>
+-              <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'write')" href="javascript:void(0)">${ _('Read and Modify') }</a></li>
+-            </ul>
+-          </div>
++
++    </div>
++    <div class="clearfix"></div>
++    <div style="margin-top: 20px">
++      <div class="input-append">
++        <input id="documentShareTypeahead" type="text" style="width: 460px" placeholder="${_('Type a username or a group name')}" disabled="disabled">
++        <div class="btn-group">
++          <a id="documentShareAddBtn" class="btn disabled"><i class="fa fa-plus-circle"></i> <span data-bind="text: selectedPermLabel"></span></a>
++          <a id="documentShareCaret" class="btn dropdown-toggle disabled" data-toggle="dropdown">
++            <span class="caret"></span>
++          </a>
++          <ul class="dropdown-menu">
++            <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'read')" href="javascript:void(0)">${ _('Read') }</a></li>
++            <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'write')" href="javascript:void(0)">${ _('Read and Modify') }</a></li>
++          </ul>
+         </div>
+       </div>
+-    </p>
++    </div>
+   </div>
+   <div class="modal-footer">
+     <a href="#" data-dismiss="modal" class="btn btn-primary disable-feedback disable-enter">${_('Done')}</a>
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index c75d2c4..bd5bfcb 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -332,7 +332,7 @@ ${ commonshare() | n,unicode }
+     viewModel = new HomeViewModel(JSON_TAGS, JSON_DOCS);
+     ko.applyBindings(viewModel, $('#documentList')[0]);
+ 
+-    shareViewModel = setupSharing("#documentShareModal", viewModel.updateDoc);
++    shareViewModel = initSharing("#documentShareModal", viewModel.updateDoc);
+ 
+     var selectedUserOrGroup, map, dropdown = null;
+ 
+@@ -424,7 +424,7 @@ ${ commonshare() | n,unicode }
+ 
+   function shareDoc(doc) {
+     shareViewModel.selectedDoc(doc);
+-    $("#documentShareModal").modal("show");
++    openShareModal();
+   }
+ 
+   function moveDoc(doc) {
+diff --git a/desktop/core/static/js/share.vm.js b/desktop/core/static/js/share.vm.js
+index 053c69f..a305a6c 100644
+--- a/desktop/core/static/js/share.vm.js
++++ b/desktop/core/static/js/share.vm.js
+@@ -3,6 +3,9 @@ var shareViewModel;
+ function ShareViewModel(updateDocF) {
+   var self = this;
+ 
++  self.hasInitBeenCalled = false;
++  self.hasSetupBeenCalled = false;
++
+   self.selectedPerm = ko.observable('read');
+   self.selectedPermLabel = ko.computed(function() {
+     if (self.selectedPerm() == 'write') {
+@@ -39,6 +42,11 @@ function ShareViewModel(updateDocF) {
+ 
+ function openShareModal() {
+   $("#documentShareModal").modal("show");
++  setupSharing(function(){
++    $("#documentShareAddBtn").removeClass("disabled");
++    $("#documentShareCaret").removeClass("disabled");
++    $("#documentShareTypeahead").removeAttr("disabled");
++  });
+ }
+ 
+ function isShared() {
+@@ -60,70 +68,92 @@ function prettifyUsername(userId) {
+   return "";
+ }
+ 
+-function setupSharing(id, updateFunc) {
++function initSharing(id, updateFunc) {
+   if(!updateFunc) {
+     updateFunc = function () {}
+   }
+   shareViewModel = new ShareViewModel(updateFunc);
+   ko.applyBindings(shareViewModel, $(id)[0]);
++  shareViewModel.hasInitBeenCalled = true;
++  return shareViewModel;
++}
+ 
+-  $.getJSON('/desktop/api/users/autocomplete', function (data) {
+-    JSON_USERS_GROUPS = data;
+-    dropdown = [];
+-    map = {};
+-
+-    $.each(JSON_USERS_GROUPS.users, function (i, user) {
+-      var _display = prettifyUsername(user.id);
+-      map[_display] = user;
+-      dropdown.push(_display);
+-    });
+-
+-    $.each(JSON_USERS_GROUPS.groups, function (i, group) {
+-      map[group.name] = group;
+-      dropdown.push(group.name);
+-    });
++function setupSharing(id, updateFunc) {
++  if (shareViewModel == null || !shareViewModel.hasInitBeenCalled) {
++    shareViewModel = initSharing(id, updateFunc);
++  }
+ 
+-    $("#documentShareTypeahead").typeahead({
+-      source: function (query, process) {
+-        process(dropdown);
+-      },
+-      matcher: function (item) {
+-        if (item.toLowerCase().indexOf(this.query.trim().toLowerCase()) != -1) {
+-          return true;
++  if (! self.hasSetupBeenCalled){
++    $.getJSON('/desktop/api/users/autocomplete', function (data) {
++      self.hasSetupBeenCalled = true;
++      JSON_USERS_GROUPS = data;
++      dropdown = [];
++      map = {};
++
++      $.each(JSON_USERS_GROUPS.users, function (i, user) {
++        var _display = prettifyUsername(user.id);
++        map[_display] = user;
++        dropdown.push(_display);
++      });
++
++      $.each(JSON_USERS_GROUPS.groups, function (i, group) {
++        map[group.name] = group;
++        dropdown.push(group.name);
++      });
++
++      $("#documentShareTypeahead").typeahead({
++        source: function (query, process) {
++          process(dropdown);
++        },
++        matcher: function (item) {
++          if (item.toLowerCase().indexOf(this.query.trim().toLowerCase()) != -1) {
++            return true;
++          }
++        },
++        sorter: function (items) {
++          return items.sort();
++        },
++        highlighter: function (item) {
++          var _icon = "fa";
++          var _display = "";
++          if (map[item].hasOwnProperty("username")) {
++            _icon += " fa-user";
++          }
++          else {
++            _icon += " fa-users";
++          }
++          var regex = new RegExp('(' + this.query + ')', 'gi');
++          return "<i class='" + _icon + "'></i> " + item.replace(regex, "<strong>$1</strong>");
++        },
++        updater: function (item) {
++          selectedUserOrGroup = map[item];
++          return item;
+         }
+-      },
+-      sorter: function (items) {
+-        return items.sort();
+-      },
+-      highlighter: function (item) {
+-        var _icon = "fa";
+-        var _display = "";
+-        if (map[item].hasOwnProperty("username")) {
+-          _icon += " fa-user";
+-        }
+-        else {
+-          _icon += " fa-users";
++      });
++
++      $("#documentShareTypeahead").on("keyup", function (e) {
++        var _code = (e.keyCode ? e.keyCode : e.which);
++        if (_code == 13) {
++          handleTypeaheadSelection();
+         }
+-        var regex = new RegExp('(' + this.query + ')', 'gi');
+-        return "<i class='" + _icon + "'></i> " + item.replace(regex, "<strong>$1</strong>");
+-      },
+-      updater: function (item) {
+-        selectedUserOrGroup = map[item];
+-        return item;
++      });
++
++      if (typeof id == "function"){
++        id();
+       }
+     });
+ 
+-    $("#documentShareTypeahead").on("keyup", function (e) {
+-      var _code = (e.keyCode ? e.keyCode : e.which);
+-      if (_code == 13) {
+-        handleTypeaheadSelection();
++    $("#documentShareAddBtn").on("click", function () {
++      if (! $(this).hasClass("disabled")){
++        handleTypeaheadSelection();  
+       }
+     });
+-  });
+-
+-  $("#documentShareAddBtn").on("click", function () {
+-    handleTypeaheadSelection();
+-  });
++  }
++  else {
++    if (typeof id == "function"){
++      id();
++    }
++  }
+ 
+   return shareViewModel;
+ }
+-- 
+1.7.9.5
+

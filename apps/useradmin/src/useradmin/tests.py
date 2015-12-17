@@ -19,21 +19,27 @@
 import json
 import ldap
 import re
+import sys
 import urllib
 
 from nose.plugins.attrib import attr
+from nose.plugins.skip import SkipTest
 from nose.tools import assert_true, assert_equal, assert_false
 
+import desktop.conf
 from desktop.lib.django_test_util import make_logged_in_client
 from django.contrib.auth.models import User, Group
 from django.utils.encoding import smart_unicode
 from django.core.urlresolvers import reverse
+from django.test.client import Client
 
 from useradmin.models import HuePermission, GroupPermission, UserProfile
 from useradmin.models import get_profile, get_default_user_group
 
 import useradmin.conf
+import useradmin.ldap_access
 from hadoop import pseudo_hdfs4
+from useradmin.password_policy import reset_password_policy
 
 
 def reset_all_users():
@@ -360,6 +366,125 @@ def test_group_admin():
   response = c.post('/useradmin/groups/new', dict(name="with space"))
   assert_equal(len(Group.objects.all()), group_count + 1)
 
+def test_user_admin_password_policy():
+  reset_all_users()
+  reset_all_groups()
+
+  # Set up password policy
+  password_hint = password_error_msg = ("The password must be at least 8 characters long, "
+                                        "and must contain both uppercase and lowercase letters, "
+                                        "at least one number, and at least one special character.")
+  password_rule = "^(?=.*?[A-Z])(?=(.*[a-z]){1,})(?=(.*[\d]){1,})(?=(.*[\W_]){1,}).{8,}$"
+
+  useradmin.conf.PASSWORD_POLICY.IS_ENABLED.set_for_testing(True)
+  useradmin.conf.PASSWORD_POLICY.PWD_RULE.set_for_testing(password_rule)
+  useradmin.conf.PASSWORD_POLICY.PWD_HINT.set_for_testing(password_hint)
+  useradmin.conf.PASSWORD_POLICY.PWD_ERROR_MESSAGE.set_for_testing(password_error_msg)
+  reset_password_policy()
+
+  # Test first-ever login with password policy enabled
+  c = Client()
+
+  response = c.get('/accounts/login/')
+  assert_equal(200, response.status_code)
+  assert_true(response.context['first_login_ever'])
+
+  response = c.post('/accounts/login/', dict(username="test_first_login", password="foo"))
+  assert_true(response.context['first_login_ever'])
+  assert_equal([password_error_msg], response.context["form"]["password"].errors)
+
+  response = c.post('/accounts/login/', dict(username="test_first_login", password="foobarTest1["), follow=True)
+  assert_equal(200, response.status_code)
+  assert_true(User.objects.get(username="test_first_login").is_superuser)
+  assert_true(User.objects.get(username="test_first_login").check_password("foobarTest1["))
+
+  c.get('/accounts/logout')
+
+  # Test changing a user's password
+  c = make_logged_in_client('superuser', is_superuser=True)
+
+  # Test password hint is displayed
+  response = c.get('/useradmin/users/edit/superuser')
+  assert_true(password_hint in response.content)
+
+  # Password is less than 8 characters
+  response = c.post('/useradmin/users/edit/superuser',
+                    dict(username="superuser",
+                         is_superuser=True,
+                         password1="foo",
+                         password2="foo"))
+  assert_equal([password_error_msg], response.context["form"]["password1"].errors)
+
+  # Password is more than 8 characters long but does not have a special character
+  response = c.post('/useradmin/users/edit/superuser',
+                    dict(username="superuser",
+                         is_superuser=True,
+                         password1="foobarTest1",
+                         password2="foobarTest1"))
+  assert_equal([password_error_msg], response.context["form"]["password1"].errors)
+
+  # Password1 and Password2 are valid but they do not match
+  response = c.post('/useradmin/users/edit/superuser',
+                    dict(username="superuser",
+                         is_superuser=True,
+                         password1="foobarTest1??",
+                         password2="foobarTest1?",
+                         password_old="foobarTest1[",
+                         is_active=True))
+  assert_equal(["Passwords do not match."], response.context["form"]["password2"].errors)
+
+  # Password is valid now
+  c.post('/useradmin/users/edit/superuser',
+         dict(username="superuser",
+              is_superuser=True,
+              password1="foobarTest1[",
+              password2="foobarTest1[",
+              password_old="test",
+              is_active=True))
+  assert_true(User.objects.get(username="superuser").is_superuser)
+  assert_true(User.objects.get(username="superuser").check_password("foobarTest1["))
+
+  # Test creating a new user
+  response = c.get('/useradmin/users/new')
+  assert_true(password_hint in response.content)
+
+  # Password is more than 8 characters long but does not have a special character
+  response = c.post('/useradmin/users/new',
+                    dict(username="test_user",
+                         is_superuser=False,
+                         password1="foo",
+                         password2="foo"))
+  assert_equal({'password1': [password_error_msg], 'password2': [password_error_msg]},
+               response.context["form"].errors)
+
+  # Password is more than 8 characters long but does not have a special character
+  response = c.post('/useradmin/users/new',
+                    dict(username="test_user",
+                         is_superuser=False,
+                         password1="foobarTest1",
+                         password2="foobarTest1"))
+
+  assert_equal({'password1': [password_error_msg], 'password2': [password_error_msg]},
+               response.context["form"].errors)
+
+  # Password1 and Password2 are valid but they do not match
+  response = c.post('/useradmin/users/new',
+                    dict(username="test_user",
+                         is_superuser=False,
+                         password1="foobarTest1[",
+                         password2="foobarTest1?"))
+  assert_equal({'password2': ["Passwords do not match."]}, response.context["form"].errors)
+
+  # Password is valid now
+  c.post('/useradmin/users/new',
+         dict(username="test_user",
+              is_superuser=False,
+              password1="foobarTest1[",
+              password2="foobarTest1[", is_active=True))
+  assert_false(User.objects.get(username="test_user").is_superuser)
+  assert_true(User.objects.get(username="test_user").check_password("foobarTest1["))
+
+
 def test_user_admin():
   FUNNY_NAME = '~`!@#$%^&*()_-+={}[]|\;"<>?/,.'
   FUNNY_NAME_QUOTED = urllib.quote(FUNNY_NAME)
@@ -367,6 +492,9 @@ def test_user_admin():
   reset_all_users()
   reset_all_groups()
   useradmin.conf.DEFAULT_USER_GROUP.set_for_testing('test_default')
+
+  useradmin.conf.PASSWORD_POLICY.IS_ENABLED.set_for_testing(False)
+  reset_password_policy()
 
   c = make_logged_in_client('test', is_superuser=True)
   user = User.objects.get(username='test')
@@ -472,8 +600,11 @@ def test_user_admin():
   response = c_reg.post('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,),
                         dict(username = FUNNY_NAME,
                              first_name = "Hello",
-                             is_active = True))
-  response = c_reg.get('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,))
+                             is_active = True,
+                             groups=[group.id for group in test_user.groups.all()]), follow=True)
+  assert_equal(response.status_code, 200)
+  response = c_reg.get('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,), follow=True)
+  assert_equal(response.status_code, 200)
   assert_equal("Hello", response.context["form"].instance.first_name)
   funny_user = User.objects.get(username=FUNNY_NAME)
   # Can't edit other people.
@@ -522,8 +653,13 @@ def test_user_admin():
 
 @attr('requires_hadoop')
 def test_ensure_home_directory():
+  raise SkipTest
+
   reset_all_users()
   reset_all_groups()
+
+  useradmin.conf.PASSWORD_POLICY.IS_ENABLED.set_for_testing(False)
+  reset_password_policy()
 
   # Cluster and client for home directory creation
   cluster = pseudo_hdfs4.shared_cluster()
@@ -591,3 +727,74 @@ def test_list_for_autocomplete():
   assert_equal(['test_list_for_autocomplete', 'test_list_for_autocomplete2'], users)
   assert_true('test_list_for_autocomplete' in groups, groups)
   assert_true('test_list_for_autocomplete_other_group' in groups, groups)
+
+class MockLdapConnection(object):
+  def __init__(self, ldap_config, ldap_url, username, password, ldap_cert):
+    self.ldap_config = ldap_config
+    self.ldap_url = ldap_url
+    self.username = username
+    self.password = password
+    self.ldap_cert = ldap_cert
+
+def test_get_connection_bind_password():
+  # Unfortunately our tests leak a cached test ldap connection across functions, so we need to clear it out.
+  useradmin.ldap_access.CACHED_LDAP_CONN = None
+
+  # Monkey patch the LdapConnection class as we don't want to make a real connection.
+  OriginalLdapConnection = useradmin.ldap_access.LdapConnection
+  reset = [
+      desktop.conf.LDAP.LDAP_URL.set_for_testing('default.example.com'),
+      desktop.conf.LDAP.BIND_PASSWORD.set_for_testing('default-password'),
+      desktop.conf.LDAP.LDAP_SERVERS.set_for_testing({
+        'test': {
+          'ldap_url': 'test.example.com',
+          'bind_password': 'test-password',
+        }
+      })
+  ]
+  try:
+    useradmin.ldap_access.LdapConnection = MockLdapConnection
+
+    connection = useradmin.ldap_access.get_connection_from_server()
+    assert_equal(connection.password, 'default-password')
+
+    connection = useradmin.ldap_access.get_connection_from_server('test')
+    assert_equal(connection.password, 'test-password')
+  finally:
+    useradmin.ldap_access.LdapConnection = OriginalLdapConnection
+    for f in reset:
+      f()
+
+def test_get_connection_bind_password_script():
+  # Unfortunately our tests leak a cached test ldap connection across functions, so we need to clear it out.
+  useradmin.ldap_access.CACHED_LDAP_CONN = None
+
+  SCRIPT = '%s -c "print \'\\n password from script \\n\'"' % sys.executable
+
+  # Monkey patch the LdapConnection class as we don't want to make a real connection.
+  OriginalLdapConnection = useradmin.ldap_access.LdapConnection
+  reset = [
+      desktop.conf.LDAP.LDAP_URL.set_for_testing('default.example.com'),
+      desktop.conf.LDAP.BIND_PASSWORD_SCRIPT.set_for_testing(
+        '%s -c "print \'\\n default password \\n\'"' % sys.executable
+      ),
+      desktop.conf.LDAP.LDAP_SERVERS.set_for_testing({
+        'test': {
+          'ldap_url': 'test.example.com',
+          'bind_password_script':
+            '%s -c "print \'\\n test password \\n\'"' % sys.executable,
+        }
+      })
+  ]
+  try:
+    useradmin.ldap_access.LdapConnection = MockLdapConnection
+
+    connection = useradmin.ldap_access.get_connection_from_server()
+    assert_equal(connection.password, ' default password ')
+
+    connection = useradmin.ldap_access.get_connection_from_server('test')
+    assert_equal(connection.password, ' test password ')
+  finally:
+    useradmin.ldap_access.LdapConnection = OriginalLdapConnection
+    for f in reset:
+      f()

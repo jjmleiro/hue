@@ -1,0 +1,85 @@
+From 9c9c43a9eb15feea9da12800b79d5dd511a375db Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 12 Jan 2015 19:58:50 +0100
+Subject: [PATCH 0433/1173] [oozie] Added parameter and file content to the
+ isDirty observables
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   23 ++------------------
+ apps/oozie/static/js/workflow-editor.ko.js         |   12 +++++++---
+ 2 files changed, 11 insertions(+), 24 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 6e2c9a9..8330459 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -143,6 +143,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+ 
++    <span data-bind="visible: workflow.isDirty" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+     </a>
+@@ -196,11 +198,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </form>
+ </div>
+ 
+-<div class="ribbon-wrapper" data-bind="visible: workflow.isDirty">
+-  <div class="ribbon">${ _('Unsaved') }</div>
+-</div>
+-
+-
+ 
+ <div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && oozieColumns().length == 0">
+   <div style="float:left; padding-top: 90px; margin-right: 20px; text-align: center; width: 260px">${ _('Click on the pencil to get started with your dashboard!') }</div>
+@@ -2075,22 +2072,6 @@ ${ dashboard.import_bindings() }
+ 
+     $.jHueScrollUp();
+ 
+-    window.onbeforeunload = function (e) {
+-      if (viewModel.workflow.isDirty()) {
+-        var message = "${ _('You have unsaved changes in this workflow.') }";
+-
+-        if (!e) e = window.event;
+-        e.cancelBubble = true;
+-        e.returnValue = message;
+-
+-        if (e.stopPropagation) {
+-          e.stopPropagation();
+-          e.preventDefault();
+-        }
+-        return message;
+-      }
+-    };
+-
+   });
+ 
+ </script>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 33d54e2..c753d4c 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -193,9 +193,15 @@ var Workflow = function (vm, workflow) {
+     var isDirtyContainer = [];
+     $.each(self.nodes(), function (index, node) {
+       for(var property in node.properties) {
+-         if (typeof node.properties[property] == "function"){
+-           isDirtyContainer.push(node.properties[property]()); 
+-         }
++        if (typeof node.properties[property] == "function"){
++          var _obs = node.properties[property]();
++           isDirtyContainer.push(_obs);
++           if ($.isArray(_obs)){
++             _obs.forEach(function(item){
++               isDirtyContainer.push(item.value());
++             });
++           }
++        }
+       }
+     });
+     return isDirtyContainer;
+-- 
+1.7.9.5
+

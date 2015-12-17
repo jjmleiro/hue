@@ -1,0 +1,188 @@
+From cccbdb60f31196bef347cdcde1cd051e9fac5d91 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 17 Feb 2015 12:36:52 +0100
+Subject: [PATCH 0845/1173] [oozie] Added isDirty to bundle editor
+
+---
+ .../src/oozie/templates/editor2/bundle_editor.mako |   16 ++++++--
+ .../templates/editor2/coordinator_editor.mako      |    2 -
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ apps/oozie/static/js/bundle-editor.ko.js           |   40 +++++++++++++++-----
+ apps/oozie/static/js/coordinator-editor.ko.js      |   20 ++++++----
+ 5 files changed, 56 insertions(+), 24 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index 16aa7fc..f371370 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -36,9 +36,15 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+ 
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+-    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}, visible: bundle.id() != null">
++    
++    <span data-bind="visible: bundle.isDirty() || bundle.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++    
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': bundle.isDirty()}, visible: bundle.id() != null">
+       <i class="fa fa-play"></i>
+     </a>
++
++    &nbsp;&nbsp;&nbsp;
++    
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+       <i class="fa fa-pencil"></i>
+     </a>
+@@ -166,7 +172,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+         
+       <h4>${ _('Submission Parameters') }</h4>
+       <ul data-bind="foreach: bundle.properties.parameters" class="unstyled">
+-        <!-- ko if: ['oozie.use.system.libpath', 'start_date', 'end_date'].indexOf(name()) == -1 -->
++        <!-- ko if: ['oozie.use.system.libpath', 'start_date', 'end_date'].indexOf(typeof name == 'function' ? name() : name) == -1 -->
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+@@ -239,8 +245,10 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   $(document).on("showSubmitPopup", function(event, data){
+-    $('#submit-modal').html(data);
+-    $('#submit-modal').modal('show');
++    if (! viewModel.bundle.isDirty()){
++      $('#submit-modal').html(data);
++      $('#submit-modal').modal('show');
++    }
+   });
+ 
+   $(document).ready(function() {
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index e262406..3066166 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -82,8 +82,6 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+ 
+   <form class="form-search">
+-    <span data-bind="visible: coordinator.id() == null" class="muted pull-right">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
+-
+     <div class="inline object-name">
+       <span data-bind="editable: $root.coordinator.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+     </div>
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 0937f24..9258a78 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -234,7 +234,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+ <script type="text/html" id="column-template">
+   <div data-bind="css: klass()" style="min-height: 50px !important;">
+-    <div data-bind="template: { name: 'row-template', data: oozieStartRow }, style:{'margin-top' : $root.workflow.properties.imported() ? '0': '50px'}"></div>
++    <div data-bind="template: { name: 'row-template', data: oozieStartRow }, style:{'margin-top' : typeof $root.workflow.properties.imported != 'undefined' && $root.workflow.properties.imported() ? '0': '50px'}"></div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && oozieRows().length > 0">
+       <div class="row-fluid">
+         <div data-bind="visible: enableOozieDropOnBefore, css: {'span4 offset4': true, 'drop-target': true, 'drop-target-dragging': $root.isDragging(), 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(x, y){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+diff --git a/apps/oozie/static/js/bundle-editor.ko.js b/apps/oozie/static/js/bundle-editor.ko.js
+index 4c76396..ec540eb 100644
+--- a/apps/oozie/static/js/bundle-editor.ko.js
++++ b/apps/oozie/static/js/bundle-editor.ko.js
+@@ -16,6 +16,22 @@
+ 
+ 
+ var Bundle = function (vm, bundle) {
++  function changeTracker(objectToTrack, hashFunction) {    
++      hashFunction = hashFunction || ko.toJSON;
++      var lastCleanState = ko.observable(hashFunction(objectToTrack));
++      
++      var result = {
++          somethingHasChanged : ko.dependentObservable(function() {
++              return hashFunction(objectToTrack) != lastCleanState()
++          }),
++          markCurrentStateAsClean : function() {
++              lastCleanState(hashFunction(objectToTrack));   
++          }
++      };
++      
++      return function() { return result }
++  }
++
+   var self = this;
+ 
+   self.id = ko.observable(typeof bundle.id != "undefined" && bundle.id != null ? bundle.id : null);
+@@ -25,6 +41,11 @@ var Bundle = function (vm, bundle) {
+   self.coordinators = ko.mapping.fromJS(typeof bundle.coordinators != "undefined" && bundle.coordinators != null ? bundle.coordinators : []);
+   self.properties = ko.mapping.fromJS(typeof bundle.properties != "undefined" && bundle.properties != null ? bundle.properties : {});
+ 
++  self.tracker = new changeTracker(self);
++  
++  self.isDirty = ko.computed(function () {
++    return self.tracker().somethingHasChanged();
++  });
+   
+   self.addCoordinator = function(coordinator_uuid) {
+     self.getCoordinatorParameters(coordinator_uuid);	  
+@@ -112,15 +133,16 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+   
+   self.showSubmitPopup = function () {
+     // If self.bundle.id() == null, need to save wf for now
+-	$(".jHueNotify").hide();
+-	logGA('submit');
+-
+-    $.get("/oozie/editor/bundle/submit/" + self.bundle.id(), {
+-      }, function (data) {
+-        $(document).trigger("showSubmitPopup", data);
+-    }).fail(function (xhr, textStatus, errorThrown) {
+-        $(document).trigger("error", xhr.responseText);
+-    });
++	  $(".jHueNotify").hide();
++    if (! self.bundle.isDirty()){
++      logGA('submit');
++      $.get("/oozie/editor/bundle/submit/" + self.bundle.id(), {
++        }, function (data) {
++          $(document).trigger("showSubmitPopup", data);
++      }).fail(function (xhr, textStatus, errorThrown) {
++          $(document).trigger("error", xhr.responseText);
++      });
++    }
+   };
+ };
+ 
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 4d00aa7..45a3c33 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -227,7 +227,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+ 
+   self.gen_xml = function () {
+ 	$(".jHueNotify").hide();
+-	logGA('gen_xml');
++	  logGA('gen_xml');
+ 
+     $.post("/oozie/editor/coordinator/gen_xml/", {
+         "coordinator": ko.mapping.toJSON(self.coordinator)
+@@ -244,13 +244,17 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   };
+   
+   self.showSubmitPopup = function () {
+-	$(".jHueNotify").hide();
+-    $.get("/oozie/editor/coordinator/submit/" + self.coordinator.id(), {
+-      }, function (data) {
+-        $(document).trigger("showSubmitPopup", data);
+-    }).fail(function (xhr, textStatus, errorThrown) {
+-        $(document).trigger("error", xhr.responseText);
+-    });
++	  $(".jHueNotify").hide();
++    
++    if (! self.coordinator.isDirty()){
++      logGA('submit');
++      $.get("/oozie/editor/coordinator/submit/" + self.coordinator.id(), {
++        }, function (data) {
++          $(document).trigger("showSubmitPopup", data);
++      }).fail(function (xhr, textStatus, errorThrown) {
++          $(document).trigger("error", xhr.responseText);
++      });
++    }
+   };
+ };
+ 
+-- 
+1.7.9.5
+

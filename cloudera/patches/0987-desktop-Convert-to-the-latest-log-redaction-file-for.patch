@@ -1,0 +1,5426 @@
+From 793634ec4280669213927e3e7bb1da117c59c044 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 4 Mar 2015 16:48:18 -0800
+Subject: [PATCH 0987/1173] [desktop] Convert to the latest log redaction file
+ format and add more tests
+
+---
+ desktop/core/src/desktop/redaction/engine.py       |   75 +-
+ .../desktop/redaction/test_data/alpha-version.json |   16 +
+ .../src/desktop/redaction/test_data/bad-regex.json |   10 +
+ .../src/desktop/redaction/test_data/case-1.json    |   25 +
+ .../desktop/redaction/test_data/empty-rules.json   |    4 +
+ .../desktop/redaction/test_data/extra-attr.json    |   17 +
+ .../src/desktop/redaction/test_data/good-1.json    |   16 +
+ .../src/desktop/redaction/test_data/huge-1.json    | 4530 ++++++++++++++++++++
+ .../src/desktop/redaction/test_data/no-brace.json  |   14 +
+ .../desktop/redaction/test_data/no-replace.json    |    9 +
+ .../src/desktop/redaction/test_data/no-search.json |   10 +
+ .../desktop/redaction/test_data/no-version.json    |   15 +
+ .../src/desktop/redaction/test_data/non-json.json  |    1 +
+ .../src/desktop/redaction/test_data/numbers.json   |   34 +
+ .../desktop/redaction/test_data/ordering-1.json    |   80 +
+ .../src/desktop/redaction/test_data/real-1.json    |   46 +
+ .../src/desktop/redaction/test_data/replace-1.json |   25 +
+ .../redaction/test_data/unknown-version.json       |   16 +
+ .../src/desktop/redaction/test_data/verint.json    |   16 +
+ desktop/core/src/desktop/redaction/tests.py        |  234 +-
+ 20 files changed, 5177 insertions(+), 16 deletions(-)
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/alpha-version.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/bad-regex.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/case-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/empty-rules.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/empty.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/extra-attr.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/good-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/huge-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/no-brace.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/no-replace.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/no-search.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/no-version.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/non-json.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/numbers.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/ordering-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/real-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/replace-1.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/unknown-version.json
+ create mode 100644 desktop/core/src/desktop/redaction/test_data/verint.json
+
+diff --git a/desktop/core/src/desktop/redaction/engine.py b/desktop/core/src/desktop/redaction/engine.py
+index efe5324..a532287 100644
+--- a/desktop/core/src/desktop/redaction/engine.py
++++ b/desktop/core/src/desktop/redaction/engine.py
+@@ -84,10 +84,19 @@ class RedactionRule(object):
+   for the sensitive information and replace it with the `redaction_mask`.
+   """
+ 
+-  def __init__(self, trigger, search, replace):
+-    self.trigger = trigger
+-    self.regex = re.compile(search)
+-    self.replace = replace
++  def __init__(self, trigger, search, replace, case_sensitive=True):
++    if case_sensitive:
++      flags = 0
++    else:
++      flags = re.IGNORECASE
++
++    if trigger is not None:
++      self.trigger = re.compile(re.escape(trigger), flags)
++    else:
++      self.trigger = None
++
++    self.regex = re.compile(search, flags)
++    self.replace = _convert_java_pattern_to_python(replace)
+ 
+   def redact(self, message):
+     """
+@@ -95,7 +104,7 @@ class RedactionRule(object):
+     `trigger` string then it will return the original string unmodified.
+     """
+ 
+-    if not self.trigger or self.trigger in message:
++    if self.trigger is None or self.trigger.search(message):
+       return self.regex.sub(self.replace, message)
+     else:
+       return message
+@@ -124,23 +133,32 @@ def parse_redaction_policy_from_file(filename):
+   """
+ 
+   with open(filename) as f:
+-    scheme = json.load(f)
++    s = f.read().strip()
++
++    # We treat empty files as allowing everything.
++    if not s:
++      return RedactionPolicy([])
++
++    scheme = json.loads(s)
+ 
+     try:
+-      version = scheme['version']
++      version = str(scheme.pop('version'))
+     except KeyError:
+       raise ValueError('Redaction policy is missing `version` field')
+ 
+-    if version != 1:
+-      raise ValueError('unknown version %s' % version)
++    if version != '1':
++      raise ValueError('unknown version `%s`' % version)
+ 
+     try:
+-      rules = scheme['rules']
++      rules = scheme.pop('rules')
+     except KeyError:
+       raise ValueError('Redaction policy is missing `rules` field')
+ 
+     rules = [parse_one_rule_from_dict(rule) for rule in rules]
+ 
++    if scheme:
++      raise ValueError('Redaction policy contains unknown field(s): %s' % scheme.keys())
++
+     return RedactionPolicy(rules)
+ 
+ 
+@@ -159,16 +177,45 @@ def parse_one_rule_from_dict(rule):
+   regular expression.
+   """
+ 
+-  trigger = rule.get('trigger')
++  rule.pop('description', None)
++
++  trigger = rule.pop('trigger', None)
++  case_sensitive = rule.pop('caseSensitive', True)
++
++  if case_sensitive == 'false':
++    case_sensitive = False
++  elif case_sensitive == 'true':
++    case_sensitive = True
+ 
+   try:
+-    search = rule['search']
++    search = rule.pop('search')
+   except KeyError:
+     raise ValueError('Redaction rule is missing `search` field')
+ 
+   try:
+-    replace = rule['replace']
++    replace = rule.pop('replace')
+   except KeyError:
+     raise ValueError('Redaction rule is missing `replace` field')
+ 
+-  return RedactionRule(trigger, search, replace)
++  if rule:
++    raise ValueError('Redaction rule contains unknown field(s): %s' % rule.keys())
++
++  return RedactionRule(trigger, search, replace, case_sensitive)
++
++def _convert_java_pattern_to_python(pattern):
++  """Convert a replacement pattern from the Java-style `$5` to the Python-style `\\5`."""
++
++  s = list(pattern)
++
++  i = 0
++  while i < len(s) - 1:
++    c = s[i]
++    if c == '$' and s[i + 1] in '0123456789':
++      s[i] = '\\'
++    elif c == '\\' and s[i + 1] == '$':
++      s[i] = ''
++      i += 1
++
++    i += 1
++
++  return pattern[:0].join(s)
+diff --git a/desktop/core/src/desktop/redaction/test_data/alpha-version.json b/desktop/core/src/desktop/redaction/test_data/alpha-version.json
+new file mode 100644
+index 0000000..6f8c206
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/alpha-version.json
+@@ -0,0 +1,16 @@
++{
++  "version": "string",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/bad-regex.json b/desktop/core/src/desktop/redaction/test_data/bad-regex.json
+new file mode 100644
+index 0000000..85776d6
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/bad-regex.json
+@@ -0,0 +1,10 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou",
++      "replace": "x"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/case-1.json b/desktop/core/src/desktop/redaction/test_data/case-1.json
+new file mode 100644
+index 0000000..0012b78
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/case-1.json
+@@ -0,0 +1,25 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "Testing case insensitivity...",
++      "caseSensitive": "false",
++      "search": "aAa",
++      "replace": "bbb"
++    },
++    {
++      "description": "Testing case insensitivity with trigger...",
++      "caseSensitive": "false",
++      "trigger": "cCc",
++      "search": "dDd",
++      "replace": "eEe"
++    },
++    {
++      "description": "Case Sensitive.",
++      "caseSensitive": "true",
++      "trigger": "fFf",
++      "search": "gGg",
++      "replace": "hHh"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/empty-rules.json b/desktop/core/src/desktop/redaction/test_data/empty-rules.json
+new file mode 100644
+index 0000000..7d58816
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/empty-rules.json
+@@ -0,0 +1,4 @@
++{
++  "version": "1",
++  "rules": []
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/empty.json b/desktop/core/src/desktop/redaction/test_data/empty.json
+new file mode 100644
+index 0000000..e69de29
+diff --git a/desktop/core/src/desktop/redaction/test_data/extra-attr.json b/desktop/core/src/desktop/redaction/test_data/extra-attr.json
+new file mode 100644
+index 0000000..a6c43e4
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/extra-attr.json
+@@ -0,0 +1,17 @@
++{
++  "version": "1",
++  "extra": "This attribute does not belong here",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/good-1.json b/desktop/core/src/desktop/redaction/test_data/good-1.json
+new file mode 100644
+index 0000000..db37588
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/good-1.json
+@@ -0,0 +1,16 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/huge-1.json b/desktop/core/src/desktop/redaction/test_data/huge-1.json
+new file mode 100644
+index 0000000..6822db7
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/huge-1.json
+@@ -0,0 +1,4530 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "Testing 1000 rules.  Ugh.",
++      "search": "first",
++      "replace": "xxx"
++    },
++    {
++      "search": "VHlC",
++      "replace": "tKdV"
++    },
++    {
++      "search": "yEtu",
++      "replace": "cOBG"
++    },
++    {
++      "search": "JYoi",
++      "replace": "ZJQv"
++    },
++    {
++      "search": "wfPZ",
++      "replace": "LkZk"
++    },
++    {
++      "search": "Fhtf",
++      "replace": "DKfw"
++    },
++    {
++      "search": "JrCk",
++      "replace": "wkqw"
++    },
++    {
++      "search": "zpEZ",
++      "replace": "UaRL"
++    },
++    {
++      "search": "EmoG",
++      "replace": "QEMo"
++    },
++    {
++      "search": "BLuV",
++      "replace": "vwFp"
++    },
++    {
++      "search": "JMoz",
++      "replace": "rXTR"
++    },
++    {
++      "search": "kMNk",
++      "replace": "LGdn"
++    },
++    {
++      "search": "uKwZ",
++      "replace": "nGsV"
++    },
++    {
++      "search": "ZROP",
++      "replace": "SEVH"
++    },
++    {
++      "search": "Ubwv",
++      "replace": "DKbD"
++    },
++    {
++      "search": "TyiQ",
++      "replace": "BUoO"
++    },
++    {
++      "search": "cNZM",
++      "replace": "UUtz"
++    },
++    {
++      "search": "zrJB",
++      "replace": "vaNX"
++    },
++    {
++      "search": "Evfk",
++      "replace": "kJhh"
++    },
++    {
++      "search": "rRnI",
++      "replace": "enZA"
++    },
++    {
++      "search": "pDzc",
++      "replace": "Korn"
++    },
++    {
++      "search": "Dliv",
++      "replace": "bVcW"
++    },
++    {
++      "search": "cJLs",
++      "replace": "MgHJ"
++    },
++    {
++      "search": "QrKD",
++      "replace": "BOfn"
++    },
++    {
++      "search": "unWW",
++      "replace": "UTfp"
++    },
++    {
++      "search": "sdlb",
++      "replace": "SbBc"
++    },
++    {
++      "search": "VfPO",
++      "replace": "SYLp"
++    },
++    {
++      "search": "gHPL",
++      "replace": "nMOJ"
++    },
++    {
++      "search": "Hwzn",
++      "replace": "TQFm"
++    },
++    {
++      "search": "kQkh",
++      "replace": "vWmV"
++    },
++    {
++      "search": "CUxw",
++      "replace": "Kgjr"
++    },
++    {
++      "search": "Kjjg",
++      "replace": "kwWB"
++    },
++    {
++      "search": "zLKG",
++      "replace": "TVyp"
++    },
++    {
++      "search": "NuMx",
++      "replace": "IEkD"
++    },
++    {
++      "search": "rOsC",
++      "replace": "WWeK"
++    },
++    {
++      "search": "VCAu",
++      "replace": "smnh"
++    },
++    {
++      "search": "WEWW",
++      "replace": "LAqK"
++    },
++    {
++      "search": "RkBc",
++      "replace": "GFQr"
++    },
++    {
++      "search": "VfJt",
++      "replace": "rdVc"
++    },
++    {
++      "search": "pdQa",
++      "replace": "uSYB"
++    },
++    {
++      "search": "ZfwK",
++      "replace": "iNWv"
++    },
++    {
++      "search": "OgHo",
++      "replace": "oAmQ"
++    },
++    {
++      "search": "tdvf",
++      "replace": "cGcS"
++    },
++    {
++      "search": "fait",
++      "replace": "aGdX"
++    },
++    {
++      "search": "AYVn",
++      "replace": "ywDP"
++    },
++    {
++      "search": "sntm",
++      "replace": "QAKp"
++    },
++    {
++      "search": "uRlT",
++      "replace": "ccxL"
++    },
++    {
++      "search": "RSVC",
++      "replace": "Skel"
++    },
++    {
++      "search": "BWYv",
++      "replace": "TATT"
++    },
++    {
++      "search": "OEOk",
++      "replace": "jvlO"
++    },
++    {
++      "search": "lFpO",
++      "replace": "SMMK"
++    },
++    {
++      "search": "BchF",
++      "replace": "IMoQ"
++    },
++    {
++      "search": "CUeC",
++      "replace": "SgGc"
++    },
++    {
++      "search": "uxEJ",
++      "replace": "ZpCd"
++    },
++    {
++      "search": "MIHi",
++      "replace": "PEAf"
++    },
++    {
++      "search": "EGQB",
++      "replace": "GQjd"
++    },
++    {
++      "search": "rZrZ",
++      "replace": "iPBp"
++    },
++    {
++      "search": "fkaP",
++      "replace": "UfGf"
++    },
++    {
++      "search": "ijfp",
++      "replace": "nFoF"
++    },
++    {
++      "search": "zIJX",
++      "replace": "STIh"
++    },
++    {
++      "search": "SyuV",
++      "replace": "vfZI"
++    },
++    {
++      "search": "KGCn",
++      "replace": "coOp"
++    },
++    {
++      "search": "qHAa",
++      "replace": "aYLX"
++    },
++    {
++      "search": "kODh",
++      "replace": "sxnz"
++    },
++    {
++      "search": "fkcF",
++      "replace": "IifR"
++    },
++    {
++      "search": "kqVj",
++      "replace": "eeLD"
++    },
++    {
++      "search": "HhKi",
++      "replace": "JAlo"
++    },
++    {
++      "search": "GEBH",
++      "replace": "mKJX"
++    },
++    {
++      "search": "Vjfa",
++      "replace": "Okhd"
++    },
++    {
++      "search": "SNYJ",
++      "replace": "CxRB"
++    },
++    {
++      "search": "hcbI",
++      "replace": "gHZp"
++    },
++    {
++      "search": "tLbV",
++      "replace": "AoNv"
++    },
++    {
++      "search": "LZen",
++      "replace": "IxxT"
++    },
++    {
++      "search": "LAKb",
++      "replace": "fMOL"
++    },
++    {
++      "search": "VBZg",
++      "replace": "vIGt"
++    },
++    {
++      "search": "VxLM",
++      "replace": "Cdmw"
++    },
++    {
++      "search": "SSbq",
++      "replace": "bHMY"
++    },
++    {
++      "search": "aDHr",
++      "replace": "zuwi"
++    },
++    {
++      "search": "LdkL",
++      "replace": "aZud"
++    },
++    {
++      "search": "oGoP",
++      "replace": "Bhvz"
++    },
++    {
++      "search": "HEYg",
++      "replace": "rVbC"
++    },
++    {
++      "search": "PEDt",
++      "replace": "NBHZ"
++    },
++    {
++      "search": "ZEnK",
++      "replace": "YvtN"
++    },
++    {
++      "search": "PFWn",
++      "replace": "bhYt"
++    },
++    {
++      "search": "ukQY",
++      "replace": "OYWV"
++    },
++    {
++      "search": "VdEs",
++      "replace": "suLr"
++    },
++    {
++      "search": "LaMm",
++      "replace": "ERps"
++    },
++    {
++      "search": "ppbB",
++      "replace": "wkwt"
++    },
++    {
++      "search": "jqXc",
++      "replace": "Rfrd"
++    },
++    {
++      "search": "Cayh",
++      "replace": "hvwW"
++    },
++    {
++      "search": "whOs",
++      "replace": "EiLO"
++    },
++    {
++      "search": "ZNGC",
++      "replace": "zfws"
++    },
++    {
++      "search": "SNVi",
++      "replace": "gwZp"
++    },
++    {
++      "search": "DwOi",
++      "replace": "mEjO"
++    },
++    {
++      "search": "rdkI",
++      "replace": "MpwC"
++    },
++    {
++      "search": "wZGH",
++      "replace": "flVU"
++    },
++    {
++      "search": "JAVO",
++      "replace": "qSwN"
++    },
++    {
++      "search": "CuDG",
++      "replace": "XGYu"
++    },
++    {
++      "search": "nbUT",
++      "replace": "fhGY"
++    },
++    {
++      "search": "HEAL",
++      "replace": "ZUMD"
++    },
++    {
++      "search": "bgFP",
++      "replace": "zuqg"
++    },
++    {
++      "search": "ChdV",
++      "replace": "fSeF"
++    },
++    {
++      "search": "CScI",
++      "replace": "HuEZ"
++    },
++    {
++      "search": "rVgh",
++      "replace": "gFCi"
++    },
++    {
++      "search": "BOlG",
++      "replace": "BMKQ"
++    },
++    {
++      "search": "aFSK",
++      "replace": "eorI"
++    },
++    {
++      "search": "COSg",
++      "replace": "Disl"
++    },
++    {
++      "search": "xKsy",
++      "replace": "kVFY"
++    },
++    {
++      "search": "iufq",
++      "replace": "XCVN"
++    },
++    {
++      "search": "cYTd",
++      "replace": "eiXC"
++    },
++    {
++      "search": "tFxY",
++      "replace": "YbkD"
++    },
++    {
++      "search": "wotV",
++      "replace": "MnAU"
++    },
++    {
++      "search": "Mmtk",
++      "replace": "leSf"
++    },
++    {
++      "search": "MTXQ",
++      "replace": "fILB"
++    },
++    {
++      "search": "eLNy",
++      "replace": "zAZy"
++    },
++    {
++      "search": "OLqI",
++      "replace": "GSVD"
++    },
++    {
++      "search": "XaKo",
++      "replace": "VeGP"
++    },
++    {
++      "search": "Wrtk",
++      "replace": "PjMe"
++    },
++    {
++      "search": "qZvL",
++      "replace": "TyNC"
++    },
++    {
++      "search": "xlCO",
++      "replace": "uvMP"
++    },
++    {
++      "search": "DLIO",
++      "replace": "rIhy"
++    },
++    {
++      "search": "musg",
++      "replace": "YOye"
++    },
++    {
++      "search": "nbMF",
++      "replace": "OWRZ"
++    },
++    {
++      "search": "czdr",
++      "replace": "FQtd"
++    },
++    {
++      "search": "wxUG",
++      "replace": "HIGZ"
++    },
++    {
++      "search": "onYn",
++      "replace": "XxYr"
++    },
++    {
++      "search": "qnGl",
++      "replace": "gaNS"
++    },
++    {
++      "search": "tjEP",
++      "replace": "ydRB"
++    },
++    {
++      "search": "OKdx",
++      "replace": "uOwk"
++    },
++    {
++      "search": "yQCc",
++      "replace": "GLmm"
++    },
++    {
++      "search": "hNap",
++      "replace": "Zlie"
++    },
++    {
++      "search": "kDPU",
++      "replace": "Sdvf"
++    },
++    {
++      "search": "MwWa",
++      "replace": "SVQW"
++    },
++    {
++      "search": "nKkB",
++      "replace": "ZRrs"
++    },
++    {
++      "search": "kEQR",
++      "replace": "vlPb"
++    },
++    {
++      "search": "xkmX",
++      "replace": "rXBJ"
++    },
++    {
++      "search": "Ztex",
++      "replace": "JvVZ"
++    },
++    {
++      "search": "GEEc",
++      "replace": "iTZg"
++    },
++    {
++      "search": "MeEx",
++      "replace": "kAbV"
++    },
++    {
++      "search": "dTRB",
++      "replace": "hqTP"
++    },
++    {
++      "search": "XrYo",
++      "replace": "jCgB"
++    },
++    {
++      "search": "gKov",
++      "replace": "JXWo"
++    },
++    {
++      "search": "ZPnM",
++      "replace": "JZBT"
++    },
++    {
++      "search": "MaeI",
++      "replace": "EjMS"
++    },
++    {
++      "search": "qZqU",
++      "replace": "AOsT"
++    },
++    {
++      "search": "lcIw",
++      "replace": "caCx"
++    },
++    {
++      "search": "TnbM",
++      "replace": "JfnW"
++    },
++    {
++      "search": "YRwh",
++      "replace": "pxws"
++    },
++    {
++      "search": "hdFP",
++      "replace": "TBao"
++    },
++    {
++      "search": "EXzN",
++      "replace": "HAan"
++    },
++    {
++      "search": "GLYB",
++      "replace": "Guhe"
++    },
++    {
++      "search": "RUhT",
++      "replace": "sRvH"
++    },
++    {
++      "search": "MRRF",
++      "replace": "JbtJ"
++    },
++    {
++      "search": "RYBe",
++      "replace": "NUBz"
++    },
++    {
++      "search": "agld",
++      "replace": "ilIn"
++    },
++    {
++      "search": "ZHCq",
++      "replace": "eUPn"
++    },
++    {
++      "search": "uZYB",
++      "replace": "kbka"
++    },
++    {
++      "search": "CemR",
++      "replace": "SBzE"
++    },
++    {
++      "search": "RnKp",
++      "replace": "qQbA"
++    },
++    {
++      "search": "RckX",
++      "replace": "frbh"
++    },
++    {
++      "search": "IHMP",
++      "replace": "kyIu"
++    },
++    {
++      "search": "NNgl",
++      "replace": "sFXU"
++    },
++    {
++      "search": "GFRT",
++      "replace": "NxFr"
++    },
++    {
++      "search": "hhdO",
++      "replace": "jCHN"
++    },
++    {
++      "search": "cCFa",
++      "replace": "AEFV"
++    },
++    {
++      "search": "hbYa",
++      "replace": "HzUS"
++    },
++    {
++      "search": "dgIM",
++      "replace": "wKHL"
++    },
++    {
++      "search": "maYq",
++      "replace": "OoYZ"
++    },
++    {
++      "search": "aEfg",
++      "replace": "vZkb"
++    },
++    {
++      "search": "kfAG",
++      "replace": "DjIQ"
++    },
++    {
++      "search": "LZul",
++      "replace": "eOVw"
++    },
++    {
++      "search": "dUbh",
++      "replace": "pfOV"
++    },
++    {
++      "search": "wbUN",
++      "replace": "QsnY"
++    },
++    {
++      "search": "KqKj",
++      "replace": "uiMS"
++    },
++    {
++      "search": "ZhHH",
++      "replace": "DOZl"
++    },
++    {
++      "search": "CstM",
++      "replace": "gzAL"
++    },
++    {
++      "search": "XvuC",
++      "replace": "Lqjp"
++    },
++    {
++      "search": "ELni",
++      "replace": "WWyT"
++    },
++    {
++      "search": "mesH",
++      "replace": "NebJ"
++    },
++    {
++      "search": "DWSA",
++      "replace": "UQTL"
++    },
++    {
++      "search": "vRYN",
++      "replace": "TudL"
++    },
++    {
++      "search": "sJIN",
++      "replace": "VVCX"
++    },
++    {
++      "search": "HnBL",
++      "replace": "pOad"
++    },
++    {
++      "search": "CeBP",
++      "replace": "dhVG"
++    },
++    {
++      "search": "nBHj",
++      "replace": "whMe"
++    },
++    {
++      "search": "jTlJ",
++      "replace": "bcoV"
++    },
++    {
++      "search": "wzJq",
++      "replace": "vMpa"
++    },
++    {
++      "search": "ewyu",
++      "replace": "TnUN"
++    },
++    {
++      "search": "hDhA",
++      "replace": "hRTZ"
++    },
++    {
++      "search": "Ibxk",
++      "replace": "gqhd"
++    },
++    {
++      "search": "xfjr",
++      "replace": "IWiN"
++    },
++    {
++      "search": "VnhT",
++      "replace": "iZrJ"
++    },
++    {
++      "search": "txGx",
++      "replace": "ErbB"
++    },
++    {
++      "search": "fGaz",
++      "replace": "GizK"
++    },
++    {
++      "search": "PhQc",
++      "replace": "xKzY"
++    },
++    {
++      "search": "LrWh",
++      "replace": "NHea"
++    },
++    {
++      "search": "CkCD",
++      "replace": "NZUS"
++    },
++    {
++      "search": "HHel",
++      "replace": "lpbm"
++    },
++    {
++      "search": "NdtZ",
++      "replace": "XQcw"
++    },
++    {
++      "search": "QbEr",
++      "replace": "pFSB"
++    },
++    {
++      "search": "RWAO",
++      "replace": "RXGh"
++    },
++    {
++      "search": "TaHC",
++      "replace": "feyH"
++    },
++    {
++      "search": "ImEr",
++      "replace": "ssxK"
++    },
++    {
++      "search": "KApK",
++      "replace": "YgVk"
++    },
++    {
++      "search": "vlAf",
++      "replace": "tZNv"
++    },
++    {
++      "search": "yRou",
++      "replace": "nltA"
++    },
++    {
++      "search": "wnFQ",
++      "replace": "sxII"
++    },
++    {
++      "search": "Yzdf",
++      "replace": "QKdA"
++    },
++    {
++      "search": "OTVv",
++      "replace": "XvWT"
++    },
++    {
++      "search": "oqaX",
++      "replace": "ZzWw"
++    },
++    {
++      "search": "COPh",
++      "replace": "CEdk"
++    },
++    {
++      "search": "slnp",
++      "replace": "PtqZ"
++    },
++    {
++      "search": "zDgl",
++      "replace": "ugAa"
++    },
++    {
++      "search": "DMtu",
++      "replace": "nuEn"
++    },
++    {
++      "search": "ADxd",
++      "replace": "wjtM"
++    },
++    {
++      "search": "jyyO",
++      "replace": "bPqP"
++    },
++    {
++      "search": "kQMS",
++      "replace": "WOdV"
++    },
++    {
++      "search": "rbqa",
++      "replace": "WuVj"
++    },
++    {
++      "search": "bqjp",
++      "replace": "dpuY"
++    },
++    {
++      "search": "yZkJ",
++      "replace": "Phyv"
++    },
++    {
++      "search": "hwlf",
++      "replace": "oSIm"
++    },
++    {
++      "search": "BeuE",
++      "replace": "UMro"
++    },
++    {
++      "search": "Ewvj",
++      "replace": "CgUa"
++    },
++    {
++      "search": "JetF",
++      "replace": "xKCK"
++    },
++    {
++      "search": "jtsE",
++      "replace": "xpTy"
++    },
++    {
++      "search": "qjEn",
++      "replace": "MAHs"
++    },
++    {
++      "search": "LQqu",
++      "replace": "HOpn"
++    },
++    {
++      "search": "BTYa",
++      "replace": "LhvM"
++    },
++    {
++      "search": "hkLl",
++      "replace": "XuxO"
++    },
++    {
++      "search": "WTgO",
++      "replace": "ObxJ"
++    },
++    {
++      "search": "KDpV",
++      "replace": "buNI"
++    },
++    {
++      "search": "YcXz",
++      "replace": "JzMK"
++    },
++    {
++      "search": "yLhT",
++      "replace": "sVaC"
++    },
++    {
++      "search": "Xisn",
++      "replace": "imPV"
++    },
++    {
++      "search": "TXye",
++      "replace": "BhHl"
++    },
++    {
++      "search": "VVon",
++      "replace": "KrEr"
++    },
++    {
++      "search": "oBpR",
++      "replace": "ipes"
++    },
++    {
++      "search": "SaFa",
++      "replace": "aQvU"
++    },
++    {
++      "search": "bnGE",
++      "replace": "ZLMt"
++    },
++    {
++      "search": "FQga",
++      "replace": "pJiw"
++    },
++    {
++      "search": "VcZC",
++      "replace": "lMnT"
++    },
++    {
++      "search": "GyWB",
++      "replace": "nLWa"
++    },
++    {
++      "search": "ZkdE",
++      "replace": "YAmj"
++    },
++    {
++      "search": "bnFl",
++      "replace": "yDId"
++    },
++    {
++      "search": "XkJe",
++      "replace": "uXhH"
++    },
++    {
++      "search": "SsGN",
++      "replace": "sQcs"
++    },
++    {
++      "search": "WSJc",
++      "replace": "RriA"
++    },
++    {
++      "search": "svrT",
++      "replace": "Oiyb"
++    },
++    {
++      "search": "iGEk",
++      "replace": "RuxC"
++    },
++    {
++      "search": "ahHF",
++      "replace": "RJgS"
++    },
++    {
++      "search": "zjyO",
++      "replace": "fHUS"
++    },
++    {
++      "search": "Efjx",
++      "replace": "eqMI"
++    },
++    {
++      "search": "dgSA",
++      "replace": "cpMP"
++    },
++    {
++      "search": "iEtp",
++      "replace": "nYiZ"
++    },
++    {
++      "search": "gQzh",
++      "replace": "lqnm"
++    },
++    {
++      "search": "bdXZ",
++      "replace": "SeyP"
++    },
++    {
++      "search": "FIyO",
++      "replace": "cdoM"
++    },
++    {
++      "search": "RMjb",
++      "replace": "dAKp"
++    },
++    {
++      "search": "eOgQ",
++      "replace": "QCxo"
++    },
++    {
++      "search": "Dmtm",
++      "replace": "puLo"
++    },
++    {
++      "search": "NoqX",
++      "replace": "cTnm"
++    },
++    {
++      "search": "lppo",
++      "replace": "jdSP"
++    },
++    {
++      "search": "ynAW",
++      "replace": "eAjc"
++    },
++    {
++      "search": "FQJO",
++      "replace": "YsFt"
++    },
++    {
++      "search": "ziNG",
++      "replace": "Uhkt"
++    },
++    {
++      "search": "GPNr",
++      "replace": "inTp"
++    },
++    {
++      "search": "PDoH",
++      "replace": "KWRg"
++    },
++    {
++      "search": "Joiu",
++      "replace": "Rorp"
++    },
++    {
++      "search": "XCSu",
++      "replace": "AeRx"
++    },
++    {
++      "search": "Upzp",
++      "replace": "hqfS"
++    },
++    {
++      "search": "ToGN",
++      "replace": "dWFC"
++    },
++    {
++      "search": "TXST",
++      "replace": "EOJd"
++    },
++    {
++      "search": "dpub",
++      "replace": "cuPD"
++    },
++    {
++      "search": "pkbU",
++      "replace": "ZdKK"
++    },
++    {
++      "search": "ejDo",
++      "replace": "npLq"
++    },
++    {
++      "search": "MkPz",
++      "replace": "OCCy"
++    },
++    {
++      "search": "vGdz",
++      "replace": "uSfZ"
++    },
++    {
++      "search": "zgqu",
++      "replace": "xBka"
++    },
++    {
++      "search": "TYCI",
++      "replace": "SYnu"
++    },
++    {
++      "search": "UZoa",
++      "replace": "NPtG"
++    },
++    {
++      "search": "WpTO",
++      "replace": "gGaG"
++    },
++    {
++      "search": "NXzQ",
++      "replace": "AYli"
++    },
++    {
++      "search": "WCQF",
++      "replace": "kZbl"
++    },
++    {
++      "search": "xQgO",
++      "replace": "hoYl"
++    },
++    {
++      "search": "adfr",
++      "replace": "mcCJ"
++    },
++    {
++      "search": "KTam",
++      "replace": "jlHA"
++    },
++    {
++      "search": "vXsU",
++      "replace": "kGkL"
++    },
++    {
++      "search": "voxg",
++      "replace": "QpZV"
++    },
++    {
++      "search": "BHAE",
++      "replace": "LICr"
++    },
++    {
++      "search": "RNJX",
++      "replace": "ErBO"
++    },
++    {
++      "search": "zCdc",
++      "replace": "myfZ"
++    },
++    {
++      "search": "Rkgy",
++      "replace": "yZoD"
++    },
++    {
++      "search": "vibe",
++      "replace": "ZKpU"
++    },
++    {
++      "search": "NnAw",
++      "replace": "wJwl"
++    },
++    {
++      "search": "ZTZp",
++      "replace": "nTKn"
++    },
++    {
++      "search": "QKiP",
++      "replace": "hPKN"
++    },
++    {
++      "search": "DveK",
++      "replace": "nLWM"
++    },
++    {
++      "search": "XRBP",
++      "replace": "icTj"
++    },
++    {
++      "search": "GtMk",
++      "replace": "BcUJ"
++    },
++    {
++      "search": "tFhF",
++      "replace": "pZWJ"
++    },
++    {
++      "search": "QBKh",
++      "replace": "vWZi"
++    },
++    {
++      "search": "uqOS",
++      "replace": "hCVD"
++    },
++    {
++      "search": "ItUv",
++      "replace": "IRlg"
++    },
++    {
++      "search": "XGKU",
++      "replace": "elUp"
++    },
++    {
++      "search": "ymtO",
++      "replace": "kFxs"
++    },
++    {
++      "search": "osOh",
++      "replace": "kVjI"
++    },
++    {
++      "search": "xIIL",
++      "replace": "hYFz"
++    },
++    {
++      "search": "zmra",
++      "replace": "Timl"
++    },
++    {
++      "search": "kowX",
++      "replace": "ZdVl"
++    },
++    {
++      "search": "WEcV",
++      "replace": "wXUY"
++    },
++    {
++      "search": "ARoh",
++      "replace": "hynB"
++    },
++    {
++      "search": "JxdI",
++      "replace": "qSIF"
++    },
++    {
++      "search": "FkvJ",
++      "replace": "ksyU"
++    },
++    {
++      "search": "EkrT",
++      "replace": "lANu"
++    },
++    {
++      "search": "KsIV",
++      "replace": "VBPD"
++    },
++    {
++      "search": "TuBS",
++      "replace": "jAtG"
++    },
++    {
++      "search": "hVpy",
++      "replace": "WJXz"
++    },
++    {
++      "search": "bGAR",
++      "replace": "lSml"
++    },
++    {
++      "search": "sXOi",
++      "replace": "eidL"
++    },
++    {
++      "search": "JSuN",
++      "replace": "FjdG"
++    },
++    {
++      "search": "BKUT",
++      "replace": "YnDM"
++    },
++    {
++      "search": "xuss",
++      "replace": "mKWz"
++    },
++    {
++      "search": "cKWk",
++      "replace": "YcSh"
++    },
++    {
++      "search": "WIOc",
++      "replace": "xkek"
++    },
++    {
++      "search": "MBtY",
++      "replace": "nyoE"
++    },
++    {
++      "search": "uPZr",
++      "replace": "APik"
++    },
++    {
++      "search": "Chgh",
++      "replace": "PIrD"
++    },
++    {
++      "search": "CIyW",
++      "replace": "WOAH"
++    },
++    {
++      "search": "yoSW",
++      "replace": "BpEL"
++    },
++    {
++      "search": "aGwt",
++      "replace": "tBsg"
++    },
++    {
++      "search": "Zxyg",
++      "replace": "BVxF"
++    },
++    {
++      "search": "Zmkt",
++      "replace": "PRES"
++    },
++    {
++      "search": "nGlB",
++      "replace": "WbhP"
++    },
++    {
++      "search": "dOTv",
++      "replace": "gdtV"
++    },
++    {
++      "search": "bknU",
++      "replace": "DgdH"
++    },
++    {
++      "search": "Fdrp",
++      "replace": "FBPP"
++    },
++    {
++      "search": "PgVc",
++      "replace": "xCRC"
++    },
++    {
++      "search": "NqnP",
++      "replace": "yBYo"
++    },
++    {
++      "search": "LASb",
++      "replace": "OVoA"
++    },
++    {
++      "search": "FdJQ",
++      "replace": "vUEP"
++    },
++    {
++      "search": "Ymlg",
++      "replace": "bxgN"
++    },
++    {
++      "search": "hRmU",
++      "replace": "GlSX"
++    },
++    {
++      "search": "tuyq",
++      "replace": "dppF"
++    },
++    {
++      "search": "zbRO",
++      "replace": "bZoa"
++    },
++    {
++      "search": "ETLq",
++      "replace": "ZbIe"
++    },
++    {
++      "search": "UDdb",
++      "replace": "GWYQ"
++    },
++    {
++      "search": "NFZw",
++      "replace": "Uphq"
++    },
++    {
++      "search": "UTBE",
++      "replace": "YrhB"
++    },
++    {
++      "search": "IUdM",
++      "replace": "tELM"
++    },
++    {
++      "search": "dsiV",
++      "replace": "drGH"
++    },
++    {
++      "search": "aTZi",
++      "replace": "DJjQ"
++    },
++    {
++      "search": "oYwL",
++      "replace": "xugT"
++    },
++    {
++      "search": "wbDB",
++      "replace": "OdgN"
++    },
++    {
++      "search": "qhyi",
++      "replace": "UZyy"
++    },
++    {
++      "search": "idmT",
++      "replace": "DMKH"
++    },
++    {
++      "search": "weuT",
++      "replace": "mBvd"
++    },
++    {
++      "search": "iSsP",
++      "replace": "XeVl"
++    },
++    {
++      "search": "DzjS",
++      "replace": "vDVl"
++    },
++    {
++      "search": "ZcBr",
++      "replace": "mgkj"
++    },
++    {
++      "search": "phpw",
++      "replace": "tKHp"
++    },
++    {
++      "search": "poWd",
++      "replace": "eYXu"
++    },
++    {
++      "search": "UDBN",
++      "replace": "uNPf"
++    },
++    {
++      "search": "QryT",
++      "replace": "Vtil"
++    },
++    {
++      "search": "CNEC",
++      "replace": "SkEF"
++    },
++    {
++      "search": "nKnt",
++      "replace": "VQsI"
++    },
++    {
++      "search": "TvAD",
++      "replace": "OQEm"
++    },
++    {
++      "search": "HSwi",
++      "replace": "nXPz"
++    },
++    {
++      "search": "GPYA",
++      "replace": "CVFb"
++    },
++    {
++      "search": "vmJx",
++      "replace": "SYeY"
++    },
++    {
++      "search": "GCjo",
++      "replace": "NKxB"
++    },
++    {
++      "search": "zqLE",
++      "replace": "MqRw"
++    },
++    {
++      "search": "VRZz",
++      "replace": "ajUl"
++    },
++    {
++      "search": "qDRR",
++      "replace": "otVO"
++    },
++    {
++      "search": "SsjO",
++      "replace": "PqnB"
++    },
++    {
++      "search": "pauG",
++      "replace": "ofXv"
++    },
++    {
++      "search": "NKxK",
++      "replace": "IlEQ"
++    },
++    {
++      "search": "ZnCB",
++      "replace": "zrkZ"
++    },
++    {
++      "search": "ycOC",
++      "replace": "bDpx"
++    },
++    {
++      "search": "dsqZ",
++      "replace": "ABTh"
++    },
++    {
++      "search": "oZHm",
++      "replace": "SSiW"
++    },
++    {
++      "search": "ibuS",
++      "replace": "fnjE"
++    },
++    {
++      "search": "PdQD",
++      "replace": "HqGu"
++    },
++    {
++      "search": "xYpo",
++      "replace": "YUoU"
++    },
++    {
++      "search": "NlQs",
++      "replace": "fqTN"
++    },
++    {
++      "search": "JGnC",
++      "replace": "wVKu"
++    },
++    {
++      "search": "olEE",
++      "replace": "XOMT"
++    },
++    {
++      "search": "WyWQ",
++      "replace": "FSMT"
++    },
++    {
++      "search": "rlHZ",
++      "replace": "NppY"
++    },
++    {
++      "search": "GqRV",
++      "replace": "XzMm"
++    },
++    {
++      "search": "KgLL",
++      "replace": "IXho"
++    },
++    {
++      "search": "lYFl",
++      "replace": "pdmn"
++    },
++    {
++      "search": "jAcq",
++      "replace": "iHMf"
++    },
++    {
++      "search": "nLMg",
++      "replace": "pFMF"
++    },
++    {
++      "search": "aaaa",
++      "replace": "aaab"
++    },
++    {
++      "search": "aaac",
++      "replace": "aaad"
++    },
++    {
++      "search": "aaae",
++      "replace": "aaaf"
++    },
++    {
++      "search": "aaba",
++      "replace": "aabb"
++    },
++    {
++      "search": "aabc",
++      "replace": "aabd"
++    },
++    {
++      "search": "aabe",
++      "replace": "aabf"
++    },
++    {
++      "search": "keIb",
++      "replace": "aaca"
++    },
++    {
++      "search": "aacb",
++      "replace": "aacc"
++    },
++    {
++      "search": "aacd",
++      "replace": "aace"
++    },
++    {
++      "search": "aacf",
++      "replace": "aada"
++    },
++    {
++      "search": "aadb",
++      "replace": "aadc"
++    },
++    {
++      "search": "aadd",
++      "replace": "aade"
++    },
++    {
++      "search": "aadf",
++      "replace": "aaea"
++    },
++    {
++      "search": "aaeb",
++      "replace": "aaec"
++    },
++    {
++      "search": "aaed",
++      "replace": "aaee"
++    },
++    {
++      "search": "aaef",
++      "replace": "aafa"
++    },
++    {
++      "search": "aafb",
++      "replace": "aafc"
++    },
++    {
++      "search": "aafd",
++      "replace": "aafe"
++    },
++    {
++      "search": "aaff",
++      "replace": "ZoLa"
++    },
++    {
++      "search": "iQnr",
++      "replace": "EHDP"
++    },
++    {
++      "search": "FVXn",
++      "replace": "BlVD"
++    },
++    {
++      "search": "vBPA",
++      "replace": "abaa"
++    },
++    {
++      "search": "AlPT",
++      "replace": "abac"
++    },
++    {
++      "search": "abad",
++      "replace": "abae"
++    },
++    {
++      "search": "abaf",
++      "replace": "abba"
++    },
++    {
++      "search": "abbb",
++      "replace": "abbc"
++    },
++    {
++      "search": "abbd",
++      "replace": "abbe"
++    },
++    {
++      "search": "abbf",
++      "replace": "abca"
++    },
++    {
++      "search": "abcb",
++      "replace": "abcc"
++    },
++    {
++      "search": "abcd",
++      "replace": "abce"
++    },
++    {
++      "search": "abcf",
++      "replace": "abda"
++    },
++    {
++      "search": "abdb",
++      "replace": "abdc"
++    },
++    {
++      "search": "abdd",
++      "replace": "abde"
++    },
++    {
++      "search": "abdf",
++      "replace": "abea"
++    },
++    {
++      "search": "abeb",
++      "replace": "abec"
++    },
++    {
++      "search": "abed",
++      "replace": "abee"
++    },
++    {
++      "search": "abef",
++      "replace": "abfa"
++    },
++    {
++      "search": "abfb",
++      "replace": "abfc"
++    },
++    {
++      "search": "abfd",
++      "replace": "abfe"
++    },
++    {
++      "search": "abff",
++      "replace": "BcjF"
++    },
++    {
++      "search": "JDjV",
++      "replace": "sTix"
++    },
++    {
++      "search": "acaa",
++      "replace": "acab"
++    },
++    {
++      "search": "acac",
++      "replace": "acad"
++    },
++    {
++      "search": "acae",
++      "replace": "acaf"
++    },
++    {
++      "search": "rZbE",
++      "replace": "hSyB"
++    },
++    {
++      "search": "acba",
++      "replace": "acbb"
++    },
++    {
++      "search": "acbc",
++      "replace": "acbd"
++    },
++    {
++      "search": "acbe",
++      "replace": "acbf"
++    },
++    {
++      "search": "acca",
++      "replace": "accb"
++    },
++    {
++      "search": "accc",
++      "replace": "accd"
++    },
++    {
++      "search": "acce",
++      "replace": "accf"
++    },
++    {
++      "search": "UTZq",
++      "replace": "acda"
++    },
++    {
++      "search": "pzLq",
++      "replace": "acdc"
++    },
++    {
++      "search": "acdd",
++      "replace": "acde"
++    },
++    {
++      "search": "acdf",
++      "replace": "acea"
++    },
++    {
++      "search": "aceb",
++      "replace": "acec"
++    },
++    {
++      "search": "aced",
++      "replace": "acee"
++    },
++    {
++      "search": "acef",
++      "replace": "acfa"
++    },
++    {
++      "search": "acfb",
++      "replace": "acfc"
++    },
++    {
++      "search": "acfd",
++      "replace": "acfe"
++    },
++    {
++      "search": "acff",
++      "replace": "hprF"
++    },
++    {
++      "search": "adaa",
++      "replace": "adab"
++    },
++    {
++      "search": "adac",
++      "replace": "adad"
++    },
++    {
++      "search": "adae",
++      "replace": "adaf"
++    },
++    {
++      "search": "adba",
++      "replace": "adbb"
++    },
++    {
++      "search": "adbc",
++      "replace": "adbd"
++    },
++    {
++      "search": "adbe",
++      "replace": "adbf"
++    },
++    {
++      "search": "adca",
++      "replace": "adcb"
++    },
++    {
++      "search": "adcc",
++      "replace": "adcd"
++    },
++    {
++      "search": "adce",
++      "replace": "adcf"
++    },
++    {
++      "search": "adda",
++      "replace": "addb"
++    },
++    {
++      "search": "addc",
++      "replace": "addd"
++    },
++    {
++      "search": "adde",
++      "replace": "addf"
++    },
++    {
++      "search": "adea",
++      "replace": "adeb"
++    },
++    {
++      "search": "adec",
++      "replace": "aded"
++    },
++    {
++      "search": "adee",
++      "replace": "adef"
++    },
++    {
++      "search": "adfa",
++      "replace": "adfb"
++    },
++    {
++      "search": "adfc",
++      "replace": "adfd"
++    },
++    {
++      "search": "adfe",
++      "replace": "adff"
++    },
++    {
++      "search": "ZRic",
++      "replace": "MrQd"
++    },
++    {
++      "search": "aeaa",
++      "replace": "aeab"
++    },
++    {
++      "search": "aeac",
++      "replace": "aead"
++    },
++    {
++      "search": "aeae",
++      "replace": "aeaf"
++    },
++    {
++      "search": "aeba",
++      "replace": "aebb"
++    },
++    {
++      "search": "aebc",
++      "replace": "aebd"
++    },
++    {
++      "search": "aebe",
++      "replace": "aebf"
++    },
++    {
++      "search": "aeca",
++      "replace": "aecb"
++    },
++    {
++      "search": "aecc",
++      "replace": "aecd"
++    },
++    {
++      "search": "aece",
++      "replace": "aecf"
++    },
++    {
++      "search": "aeda",
++      "replace": "aedb"
++    },
++    {
++      "search": "aedc",
++      "replace": "aedd"
++    },
++    {
++      "search": "aede",
++      "replace": "aedf"
++    },
++    {
++      "search": "aeea",
++      "replace": "aeeb"
++    },
++    {
++      "search": "aeec",
++      "replace": "aeed"
++    },
++    {
++      "search": "aeee",
++      "replace": "aeef"
++    },
++    {
++      "search": "aefa",
++      "replace": "aefb"
++    },
++    {
++      "search": "aefc",
++      "replace": "aefd"
++    },
++    {
++      "search": "aefe",
++      "replace": "aeff"
++    },
++    {
++      "search": "YKwT",
++      "replace": "unpL"
++    },
++    {
++      "search": "oTWu",
++      "replace": "UtAw"
++    },
++    {
++      "search": "afaa",
++      "replace": "afab"
++    },
++    {
++      "search": "afac",
++      "replace": "afad"
++    },
++    {
++      "search": "afae",
++      "replace": "afaf"
++    },
++    {
++      "search": "afba",
++      "replace": "afbb"
++    },
++    {
++      "search": "afbc",
++      "replace": "NGBw"
++    },
++    {
++      "search": "afbe",
++      "replace": "afbf"
++    },
++    {
++      "search": "afca",
++      "replace": "afcb"
++    },
++    {
++      "search": "afcc",
++      "replace": "afcd"
++    },
++    {
++      "search": "afce",
++      "replace": "afcf"
++    },
++    {
++      "search": "afda",
++      "replace": "afdb"
++    },
++    {
++      "search": "afdc",
++      "replace": "afdd"
++    },
++    {
++      "search": "afde",
++      "replace": "afdf"
++    },
++    {
++      "search": "KQrP",
++      "replace": "afea"
++    },
++    {
++      "search": "afeb",
++      "replace": "afec"
++    },
++    {
++      "search": "afed",
++      "replace": "afee"
++    },
++    {
++      "search": "afef",
++      "replace": "rNpJ"
++    },
++    {
++      "search": "affa",
++      "replace": "affb"
++    },
++    {
++      "search": "affc",
++      "replace": "affd"
++    },
++    {
++      "search": "affe",
++      "replace": "afff"
++    },
++    {
++      "search": "sbzA",
++      "replace": "nvrG"
++    },
++    {
++      "search": "yaut",
++      "replace": "npkv"
++    },
++    {
++      "search": "jKRo",
++      "replace": "NWCU"
++    },
++    {
++      "search": "ebxh",
++      "replace": "pqZS"
++    },
++    {
++      "search": "TVly",
++      "replace": "Vqiy"
++    },
++    {
++      "search": "KRkY",
++      "replace": "Sels"
++    },
++    {
++      "search": "ShWx",
++      "replace": "hzCx"
++    },
++    {
++      "search": "yRFi",
++      "replace": "Eqrp"
++    },
++    {
++      "search": "NwGe",
++      "replace": "FVkZ"
++    },
++    {
++      "search": "IlbL",
++      "replace": "ynbx"
++    },
++    {
++      "search": "AmIf",
++      "replace": "ebFJ"
++    },
++    {
++      "search": "KBbE",
++      "replace": "oaqE"
++    },
++    {
++      "search": "LQGu",
++      "replace": "MwwQ"
++    },
++    {
++      "search": "Vpzr",
++      "replace": "dRhR"
++    },
++    {
++      "search": "GdQo",
++      "replace": "ofVF"
++    },
++    {
++      "search": "ScrI",
++      "replace": "WmnW"
++    },
++    {
++      "search": "aIJY",
++      "replace": "ylOw"
++    },
++    {
++      "search": "EWwE",
++      "replace": "jeRE"
++    },
++    {
++      "search": "Qblt",
++      "replace": "hHEj"
++    },
++    {
++      "search": "pKAM",
++      "replace": "ZNMH"
++    },
++    {
++      "search": "TxFM",
++      "replace": "RUfA"
++    },
++    {
++      "search": "FiZG",
++      "replace": "kIoH"
++    },
++    {
++      "search": "bkNp",
++      "replace": "wFum"
++    },
++    {
++      "search": "cOUC",
++      "replace": "Izes"
++    },
++    {
++      "search": "zbEl",
++      "replace": "cGSp"
++    },
++    {
++      "search": "HRUm",
++      "replace": "KxtU"
++    },
++    {
++      "search": "Zjvl",
++      "replace": "QffD"
++    },
++    {
++      "search": "rnTG",
++      "replace": "mYwK"
++    },
++    {
++      "search": "baaa",
++      "replace": "baab"
++    },
++    {
++      "search": "baac",
++      "replace": "baad"
++    },
++    {
++      "search": "baae",
++      "replace": "baaf"
++    },
++    {
++      "search": "baba",
++      "replace": "babb"
++    },
++    {
++      "search": "babc",
++      "replace": "babd"
++    },
++    {
++      "search": "babe",
++      "replace": "babf"
++    },
++    {
++      "search": "baca",
++      "replace": "bacb"
++    },
++    {
++      "search": "bacc",
++      "replace": "bacd"
++    },
++    {
++      "search": "bace",
++      "replace": "bacf"
++    },
++    {
++      "search": "bada",
++      "replace": "badb"
++    },
++    {
++      "search": "badc",
++      "replace": "badd"
++    },
++    {
++      "search": "bade",
++      "replace": "badf"
++    },
++    {
++      "search": "uccR",
++      "replace": "baea"
++    },
++    {
++      "search": "baeb",
++      "replace": "baec"
++    },
++    {
++      "search": "baed",
++      "replace": "baee"
++    },
++    {
++      "search": "baef",
++      "replace": "bafa"
++    },
++    {
++      "search": "bafb",
++      "replace": "bafc"
++    },
++    {
++      "search": "bafd",
++      "replace": "bafe"
++    },
++    {
++      "search": "baff",
++      "replace": "yJHd"
++    },
++    {
++      "search": "lgDe",
++      "replace": "bbaa"
++    },
++    {
++      "search": "bbab",
++      "replace": "bbac"
++    },
++    {
++      "search": "bbad",
++      "replace": "bbae"
++    },
++    {
++      "search": "bbaf",
++      "replace": "bbba"
++    },
++    {
++      "search": "bbbb",
++      "replace": "bbbc"
++    },
++    {
++      "search": "bbbd",
++      "replace": "bbbe"
++    },
++    {
++      "search": "bbbf",
++      "replace": "bbca"
++    },
++    {
++      "search": "bbcb",
++      "replace": "bbcc"
++    },
++    {
++      "search": "bbcd",
++      "replace": "bbce"
++    },
++    {
++      "search": "bbcf",
++      "replace": "bbda"
++    },
++    {
++      "search": "bbdb",
++      "replace": "bbdc"
++    },
++    {
++      "search": "bbdd",
++      "replace": "bbde"
++    },
++    {
++      "search": "bbdf",
++      "replace": "bbea"
++    },
++    {
++      "search": "bbeb",
++      "replace": "bbec"
++    },
++    {
++      "search": "bbed",
++      "replace": "bbee"
++    },
++    {
++      "search": "bbef",
++      "replace": "bbfa"
++    },
++    {
++      "search": "bbfb",
++      "replace": "bbfc"
++    },
++    {
++      "search": "bbfd",
++      "replace": "bbfe"
++    },
++    {
++      "search": "bbff",
++      "replace": "gmjJ"
++    },
++    {
++      "search": "rDPL",
++      "replace": "seNz"
++    },
++    {
++      "search": "LIcB",
++      "replace": "bcaa"
++    },
++    {
++      "search": "bcab",
++      "replace": "bcac"
++    },
++    {
++      "search": "bcad",
++      "replace": "bcae"
++    },
++    {
++      "search": "mOkN",
++      "replace": "dlir"
++    },
++    {
++      "search": "bcba",
++      "replace": "bcbb"
++    },
++    {
++      "search": "bcbc",
++      "replace": "bcbd"
++    },
++    {
++      "search": "bcbe",
++      "replace": "bcbf"
++    },
++    {
++      "search": "wMod",
++      "replace": "bcca"
++    },
++    {
++      "search": "bccb",
++      "replace": "bccc"
++    },
++    {
++      "search": "bccd",
++      "replace": "bcce"
++    },
++    {
++      "search": "bccf",
++      "replace": "bcda"
++    },
++    {
++      "search": "bcdb",
++      "replace": "bcdc"
++    },
++    {
++      "search": "bcdd",
++      "replace": "bcde"
++    },
++    {
++      "search": "bcdf",
++      "replace": "bcea"
++    },
++    {
++      "search": "bceb",
++      "replace": "bcec"
++    },
++    {
++      "search": "bced",
++      "replace": "bcee"
++    },
++    {
++      "search": "bcef",
++      "replace": "bcfa"
++    },
++    {
++      "search": "bcfb",
++      "replace": "bcfc"
++    },
++    {
++      "search": "bcfd",
++      "replace": "bcfe"
++    },
++    {
++      "search": "bcff",
++      "replace": "bdaa"
++    },
++    {
++      "search": "bdab",
++      "replace": "bdac"
++    },
++    {
++      "search": "bdad",
++      "replace": "bdae"
++    },
++    {
++      "search": "bdaf",
++      "replace": "bdba"
++    },
++    {
++      "search": "bdbb",
++      "replace": "bdbc"
++    },
++    {
++      "search": "bdbd",
++      "replace": "bdbe"
++    },
++    {
++      "search": "bdbf",
++      "replace": "bdca"
++    },
++    {
++      "search": "bdcb",
++      "replace": "bdcc"
++    },
++    {
++      "search": "bdcd",
++      "replace": "bdce"
++    },
++    {
++      "search": "bdcf",
++      "replace": "bdda"
++    },
++    {
++      "search": "bddb",
++      "replace": "bddc"
++    },
++    {
++      "search": "bddd",
++      "replace": "bdde"
++    },
++    {
++      "search": "bddf",
++      "replace": "bdea"
++    },
++    {
++      "search": "bdeb",
++      "replace": "bdec"
++    },
++    {
++      "search": "bded",
++      "replace": "bdee"
++    },
++    {
++      "search": "bdef",
++      "replace": "bdfa"
++    },
++    {
++      "search": "bdfb",
++      "replace": "bdfc"
++    },
++    {
++      "search": "bdfd",
++      "replace": "bdfe"
++    },
++    {
++      "search": "bdff",
++      "replace": "gsQq"
++    },
++    {
++      "search": "TRox",
++      "replace": "beaa"
++    },
++    {
++      "search": "beab",
++      "replace": "beac"
++    },
++    {
++      "search": "bead",
++      "replace": "beae"
++    },
++    {
++      "search": "beaf",
++      "replace": "cOtf"
++    },
++    {
++      "search": "ygzZ",
++      "replace": "beba"
++    },
++    {
++      "search": "bebb",
++      "replace": "bebc"
++    },
++    {
++      "search": "bebd",
++      "replace": "bebe"
++    },
++    {
++      "search": "bebf",
++      "replace": "IBCS"
++    },
++    {
++      "search": "beca",
++      "replace": "becb"
++    },
++    {
++      "search": "becc",
++      "replace": "becd"
++    },
++    {
++      "search": "bece",
++      "replace": "becf"
++    },
++    {
++      "search": "beda",
++      "replace": "bedb"
++    },
++    {
++      "search": "bedc",
++      "replace": "bedd"
++    },
++    {
++      "search": "bede",
++      "replace": "bedf"
++    },
++    {
++      "search": "beea",
++      "replace": "beeb"
++    },
++    {
++      "search": "beec",
++      "replace": "beed"
++    },
++    {
++      "search": "beee",
++      "replace": "beef"
++    },
++    {
++      "search": "befa",
++      "replace": "befb"
++    },
++    {
++      "search": "befc",
++      "replace": "befd"
++    },
++    {
++      "search": "befe",
++      "replace": "beff"
++    },
++    {
++      "search": "sRoR",
++      "replace": "dhIO"
++    },
++    {
++      "search": "bfaa",
++      "replace": "bfab"
++    },
++    {
++      "search": "bfac",
++      "replace": "bfad"
++    },
++    {
++      "search": "bfae",
++      "replace": "bfaf"
++    },
++    {
++      "search": "bfba",
++      "replace": "bfbb"
++    },
++    {
++      "search": "bfbc",
++      "replace": "bfbd"
++    },
++    {
++      "search": "bfbe",
++      "replace": "bfbf"
++    },
++    {
++      "search": "bfca",
++      "replace": "bfcb"
++    },
++    {
++      "search": "bfcc",
++      "replace": "bfcd"
++    },
++    {
++      "search": "bfce",
++      "replace": "bfcf"
++    },
++    {
++      "search": "bfda",
++      "replace": "bfdb"
++    },
++    {
++      "search": "bfdc",
++      "replace": "bfdd"
++    },
++    {
++      "search": "bfde",
++      "replace": "bfdf"
++    },
++    {
++      "search": "TLgs",
++      "replace": "tLco"
++    },
++    {
++      "search": "bfea",
++      "replace": "bfeb"
++    },
++    {
++      "search": "bfec",
++      "replace": "bfed"
++    },
++    {
++      "search": "bfee",
++      "replace": "bfef"
++    },
++    {
++      "search": "bffa",
++      "replace": "bffb"
++    },
++    {
++      "search": "bffc",
++      "replace": "bffd"
++    },
++    {
++      "search": "bffe",
++      "replace": "bfff"
++    },
++    {
++      "search": "MWph",
++      "replace": "IPeA"
++    },
++    {
++      "search": "rLEc",
++      "replace": "DVum"
++    },
++    {
++      "search": "NHmS",
++      "replace": "IGOB"
++    },
++    {
++      "search": "RrOB",
++      "replace": "GkAC"
++    },
++    {
++      "search": "ZZfl",
++      "replace": "pDaf"
++    },
++    {
++      "search": "RwpH",
++      "replace": "PRcr"
++    },
++    {
++      "search": "NhSV",
++      "replace": "pEZk"
++    },
++    {
++      "search": "joun",
++      "replace": "WWjH"
++    },
++    {
++      "search": "ncAa",
++      "replace": "CAly"
++    },
++    {
++      "search": "qZWu",
++      "replace": "oVtV"
++    },
++    {
++      "search": "JJGl",
++      "replace": "KJlz"
++    },
++    {
++      "search": "TFJt",
++      "replace": "ZneZ"
++    },
++    {
++      "search": "yeWi",
++      "replace": "FocS"
++    },
++    {
++      "search": "QiNl",
++      "replace": "Luzy"
++    },
++    {
++      "search": "nnSO",
++      "replace": "sJhI"
++    },
++    {
++      "search": "pBXI",
++      "replace": "luAB"
++    },
++    {
++      "search": "OLbQ",
++      "replace": "sDDE"
++    },
++    {
++      "search": "vGrT",
++      "replace": "AKaA"
++    },
++    {
++      "search": "fPYx",
++      "replace": "RPQf"
++    },
++    {
++      "search": "ZxLU",
++      "replace": "Zuak"
++    },
++    {
++      "search": "pCJf",
++      "replace": "VQhX"
++    },
++    {
++      "search": "Enqc",
++      "replace": "VGLT"
++    },
++    {
++      "search": "amqB",
++      "replace": "ZQWi"
++    },
++    {
++      "search": "VDlG",
++      "replace": "wjRY"
++    },
++    {
++      "search": "qdlj",
++      "replace": "bRXj"
++    },
++    {
++      "search": "pYjg",
++      "replace": "OqDT"
++    },
++    {
++      "search": "kEaI",
++      "replace": "bMKe"
++    },
++    {
++      "search": "PNat",
++      "replace": "ulEp"
++    },
++    {
++      "search": "baFW",
++      "replace": "ppEW"
++    },
++    {
++      "search": "lnIm",
++      "replace": "DrqU"
++    },
++    {
++      "search": "LCsP",
++      "replace": "BCNf"
++    },
++    {
++      "search": "ivwJ",
++      "replace": "GDFK"
++    },
++    {
++      "search": "caaa",
++      "replace": "caab"
++    },
++    {
++      "search": "caac",
++      "replace": "caad"
++    },
++    {
++      "search": "caae",
++      "replace": "caaf"
++    },
++    {
++      "search": "caba",
++      "replace": "cabb"
++    },
++    {
++      "search": "cabc",
++      "replace": "cabd"
++    },
++    {
++      "search": "cabe",
++      "replace": "cabf"
++    },
++    {
++      "search": "caca",
++      "replace": "cacb"
++    },
++    {
++      "search": "cacc",
++      "replace": "cacd"
++    },
++    {
++      "search": "cace",
++      "replace": "cacf"
++    },
++    {
++      "search": "QNzN",
++      "replace": "cada"
++    },
++    {
++      "search": "iQHq",
++      "replace": "vRZv"
++    },
++    {
++      "search": "cadd",
++      "replace": "cade"
++    },
++    {
++      "search": "cadf",
++      "replace": "caea"
++    },
++    {
++      "search": "caeb",
++      "replace": "caec"
++    },
++    {
++      "search": "DKui",
++      "replace": "caee"
++    },
++    {
++      "search": "caef",
++      "replace": "cafa"
++    },
++    {
++      "search": "cafb",
++      "replace": "cafc"
++    },
++    {
++      "search": "cafd",
++      "replace": "cafe"
++    },
++    {
++      "search": "caff",
++      "replace": "VXSX"
++    },
++    {
++      "search": "CdpM",
++      "replace": "kAPH"
++    },
++    {
++      "search": "hfWc",
++      "replace": "cbaa"
++    },
++    {
++      "search": "cbab",
++      "replace": "cbac"
++    },
++    {
++      "search": "cbad",
++      "replace": "cbae"
++    },
++    {
++      "search": "cbaf",
++      "replace": "cbba"
++    },
++    {
++      "search": "cbbb",
++      "replace": "cbbc"
++    },
++    {
++      "search": "cbbd",
++      "replace": "cbbe"
++    },
++    {
++      "search": "cbbf",
++      "replace": "cbca"
++    },
++    {
++      "search": "cbcb",
++      "replace": "cbcc"
++    },
++    {
++      "search": "cbcd",
++      "replace": "cbce"
++    },
++    {
++      "search": "cbcf",
++      "replace": "cbda"
++    },
++    {
++      "search": "cbdb",
++      "replace": "cbdc"
++    },
++    {
++      "search": "cbdd",
++      "replace": "cbde"
++    },
++    {
++      "search": "cbdf",
++      "replace": "cbea"
++    },
++    {
++      "search": "cbeb",
++      "replace": "cbec"
++    },
++    {
++      "search": "cbed",
++      "replace": "cbee"
++    },
++    {
++      "search": "cbef",
++      "replace": "cbfa"
++    },
++    {
++      "search": "cbfb",
++      "replace": "cbfc"
++    },
++    {
++      "search": "cbfd",
++      "replace": "cbfe"
++    },
++    {
++      "search": "cbff",
++      "replace": "KfAY"
++    },
++    {
++      "search": "sVyk",
++      "replace": "mkGY"
++    },
++    {
++      "search": "lnhM",
++      "replace": "OMqW"
++    },
++    {
++      "search": "zqFy",
++      "replace": "ccaa"
++    },
++    {
++      "search": "ccab",
++      "replace": "ccac"
++    },
++    {
++      "search": "ccad",
++      "replace": "ccae"
++    },
++    {
++      "search": "ccaf",
++      "replace": "ccba"
++    },
++    {
++      "search": "ccbb",
++      "replace": "ccbc"
++    },
++    {
++      "search": "ccbd",
++      "replace": "ccbe"
++    },
++    {
++      "search": "ccbf",
++      "replace": "ccca"
++    },
++    {
++      "search": "cccb",
++      "replace": "cccc"
++    },
++    {
++      "search": "cccd",
++      "replace": "ccce"
++    },
++    {
++      "search": "cccf",
++      "replace": "hHxT"
++    },
++    {
++      "search": "wJhY",
++      "replace": "ccda"
++    },
++    {
++      "search": "ccdb",
++      "replace": "ccdc"
++    },
++    {
++      "search": "ccdd",
++      "replace": "ccde"
++    },
++    {
++      "search": "ccdf",
++      "replace": "ccea"
++    },
++    {
++      "search": "cceb",
++      "replace": "ccec"
++    },
++    {
++      "search": "cced",
++      "replace": "ccee"
++    },
++    {
++      "search": "ccef",
++      "replace": "ccfa"
++    },
++    {
++      "search": "ccfb",
++      "replace": "ccfc"
++    },
++    {
++      "search": "ccfd",
++      "replace": "ccfe"
++    },
++    {
++      "search": "ccff",
++      "replace": "lrPm"
++    },
++    {
++      "search": "NTOO",
++      "replace": "cdaa"
++    },
++    {
++      "search": "cdab",
++      "replace": "cdac"
++    },
++    {
++      "search": "cdad",
++      "replace": "sjRP"
++    },
++    {
++      "search": "cdaf",
++      "replace": "cdba"
++    },
++    {
++      "search": "cdbb",
++      "replace": "cdbc"
++    },
++    {
++      "search": "cdbd",
++      "replace": "cdbe"
++    },
++    {
++      "search": "drDh",
++      "replace": "cdca"
++    },
++    {
++      "search": "cdcb",
++      "replace": "cdcc"
++    },
++    {
++      "search": "cdcd",
++      "replace": "cdce"
++    },
++    {
++      "search": "cdcf",
++      "replace": "gpcG"
++    },
++    {
++      "search": "cdda",
++      "replace": "cddb"
++    },
++    {
++      "search": "cddc",
++      "replace": "cddd"
++    },
++    {
++      "search": "cdde",
++      "replace": "cddf"
++    },
++    {
++      "search": "cdea",
++      "replace": "HvbU"
++    },
++    {
++      "search": "cdec",
++      "replace": "cded"
++    },
++    {
++      "search": "cdee",
++      "replace": "cdef"
++    },
++    {
++      "search": "cdfa",
++      "replace": "cdfb"
++    },
++    {
++      "search": "cdfc",
++      "replace": "cdfd"
++    },
++    {
++      "search": "cdfe",
++      "replace": "cdff"
++    },
++    {
++      "search": "xmJw",
++      "replace": "Uqpb"
++    },
++    {
++      "search": "RyGN",
++      "replace": "JSgy"
++    },
++    {
++      "search": "RjPI",
++      "replace": "yzsU"
++    },
++    {
++      "search": "ceaa",
++      "replace": "ceab"
++    },
++    {
++      "search": "ceac",
++      "replace": "cead"
++    },
++    {
++      "search": "ceae",
++      "replace": "ceaf"
++    },
++    {
++      "search": "Himh",
++      "replace": "fYJM"
++    },
++    {
++      "search": "dJGe",
++      "replace": "cebb"
++    },
++    {
++      "search": "cebc",
++      "replace": "cebd"
++    },
++    {
++      "search": "cebe",
++      "replace": "cebf"
++    },
++    {
++      "search": "ceca",
++      "replace": "cecb"
++    },
++    {
++      "search": "cecc",
++      "replace": "cecd"
++    },
++    {
++      "search": "cece",
++      "replace": "cecf"
++    },
++    {
++      "search": "ceda",
++      "replace": "cedb"
++    },
++    {
++      "search": "cedc",
++      "replace": "cedd"
++    },
++    {
++      "search": "cede",
++      "replace": "cedf"
++    },
++    {
++      "search": "ceea",
++      "replace": "ceeb"
++    },
++    {
++      "search": "ceec",
++      "replace": "ceed"
++    },
++    {
++      "search": "ceee",
++      "replace": "ceef"
++    },
++    {
++      "search": "cefa",
++      "replace": "cefb"
++    },
++    {
++      "search": "cefc",
++      "replace": "cefd"
++    },
++    {
++      "search": "cefe",
++      "replace": "ceff"
++    },
++    {
++      "search": "Jgoj",
++      "replace": "OTQz"
++    },
++    {
++      "search": "pdaQ",
++      "replace": "mxhy"
++    },
++    {
++      "search": "cfaa",
++      "replace": "cfab"
++    },
++    {
++      "search": "cfac",
++      "replace": "cfad"
++    },
++    {
++      "search": "cfae",
++      "replace": "cfaf"
++    },
++    {
++      "search": "cfba",
++      "replace": "cfbb"
++    },
++    {
++      "search": "cfbc",
++      "replace": "cfbd"
++    },
++    {
++      "search": "cfbe",
++      "replace": "cfbf"
++    },
++    {
++      "search": "cfca",
++      "replace": "sNTh"
++    },
++    {
++      "search": "cfcc",
++      "replace": "cfcd"
++    },
++    {
++      "search": "cfce",
++      "replace": "cfcf"
++    },
++    {
++      "search": "cfda",
++      "replace": "cfdb"
++    },
++    {
++      "search": "cfdc",
++      "replace": "cfdd"
++    },
++    {
++      "search": "cfde",
++      "replace": "cfdf"
++    },
++    {
++      "search": "QNhp",
++      "replace": "cfea"
++    },
++    {
++      "search": "cfeb",
++      "replace": "cfec"
++    },
++    {
++      "search": "cfed",
++      "replace": "cfee"
++    },
++    {
++      "search": "cfef",
++      "replace": "cffa"
++    },
++    {
++      "search": "cffb",
++      "replace": "cffc"
++    },
++    {
++      "search": "cffd",
++      "replace": "cffe"
++    },
++    {
++      "search": "cfff",
++      "replace": "NvJM"
++    },
++    {
++      "search": "iCpq",
++      "replace": "OwDk"
++    },
++    {
++      "search": "Vmqy",
++      "replace": "YzaP"
++    },
++    {
++      "search": "PYWq",
++      "replace": "Wnky"
++    },
++    {
++      "search": "hLjp",
++      "replace": "mbRj"
++    },
++    {
++      "search": "xDYE",
++      "replace": "IRXp"
++    },
++    {
++      "search": "uDfP",
++      "replace": "NVyb"
++    },
++    {
++      "search": "kstX",
++      "replace": "gFac"
++    },
++    {
++      "search": "YmOF",
++      "replace": "PKHU"
++    },
++    {
++      "search": "Hchd",
++      "replace": "bfoN"
++    },
++    {
++      "search": "RlON",
++      "replace": "TgmV"
++    },
++    {
++      "search": "IQcr",
++      "replace": "roPM"
++    },
++    {
++      "search": "PCjo",
++      "replace": "JOdM"
++    },
++    {
++      "search": "YbhB",
++      "replace": "nHls"
++    },
++    {
++      "search": "dKJF",
++      "replace": "SVsf"
++    },
++    {
++      "search": "hBxX",
++      "replace": "eGtc"
++    },
++    {
++      "search": "plPF",
++      "replace": "EYRU"
++    },
++    {
++      "search": "EKjW",
++      "replace": "Mzbz"
++    },
++    {
++      "search": "bfnT",
++      "replace": "HUmP"
++    },
++    {
++      "search": "rWun",
++      "replace": "hEIN"
++    },
++    {
++      "search": "rJiG",
++      "replace": "RwuW"
++    },
++    {
++      "search": "xpvS",
++      "replace": "wzWD"
++    },
++    {
++      "search": "sBox",
++      "replace": "UMqj"
++    },
++    {
++      "search": "EmnN",
++      "replace": "gUjv"
++    },
++    {
++      "search": "NeNE",
++      "replace": "jgDu"
++    },
++    {
++      "search": "EDMd",
++      "replace": "daaa"
++    },
++    {
++      "search": "daab",
++      "replace": "daac"
++    },
++    {
++      "search": "daad",
++      "replace": "daae"
++    },
++    {
++      "search": "daaf",
++      "replace": "daba"
++    },
++    {
++      "search": "dabb",
++      "replace": "dabc"
++    },
++    {
++      "search": "dabd",
++      "replace": "dabe"
++    },
++    {
++      "search": "dabf",
++      "replace": "daca"
++    },
++    {
++      "search": "dacb",
++      "replace": "dacc"
++    },
++    {
++      "search": "dacd",
++      "replace": "dace"
++    },
++    {
++      "search": "dacf",
++      "replace": "vFjT"
++    },
++    {
++      "search": "dada",
++      "replace": "dadb"
++    },
++    {
++      "search": "dadc",
++      "replace": "dadd"
++    },
++    {
++      "search": "dade",
++      "replace": "dadf"
++    },
++    {
++      "search": "daea",
++      "replace": "daeb"
++    },
++    {
++      "search": "daec",
++      "replace": "daed"
++    },
++    {
++      "search": "daee",
++      "replace": "daef"
++    },
++    {
++      "search": "dafa",
++      "replace": "dafb"
++    },
++    {
++      "search": "dafc",
++      "replace": "dafd"
++    },
++    {
++      "search": "dafe",
++      "replace": "daff"
++    },
++    {
++      "search": "dbaa",
++      "replace": "dbab"
++    },
++    {
++      "search": "dbac",
++      "replace": "dbad"
++    },
++    {
++      "search": "dbae",
++      "replace": "dbaf"
++    },
++    {
++      "search": "dbba",
++      "replace": "dbbb"
++    },
++    {
++      "search": "dbbc",
++      "replace": "dbbd"
++    },
++    {
++      "search": "Wwjm",
++      "replace": "dbbf"
++    },
++    {
++      "search": "dbca",
++      "replace": "dbcb"
++    },
++    {
++      "search": "dbcc",
++      "replace": "dbcd"
++    },
++    {
++      "search": "dbce",
++      "replace": "dbcf"
++    },
++    {
++      "search": "yqwz",
++      "replace": "dbdb"
++    },
++    {
++      "search": "dbdc",
++      "replace": "dbdd"
++    },
++    {
++      "search": "dbde",
++      "replace": "dbdf"
++    },
++    {
++      "search": "Lswi",
++      "replace": "dbea"
++    },
++    {
++      "search": "dbeb",
++      "replace": "dbec"
++    },
++    {
++      "search": "dbed",
++      "replace": "dbee"
++    },
++    {
++      "search": "dbef",
++      "replace": "dbfa"
++    },
++    {
++      "search": "dbfb",
++      "replace": "dbfc"
++    },
++    {
++      "search": "dbfd",
++      "replace": "dbfe"
++    },
++    {
++      "search": "dbff",
++      "replace": "fpzP"
++    },
++    {
++      "search": "piYb",
++      "replace": "Vtkj"
++    },
++    {
++      "search": "Uxff",
++      "replace": "QTbg"
++    },
++    {
++      "search": "dcaa",
++      "replace": "dcab"
++    },
++    {
++      "search": "dcac",
++      "replace": "dcad"
++    },
++    {
++      "search": "dcae",
++      "replace": "dcaf"
++    },
++    {
++      "search": "dcba",
++      "replace": "dcbb"
++    },
++    {
++      "search": "dcbc",
++      "replace": "dcbd"
++    },
++    {
++      "search": "dcbe",
++      "replace": "dcbf"
++    },
++    {
++      "search": "dcca",
++      "replace": "dccb"
++    },
++    {
++      "search": "dccc",
++      "replace": "dccd"
++    },
++    {
++      "search": "dcce",
++      "replace": "dccf"
++    },
++    {
++      "search": "dcda",
++      "replace": "dcdb"
++    },
++    {
++      "search": "dcdc",
++      "replace": "dcdd"
++    },
++    {
++      "search": "dcde",
++      "replace": "dcdf"
++    },
++    {
++      "search": "dcea",
++      "replace": "dceb"
++    },
++    {
++      "search": "dcec",
++      "replace": "dced"
++    },
++    {
++      "search": "dcee",
++      "replace": "dcef"
++    },
++    {
++      "search": "dcfa",
++      "replace": "dcfb"
++    },
++    {
++      "search": "dcfc",
++      "replace": "dcfd"
++    },
++    {
++      "search": "dcfe",
++      "replace": "dcff"
++    },
++    {
++      "search": "LsUp",
++      "replace": "ddaa"
++    },
++    {
++      "search": "ddab",
++      "replace": "ddac"
++    },
++    {
++      "search": "ddad",
++      "replace": "ddae"
++    },
++    {
++      "search": "ddaf",
++      "replace": "ddba"
++    },
++    {
++      "search": "uYad",
++      "replace": "ddbc"
++    },
++    {
++      "search": "ddbd",
++      "replace": "ddbe"
++    },
++    {
++      "search": "ddbf",
++      "replace": "ddca"
++    },
++    {
++      "search": "ddcb",
++      "replace": "ddcc"
++    },
++    {
++      "search": "ddcd",
++      "replace": "ddce"
++    },
++    {
++      "search": "ddcf",
++      "replace": "ddda"
++    },
++    {
++      "search": "dddb",
++      "replace": "dddc"
++    },
++    {
++      "search": "dddd",
++      "replace": "ddde"
++    },
++    {
++      "search": "dddf",
++      "replace": "ddea"
++    },
++    {
++      "search": "ddeb",
++      "replace": "ddec"
++    },
++    {
++      "search": "dded",
++      "replace": "ddee"
++    },
++    {
++      "search": "ddef",
++      "replace": "ddfa"
++    },
++    {
++      "search": "ddfb",
++      "replace": "ddfc"
++    },
++    {
++      "search": "Jpxq",
++      "replace": "ddfe"
++    },
++    {
++      "search": "ddff",
++      "replace": "GtiW"
++    },
++    {
++      "search": "pruJ",
++      "replace": "ATef"
++    },
++    {
++      "search": "fAzU",
++      "replace": "tzyX"
++    },
++    {
++      "search": "CwvY",
++      "replace": "deaa"
++    },
++    {
++      "search": "deab",
++      "replace": "deac"
++    },
++    {
++      "search": "dead",
++      "replace": "deae"
++    },
++    {
++      "search": "deaf",
++      "replace": "deba"
++    },
++    {
++      "search": "debb",
++      "replace": "debc"
++    },
++    {
++      "search": "debd",
++      "replace": "debe"
++    },
++    {
++      "search": "debf",
++      "replace": "deca"
++    },
++    {
++      "search": "decb",
++      "replace": "decc"
++    },
++    {
++      "search": "decd",
++      "replace": "dece"
++    },
++    {
++      "search": "decf",
++      "replace": "deda"
++    },
++    {
++      "search": "dedb",
++      "replace": "dedc"
++    },
++    {
++      "search": "dedd",
++      "replace": "dede"
++    },
++    {
++      "search": "dedf",
++      "replace": "deea"
++    },
++    {
++      "search": "deeb",
++      "replace": "deec"
++    },
++    {
++      "search": "deed",
++      "replace": "deee"
++    },
++    {
++      "search": "deef",
++      "replace": "defa"
++    },
++    {
++      "search": "defb",
++      "replace": "defc"
++    },
++    {
++      "search": "defd",
++      "replace": "defe"
++    },
++    {
++      "search": "deff",
++      "replace": "kyss"
++    },
++    {
++      "search": "dfaa",
++      "replace": "dfab"
++    },
++    {
++      "search": "dfac",
++      "replace": "dfad"
++    },
++    {
++      "search": "dfae",
++      "replace": "dfaf"
++    },
++    {
++      "search": "EMqC",
++      "replace": "dfba"
++    },
++    {
++      "search": "dfbb",
++      "replace": "dfbc"
++    },
++    {
++      "search": "dfbd",
++      "replace": "dfbe"
++    },
++    {
++      "search": "dfbf",
++      "replace": "dfca"
++    },
++    {
++      "search": "dfcb",
++      "replace": "dfcc"
++    },
++    {
++      "search": "dfcd",
++      "replace": "dfce"
++    },
++    {
++      "search": "dfcf",
++      "replace": "dfda"
++    },
++    {
++      "search": "dfdb",
++      "replace": "dfdc"
++    },
++    {
++      "search": "dfdd",
++      "replace": "dfde"
++    },
++    {
++      "search": "dfdf",
++      "replace": "dfea"
++    },
++    {
++      "search": "dfeb",
++      "replace": "dfec"
++    },
++    {
++      "search": "dfed",
++      "replace": "dfee"
++    },
++    {
++      "search": "dfef",
++      "replace": "dffa"
++    },
++    {
++      "search": "dffb",
++      "replace": "dffc"
++    },
++    {
++      "search": "dffd",
++      "replace": "dffe"
++    },
++    {
++      "search": "dfff",
++      "replace": "rrDC"
++    },
++    {
++      "search": "RbHe",
++      "replace": "bmeW"
++    },
++    {
++      "search": "PgPU",
++      "replace": "QgPX"
++    },
++    {
++      "search": "muhu",
++      "replace": "WIyb"
++    },
++    {
++      "search": "ECkJ",
++      "replace": "tsNz"
++    },
++    {
++      "search": "WNzp",
++      "replace": "qOkX"
++    },
++    {
++      "search": "Igqi",
++      "replace": "ppKN"
++    },
++    {
++      "search": "YFsO",
++      "replace": "KKcy"
++    },
++    {
++      "search": "MLPb",
++      "replace": "BgxD"
++    },
++    {
++      "search": "pXnC",
++      "replace": "akmo"
++    },
++    {
++      "search": "jtms",
++      "replace": "zeiw"
++    },
++    {
++      "search": "HCbF",
++      "replace": "kQLh"
++    },
++    {
++      "search": "gMqm",
++      "replace": "DROQ"
++    },
++    {
++      "search": "GWvX",
++      "replace": "OBXC"
++    },
++    {
++      "search": "mPzl",
++      "replace": "kBbc"
++    },
++    {
++      "search": "BYck",
++      "replace": "NRZm"
++    },
++    {
++      "search": "Dpsh",
++      "replace": "BBCb"
++    },
++    {
++      "search": "moxW",
++      "replace": "ItNN"
++    },
++    {
++      "search": "QmHc",
++      "replace": "neNn"
++    },
++    {
++      "search": "blqr",
++      "replace": "yYCV"
++    },
++    {
++      "search": "gucA",
++      "replace": "LbTg"
++    },
++    {
++      "search": "FpyO",
++      "replace": "INZp"
++    },
++    {
++      "search": "JJJg",
++      "replace": "vATf"
++    },
++    {
++      "search": "ZRif",
++      "replace": "mJWc"
++    },
++    {
++      "search": "GgCV",
++      "replace": "vrdR"
++    },
++    {
++      "search": "MHeG",
++      "replace": "cHBi"
++    },
++    {
++      "search": "KXMO",
++      "replace": "xGug"
++    },
++    {
++      "search": "IENi",
++      "replace": "GWyB"
++    },
++    {
++      "search": "JBkc",
++      "replace": "AVcH"
++    },
++    {
++      "search": "XIxb",
++      "replace": "hGIb"
++    },
++    {
++      "search": "jwNf",
++      "replace": "yWpL"
++    },
++    {
++      "search": "Lcbr",
++      "replace": "YDud"
++    },
++    {
++      "search": "BmKc",
++      "replace": "OwJS"
++    },
++    {
++      "search": "jALO",
++      "replace": "UZNV"
++    },
++    {
++      "search": "eaab",
++      "replace": "eaac"
++    },
++    {
++      "search": "eaad",
++      "replace": "eaae"
++    },
++    {
++      "search": "eaaf",
++      "replace": "eaba"
++    },
++    {
++      "search": "eabb",
++      "replace": "eabc"
++    },
++    {
++      "search": "eabd",
++      "replace": "eabe"
++    },
++    {
++      "search": "eabf",
++      "replace": "eaca"
++    },
++    {
++      "search": "eacb",
++      "replace": "eacc"
++    },
++    {
++      "search": "eacd",
++      "replace": "eace"
++    },
++    {
++      "search": "eacf",
++      "replace": "eada"
++    },
++    {
++      "search": "eadb",
++      "replace": "eadc"
++    },
++    {
++      "search": "eadd",
++      "replace": "eade"
++    },
++    {
++      "search": "eadf",
++      "replace": "MopR"
++    },
++    {
++      "search": "eaea",
++      "replace": "jXHN"
++    },
++    {
++      "search": "eaec",
++      "replace": "eaed"
++    },
++    {
++      "search": "eaee",
++      "replace": "eaef"
++    },
++    {
++      "search": "eafa",
++      "replace": "dMOG"
++    },
++    {
++      "search": "eafc",
++      "replace": "eafd"
++    },
++    {
++      "search": "eafe",
++      "replace": "eaff"
++    },
++    {
++      "search": "Pggb",
++      "replace": "ebaa"
++    },
++    {
++      "search": "ebab",
++      "replace": "ebac"
++    },
++    {
++      "search": "ebad",
++      "replace": "ebae"
++    },
++    {
++      "search": "ebaf",
++      "replace": "ebba"
++    },
++    {
++      "search": "ebbb",
++      "replace": "ebbc"
++    },
++    {
++      "search": "ebbd",
++      "replace": "ebbe"
++    },
++    {
++      "search": "ebbf",
++      "replace": "ebca"
++    },
++    {
++      "search": "ebcb",
++      "replace": "ebcc"
++    },
++    {
++      "search": "zEvC",
++      "replace": "ebce"
++    },
++    {
++      "search": "ebcf",
++      "replace": "zcXA"
++    },
++    {
++      "search": "ebda",
++      "replace": "ebdb"
++    },
++    {
++      "search": "ebdc",
++      "replace": "ebdd"
++    },
++    {
++      "search": "ebde",
++      "replace": "ebdf"
++    },
++    {
++      "search": "ebea",
++      "replace": "ebeb"
++    },
++    {
++      "search": "ebec",
++      "replace": "ebed"
++    },
++    {
++      "search": "ebee",
++      "replace": "ebef"
++    },
++    {
++      "search": "XrHS",
++      "replace": "ebfa"
++    },
++    {
++      "search": "ebfb",
++      "replace": "ebfc"
++    },
++    {
++      "search": "ebfd",
++      "replace": "ebfe"
++    },
++    {
++      "search": "ebff",
++      "replace": "DGLJ"
++    },
++    {
++      "search": "TXzI",
++      "replace": "eciQ"
++    },
++    {
++      "search": "aPLX",
++      "replace": "ecaa"
++    },
++    {
++      "search": "ecab",
++      "replace": "ecac"
++    },
++    {
++      "search": "ecad",
++      "replace": "ecae"
++    },
++    {
++      "search": "ecaf",
++      "replace": "ecba"
++    },
++    {
++      "search": "ecbb",
++      "replace": "ecbc"
++    },
++    {
++      "search": "ecbd",
++      "replace": "ecbe"
++    },
++    {
++      "search": "ecbf",
++      "replace": "ecca"
++    },
++    {
++      "search": "eccb",
++      "replace": "eccc"
++    },
++    {
++      "search": "eccd",
++      "replace": "ecce"
++    },
++    {
++      "search": "eccf",
++      "replace": "yGQt"
++    },
++    {
++      "search": "ecda",
++      "replace": "ecdb"
++    },
++    {
++      "search": "ecdc",
++      "replace": "ecdd"
++    },
++    {
++      "search": "ecde",
++      "replace": "ecdf"
++    },
++    {
++      "search": "ecea",
++      "replace": "eceb"
++    },
++    {
++      "search": "ecec",
++      "replace": "eced"
++    },
++    {
++      "search": "ecee",
++      "replace": "ecef"
++    },
++    {
++      "search": "ecfa",
++      "replace": "ecfb"
++    },
++    {
++      "search": "ecfc",
++      "replace": "ecfd"
++    },
++    {
++      "search": "ecfe",
++      "replace": "ecff"
++    },
++    {
++      "search": "MniO",
++      "replace": "IqVu"
++    },
++    {
++      "search": "RXMQ",
++      "replace": "ZysA"
++    },
++    {
++      "search": "CIgU",
++      "replace": "zwJc"
++    },
++    {
++      "search": "edaa",
++      "replace": "edab"
++    },
++    {
++      "search": "edac",
++      "replace": "edad"
++    },
++    {
++      "search": "edae",
++      "replace": "edaf"
++    },
++    {
++      "search": "edba",
++      "replace": "edbb"
++    },
++    {
++      "search": "edbc",
++      "replace": "edbd"
++    },
++    {
++      "search": "edbe",
++      "replace": "edbf"
++    },
++    {
++      "search": "edca",
++      "replace": "edcb"
++    },
++    {
++      "search": "edcc",
++      "replace": "edcd"
++    },
++    {
++      "search": "edce",
++      "replace": "edcf"
++    },
++    {
++      "search": "edda",
++      "replace": "eddb"
++    },
++    {
++      "search": "eddc",
++      "replace": "eddd"
++    },
++    {
++      "search": "edde",
++      "replace": "eddf"
++    },
++    {
++      "search": "xPwx",
++      "replace": "edea"
++    },
++    {
++      "search": "edeb",
++      "replace": "edec"
++    },
++    {
++      "search": "eded",
++      "replace": "edee"
++    },
++    {
++      "search": "edef",
++      "replace": "edfa"
++    },
++    {
++      "search": "edfb",
++      "replace": "edfc"
++    },
++    {
++      "search": "edfd",
++      "replace": "edfe"
++    },
++    {
++      "search": "edff",
++      "replace": "xuUj"
++    },
++    {
++      "search": "eeaa",
++      "replace": "eeab"
++    },
++    {
++      "search": "eeac",
++      "replace": "eead"
++    },
++    {
++      "search": "eeae",
++      "replace": "eeaf"
++    },
++    {
++      "search": "eeba",
++      "replace": "eebb"
++    },
++    {
++      "search": "eebc",
++      "replace": "eebd"
++    },
++    {
++      "search": "eebe",
++      "replace": "eebf"
++    },
++    {
++      "search": "eeca",
++      "replace": "eecb"
++    },
++    {
++      "search": "eecc",
++      "replace": "eecd"
++    },
++    {
++      "search": "eece",
++      "replace": "eecf"
++    },
++    {
++      "search": "TJOL",
++      "replace": "eeda"
++    },
++    {
++      "search": "eedb",
++      "replace": "eedc"
++    },
++    {
++      "search": "eedd",
++      "replace": "eede"
++    },
++    {
++      "search": "eedf",
++      "replace": "eeea"
++    },
++    {
++      "search": "eeeb",
++      "replace": "eeec"
++    },
++    {
++      "search": "eeed",
++      "replace": "eeee"
++    },
++    {
++      "search": "eeef",
++      "replace": "lrfs"
++    },
++    {
++      "search": "eefa",
++      "replace": "eefb"
++    },
++    {
++      "search": "eefc",
++      "replace": "eefd"
++    },
++    {
++      "search": "eefe",
++      "replace": "eeff"
++    },
++    {
++      "search": "JHVn",
++      "replace": "VEIm"
++    },
++    {
++      "search": "efaa",
++      "replace": "efab"
++    },
++    {
++      "search": "efac",
++      "replace": "efad"
++    },
++    {
++      "search": "efae",
++      "replace": "efaf"
++    },
++    {
++      "search": "efba",
++      "replace": "efbb"
++    },
++    {
++      "search": "efbc",
++      "replace": "efbd"
++    },
++    {
++      "search": "efbe",
++      "replace": "efbf"
++    },
++    {
++      "search": "efca",
++      "replace": "efcb"
++    },
++    {
++      "search": "efcc",
++      "replace": "efcd"
++    },
++    {
++      "search": "efce",
++      "replace": "efcf"
++    },
++    {
++      "search": "efda",
++      "replace": "efdb"
++    },
++    {
++      "search": "efdc",
++      "replace": "efdd"
++    },
++    {
++      "search": "efde",
++      "replace": "efdf"
++    },
++    {
++      "search": "SpIW",
++      "replace": "efea"
++    },
++    {
++      "search": "efeb",
++      "replace": "efec"
++    },
++    {
++      "search": "efed",
++      "replace": "efee"
++    },
++    {
++      "search": "efef",
++      "replace": "effa"
++    },
++    {
++      "search": "effb",
++      "replace": "effc"
++    },
++    {
++      "search": "effd",
++      "replace": "effe"
++    },
++    {
++      "search": "efff",
++      "replace": "xfYC"
++    },
++    {
++      "search": "TNXC",
++      "replace": "JuAx"
++    },
++    {
++      "search": "XeKi",
++      "replace": "KHDm"
++    },
++    {
++      "search": "ERQO",
++      "replace": "Zopd"
++    },
++    {
++      "search": "vlaK",
++      "replace": "PLbT"
++    },
++    {
++      "search": "sLvA",
++      "replace": "LJLq"
++    },
++    {
++      "search": "KioP",
++      "replace": "nlji"
++    },
++    {
++      "search": "cOxt",
++      "replace": "xnaP"
++    },
++    {
++      "search": "kmcY",
++      "replace": "Crhr"
++    },
++    {
++      "search": "jaaO",
++      "replace": "EFFl"
++    },
++    {
++      "search": "VoUI",
++      "replace": "AxCE"
++    },
++    {
++      "search": "ghxU",
++      "replace": "xJMM"
++    },
++    {
++      "search": "bWtf",
++      "replace": "LWIK"
++    },
++    {
++      "search": "hRAi",
++      "replace": "NDCr"
++    },
++    {
++      "search": "vWoC",
++      "replace": "MtdF"
++    },
++    {
++      "search": "hCUq",
++      "replace": "pUVK"
++    },
++    {
++      "search": "Hixl",
++      "replace": "UBen"
++    },
++    {
++      "search": "tfzE",
++      "replace": "cnoU"
++    },
++    {
++      "search": "DojR",
++      "replace": "OiGR"
++    },
++    {
++      "search": "uXGh",
++      "replace": "EZPK"
++    },
++    {
++      "search": "LaOC",
++      "replace": "GZPz"
++    },
++    {
++      "search": "FDef",
++      "replace": "BrCv"
++    },
++    {
++      "search": "PzUr",
++      "replace": "pWZa"
++    },
++    {
++      "search": "JfmD",
++      "replace": "lekW"
++    },
++    {
++      "search": "eNMZ",
++      "replace": "dncQ"
++    },
++    {
++      "search": "gGuI",
++      "replace": "mHpW"
++    },
++    {
++      "search": "NOHP",
++      "replace": "xxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/no-brace.json b/desktop/core/src/desktop/redaction/test_data/no-brace.json
+new file mode 100644
+index 0000000..f508221
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/no-brace.json
+@@ -0,0 +1,14 @@
++"version": "1",
++"rules": [
++  {
++    "description": "No more vowels",
++    "search": "[aeiou]",
++    "replace": "x"
++  },
++  {
++    "description": "Passwords",
++    "trigger": "password",
++    "search": "password=.*",
++    "replace": "password=xxxxx"
++  }
++]
+diff --git a/desktop/core/src/desktop/redaction/test_data/no-replace.json b/desktop/core/src/desktop/redaction/test_data/no-replace.json
+new file mode 100644
+index 0000000..d3a6f4e
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/no-replace.json
+@@ -0,0 +1,9 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/no-search.json b/desktop/core/src/desktop/redaction/test_data/no-search.json
+new file mode 100644
+index 0000000..74e1cda
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/no-search.json
+@@ -0,0 +1,10 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "replace": "x",
++      "trigger": "password"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/no-version.json b/desktop/core/src/desktop/redaction/test_data/no-version.json
+new file mode 100644
+index 0000000..f26fded
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/no-version.json
+@@ -0,0 +1,15 @@
++{
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/non-json.json b/desktop/core/src/desktop/redaction/test_data/non-json.json
+new file mode 100644
+index 0000000..817b5aa
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/non-json.json
+@@ -0,0 +1 @@
++# This file is not JSON.
+diff --git a/desktop/core/src/desktop/redaction/test_data/numbers.json b/desktop/core/src/desktop/redaction/test_data/numbers.json
+new file mode 100644
+index 0000000..c2e7353
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/numbers.json
+@@ -0,0 +1,34 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "No numbers 0-5",
++      "search": "[012345]",
++      "replace": "#"
++    },
++    {
++      "description": "No 6's",
++      "trigger": "6",
++      "search": "6",
++      "replace": "#"
++    },
++    {
++      "description": "No 7's",
++      "trigger": "7",
++      "search": "7",
++      "replace": "#"
++    },
++    {
++      "description": "No 8's",
++      "trigger": "8",
++      "search": "8",
++      "replace": "#"
++    },
++    {
++      "description": "No 9's",
++      "trigger": "9",
++      "search": "9",
++      "replace": "#"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/ordering-1.json b/desktop/core/src/desktop/redaction/test_data/ordering-1.json
+new file mode 100644
+index 0000000..52d5f5a
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/ordering-1.json
+@@ -0,0 +1,80 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "I am first",
++      "search": "one",
++      "replace": "two"
++    },
++    {
++      "description": "I'm second",
++      "search": "two",
++      "replace": "three"
++    },
++    {
++      "description": "I'm third and last; result is one -> four",
++      "search": "three",
++      "replace": "four"
++    },
++    {
++      "description": "Now triggers are fun...",
++      "trigger": "Please",
++      "search": "ten",
++      "replace": "eleven"
++    },
++    {
++      "description": "Trigger ordering",
++      "trigger": "help",
++      "search": "eleven",
++      "replace": "twelve"
++    },
++    {
++      "description": "Trigger ordering end",
++      "trigger": "me",
++      "search": "twelve",
++      "replace": "thirteen"
++    },
++    {
++      "description": "Malicious interleaving 1",
++      "caseSensitive": "true",
++      "trigger": "",
++      "search": "abc",
++      "replace": "def"
++    },
++    {
++      "description": "Malicious interleaving 2",
++      "caseSensitive": "true",
++      "trigger": "HappY",
++      "search": "def",
++      "replace": "ghi"
++    },
++    {
++      "description": "Malicious interleaving 3",
++      "caseSensitive": "true",
++      "trigger": "",
++      "search": "ghi",
++      "replace": "jkl"
++    },
++    {
++      "description": "Malicious interleaving 4",
++      "caseSensitive": "false",
++      "trigger": "HappY",
++      "search": "JkL",
++      "replace": "mno"
++    },
++    {
++      "description": "Malicious interleaving 5",
++      "caseSensitive": "true",
++      "trigger": "",
++      "search": "mno",
++      "replace": "pqr"
++    },
++    {
++      "description": "Malicious interleaving 6",
++      "caseSensitive": "true",
++      "trigger": "HappY",
++      "search": "pqr",
++      "replace": "stu"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/real-1.json b/desktop/core/src/desktop/redaction/test_data/real-1.json
+new file mode 100644
+index 0000000..56e7d2a
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/real-1.json
+@@ -0,0 +1,46 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "Credit Card numbers (with separator)",
++      "search": "\\d{4}.\\d{4}.\\d{4}.\\d{4}",
++      "replace": "XXXX-XXXX-XXXX-XXXX"
++    },
++    {
++      "description": "Credit Card numbers (no separator)",
++      "search": "\\d{16}",
++      "replace": "XXXXXXXXXXXXXXXX"
++    },
++    {
++      "description": "Social Security numbers (with separator)",
++      "search": "\\d{3}.\\d{2}.\\d{4}",
++      "replace": "XXX-XX-XXXX"
++    },
++    {
++      "description": "Social Security numbers (no separator)",
++      "search": "\\d{9}",
++      "replace": "XXXXXXXXX"
++    },
++    {
++      "description": "Password",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    },
++    {
++      "description": "Hostnames",
++      "search": "\\b(([A-Za-z]|[A-Za-z][A-Za-z0-9\\-]*[A-Za-z0-9])\\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])\\b",
++      "replace": "HOSTNAME.REDACTED"
++    },
++    {
++      "description": "IP Addresses",
++      "search": "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
++      "replace": "0.0.0.0"
++    },
++    {
++      "description": "Email addresses",
++      "search": "\\b([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-\\._]*[A-Za-z0-9])@(([A-Za-z0-9]|[A-Za-z][A-Za-z0-9\\-]*[A-Za-z0-9])\\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])\\b",
++      "replace": "email@redacted.host"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/replace-1.json b/desktop/core/src/desktop/redaction/test_data/replace-1.json
+new file mode 100644
+index 0000000..a546436
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/replace-1.json
+@@ -0,0 +1,25 @@
++{
++  "version": "1",
++  "rules": [
++    {
++      "description": "Credit Card numbers - redact all but last 4",
++      "search": "\\d{4}.\\d{4}.\\d{4}.(\\d{4})",
++      "replace": "XXXX-XXXX-XXXX-$1"
++    },
++    {
++      "description": "Hostnames, leaving TLD",
++      "search": "\\b(([A-Za-z]|[A-Za-z][A-Za-z0-9\\-]*[A-Za-z0-9])\\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])\\b",
++      "replace": "HOSTNAME.REDACTED.$3"
++    },
++    {
++      "description": "IP Addresses - reordered",
++      "search": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})",
++      "replace": "$3.$1.$4.$2"
++    },
++    {
++      "description": "Magic double double",
++      "search": "Magic ([a-z]+)",
++      "replace": "$1: Magic $1, $1"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/unknown-version.json b/desktop/core/src/desktop/redaction/test_data/unknown-version.json
+new file mode 100644
+index 0000000..b84bff7
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/unknown-version.json
+@@ -0,0 +1,16 @@
++{
++  "version": "4567",
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/test_data/verint.json b/desktop/core/src/desktop/redaction/test_data/verint.json
+new file mode 100644
+index 0000000..cfb5e59
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/test_data/verint.json
+@@ -0,0 +1,16 @@
++{
++  "version": 1,
++  "rules": [
++    {
++      "description": "No more vowels",
++      "search": "[aeiou]",
++      "replace": "x"
++    },
++    {
++      "description": "Passwords",
++      "trigger": "password",
++      "search": "password=.*",
++      "replace": "password=xxxxx"
++    }
++  ]
++}
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+index 3f18e89..6a88c99 100644
+--- a/desktop/core/src/desktop/redaction/tests.py
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -17,14 +17,24 @@
+ 
+ import json
+ import logging
++import os
++import random
++import re
+ import tempfile
++import threading
+ 
+ from desktop.redaction.engine import RedactionEngine, \
+                                      RedactionPolicy, \
+                                      RedactionRule, \
+-                                     parse_redaction_policy_from_file
++                                     parse_redaction_policy_from_file, \
++                                     _convert_java_pattern_to_python
+ from desktop.redaction.logfilter import add_log_redaction_filter_to_logger
+-from nose.tools import assert_true, assert_equal, assert_not_equal
++from nose.tools import assert_true, assert_equal, assert_not_equal, raises
++
++MESSAGE = "This string is not redacted"
++
++def get_path(filename):
++  return os.path.join(os.path.dirname(__file__), 'test_data', filename)
+ 
+ 
+ class MockLoggingHandler(logging.Handler):
+@@ -204,3 +214,223 @@ class TestRedactionLogFilter(object):
+       assert_equal(record.message, test['result_message'])
+       assert_equal(record.msg, test.get('result_msg', test['result_message']))
+       assert_equal(record.args, test.get('result_args'))
++
++  def test_convert_java_pattern_to_python(self):
++    assert_equal(_convert_java_pattern_to_python('1-2'), '1-2')
++    assert_equal(_convert_java_pattern_to_python('$1-$2'), '\\1-\\2')
++    assert_equal(_convert_java_pattern_to_python('\\$1-$2'), '$1-\\2')
++    assert_equal(_convert_java_pattern_to_python('\\$$1-$2'), '$\\1-\\2')
++
++  @raises(IOError)
++  def test_does_not_exist(self):
++    path = get_path('thisfiledoesnotexist.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(IOError)
++  def test_is_dir(self):
++    path = '/tmp'
++    parse_redaction_policy_from_file(path)
++
++  @raises(IOError)
++  def test_is_not_json(self):
++    path = get_path('not-json.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_no_version(self):
++    path = get_path('no-version.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_unknown_version(self):
++    path = get_path('unknown-version.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_alpha_version(self):
++    path = get_path('alpha-version.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_no_search(self):
++    path = get_path('no-search.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_no_replace(self):
++    path = get_path('no-replace.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_no_brace(self):
++    path = get_path('no-brace.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(re.error)
++  def test_bad_regex(self):
++    path = get_path('bad-regex.json')
++    parse_redaction_policy_from_file(path)
++
++  @raises(ValueError)
++  def test_extra_attr(self):
++    path = get_path('extra-attr.json')
++    parse_redaction_policy_from_file(path)
++
++  def test_empty_file(self):
++    path = get_path('empty.json')
++    policy = parse_redaction_policy_from_file(path)
++    assert_equal(MESSAGE, policy.redact(MESSAGE))
++
++  def test_empty_rules(self):
++    path = get_path('empty-rules.json')
++    policy = parse_redaction_policy_from_file(path)
++    assert_equal(MESSAGE, policy.redact(MESSAGE))
++
++  def test_basic_good1(self):
++    path = get_path('good-1.json')
++    policy = parse_redaction_policy_from_file(path)
++    assert_equal("Hxllx, wxrld", policy.redact("Hello, world"))
++
++  def test_int_version(self):
++    path = get_path('verint.json')
++    policy = parse_redaction_policy_from_file(path)
++    assert_equal("Hxllx, wxrld", policy.redact("Hello, world"))
++
++  def test_real_rules(self):
++    path = get_path('real-1.json')
++    policy = parse_redaction_policy_from_file(path)
++
++    messages = [
++      ("Hello, world", "Hello, world"),
++      ("CC 1234-2345-3456-4576", "CC XXXX-XXXX-XXXX-XXXX"),
++      ("CC 1234234534654576", "CC XXXXXXXXXXXXXXXX"),
++      ("CC 1234,2345,3456,4576", "CC XXXX-XXXX-XXXX-XXXX"),
++      ("SSN 123-45-6789", "SSN XXX-XX-XXXX"),
++      ("SSN 123456789", "SSN XXXXXXXXX"),
++      ("My password=Hello123", "My password=xxxxx"),
++      ("Host www.cloudera.com", "Host HOSTNAME.REDACTED"),
++      ("www.c1-foo.org rules!", "HOSTNAME.REDACTED rules!"),
++      ("IP1 8.8.8.8", "IP1 0.0.0.0"),
++      ("IP2 192.168.0.1", "IP2 0.0.0.0"),
++      ("My email is myoder@cloudera.com", "My email is email@redacted.host"),
++      ("hello.world@ex.x-1.fr is interesting", "email@redacted.host is interesting"),
++      ("Multi 1234-2345-3456-4567\nLine 123-45-6789", "Multi XXXX-XXXX-XXXX-XXXX\nLine XXX-XX-XXXX"),
++    ]
++
++    for message, redacted_message in messages:
++      assert_equal(redacted_message, policy.redact(message))
++
++  def test_huge_rules(self):
++    path = get_path('huge-1.json')
++    policy = parse_redaction_policy_from_file(path)
++    assert_equal("This string is not redadted", policy.redact(MESSAGE))
++
++  def test_back_refs(self):
++    path = get_path('replace-1.json')
++    policy = parse_redaction_policy_from_file(path)
++
++    messages = [
++      ("Hello, world", "Hello, world"),
++      ("1234-2345-3456-4576", "XXXX-XXXX-XXXX-4576"),
++      ("Words www.gmail.com is cool", "Words HOSTNAME.REDACTED.com is cool"),
++      ("short.org", "HOSTNAME.REDACTED.org"),
++      ("long.n4me.h-1.co.fr", "HOSTNAME.REDACTED.fr"),
++      ("Ping 192.168.0.1", "Ping 0.192.1.168"),
++      ("Magic word", "word: Magic word, word"),
++    ]
++
++    for message, redacted_message in messages:
++      assert_equal(redacted_message, policy.redact(message))
++
++  def test_ordering(self):
++    path = get_path('ordering-1.json')
++    policy = parse_redaction_policy_from_file(path)
++
++    messages = [
++      ("Hello, world", "Hello, world"),
++      ("one", "four"),
++      ("This one is a nice one", "This four is a nice four"),
++      ("Please help me: ten", "Please help me: thirteen"),
++      ("HappY abc", "HappY stu"),
++    ]
++
++    for message, redacted_message in messages:
++      assert_equal(redacted_message, policy.redact(message))
++
++  def test_case_sensitivity(self):
++    path = get_path('case-1.json')
++    policy = parse_redaction_policy_from_file(path)
++
++    messages = [
++      ("Hello, world", "Hello, world"),
++      ("Say aAa! aaa! AAAAAA!", "Say bbb! bbb! bbbbbb!"),
++      ("I like dddogs. dDd", "I like dddogs. dDd"),
++      ("Cccats. Dddogs", "Cccats. eEeogs"),
++      ("Trigger fff gGg", "Trigger fff gGg"),
++      ("Trigger fFf Ggg", "Trigger fFf Ggg"),
++      ("Trigger fFf gGg", "Trigger fFf hHh"),
++    ]
++
++    for message, redacted_message in messages:
++      assert_equal(redacted_message, policy.redact(message))
++
++  def test_multithreading(self):
++    path = get_path('numbers.json')
++    policy = parse_redaction_policy_from_file(path)
++
++    assert_equal("asdf####fdas### H#ll# w#rld", policy.redact("asdf1234fdas666 H3ll0 w0rld"))
++
++    errors = []
++    lock = threading.Lock()
++
++    regex = re.compile(r"[0-9]")
++
++    class TestThread(threading.Thread):
++      def run(self):
++        for i in xrange(500):
++          message = u''.join(random_utf8_char() for _ in xrange(128))
++          redacted_message = policy.redact(message)
++
++          if regex.search(redacted_message):
++            with lock:
++              errors.append((message, redacted_message))
++              break
++
++    threads = []
++    for i in xrange(10):
++      threads.append(TestThread())
++
++    for thread in threads:
++      thread.start()
++
++    for thread in threads:
++      thread.join()
++
++    assert_equal(errors, [])
++
++def byte_range(first, last):
++    return list(range(first, last+1))
++
++first_values = byte_range(0x00, 0x7F) + byte_range(0xC2, 0xF4)
++trailing_values = byte_range(0x80, 0xBF)
++
++def random_utf8_char():
++    first = random.choice(first_values)
++    if first <= 0x7F:
++        value = bytearray([first])
++    elif first <= 0xDF:
++        value = bytearray([first, random.choice(trailing_values)])
++    elif first == 0xE0:
++        value = bytearray([first, random.choice(byte_range(0xA0, 0xBF)), random.choice(trailing_values)])
++    elif first == 0xED:
++        value = bytearray([first, random.choice(byte_range(0x80, 0x9F)), random.choice(trailing_values)])
++    elif first <= 0xEF:
++        value = bytearray([first, random.choice(trailing_values), random.choice(trailing_values)])
++    elif first == 0xF0:
++        value = bytearray([first, random.choice(byte_range(0x90, 0xBF)), random.choice(trailing_values), random.choice(trailing_values)])
++    elif first <= 0xF3:
++        value = bytearray([first, random.choice(trailing_values), random.choice(trailing_values), random.choice(trailing_values)])
++    elif first == 0xF4:
++        value = bytearray([first, random.choice(byte_range(0x80, 0x8F)), random.choice(trailing_values), random.choice(trailing_values)])
++
++    return value.decode('utf8')
+-- 
+1.7.9.5
+

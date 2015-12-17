@@ -1,0 +1,58 @@
+From a21d67984d0aaaf0ea7d7e3c5b0ea7eb5b07ca97 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Feb 2015 11:46:16 -0800
+Subject: [PATCH 0848/1173] [oozie] Offer link to coordinator when adding one
+ in a bundle
+
+---
+ .../src/oozie/templates/editor2/bundle_editor.mako |    7 +++++--
+ apps/oozie/src/oozie/views/editor2.py              |   11 ++++++++---
+ 2 files changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index f371370..fe5db6a 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -148,9 +148,12 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+     <div>
+       <ul data-bind="foreach: $root.filteredModalCoordinators().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalCoordinators().length > 0"
+           class="unstyled inline fields-chooser" style="height: 100px; overflow-y: auto">
+-        <li data-bind="click: selectCoordinator">
+-          <span class="badge badge-info"><span data-bind="text: name(), attr: {'title': uuid()}"></span>
++        <li>
++          <span data-bind="click: selectCoordinator" class="badge badge-info"><span data-bind="text: name(), attr: {'title': uuid()}"></span>
+           </span>
++          <a data-bind="attr: { href: '${ url('oozie:edit_coordinator') }?uuid=' + uuid() }" target="_blank" title="${ _('Open') }">
++            <i class="fa fa-external-link-square"></i>
++          </a>
+         </li>
+       </ul>
+       <div class="alert alert-info inline" data-bind="visible: $root.filteredModalCoordinators().length == 0" style="margin-left: 250px;margin-right: 50px; height: 42px;line-height: 42px">
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index c2d89fa..fa8fe74 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -384,12 +384,17 @@ def list_editor_coordinators(request):
+ 
+ @check_document_access_permission()
+ def edit_coordinator(request):
+-  coordinator_id = request.GET.get('coordinator')
++  coordinator_id = request.GET.get('coordinator', request.GET.get('uuid'))
+   doc = None
+   
+   if coordinator_id:
+-    doc = Document2.objects.get(id=coordinator_id)
+-    coordinator = Coordinator(document=doc)
++    cid = {}
++    if coordinator_id.isdigit():
++      cid['id'] = coordinator_id
++    else:
++      cid['uuid'] = coordinator_id    
++      doc = Document2.objects.get(**cid)
++      coordinator = Coordinator(document=doc)
+   else:
+     coordinator = Coordinator()
+     coordinator.set_workspace(request.user)
+-- 
+1.7.9.5
+

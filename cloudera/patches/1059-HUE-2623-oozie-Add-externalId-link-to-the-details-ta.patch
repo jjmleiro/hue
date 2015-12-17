@@ -1,0 +1,30 @@
+From 8509e9e628a5a96fa8128f30e06f565d837395d6 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 12 Mar 2015 12:50:59 -0700
+Subject: [PATCH 1059/1173] HUE-2623 [oozie] Add externalId link to the
+ details tab in sub workflow action page
+
+---
+ .../dashboard/list_oozie_workflow_action.mako      |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+index ea992cb..71928c1 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+@@ -96,6 +96,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+               </tr>
+             </thead>
+             <tbody>
++              % if 'sub-workflow' == action.type and action.get_external_id_url():
++                <tr>
++                  <td>${ _('Workflow') }</td>
++                  <td><a href="${ action.get_external_id_url() }">${ action.externalId }</a></td>
++                </tr>
++              % endif
+               <tr>
+                 <td>${ _('External Status') }</td>
+                 <td><span class="label ${ utils.get_status(action.externalStatus) }">${ action.externalStatus }<span></td>
+-- 
+1.7.9.5
+

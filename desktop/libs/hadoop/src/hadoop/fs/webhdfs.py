@@ -34,6 +34,7 @@ from hadoop.fs.hadoopfs import Hdfs
 from hadoop.fs.exceptions import WebHdfsException
 from hadoop.fs.webhdfs_types import WebHdfsStat, WebHdfsContentSummary
 from hadoop.conf import UPLOAD_CHUNK_SIZE
+from hadoop.hdfs_site import get_nn_sentry_prefixes, get_umask_mode
 
 import hadoop.conf
 import desktop.conf
@@ -58,43 +59,49 @@ class WebHdfs(Hdfs):
                logical_name=None,
                hdfs_superuser=None,
                security_enabled=False,
+               ssl_cert_ca_verify=True,
                temp_dir="/tmp",
                umask=01022):
     self._url = url
     self._superuser = hdfs_superuser
     self._security_enabled = security_enabled
+    self._ssl_cert_ca_verify = ssl_cert_ca_verify
     self._temp_dir = temp_dir
     self._umask = umask
     self._fs_defaultfs = fs_defaultfs
     self._logical_name = logical_name
 
-    self._client = self._make_client(url, security_enabled)
+    self._client = self._make_client(url, security_enabled, ssl_cert_ca_verify)
     self._root = resource.Resource(self._client)
 
     # To store user info
     self._thread_local = threading.local()
 
-    LOG.debug("Initializing Hadoop WebHdfs: %s (security: %s, superuser: %s)" %
-              (self._url, self._security_enabled, self._superuser))
+    LOG.debug("Initializing Hadoop WebHdfs: %s (security: %s, superuser: %s)" % (self._url, self._security_enabled, self._superuser))
 
   @classmethod
   def from_config(cls, hdfs_config):
     fs_defaultfs = hdfs_config.FS_DEFAULTFS.get()
+
     return cls(url=_get_service_url(hdfs_config),
                fs_defaultfs=fs_defaultfs,
                logical_name=hdfs_config.LOGICAL_NAME.get(),
                security_enabled=hdfs_config.SECURITY_ENABLED.get(),
+               ssl_cert_ca_verify=hdfs_config.SSL_CERT_CA_VERIFY.get(),
                temp_dir=hdfs_config.TEMP_DIR.get(),
-               umask=hdfs_config.UMASK.get())
+               umask=get_umask_mode())
 
   def __str__(self):
     return "WebHdfs at %s" % self._url
 
-  def _make_client(self, url, security_enabled):
-    client = http_client.HttpClient(
-        url, exc_class=WebHdfsException, logger=LOG)
+  def _make_client(self, url, security_enabled, ssl_cert_ca_verify=True):
+    client = http_client.HttpClient(url, exc_class=WebHdfsException, logger=LOG)
+
     if security_enabled:
       client.set_kerberos_auth()
+
+    client.set_verify(ssl_cert_ca_verify)
+
     return client
 
   @property
@@ -104,6 +111,12 @@ class WebHdfs(Hdfs):
   @property
   def logical_name(self):
     return self._logical_name
+
+  @classmethod
+  def is_sentry_managed(cls, path):
+    prefixes = get_nn_sentry_prefixes().split(',')
+
+    return any([path == p or path.startswith(p + '/') for p in prefixes if p])
 
   @property
   def fs_defaultfs(self):
@@ -116,6 +129,10 @@ class WebHdfs(Hdfs):
   @property
   def security_enabled(self):
     return self._security_enabled
+
+  @property
+  def ssl_cert_ca_verify(self):
+    return self._ssl_cert_ca_verify
 
   @property
   def superuser(self):
@@ -552,6 +569,8 @@ class WebHdfs(Hdfs):
 
     while True:
       data = self.read(src, offset, UPLOAD_CHUNK_SIZE.get())
+      cnt = len(data)
+
       if offset == 0:
         if skip_header:
           n = data.index('\n')
@@ -563,11 +582,9 @@ class WebHdfs(Hdfs):
                     replication=sb.replication,
                     permission=oct(stat.S_IMODE(sb.mode)),
                     data=data)
-
-      if offset != 0:
+      else:
         self.append(dst, data)
 
-      cnt = len(data)
       if cnt < UPLOAD_CHUNK_SIZE.get():
         break
 
@@ -590,7 +607,6 @@ class WebHdfs(Hdfs):
         self.copy_remote_dir(source_file, destination_file, dir_mode, owner)
       else:
         self.do_as_user(owner, self.copyfile, source_file, destination_file)
-        self.do_as_superuser(self.chown, destination_file, owner, owner)
 
 
   def copy(self, src, dest, recursive=False, dir_mode=None, owner=None):
@@ -682,11 +698,10 @@ class WebHdfs(Hdfs):
       next_url = self._get_redirect_url(ex)
 
     if next_url is None:
-      raise WebHdfsException(
-        _("Failed to create '%s'. HDFS did not return a redirect") % path)
+      raise WebHdfsException(_("Failed to create '%s'. HDFS did not return a redirect") % path)
 
     # Now talk to the real thing. The redirect url already includes the params.
-    client = self._make_client(next_url, self.security_enabled)
+    client = self._make_client(next_url, self.security_enabled, self.ssl_cert_ca_verify)
     headers = {'Content-Type': 'application/octet-stream'}
     return resource.Resource(client).invoke(method, data=data, headers=headers)
 
@@ -704,8 +719,7 @@ class WebHdfs(Hdfs):
         raise webhdfs_ex
       return http_error.response.headers['location']
     except Exception, ex:
-      LOG.error("Failed to read redirect from response: %s (%s)" %
-                (webhdfs_ex, ex))
+      LOG.exception("Failed to read redirect from response: %s (%s)" % (webhdfs_ex, ex))
       raise webhdfs_ex
 
   def get_delegation_token(self, renewer):

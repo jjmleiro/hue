@@ -1,0 +1,283 @@
+From d581413909ab66cc1f94774b72cfb39df868124a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 18:10:29 -0800
+Subject: [PATCH 0818/1173] HUE-2436 [oozie and pig] Don't cache the oozie
+ api, this can break the tests
+
+Prior to this patch, the `get_oozie` cached a connection to oozie.
+However, the tests spin up their own oozie with a different url than
+the default oozie, so there is a race on who creates the connection.
+
+It turns out the `OozieApi` is pretty cheap to create, so instead of
+a global cache, this PR changes the requests to create one `oozie_api`
+and thread it through to all the users of that connection.
+---
+ .../src/oozie/templates/editor/action_utils.mako   |    2 +-
+ apps/oozie/src/oozie/views/dashboard.py            |   26 ++++++++-------
+ apps/oozie/src/oozie/views/editor.py               |    9 +++---
+ apps/pig/src/pig/api.py                            |   11 ++++---
+ desktop/libs/liboozie/src/liboozie/oozie_api.py    |   34 +++++---------------
+ 5 files changed, 35 insertions(+), 47 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/action_utils.mako b/apps/oozie/src/oozie/templates/editor/action_utils.mako
+index 5c57c95..9f7d26d 100644
+--- a/apps/oozie/src/oozie/templates/editor/action_utils.mako
++++ b/apps/oozie/src/oozie/templates/editor/action_utils.mako
+@@ -142,7 +142,7 @@
+     </p>
+   % endif
+   % if node_type == 'java':
+-    % if get_oozie(user).security_enabled:
++    % if oozie_api.security_enabled:
+     <br style="clear: both" />
+       <p class="alert alert-warn span5">
+         ${ _('The delegation token needs to be propagated from the launcher job to the MR job') }.
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index b1d43ef..93f459a 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -83,7 +83,8 @@ def manage_oozie_jobs(request, job_id, action):
+   response = {'status': -1, 'data': ''}
+ 
+   try:
+-    response['data'] = get_oozie(request.user).job_control(job_id, action)
++    oozie_api = get_oozie(request.user)
++    response['data'] = oozie_api.job_control(job_id, action)
+     response['status'] = 0
+     if 'notification' in request.POST:
+       request.info(_(request.POST.get('notification')))
+@@ -103,11 +104,13 @@ def bulk_manage_oozie_jobs(request):
+     jobs = request.POST.get('job_ids').split()
+     response = {'totalRequests': len(jobs), 'totalErrors': 0, 'messages': ''}
+ 
++    oozie_api = get_oozie(request.user)
++
+     for job_id in jobs:
+       job = check_job_access_permission(request, job_id)
+       check_job_edition_permission(job, request.user)
+       try:
+-        get_oozie(request.user).job_control(job_id, request.POST.get('action'))
++        oozie_api.job_control(job_id, request.POST.get('action'))
+       except RestException, ex:
+         response['totalErrors'] = response['totalErrors'] + 1
+         response['messages'] += str(ex)
+@@ -271,12 +274,12 @@ def list_oozie_workflow(request, job_id):
+ 
+   oozie_slas = []
+   if oozie_workflow.has_sla:
+-    api = get_oozie(request.user, api_version="v2")
++    oozie_api = get_oozie(request.user, api_version="v2")
+     params = {
+       'id': oozie_workflow.id,
+       'parent_id': oozie_workflow.id
+     }
+-    oozie_slas = api.get_oozie_slas(**params)
++    oozie_slas = oozie_api.get_oozie_slas(**params)
+ 
+   return render('dashboard/list_oozie_workflow.mako', request, {
+     'oozie_workflow': oozie_workflow,
+@@ -329,12 +332,12 @@ def list_oozie_coordinator(request, job_id):
+ 
+   oozie_slas = []
+   if oozie_coordinator.has_sla:
+-    api = get_oozie(request.user, api_version="v2")
++    oozie_api = get_oozie(request.user, api_version="v2")
+     params = {
+       'id': oozie_coordinator.id,
+       'parent_id': oozie_coordinator.id
+     }
+-    oozie_slas = api.get_oozie_slas(**params)
++    oozie_slas = oozie_api.get_oozie_slas(**params)
+ 
+   enable_cron_scheduling = ENABLE_CRON_SCHEDULING.get()
+ 
+@@ -443,7 +446,7 @@ def list_oozie_info(request):
+ 
+ @show_oozie_error
+ def list_oozie_sla(request):
+-  api = get_oozie(request.user, api_version="v2")
++  oozie_api = get_oozie(request.user, api_version="v2")
+ 
+   if request.method == 'POST':
+     params = {}
+@@ -462,7 +465,7 @@ def list_oozie_sla(request):
+       if request.POST.get('end'):
+         params['nominal_end'] = request.POST.get('end')
+ 
+-    oozie_slas = api.get_oozie_slas(**params)
++    oozie_slas = oozie_api.get_oozie_slas(**params)
+ 
+   else:
+     oozie_slas = [] # or get latest?
+@@ -873,12 +876,13 @@ def check_job_access_permission(request, job_id):
+   Notice: its gets an id in input and returns the full object in output (not an id).
+   """
+   if job_id is not None:
++    oozie_api = get_oozie(request.user)
+     if job_id.endswith('W'):
+-      get_job = get_oozie(request.user).get_job
++      get_job = oozie_api.get_job
+     elif job_id.endswith('C'):
+-      get_job = get_oozie(request.user).get_coordinator
++      get_job = oozie_api.get_coordinator
+     else:
+-      get_job = get_oozie(request.user).get_bundle
++      get_job = oozie_api.get_bundle
+ 
+     try:
+       oozie_job = get_job(job_id)
+diff --git a/apps/oozie/src/oozie/views/editor.py b/apps/oozie/src/oozie/views/editor.py
+index 4992f67..4b6388e 100644
+--- a/apps/oozie/src/oozie/views/editor.py
++++ b/apps/oozie/src/oozie/views/editor.py
+@@ -239,9 +239,9 @@ def import_coordinator(request):
+ def export_workflow(request, workflow):
+   mapping = dict([(param['name'], param['value']) for param in workflow.find_all_parameters()])
+ 
+-  api = get_oozie(request.user)
++  oozie_api = get_oozie(request.user)
+   credentials = Credentials()
+-  credentials.fetch(api)
++  credentials.fetch(oozie_api)
+   mapping['credentials'] = credentials.get_properties()
+ 
+   zip_file = workflow.compress(mapping=mapping)
+@@ -260,11 +260,12 @@ def edit_workflow(request, workflow):
+   workflow_form = WorkflowForm(instance=workflow)
+   user_can_access_job = workflow.can_read(request.user)
+   user_can_edit_job = workflow.is_editable(request.user)
+-  api = get_oozie(request.user)
++  oozie_api = get_oozie(request.user)
+   credentials = Credentials()
+-  credentials.fetch(api)
++  credentials.fetch(oozie_api)
+ 
+   return render('editor/edit_workflow.mako', request, {
++    'oozie_api': oozie_api,
+     'workflow_form': workflow_form,
+     'workflow': workflow,
+     'history': history,
+diff --git a/apps/pig/src/pig/api.py b/apps/pig/src/pig/api.py
+index a2c3630..b4473b5 100644
+--- a/apps/pig/src/pig/api.py
++++ b/apps/pig/src/pig/api.py
+@@ -39,7 +39,7 @@ def get(fs, jt, user):
+   return OozieApi(fs, jt, user)
+ 
+ 
+-class OozieApi:
++class OozieApi(object):
+   """
+   Oozie submission.
+   """
+@@ -50,6 +50,7 @@ class OozieApi:
+   MAX_DASHBOARD_JOBS = 100
+ 
+   def __init__(self, fs, jt, user):
++    self.oozie_api = get_oozie(user)
+     self.fs = fs
+     self.jt = jt
+     self.user = user
+@@ -109,7 +110,7 @@ class OozieApi:
+         job_properties=json.dumps(job_properties)
+     )
+ 
+-    if pig_script.use_hcatalog and get_oozie(self.user).security_enabled:
++    if pig_script.use_hcatalog and self.oozie_api.security_enabled:
+       action.credentials = [{'name': 'hcat', 'value': True}]
+       action.save()
+ 
+@@ -137,7 +138,7 @@ class OozieApi:
+     return pig_params
+ 
+   def stop(self, job_id):
+-    return get_oozie(self.user).job_control(job_id, 'kill')
++    return self.oozie_api.job_control(job_id, 'kill')
+ 
+   def get_jobs(self):
+     kwargs = {'cnt': OozieApi.MAX_DASHBOARD_JOBS,}
+@@ -146,7 +147,7 @@ class OozieApi:
+         ('name', OozieApi.WORKFLOW_NAME)
+     ]
+ 
+-    return get_oozie(self.user).get_workflows(**kwargs).jobs
++    return self.oozie_api.get_workflows(**kwargs).jobs
+ 
+   def get_log(self, request, oozie_workflow):
+     logs = {}
+@@ -220,7 +221,7 @@ class OozieApi:
+ 
+     for job in oozie_jobs:
+       if job.is_running():
+-        job = get_oozie(self.user).get_job(job.id)
++        job = self.oozie_api.get_job(job.id)
+         get_copy = request.GET.copy() # Hacky, would need to refactor JobBrowser get logs
+         get_copy['format'] = 'python'
+         request.GET = get_copy
+diff --git a/desktop/libs/liboozie/src/liboozie/oozie_api.py b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+index 1bb9996..beb5464 100644
+--- a/desktop/libs/liboozie/src/liboozie/oozie_api.py
++++ b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+@@ -36,26 +36,15 @@ API_VERSION = 'v1' # Overridden to v2 for SLA
+ 
+ _XML_CONTENT_TYPE = 'application/xml;charset=UTF-8'
+ 
+-_api_cache = None
+-_api_cache_lock = threading.Lock()
+-
+ 
+ def get_oozie(user, api_version=API_VERSION):
+-  global _api_cache
+-  if _api_cache is None or _api_cache.api_version != api_version:
+-    _api_cache_lock.acquire()
+-    try:
+-      if _api_cache is None or _api_cache.api_version != api_version:
+-        secure = SECURITY_ENABLED.get()
+-        _api_cache = OozieApi(OOZIE_URL.get(), secure, api_version)
+-    finally:
+-      _api_cache_lock.release()
+-  _api_cache.setuser(user)
+-  return _api_cache
++  oozie_url = OOZIE_URL.get()
++  secure = SECURITY_ENABLED.get()
++  return OozieApi(oozie_url, user, security_enabled=secure, api_version=api_version)
+ 
+ 
+ class OozieApi(object):
+-  def __init__(self, oozie_url, security_enabled=False, api_version=API_VERSION):
++  def __init__(self, oozie_url, user, security_enabled=False, api_version=API_VERSION):
+     self._url = posixpath.join(oozie_url, api_version)
+     self._client = HttpClient(self._url, logger=LOG)
+     if security_enabled:
+@@ -63,7 +52,10 @@ class OozieApi(object):
+     self._root = Resource(self._client)
+     self._security_enabled = security_enabled
+     # To store username info
+-    self._thread_local = threading.local()
++    if hasattr(user, 'username'):
++      self.user = user.username
++    else:
++      self.user = user
+     self.api_version = api_version
+ 
+   def __str__(self):
+@@ -77,16 +69,6 @@ class OozieApi(object):
+   def security_enabled(self):
+     return self._security_enabled
+ 
+-  @property
+-  def user(self):
+-    return self._thread_local.user
+-
+-  def setuser(self, user):
+-    if hasattr(user, 'username'):
+-      self._thread_local.user = user.username
+-    else:
+-      self._thread_local.user = user
+-
+   def _get_params(self):
+     if self.security_enabled:
+       return { 'doAs': self.user, 'timezone': TIME_ZONE.get() }
+-- 
+1.7.9.5
+

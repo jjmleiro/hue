@@ -1,0 +1,265 @@
+From 7c3c455a469369d5db2f7957b05e2ad720913a01 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Feb 2015 16:45:11 -0800
+Subject: [PATCH 0757/1173] [oozie] Integrate workflow dashboard with the new
+ editor
+
+---
+ apps/oozie/src/oozie/models.py                     |   13 ++++++++-----
+ apps/oozie/src/oozie/models2.py                    |   17 +++++++++++++++--
+ .../oozie/templates/editor/submit_job_popup2.mako  |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ++--
+ apps/oozie/src/oozie/templates/navigation-bar.mako |    4 +---
+ apps/oozie/src/oozie/views/dashboard.py            |   19 +++++++++----------
+ desktop/core/src/desktop/models.py                 |    6 ++++--
+ desktop/libs/liboozie/src/liboozie/oozie_api.py    |    1 -
+ 8 files changed, 40 insertions(+), 26 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index a01b66d..df7f09b 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -42,7 +42,7 @@ from desktop.log.access import access_warn
+ from desktop.lib import django_mako
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.json_utils import JSONEncoderForHTML
+-from desktop.models import Document
++from desktop.models import Document, Document2
+ from hadoop.fs.exceptions import WebHdfsException
+ 
+ from hadoop.fs.hadoopfs import Hdfs
+@@ -50,6 +50,7 @@ from liboozie.submittion import Submission
+ from liboozie.submittion import create_directories
+ 
+ from oozie.conf import REMOTE_SAMPLE_DIR
++from oozie.models2 import Workflow as NewWorkflow, Coordinator as NewCoordinator
+ from oozie.utils import utc_datetime_format
+ from oozie.timezones import TIMEZONES
+ 
+@@ -1908,15 +1909,17 @@ class History(models.Model):
+   @classmethod
+   def get_workflow_from_config(self, conf_dict):
+     try:
+-      return Workflow.objects.get(id=conf_dict.get(Workflow.HUE_ID))
+-    except Workflow.DoesNotExist:
++      doc = Document2.objects.get(type='oozie-workflow2', id=conf_dict.get(Workflow.HUE_ID))
++      return NewWorkflow(document=doc)
++    except Document2.DoesNotExist:
+       pass
+ 
+   @classmethod
+   def get_coordinator_from_config(self, conf_dict):
+     try:
+-      return Coordinator.objects.get(id=conf_dict.get(Coordinator.HUE_ID))
+-    except Coordinator.DoesNotExist:
++      doc = Document2.objects.get(type='oozie-coordinator2', id=conf_dict.get(Coordinator.HUE_ID))
++      return NewCoordinator(document=doc)
++    except Document2.DoesNotExist:
+       pass
+ 
+   @classmethod
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 4b82b34..e2e5ed5 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -25,11 +25,12 @@ from datetime import datetime, timedelta
+ from dateutil.parser import parse
+ from string import Template
+ 
++from django.core.urlresolvers import reverse
+ from django.utils.encoding import force_unicode
+-from desktop.lib.json_utils import JSONEncoderForHTML
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib import django_mako
++from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.models import Document2
+ 
+ from hadoop.fs.hadoopfs import Hdfs
+@@ -37,7 +38,6 @@ from liboozie.submission2 import Submission
+ from liboozie.submission2 import create_directories
+ 
+ from oozie.conf import REMOTE_SAMPLE_DIR
+-from oozie.models import Workflow as OldWorflows
+ from oozie.utils import utc_datetime_format
+ 
+ 
+@@ -73,6 +73,9 @@ class Job(object):
+ 
+     return ''.join(good_name)
+ 
++  def __str__(self):
++    return '%s' % force_unicode(self.name)
++
+ 
+ class Workflow(Job):
+   XML_FILE_NAME = 'workflow.xml'
+@@ -248,6 +251,12 @@ class Workflow(Job):
+     Submission(user, self, fs, None, {})._create_dir(self.deployment_dir)
+     Submission(user, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
+ 
++  def gen_status_graph(self, oozie_workflow):
++    return '' # TODO
++
++  def get_absolute_url(self):
++    return reverse('oozie:edit_workflow') + '?workflow=%s' % self.id
++
+ 
+ class Node():
+   def __init__(self, data):
+@@ -1627,6 +1636,10 @@ class Coordinator(Job):
+     props += self.data['properties']['parameters']
+     return props
+ 
++  @property
++  def workflow(self):
++    return Document2.objects.get(uuid=self.data['properties']['workflow'])
++
+ 
+ class Dataset():
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+index 03ab00a..4f226c3 100644
+--- a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
++++ b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+@@ -116,7 +116,7 @@
+ 
+ <script type="text/javascript">
+   $('.submit-form .filechooser-input').each(function(){
+-      $(this).after(getFileBrowseButton($(this), true, null, true));
++    $(this).after(getFileBrowseButton($(this), true, null, true));
+   });
+ 
+   $(".now-link").on("click", function(){
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index c0d86f1..62c0efa 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -2069,7 +2069,7 @@ ${ dashboard.import_bindings() }
+   var lastExpandedWidget = null;
+   function setLastExpandedWidget(widget) {
+     lastExpandedWidget = widget;
+-    if (!widget.oozieExpanded()){
++    if (! widget.oozieExpanded()){
+       var _el = $("#wdg_" + widget.id());
+       if (_el.width() < 400){
+         _el.css("z-index", "1032");
+@@ -2095,7 +2095,7 @@ ${ dashboard.import_bindings() }
+   function toggleProperties(widget) {
+     if (widget.oozieMovable()) {
+       var _el = $("#wdg_" + widget.id());
+-      if (!widget.ooziePropertiesExpanded()) {
++      if (! widget.ooziePropertiesExpanded()) {
+         setLastExpandedWidget(widget);
+         _el.find(".prop-editor").show();
+         widget.ooziePropertiesExpanded(true);
+diff --git a/apps/oozie/src/oozie/templates/navigation-bar.mako b/apps/oozie/src/oozie/templates/navigation-bar.mako
+index 5e5c04a..3d6de2b 100644
+--- a/apps/oozie/src/oozie/templates/navigation-bar.mako
++++ b/apps/oozie/src/oozie/templates/navigation-bar.mako
+@@ -57,9 +57,7 @@
+                   % if ENABLE_V2.get():
+                     <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px; margin-top:4px">
+                       ${ _('This is the old editor, please migrate your jobs to the ') }
+-                      <a style="display:inline" href="${url('oozie:new_workflow') if utils.is_selected(section, 'workflows') else url('oozie:new_coordinator') if utils.is_selected(section, 'coordinators') else url('oozie:new_bundle')}">
+-                        ${ _('new editor.') }
+-                      </a>
++                      <a style="display:inline" href="${url('oozie:new_workflow') if utils.is_selected(section, 'workflows') else url('oozie:new_coordinator') if utils.is_selected(section, 'coordinators') else url('oozie:new_bundle')}">${ _('new editor.') }</a>
+                     </li>
+                   % endif
+                 % endif
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index f25dd27..d0cb0b8 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -20,6 +20,7 @@ import logging
+ import os
+ import re
+ import time
++
+ from datetime import datetime
+ 
+ from django.forms.formsets import formset_factory
+@@ -83,6 +84,7 @@ def manage_oozie_jobs(request, job_id, action):
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
++
+ def bulk_manage_oozie_jobs(request):
+   if request.method != 'POST':
+     raise PopupException(_('Use a POST request to manage the Oozie jobs.'))
+@@ -214,13 +216,12 @@ def list_oozie_workflow(request, job_id):
+   if oozie_bundle is not None:
+     setattr(oozie_workflow, 'oozie_bundle', oozie_bundle)
+ 
+-  history = History.cross_reference_submission_history(request.user, job_id)
++  # To update with the new History document model
++  hue_coord = History.get_coordinator_from_config(oozie_workflow.conf_dict)
++  hue_workflow = (hue_coord and hue_coord.workflow) or History.get_workflow_from_config(oozie_workflow.conf_dict)
+ 
+-  hue_coord = history and history.get_coordinator() or History.get_coordinator_from_config(oozie_workflow.conf_dict)
+-  hue_workflow = (hue_coord and hue_coord.workflow) or (history and history.get_workflow()) or History.get_workflow_from_config(oozie_workflow.conf_dict)
+-
+-  if hue_coord and hue_coord.workflow: Job.objects.can_read_or_exception(request, hue_coord.workflow.id)
+-  if hue_workflow: Job.objects.can_read_or_exception(request, hue_workflow.id)
++  if hue_coord and hue_coord.workflow: hue_coord.workflow.document.doc.get().can_read_or_exception(request.user)
++  if hue_workflow: hue_workflow.document.doc.get().can_read_or_exception(request.user)
+ 
+   parameters = oozie_workflow.conf_dict.copy()
+   for action in oozie_workflow.actions:
+@@ -229,9 +230,8 @@ def list_oozie_workflow(request, job_id):
+ 
+   if hue_workflow:
+     workflow_graph = hue_workflow.gen_status_graph(oozie_workflow)
+-    full_node_list = hue_workflow.node_list
+-  else:
+-    workflow_graph, full_node_list = Workflow.gen_status_graph_from_xml(request.user, oozie_workflow)
++    full_node_list = hue_workflow.nodes
++  # If no saved workflow, we could try to parse the XML like: workflow_graph, full_node_list = Workflow.gen_status_graph_from_xml(request.user, oozie_workflow)
+ 
+   if request.GET.get('format') == 'json':
+     return_obj = {
+@@ -253,7 +253,6 @@ def list_oozie_workflow(request, job_id):
+     oozie_slas = api.get_oozie_slas(**params)
+ 
+   return render('dashboard/list_oozie_workflow.mako', request, {
+-    'history': history,
+     'oozie_workflow': oozie_workflow,
+     'oozie_coordinator': oozie_coordinator,
+     'oozie_bundle': oozie_bundle,
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 8af28eb..589f9a1 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -614,7 +614,7 @@ class Document2Manager(models.Manager):
+ 
+ 
+ def uuid_default():
+-    return uuid.uuid4().hex
++  return uuid.uuid4().hex
+ 
+ 
+ class Document2(models.Model):    
+@@ -677,4 +677,6 @@ class Document2(models.Model):
+       'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+       'isSelected': False
+     }
+-
++  
++  def can_read_or_exception(self, user):
++    self.doc.get().can_read_or_exception(user)
+diff --git a/desktop/libs/liboozie/src/liboozie/oozie_api.py b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+index 4ce2229..1bb9996 100644
+--- a/desktop/libs/liboozie/src/liboozie/oozie_api.py
++++ b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+@@ -18,7 +18,6 @@ import logging
+ import posixpath
+ import threading
+ 
+-
+ from desktop.conf import TIME_ZONE
+ from desktop.conf import DEFAULT_USER
+ from desktop.lib.rest.http_client import HttpClient
+-- 
+1.7.9.5
+

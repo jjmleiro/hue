@@ -1,0 +1,73 @@
+From cac9acbc9fc5d83f89fa4221b4324c9fe662543c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 23 Dec 2014 16:29:45 -0800
+Subject: [PATCH 0366/1173] [oozie] Move Kill node text message to advanced
+ properties
+
+---
+ apps/oozie/src/oozie/models2.py                    |    6 +-----
+ .../oozie/templates/editor/workflow_editor.mako    |    9 ++++++---
+ desktop/core/static/js/ko.common-dashboard.js      |    2 +-
+ 3 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 63a7c45..f739ae8 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -70,12 +70,8 @@ class Job(object):
+           c = '_'
+       good_name.append(c)
+       
+-    return ''.join(good_name) + '--'
++    return ''.join(good_name)
+ 
+-  
+-#([a-zA-Z_]([\-_a-zA-Z0-9])*){1,39}
+-#
+-#([a-zA-Z][\-_a-zA-Z0-0]*){1,19}    
+ 
+ class Workflow(Job):
+   XML_FILE_NAME = 'workflow.xml'
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index c3a9d23..1bdeaa0 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -316,6 +316,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <script type="text/html" id="widget-template">
+   <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass() + (ooziePropertiesExpanded()?' expanded-widget':''), draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.setCurrentlyDraggedWidget($data, event.toElement); }, 'stop': function(event, ui){ $root.enableSideDrop($data); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.currentTarget).find('h2').text());_title.appendTo(_par);_par.css('minHeight', '10px');_par.width(120);return _par;}}}">
+     <h2 class="card-heading simple" data-bind="visible: widgetType() != 'start-widget' && widgetType() != 'end-widget'  && id() != '17c9c895-5a16-7443-bb81-f34b30b21548'">
++      
+       <span data-bind="visible: $root.isEditing() && oozieMovable() && ! oozieExpanded() && ! ooziePropertiesExpanded() && $root.newAction() == null">
+         <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
+         &nbsp;
+@@ -463,9 +464,11 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="min-height: 40px">
+     <div class="big-icon" data-bind="visible: id() == '17c9c895-5a16-7443-bb81-f34b30b21548'"><i class="fa fa-stop"></i></div>
+ 
+-    <div data-bind="visible: $root.isEditing" style="padding: 10px">
+-      <h6 class="field-title">${ _('Message') }</h6>
+-      <textarea class="span12" data-bind="value: properties.message" />
++    <div data-bind="visible: $root.isEditing">
++      <div data-bind="visible: $parent.ooziePropertiesExpanded">
++        <h6 class="field-title">${ _('Message') }</h6>
++        <textarea class="span12" data-bind="value: properties.message" />
++      </div>
+     </div>
+   </div>
+   <!-- /ko -->
+diff --git a/desktop/core/static/js/ko.common-dashboard.js b/desktop/core/static/js/ko.common-dashboard.js
+index 5d341bc..03d5698 100644
+--- a/desktop/core/static/js/ko.common-dashboard.js
++++ b/desktop/core/static/js/ko.common-dashboard.js
+@@ -215,7 +215,7 @@ var Widget = function (params) {
+   self.isLoading = ko.observable(typeof params.loading != "undefined" && params.loading != null ? params.loading : false);
+ 
+   self.oozieMovable = ko.computed(function() {
+-    return ["end-widget", "start-widget", "fork-widget", "decision-widget", "kill-widget", "join-widget"].indexOf(self.widgetType()) == - 1
++    return ["end-widget", "start-widget", "fork-widget", "decision-widget", "join-widget"].indexOf(self.widgetType()) == - 1
+   });
+ 
+   self.oozieExpanded = ko.observable(false);
+-- 
+1.7.9.5
+

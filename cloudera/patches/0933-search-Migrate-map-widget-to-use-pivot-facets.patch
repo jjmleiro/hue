@@ -1,0 +1,258 @@
+From b84aa2010b9799c4f9a70651a7ed7dd1f1c64fae Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 24 Feb 2015 16:09:24 -0800
+Subject: [PATCH 0933/1173] [search] Migrate map widget to use pivot facets
+
+---
+ apps/search/src/search/models.py                   |    5 ++
+ .../src/search/static/search/js/search.ko.js       |    9 ++++
+ apps/search/src/search/templates/search.mako       |   56 +++++++++++++++++---
+ apps/search/src/search/views.py                    |   18 ++++---
+ .../src/desktop/static/desktop/js/ko.charts.js     |   10 ++--
+ desktop/libs/libsolr/src/libsolr/api.py            |    2 +-
+ 6 files changed, 79 insertions(+), 21 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 94e7529..2cf3f27 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -289,6 +289,11 @@ class Collection(models.Model):
+       if 'end' in properties and not 'initial_end' in properties:
+         properties['initial_end'] = properties['end']
+ 
++      if facet['widgetType'] == 'map-widget' and facet['type'] == 'field':
++        facet['type'] = 'pivot'
++        properties['facets'] = []
++        properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 1}
++
+     return json.dumps(props)
+ 
+   def get_default(self, user):
+diff --git a/apps/search/src/search/static/search/js/search.ko.js b/apps/search/src/search/static/search/js/search.ko.js
+index 7a9be5d..9798b2f 100644
+--- a/apps/search/src/search/static/search/js/search.ko.js
++++ b/apps/search/src/search/static/search/js/search.ko.js
+@@ -651,6 +651,9 @@ var Collection = function (vm, collection) {
+     else if (self.template.fieldsModalType() == 'line-widget') {
+       return vm.availableNumberFields();
+     }
++    else if (self.template.fieldsModalType() == 'map-widget') {
++      return vm.availableStringFields();
++    }
+     else if (self.template.fieldsModalType() == 'tree-widget' || self.template.fieldsModalType() == 'heatmap-widget') {
+       return vm.availablePivotFields();
+     }
+@@ -1032,6 +1035,9 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+   self.availablePivotFields = ko.computed(function() {
+     return self.collection.fields();
+   });
++  self.availableStringFields = ko.computed(function() {
++    return $.grep(self.collection.availableFacetFields(), function(field) { return NUMBER_TYPES.indexOf(field.type()) == -1 && DATE_TYPES.indexOf(field.type()) == -1; });
++  });
+ 
+   function getWidgets(equalsTo) {
+     return $.map(self.columns(), function (col){return $.map(col.rows(), function(row){ return $.grep(row.widgets(), function(widget){ return equalsTo(widget); });}) ;})
+@@ -1055,6 +1061,9 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+   self.availableDraggableChart = ko.computed(function() {
+     return self.collection.availableFacetFields().length > 0;
+   });
++  self.availableDraggableMap = ko.computed(function() {
++    return self.availableStringFields().length > 0;
++  })
+ 
+ 
+   self.init = function (callback) {
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 63d9170..cd669b5 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -202,7 +202,7 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
+                        <i class="fa fa-th"></i>
+          </a>
+     </div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': !availableDraggableHistogram() },
++    <div data-bind="css: { 'draggable-widget': true, 'disabled': ! availableDraggableHistogram() },
+                     draggable: {data: draggableHistogram(), isEnabled: availableDraggableHistogram,
+                     options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
+@@ -211,12 +211,12 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
+                        <i class="hcha hcha-timeline-chart"></i>
+          </a>
+     </div>
+-    <div data-bind="css: { 'draggable-widget': true, 'disabled': !availableDraggableChart() },
+-                    draggable: {data: draggableMap(), isEnabled: availableDraggableChart,
++    <div data-bind="css: { 'draggable-widget': true, 'disabled': ! availableDraggableMap() },
++                    draggable: {data: draggableMap(), isEnabled: availableDraggableMap,
+                     options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
+          title="${_('Gradient Map')}" rel="tooltip" data-placement="top">
+-         <a data-bind="style: { cursor: $root.availableDraggableChart() ? 'move' : 'default' }">
++         <a data-bind="style: { cursor: $root.availableDraggableMap() ? 'move' : 'default' }">
+                        <i class="hcha hcha-map-chart"></i>
+          </a>
+    </div>
+@@ -270,7 +270,6 @@ ${ dashboard.layout_skeleton() }
+     </div>
+ 
+     <!-- ko if: type() == 'pivot' -->
+-
+       <div class="facet-field-cnt">
+         <span class="spinedit-cnt">
+           <span class="facet-field-label facet-field-label-fixed-width">
+@@ -1108,13 +1107,49 @@ ${ dashboard.layout_skeleton() }
+       </select>
+       <span data-bind="template: { name: 'facet-toggle' }">
+       </span>
++
++      <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
++        <div class="filter-box">
++          <div class="title">
++            <a data-bind="click: function() { $root.collection.removePivotFacetValue({'pivot_facet': $parent, 'value': $data}); }" class="pull-right" href="javascript:void(0)">
++              <i class="fa fa-times"></i>
++            </a>
++            <span data-bind="text: field"></span>
++            &nbsp;
++          </div>
++
++          <div class="content">
++            <div class="facet-field-cnt">
++              <span class="spinedit-cnt">
++                <span class="facet-field-label facet-field-label-fixed-width">
++                  ${ _('Limit') }
++                </span>
++                <input type="text" class="input-medium" data-bind="spinedit: limit"/>
++              </span>
++            </div>
++
++            <div class="facet-field-cnt">
++              <span class="spinedit-cnt">
++                <span class="facet-field-label facet-field-label-fixed-width">
++                  ${ _('Min Count') }
++                </span>
++                <input type="text" class="input-medium" data-bind="spinedit: mincount"/>
++              </span>
++            </div>
++          </div>
++        </div>
++      </div>
++      <div class="clearfix"></div>
++
+     </div>
+     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+-      <div data-bind="mapChart: {data: {counts: $parent.counts, scope: $root.collection.getFacetById($parent.id).properties.scope()},
++      <div data-bind="mapChart: {data: {counts: $parent.count, scope: $root.collection.getFacetById($parent.id).properties.scope()},
+         transformer: mapChartDataTransformer,
+         maxWidth: 750,
+         isScale: true,
+-        onClick: function(d){ viewModel.query.toggleFacet({facet: d, widget_id: $parent.id}) },
++        onClick: function(d) {
++          $root.query.togglePivotFacet({facet: {'fq_fields': d.fields, 'fq_values': d.value}, widget_id: id()});
++        },
+         onComplete: function(){ var widget = viewModel.getWidgetById($parent.id); if (widget != null) {widget.isLoading(false)};} }" />
+     </div>
+   </div>
+@@ -1125,6 +1160,7 @@ ${ dashboard.layout_skeleton() }
+   </div>
+ </script>
+ 
++
+ <script type="text/html" id="leafletmap-widget">
+   <div class="row-fluid">
+     <div data-bind="visible: $root.isEditing" style="margin-top: 10px; margin-bottom: 20px;" class="leaflet-align">
+@@ -1554,9 +1590,13 @@ function timelineChartDataTransformer(rawDatum) {
+ function mapChartDataTransformer(data) {
+   var _data = [];
+   $(data.counts).each(function (cnt, item) {
++    item.fields = item.pivot ? item.pivot[0].fq_fields : item.fq_fields;
++    item.values = item.pivot ? item.pivot[0].fq_values : item.fq_values;
++    item.counts = item.pivot ? item.pivot[0].count : item.count; // unused yet
++    item.is2d = item.pivot ? true : false; // unused yet
+     _data.push({
+       label: item.value,
+-      value: item.count,
++      value: item.pivot ? item.pivot[0].fq_values : item.count,
+       obj: item
+     });
+   });
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index ad2e601..321f10a 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -448,7 +448,7 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
+     'isDate': False
+   }
+ 
+-  if widget_type in ('tree-widget', 'heatmap-widget'):
++  if widget_type in ('tree-widget', 'heatmap-widget', 'map-widget'):
+     facet_type = 'pivot'
+   else:
+     solr_api = SolrApi(SOLR_URL.get(), user)
+@@ -465,15 +465,17 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
+     else:
+       facet_type = 'field'
+ 
+-  if widget_type == 'map-widget':
+-    properties['scope'] = 'world'
+-    properties['mincount'] = 1
+-    properties['limit'] = 100
+-  elif widget_type in ('tree-widget', 'heatmap-widget'):
++  if widget_type in ('tree-widget', 'heatmap-widget', 'map-widget'):
+     properties['mincount'] = 1
+     properties['facets'] = []
+-    properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+-    properties['scope'] = 'stack' if widget_type == 'heatmap-widget' else 'tree'
++
++    if widget_type == 'map-widget':
++      properties['scope'] = 'world'
++      properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 1}
++      properties['limit'] = 100
++    else:
++      properties['scope'] = 'stack' if widget_type == 'heatmap-widget' else 'tree'
++      properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+ 
+   return {
+     'id': facet_id,
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.charts.js b/desktop/core/src/desktop/static/desktop/js/ko.charts.js
+index 522f67c..76bad12 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.charts.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.charts.js
+@@ -282,8 +282,9 @@ ko.bindingHandlers.mapChart = {
+             fillKey: "fill_" + (Math.floor(item.value / _chunk) - 1),
+             id: _place,
+             cat: item.obj.cat,
+-            value: item.obj.value,
+-            selected: item.obj.selected
++            value: item.obj.values ? item.obj.values : item.obj.value,
++            selected: item.obj.selected,
++            fields: item.obj.fields ? item.obj.fields : null
+           };
+           _maphovers[_place] = item.value;
+         }
+@@ -302,8 +303,9 @@ ko.bindingHandlers.mapChart = {
+             fillKey: "selected",
+             id: _place,
+             cat: item.obj.cat,
+-            value: item.obj.value,
+-            selected: item.obj.selected
++            value: item.obj.values ? item.obj.values : item.obj.value,
++            selected: item.obj.selected,
++            fields: item.obj.fields ? item.obj.fields : null,
+           };
+           _maphovers[_place] = item.value;
+         }
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 76de7b0..2a144af 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -140,7 +140,7 @@ class SolrApi(object):
+               ('f.%s.facet.mincount' % facet['field'], int(facet['properties']['mincount'])),
+           )
+         elif facet['type'] == 'pivot':
+-          if facet['properties']['facets']:
++          if facet['properties']['facets'] or facet['widgetType'] == 'map-widget':
+             fields = facet['field']
+             for f in facet['properties']['facets']:
+               params += (('f.%s.facet.limit' % f['field'], f['limit']),)
+-- 
+1.7.9.5
+

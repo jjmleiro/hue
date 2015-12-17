@@ -1,0 +1,177 @@
+From 92809e174faacc27ad19f48eefa2947a69583465 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 07:40:38 -0800
+Subject: [PATCH 0642/1173] [livy] livy-repl doesn't need an assembly
+
+---
+ apps/spark/java/dist.xml                           |   37 +++++++++++++++
+ apps/spark/java/livy-repl/pom.xml                  |   48 +-------------------
+ .../java/livy-repl/src/main/assembly/dist.xml      |   37 ---------------
+ 3 files changed, 38 insertions(+), 84 deletions(-)
+ create mode 100644 apps/spark/java/dist.xml
+ delete mode 100644 apps/spark/java/livy-repl/src/main/assembly/dist.xml
+
+diff --git a/apps/spark/java/dist.xml b/apps/spark/java/dist.xml
+new file mode 100644
+index 0000000..d5801f5
+--- /dev/null
++++ b/apps/spark/java/dist.xml
+@@ -0,0 +1,37 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++        </dependencySet>
++    </dependencySets>
++
++    <fileSets>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index ba06606..7da304f 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -85,7 +85,6 @@
+                 </executions>
+             </plugin>
+ 
+-            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-dependency-plugin</artifactId>
+@@ -106,6 +105,7 @@
+                     </execution>
+                 </executions>
+             </plugin>
++
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-jar-plugin</artifactId>
+@@ -120,52 +120,6 @@
+                     </archive>
+                 </configuration>
+             </plugin>
+-            -->
+-
+-            <plugin>
+-                <artifactId>maven-assembly-plugin</artifactId>
+-                <version>2.4</version>
+-                <configuration>
+-                    <descriptor>src/main/assembly/dist.xml</descriptor>
+-                </configuration>
+-            </plugin>
+-
+-            <!--
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
+-                <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
+-                </configuration>
+-                <executions>
+-                    <execution>
+-                        <phase>package</phase>
+-                        <goals>
+-                            <goal>shade</goal>
+-                        </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.livy.server.LivyApp</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-            -->
+ 
+         </plugins>
+     </build>
+diff --git a/apps/spark/java/livy-repl/src/main/assembly/dist.xml b/apps/spark/java/livy-repl/src/main/assembly/dist.xml
+deleted file mode 100644
+index d5801f5..0000000
+--- a/apps/spark/java/livy-repl/src/main/assembly/dist.xml
++++ /dev/null
+@@ -1,37 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
+-  license agreements. See the NOTICE file distributed with this work for additional
+-  information regarding copyright ownership. The ASF licenses this file to
+-  you under the Apache License, Version 2.0 (the "License"); you may not use
+-  this file except in compliance with the License. You may obtain a copy of
+-  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
+-  by applicable law or agreed to in writing, software distributed under the
+-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+-  OF ANY KIND, either express or implied. See the License for the specific
+-  language governing permissions and limitations under the License. -->
+-<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+-    <id>dist</id>
+-    <formats>
+-        <format>tar.gz</format>
+-    </formats>
+-    <includeBaseDirectory>false</includeBaseDirectory>
+-
+-    <dependencySets>
+-        <dependencySet>
+-            <outputDirectory>lib</outputDirectory>
+-            <useProjectArtifact>false</useProjectArtifact>
+-        </dependencySet>
+-    </dependencySets>
+-
+-    <fileSets>
+-        <fileSet>
+-            <directory>${project.build.directory}</directory>
+-            <outputDirectory>/lib</outputDirectory>
+-            <includes>
+-                <include>*.jar</include>
+-            </includes>
+-        </fileSet>
+-    </fileSets>
+-</assembly>
+\ No newline at end of file
+-- 
+1.7.9.5
+

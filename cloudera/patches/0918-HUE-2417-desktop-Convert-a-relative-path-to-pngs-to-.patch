@@ -1,0 +1,32 @@
+From 9485ff82cf9821095460fdba53d0583f85dfae16 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 17:53:40 -0800
+Subject: [PATCH 0918/1173] HUE-2417 [desktop] Convert a relative path to pngs
+ to an absolute path
+
+---
+ .../src/desktop/static/desktop/ext/css/leaflet.css |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/static/desktop/ext/css/leaflet.css b/desktop/core/src/desktop/static/desktop/ext/css/leaflet.css
+index ac0cd17..620949b 100644
+--- a/desktop/core/src/desktop/static/desktop/ext/css/leaflet.css
++++ b/desktop/core/src/desktop/static/desktop/ext/css/leaflet.css
+@@ -278,12 +278,12 @@
+ 	border-radius: 5px;
+ 	}
+ .leaflet-control-layers-toggle {
+-	background-image: url(images/layers.png);
++	background-image: url(/static/desktop/ext/js/leaflet/images/layers.png);
+ 	width: 36px;
+ 	height: 36px;
+ 	}
+ .leaflet-retina .leaflet-control-layers-toggle {
+-	background-image: url(images/layers-2x.png);
++	background-image: url(/static/desktop/ext/js/leaflet/images/layers-2x.png);
+ 	background-size: 26px 26px;
+ 	}
+ .leaflet-touch .leaflet-control-layers-toggle {
+-- 
+1.7.9.5
+

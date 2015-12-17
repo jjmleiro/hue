@@ -1,0 +1,25 @@
+From 90a7af3f4097fb6e4cb528c2494bdef945bad053 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 9 Dec 2014 16:27:29 -0800
+Subject: [PATCH 0157/1173] [core] Remove trailing whitespace
+
+---
+ desktop/core/src/desktop/settings.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 4a2e054..9ad4c1e 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -115,7 +115,7 @@ MIDDLEWARE_CLASSES = [
+     'django.middleware.common.CommonMiddleware',
+     'django.contrib.sessions.middleware.SessionMiddleware',
+     'django.contrib.auth.middleware.AuthenticationMiddleware',
+-    'desktop.middleware.SpnegoMiddleware',    
++    'desktop.middleware.SpnegoMiddleware',
+     'desktop.middleware.HueRemoteUserMiddleware',
+     'django.middleware.locale.LocaleMiddleware',
+     'babeldjango.middleware.LocaleMiddleware',
+-- 
+1.7.9.5
+

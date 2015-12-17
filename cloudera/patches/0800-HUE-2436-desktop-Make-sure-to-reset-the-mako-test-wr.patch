@@ -1,0 +1,30 @@
+From c937ea357e3fcc53a7bdae43d2c0ce7e40e40f6a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 14:03:53 -0800
+Subject: [PATCH 0800/1173] HUE-2436 [desktop] Make sure to reset the mako
+ test wrapper
+
+---
+ desktop/core/src/desktop/lib/test_runners.py |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/test_runners.py b/desktop/core/src/desktop/lib/test_runners.py
+index 05dafd9..bd4d897 100644
+--- a/desktop/core/src/desktop/lib/test_runners.py
++++ b/desktop/core/src/desktop/lib/test_runners.py
+@@ -39,8 +39,10 @@ def _instrumented_test_render(self, *args, **data):
+       return self.original_callable_(context, *args, **kwargs)
+     self.original_callable_ = self.callable_
+     self.callable_ = mako_callable_
+-    response = runtime._render(self, self.original_callable_, args, data)
+-    self.callable_ = self.original_callable_
++    try:
++      response = runtime._render(self, self.original_callable_, args, data)
++    finally:
++      self.callable_ = self.original_callable_
+     return response
+ 
+ 
+-- 
+1.7.9.5
+

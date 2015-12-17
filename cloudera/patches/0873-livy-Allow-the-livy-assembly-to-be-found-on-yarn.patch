@@ -1,0 +1,392 @@
+From 13bfb02deadab2599590a23e3a23a2f2e2d125c7 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 11:26:27 -0800
+Subject: [PATCH 0873/1173] [livy] Allow the livy assembly to be found on yarn
+
+---
+ apps/spark/java/bin/livy-yarn-server               |   25 ++++++++
+ apps/spark/java/bin/setup-classpath                |   32 ++++++++++
+ apps/spark/java/conf/livy-defaults.conf.tmpl       |   13 ++++
+ .../scala/com/cloudera/hue/livy/LivyConf.scala     |   66 ++++++++++++++++++++
+ .../main/scala/com/cloudera/hue/livy/Utils.scala   |   58 +++++++++++++++++
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |   42 +++++--------
+ .../cloudera/hue/livy/server/SessionFactory.scala  |    4 +-
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |   30 +++++----
+ 8 files changed, 230 insertions(+), 40 deletions(-)
+ create mode 100755 apps/spark/java/bin/livy-yarn-server
+ create mode 100644 apps/spark/java/bin/setup-classpath
+ create mode 100644 apps/spark/java/conf/livy-defaults.conf.tmpl
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/LivyConf.scala
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Utils.scala
+
+diff --git a/apps/spark/java/bin/livy-yarn-server b/apps/spark/java/bin/livy-yarn-server
+new file mode 100755
+index 0000000..07ea8c1
+--- /dev/null
++++ b/apps/spark/java/bin/livy-yarn-server
+@@ -0,0 +1,25 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Livy server.
++
++set -e
++
++export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
++export CLASSPATH=`hadoop classpath`
++
++exec $LIVY_HOME/bin/livy-server yarn "$@"
+diff --git a/apps/spark/java/bin/setup-classpath b/apps/spark/java/bin/setup-classpath
+new file mode 100644
+index 0000000..9f29d41
+--- /dev/null
++++ b/apps/spark/java/bin/setup-classpath
+@@ -0,0 +1,32 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Livy server.
++
++ASSEMBLY_DIR="$LIVY_HOME/livy-assembly/target/scala-2.10"
++
++for f in $ASSEMBLY_DIR/livy-assembly-*.jar; do
++	ASSEMBLY_JAR="$f"
++done
++
++if [[ ! -f "$ASSEMBLY_JAR" ]]; then
++	echo "failed to find $ASSEMBLY_JAR" 1>&2
++	echo "you need to build Livy before running this program" 1>&2
++	exit 1
++fi
++
++CLASSPATH="$ASSEMBLY_JAR:$CLASSPATH"
+diff --git a/apps/spark/java/conf/livy-defaults.conf.tmpl b/apps/spark/java/conf/livy-defaults.conf.tmpl
+new file mode 100644
+index 0000000..48c7ad5
+--- /dev/null
++++ b/apps/spark/java/conf/livy-defaults.conf.tmpl
+@@ -0,0 +1,13 @@
++# What host address to start the server on. Defaults to 0.0.0.0. If using the
++# `yarn` factory mode, this address must be accessible from the YARN nodes.
++# livy.server.host = 0.0.0.0
++
++# What port to start the server on. Defaults to 8998.
++# livy.server.port = 8998
++
++# What session factory to use. The options are `thread`, `process`, and `yarn`.
++# livy.server.session.factory = thread
++
++# Location to find the livy assembly. If not specified, livy will determine the
++# assembly from the local jarfile. If using `yarn` sessions, this may be on HDFS.
++# livy.yarn.jar = hdfs://localhost:8020/user/hue/share/lib/livy-assembly.jar
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/LivyConf.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/LivyConf.scala
+new file mode 100644
+index 0000000..39ae52b
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/LivyConf.scala
+@@ -0,0 +1,66 @@
++package com.cloudera.hue.livy
++
++import java.util.concurrent.ConcurrentHashMap
++
++import scala.collection.JavaConverters._
++
++object LivyConf {
++
++}
++
++/**
++ *
++ * @param loadDefaults whether to also load values from the Java system properties
++ */
++class LivyConf(loadDefaults: Boolean) {
++  /**
++   * Create a LivyConf that loads defaults from the system properties and the classpath.
++   * @return
++   */
++  def this() = this(true)
++
++  private val settings = new ConcurrentHashMap[String, String]
++
++  if (loadDefaults) {
++    for ((k, v) <- System.getProperties.asScala if k.startsWith("livy.")) {
++      settings.put(k, v)
++    }
++  }
++
++  /** Set a configuration variable */
++  def set(key: String, value: String): LivyConf = {
++    if (key == null) {
++      throw new NullPointerException("null key")
++    }
++
++    if (value == null) {
++      throw new NullPointerException("null key")
++    }
++
++    settings.put(key, value)
++    this
++  }
++
++  /** Set if a parameter is not already configured */
++  def setIfMissing(key: String, value: String): LivyConf = {
++    if (!settings.contains(key)) {
++      settings.put(key, value)
++    }
++    this
++  }
++
++  /** Get a configuration variable */
++  def get(key: String): String = getOption(key).getOrElse(throw new NoSuchElementException(key))
++
++  /** Get a configuration variable */
++  def get(key: String, default: String): String = getOption(key).getOrElse(default)
++
++  /** Get a parameter as an Option */
++  def getOption(key: String): Option[String] = Option(settings.get(key))
++
++  /** Get a parameter as an Int */
++  def getInt(key: String, default: Int) = getOption(key).map(_.toInt).getOrElse(default)
++
++  /** Return if the configuration includes this setting */
++  def contains(key: String): Boolean = settings.contains(key)
++}
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Utils.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Utils.scala
+new file mode 100644
+index 0000000..a6edc41
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Utils.scala
+@@ -0,0 +1,58 @@
++package com.cloudera.hue.livy
++
++import java.io.{FileInputStream, InputStreamReader, File}
++import java.util.Properties
++
++import scala.collection.JavaConversions._
++
++object Utils {
++  def getPropertiesFromFile(filename: String): Map[String, String] = {
++    val file = new File(filename)
++    require(file.exists(), s"Properties file $file does not exist")
++    require(file.isFile, s"Properties file $file is not a normal file")
++
++    val inReader = new InputStreamReader(new FileInputStream(file), "UTF-8")
++    try {
++      val properties = new Properties()
++      properties.load(inReader)
++      properties.stringPropertyNames().map(k => (k, properties(k).trim())).toMap
++    } finally {
++      inReader.close()
++    }
++  }
++
++  def getDefaultPropertiesFile(env: Map[String, String] = sys.env): String = {
++    env.get("LIVY_CONF_DIR")
++      .orElse(env.get("LIVY_HOME").map(path => s"$path${File.separator}conf"))
++      .map(path => new File(s"$path${File.separator}livy-defaults.conf"))
++      .filter(_.isFile)
++      .map(_.getAbsolutePath)
++      .orNull
++  }
++
++  def loadDefaultLivyProperties(conf: LivyConf, filePath: String = null) = {
++    val path = Option(filePath).getOrElse(getDefaultPropertiesFile())
++    Option(path).foreach { path =>
++      getPropertiesFromFile(path).filter { case (k, v) =>
++        k.startsWith("livy.")
++      }.foreach { case (k, v) =>
++        conf.setIfMissing(k, v)
++        sys.props.getOrElseUpdate(k, v)
++      }
++    }
++  }
++
++  def jarOfClass(cls: Class[_]): Option[String] = {
++    val uri = cls.getResource("/" + cls.getName.replace('.', '/') + ".class")
++    if (uri != null) {
++      val uriStr = uri.toString
++      if (uriStr.startsWith("jar:file:")) {
++        Some(uriStr.substring("jar:file:".length, uriStr.indexOf("!")))
++      } else {
++        None
++      }
++    } else {
++      None
++    }
++  }
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index 1ec1f92..91eb4d9 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -2,7 +2,7 @@ package com.cloudera.hue.livy.server
+ 
+ import javax.servlet.ServletContext
+ 
+-import com.cloudera.hue.livy.{LivyConf, WebServer}
++import com.cloudera.hue.livy.{Utils, Logging, LivyConf, WebServer}
+ import org.scalatra._
+ import org.scalatra.servlet.ScalatraListener
+ 
+@@ -14,32 +14,17 @@ object Main {
+   val YARN_SESSION = "yarn"
+ 
+   def main(args: Array[String]): Unit = {
+-    val host = Option(System.getProperty("livy.server.host"))
+-      .getOrElse("0.0.0.0")
+-
+-    val port = Option(System.getProperty("livy.server.port"))
+-      .getOrElse("8998").toInt
+-
+-    if (args.length != 1) {
+-      println("Must specify either `thread`, `process`, or `yarn` for the session kind")
+-      sys.exit(1)
+-    }
+-
+-    val session_kind = args(0)
++    val livyConf = new LivyConf()
++    Utils.loadDefaultLivyProperties(livyConf)
+ 
+-    session_kind match {
+-      case THREAD_SESSION | PROCESS_SESSION | YARN_SESSION =>
+-      case _ =>
+-        println("Unknown session kind: " + session_kind)
+-        sys.exit(1)
+-    }
++    val host = livyConf.get("livy.server.host", "0.0.0.0")
++    val port = livyConf.getInt("livy.server.port", 8998)
+ 
+     val server = new WebServer(host, port)
+ 
+     server.context.setResourceBase("src/main/com/cloudera/hue/livy/server")
+     server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+     server.context.addEventListener(new ScalatraListener)
+-    server.context.setInitParameter(SESSION_KIND, session_kind)
+ 
+     server.start()
+ 
+@@ -55,17 +40,24 @@ object Main {
+   }
+ }
+ 
+-class ScalatraBootstrap extends LifeCycle {
++class ScalatraBootstrap extends LifeCycle with Logging {
+ 
+   var sessionManager: SessionManager = null
+ 
+   override def init(context: ServletContext): Unit = {
+     val livyConf = new LivyConf()
+ 
+-    val sessionFactory = context.getInitParameter(Main.SESSION_KIND) match {
+-      case Main.THREAD_SESSION => new ThreadSessionFactory
+-      case Main.PROCESS_SESSION => new ProcessSessionFactory
+-      case Main.YARN_SESSION => new YarnSessionFactory(livyConf)
++    val sessionFactoryKind = livyConf.get("livy.server.session.factory", "thread")
++
++    info(f"Using $sessionFactoryKind sessions")
++
++    val sessionFactory = sessionFactoryKind match {
++      case "thread" => new ThreadSessionFactory(livyConf)
++      case "process" => new ProcessSessionFactory(livyConf)
++      case "yarn" => new YarnSessionFactory(livyConf)
++      case _ =>
++        println(f"Unknown session factory: $sessionFactoryKind}")
++        sys.exit(1)
+     }
+ 
+     sessionManager = new SessionManager(sessionFactory)
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index 7850053..ff3dbfc 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -14,7 +14,7 @@ trait SessionFactory {
+   def close(): Unit = {}
+ }
+ 
+-class ThreadSessionFactory extends SessionFactory {
++class ThreadSessionFactory(livyConf: LivyConf) extends SessionFactory {
+ 
+   implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+@@ -26,7 +26,7 @@ class ThreadSessionFactory extends SessionFactory {
+   }
+ }
+ 
+-class ProcessSessionFactory extends SessionFactory {
++class ProcessSessionFactory(livyConf: LivyConf) extends SessionFactory {
+ 
+   implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 5d5fac6..c4f11fb 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -40,20 +40,24 @@ class Client(livyConf: LivyConf) extends Logging {
+   yarnClient.start()
+ 
+   def submitApplication(id: String, lang: String, callbackUrl: String): Future[Job] = {
++    val url = f"$callbackUrl/sessions/$id/callback"
++
++    val livyJar: String = livyConf.getOption("livy.yarn.jar")
++      .getOrElse(Utils.jarOfClass(classOf[Client]).head)
++
++    val builder: ProcessBuilder = new ProcessBuilder(
++      "spark-submit",
++      "--master", "yarn-cluster",
++      "--class", "com.cloudera.hue.livy.repl.Main",
++      "--driver-java-options", f"-Dlivy.repl.callback-url=$url -Dlivy.repl.port=0",
++      livyJar,
++      lang
++    )
++
++    builder.redirectOutput(Redirect.PIPE)
++    builder.redirectErrorStream(true)
++
+     Future {
+-      val url = f"$callbackUrl/sessions/$id/callback"
+-
+-      val builder: ProcessBuilder = new ProcessBuilder(
+-        "spark-submit",
+-        "--master", "yarn-cluster",
+-        "--class", "com.cloudera.hue.livy.repl.Main",
+-        "--driver-java-options", f"-Dlivy.repl.callback-url=$url -Dlivy.repl.port=0",
+-        Utils.jarOfClass(classOf[Client]).head,
+-        lang
+-      )
+-
+-      builder.redirectOutput(Redirect.PIPE)
+-      builder.redirectErrorStream(true)
+ 
+       val process = builder.start()
+ 
+-- 
+1.7.9.5
+

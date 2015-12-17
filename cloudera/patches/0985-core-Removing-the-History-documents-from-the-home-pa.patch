@@ -1,0 +1,78 @@
+From 741a48b781803afdc4f731740f912edbfaf6c6f8 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Mar 2015 14:29:25 -0800
+Subject: [PATCH 0985/1173] [core] Removing the History documents from the
+ home page
+
+---
+ desktop/core/src/desktop/api.py              |   33 +++-----------------------
+ desktop/core/src/desktop/templates/home.mako |    2 --
+ 2 files changed, 3 insertions(+), 32 deletions(-)
+
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index 0363dac..eb6ee1e 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -15,7 +15,6 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-import itertools
+ import logging
+ import json
+ import time
+@@ -37,35 +36,9 @@ LOG = logging.getLogger(__name__)
+ 
+ def _get_docs(user):
+   history_tag = DocumentTag.objects.get_history_tag(user)
+-  trash_tag = DocumentTag.objects.get_trash_tag(user)
+-  docs = itertools.chain(
+-      Document.objects.get_docs(user)
+-        .exclude(tags__in=[trash_tag])
+-        .filter(tags__in=[history_tag])
+-        .select_related(
+-          'owner',
+-          'content_type',
+-        )
+-        .prefetch_related(
+-          'tags',
+-          'documentpermission_set',
+-        )
+-        .defer(None)
+-        .order_by('-last_modified')[:50],
+-      Document.objects.get_docs(user)
+-        .exclude(tags__in=[history_tag])
+-        .select_related(
+-          'owner',
+-          'content_type',
+-        )
+-        .prefetch_related(
+-          'tags',
+-          'documentpermission_set',
+-        )
+-        .defer(None)
+-        .order_by('-last_modified')[:100]
+-  )
+-  return list(docs)
++
++  return Document.objects.get_docs(user).exclude(tags__in=[history_tag]).select_related('owner', 'content_type') \
++        .prefetch_related('tags','documentpermission_set').defer(None).order_by('-last_modified')[:100]
+ 
+ 
+ def massaged_tags_for_json(docs, user):
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index 06be868..5c71fe0 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -130,8 +130,6 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+                 % endif
+               </ul>
+            </li>
+-           <!-- ko template: { name: 'tag-template', data: history } -->
+-           <!-- /ko -->
+            <!-- ko template: { name: 'tag-template', data: trash } -->
+            <!-- /ko -->
+            <li class="nav-header tag-mine-header">
+-- 
+1.7.9.5
+

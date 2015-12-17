@@ -1,0 +1,1805 @@
+From 205fe2711d6a0d63f8023d947ab1e7ea4ef6ace6 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Tue, 10 Feb 2015 15:51:02 -0800
+Subject: [PATCH 0882/1173] [desktop] Upgrade requests-kerberos to 0.6.1
+
+This avoids the CVE-2014-8650 vulnerability
+---
+ .../core/ext-py/requests-kerberos-0.3/.gitignore   |    7 -
+ desktop/core/ext-py/requests-kerberos-0.3/AUTHORS  |    2 -
+ .../core/ext-py/requests-kerberos-0.3/HISTORY.rst  |   17 -
+ desktop/core/ext-py/requests-kerberos-0.3/LICENSE  |   13 -
+ .../core/ext-py/requests-kerberos-0.3/MANIFEST.in  |    5 -
+ .../core/ext-py/requests-kerberos-0.3/README.rst   |   76 ----
+ .../requests_kerberos/__init__.py                  |   25 --
+ .../requests_kerberos/compat.py                    |   14 -
+ .../requests_kerberos/exceptions.py                |   12 -
+ .../requests_kerberos/kerberos_.py                 |  259 ------------
+ .../ext-py/requests-kerberos-0.3/requirements.txt  |    2 -
+ desktop/core/ext-py/requests-kerberos-0.3/setup.py |   51 ---
+ .../test_requests_kerberos.py                      |  418 --------------------
+ .../core/ext-py/requests-kerberos-0.6.1/AUTHORS    |    3 +
+ .../ext-py/requests-kerberos-0.6.1/HISTORY.rst     |   56 +++
+ .../core/ext-py/requests-kerberos-0.6.1/LICENSE    |   13 +
+ .../ext-py/requests-kerberos-0.6.1/MANIFEST.in     |    5 +
+ .../core/ext-py/requests-kerberos-0.6.1/PKG-INFO   |  144 +++++++
+ .../core/ext-py/requests-kerberos-0.6.1/README.rst |   76 ++++
+ .../requests_kerberos/__init__.py                  |   25 ++
+ .../requests_kerberos/compat.py                    |   14 +
+ .../requests_kerberos/exceptions.py                |   12 +
+ .../requests_kerberos/kerberos_.py                 |  270 +++++++++++++
+ .../requests-kerberos-0.6.1/requirements.txt       |    2 +
+ .../core/ext-py/requests-kerberos-0.6.1/setup.cfg  |    8 +
+ .../core/ext-py/requests-kerberos-0.6.1/setup.py   |   56 +++
+ 26 files changed, 684 insertions(+), 901 deletions(-)
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/.gitignore
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/AUTHORS
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/HISTORY.rst
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/LICENSE
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/MANIFEST.in
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/README.rst
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/__init__.py
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/compat.py
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/exceptions.py
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/kerberos_.py
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/requirements.txt
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/setup.py
+ delete mode 100644 desktop/core/ext-py/requests-kerberos-0.3/test_requests_kerberos.py
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/AUTHORS
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/HISTORY.rst
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/LICENSE
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/MANIFEST.in
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/PKG-INFO
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/README.rst
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/__init__.py
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/compat.py
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/exceptions.py
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/requirements.txt
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/setup.cfg
+ create mode 100644 desktop/core/ext-py/requests-kerberos-0.6.1/setup.py
+
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/.gitignore b/desktop/core/ext-py/requests-kerberos-0.3/.gitignore
+deleted file mode 100644
+index cfe4555..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/.gitignore
++++ /dev/null
+@@ -1,7 +0,0 @@
+-*.pyc
+-*.swp
+-env/
+-build/
+-dist/
+-requests_kerberos.egg-info/
+-
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/AUTHORS b/desktop/core/ext-py/requests-kerberos-0.3/AUTHORS
+deleted file mode 100644
+index 1e3ace8..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/AUTHORS
++++ /dev/null
+@@ -1,2 +0,0 @@
+-Michael Komitee
+-Jose Castro Leon
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/HISTORY.rst b/desktop/core/ext-py/requests-kerberos-0.3/HISTORY.rst
+deleted file mode 100644
+index 54d34d6..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/HISTORY.rst
++++ /dev/null
+@@ -1,17 +0,0 @@
+-History
+-=======
+-
+-0.3: 2013-06-02
+----------------
+-
+-- Work with servers operating on non-standard ports
+-
+-0.2: 2013-03-26
+----------------
+-
+-- Not documented
+-
+-0.1: Never released
+--------------------
+-
+-- Initial Release
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/LICENSE b/desktop/core/ext-py/requests-kerberos-0.3/LICENSE
+deleted file mode 100644
+index 423d8d1..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/LICENSE
++++ /dev/null
+@@ -1,13 +0,0 @@
+-Copyright (c) 2012 Kenneth Reitz
+-
+-Permission to use, copy, modify and/or distribute this software for any
+-purpose with or without fee is hereby granted, provided that the above
+-copyright notice and this permission notice appear in all copies.
+-
+-THE SOFTWARE IS PROVIDED "AS-IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/MANIFEST.in b/desktop/core/ext-py/requests-kerberos-0.3/MANIFEST.in
+deleted file mode 100644
+index c5c480f..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/MANIFEST.in
++++ /dev/null
+@@ -1,5 +0,0 @@
+-include requirements.txt
+-include README.rst
+-include LICENSE
+-include HISTORY.rst
+-include AUTHORS
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/README.rst b/desktop/core/ext-py/requests-kerberos-0.3/README.rst
+deleted file mode 100644
+index b682e10..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/README.rst
++++ /dev/null
+@@ -1,76 +0,0 @@
+-requests Kerberos/GSSAPI authentication library
+-===============================================
+-
+-Requests is an HTTP library, written in Python, for human beings. This library
+-adds optional Kerberos/GSSAPI authentication support and supports mutual
+-authentication. Basic GET usage:
+-
+-
+-.. code-block:: pycon
+-
+-    >>> import requests
+-    >>> from requests_kerberos import HTTPKerberosAuth
+-    >>> r = requests.get("http://example.org", auth=HTTPKerberosAuth())
+-    ...
+-
+-The entire ``requests.api`` should be supported.
+-
+-Authentication Failures
+------------------------
+-
+-Client authentication failures will be communicated to the caller by returning
+-the 401 response.
+-
+-Mutual Authentication
+----------------------
+-
+-By default, ``HTTPKerberosAuth`` will require mutual authentication from the
+-server, and if a server emits a non-error response which is cannot be
+-authenticated, a ``requests_kerberos.errors.MutualAuthenticationError`` will be
+-raised. IF a server emits an error which cannot be authenticated, it will be
+-returned to the user but with it's contents and headers stripped.
+-
+-OPTIONAL
+-^^^^^^^^
+-
+-If you'd prefer to not require mutual authentication, you can set your
+-preference when constructing your ``HTTPKerberosAuth`` object:
+-
+-.. code-block:: pycon
+-
+-    >>> import requests
+-    >>> from requests_kerberos import HTTPKerberosAuth, OPTIONAL
+-    >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=OPTIONAL)
+-    >>> r = requests.get("http://example.org", auth=kerberos_auth)
+-    ...
+-
+-This will cause ``requests_kerberos`` to attempt mutual authentication if the
+-server advertises that it supports it, and cause a failure if authentication
+-fails, but not if the server does not support it at all.
+-
+-DISABLED
+-^^^^^^^^
+-
+-While we don't recommend it, if you'd prefer to never attempt mutual
+-authentication, you can do that as well:
+-
+-.. code-block:: pycon
+-
+-    >>> import requests
+-    >>> from requests_kerberos import HTTPKerberosAuth, DISABLED
+-    >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=DISABLED)
+-    >>> r = requests.get("http://example.org", auth=kerberos_auth)
+-    ...
+-
+-Logging
+--------
+-
+-This library makes extensive use of python's logging facilities. 
+-
+-Log messages are logged to the ``requests_kerberos`` and
+-``requests_kerberos.kerberos_`` named loggers.
+-
+-If you are having difficulty we suggest you configure logging. Issues with the
+-underlying kerberos libraries will be made apparent. Additionally, copious debug
+-information is made available which may assist in troubleshooting if you
+-increase your log level all the way up to debug.
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/__init__.py b/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/__init__.py
+deleted file mode 100644
+index 2c3cdc6..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/__init__.py
++++ /dev/null
+@@ -1,25 +0,0 @@
+-"""
+-requests Kerberos/GSSAPI authentication library
+-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-
+-Requests is an HTTP library, written in Python, for human beings. This library
+-adds optional Kerberos/GSSAPI authentication support and supports mutual
+-authentication. Basic GET usage:
+-
+-    >>> import requests
+-    >>> from requests_kerberos import HTTPKerberosAuth
+-    >>> r = requests.get("http://example.org", auth=HTTPKerberosAuth())
+-
+-The entire `requests.api` should be supported.
+-"""
+-import logging
+-
+-from .kerberos_ import HTTPKerberosAuth, REQUIRED, OPTIONAL, DISABLED
+-from .exceptions import MutualAuthenticationError
+-from .compat import NullHandler
+-
+-logging.getLogger(__name__).addHandler(NullHandler())
+-
+-__all__ = [HTTPKerberosAuth, MutualAuthenticationError, REQUIRED, OPTIONAL,
+-           DISABLED]
+-__version__ = '0.3'
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/compat.py b/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/compat.py
+deleted file mode 100644
+index 01b7500..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/compat.py
++++ /dev/null
+@@ -1,14 +0,0 @@
+-"""
+-Compatibility library for older versions of python
+-"""
+-import sys
+-
+-# python 2.7 introduced a NullHandler which we want to use, but to support
+-# older versions, we implement our own if needed.
+-if sys.version_info[:2] > (2, 6):
+-    from logging import NullHandler
+-else:
+-    from logging import Handler
+-    class NullHandler(Handler):
+-        def emit(self, record):
+-            pass
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/exceptions.py b/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/exceptions.py
+deleted file mode 100644
+index f76a422..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/exceptions.py
++++ /dev/null
+@@ -1,12 +0,0 @@
+-"""
+-requests_kerberos.exceptions
+-~~~~~~~~~~~~~~~~~~~
+-
+-This module contains the set of exceptions.
+-
+-"""
+-from requests.exceptions import RequestException
+-
+-
+-class MutualAuthenticationError(RequestException):
+-    """Mutual Authentication Error"""
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/kerberos_.py b/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/kerberos_.py
+deleted file mode 100644
+index 77bc396..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/requests_kerberos/kerberos_.py
++++ /dev/null
+@@ -1,259 +0,0 @@
+-import kerberos
+-import re
+-import logging
+-
+-from requests.auth import AuthBase
+-from requests.models import Response
+-from requests.compat import urlparse, StringIO
+-from requests.structures import CaseInsensitiveDict
+-from requests.cookies import cookiejar_from_dict
+-
+-from .exceptions import MutualAuthenticationError
+-
+-log = logging.getLogger(__name__)
+-
+-
+-# Different types of mutual authentication:
+-#  with mutual_authentication set to REQUIRED, all responses will be
+-#   authenticated with the exception of errors. Errors will have their contents
+-#   and headers stripped. If a non-error response cannot be authenticated, a
+-#   MutualAuthenticationError exception will be raised.
+-# with mutual_authentication set to OPTIONAL, mutual authentication will be
+-#   attempted if supported, and if supported and failed, a
+-#   MutualAuthenticationError exception will be raised. Responses which do not
+-#   support mutual authentication will be returned directly to the user.
+-# with mutual_authentication set to DISABLED, mutual authentication will not be
+-#   attempted, even if supported.
+-REQUIRED = 1
+-OPTIONAL = 2
+-DISABLED = 3
+-
+-
+-class SanitizedResponse(Response):
+-    """The :class:`Response <Response>` object, which contains a server's
+-    response to an HTTP request.
+-
+-    This differs from `requests.models.Response` in that it's headers and
+-    content have been sanitized. This is only used for HTTP Error messages
+-    which do not support mutual authentication when mutual authentication is
+-    required."""
+-
+-    def __init__(self, response):
+-        super(SanitizedResponse, self).__init__()
+-        self.status_code = response.status_code
+-        self.encoding = response.encoding
+-        self.raw = response.raw
+-        self.reason = response.reason
+-        self.url = response.url
+-        self.request = response.request
+-        self.connection = response.connection
+-        self._content_consumed = True
+-
+-        self._content = ""
+-        self.cookies = cookiejar_from_dict({})
+-        self.headers = CaseInsensitiveDict()
+-        self.headers['content-length'] = '0'
+-        for header in ('date', 'server'):
+-            if header in response.headers:
+-                self.headers[header] = response.headers[header]
+-
+-
+-def _negotiate_value(response):
+-    """Extracts the gssapi authentication token from the appropriate header"""
+-    if hasattr(_negotiate_value, 'regex'):
+-        regex = _negotiate_value.regex
+-    else:
+-        # There's no need to re-compile this EVERY time it is called. Compile
+-        # it once and you won't have the performance hit of the compilation.
+-        regex = re.compile('(?:.*,)*\s*Negotiate\s*([^,]*),?', re.I)
+-        _negotiate_value.regex = regex
+-
+-    authreq = response.headers.get('www-authenticate', None)
+-
+-    if authreq:
+-        match_obj = regex.search(authreq)
+-        if match_obj:
+-            return match_obj.group(1)
+-
+-    return None
+-
+-
+-class HTTPKerberosAuth(AuthBase):
+-    """Attaches HTTP GSSAPI/Kerberos Authentication to the given Request
+-    object."""
+-    def __init__(self, mutual_authentication=REQUIRED):
+-        self.context = {}
+-        self.mutual_authentication = mutual_authentication
+-
+-    def generate_request_header(self, response):
+-        """
+-        Generates the GSSAPI authentication token with kerberos.
+-
+-        If any GSSAPI step fails, return None.
+-
+-        """
+-        host = urlparse(response.url).hostname
+-
+-        try:
+-            result, self.context[host] = kerberos.authGSSClientInit(
+-                "HTTP@{0}".format(host))
+-        except kerberos.GSSError as e:
+-            log.error("generate_request_header(): authGSSClientInit() failed:")
+-            log.exception(e)
+-            return None
+-
+-        if result < 1:
+-            log.error("generate_request_header(): authGSSClientInit() failed: "
+-                      "{0}".format(result))
+-            return None
+-
+-        try:
+-            result = kerberos.authGSSClientStep(self.context[host],
+-                                                _negotiate_value(response))
+-        except kerberos.GSSError as e:
+-            log.error("generate_request_header(): authGSSClientStep() failed:")
+-            log.exception(e)
+-            return None
+-
+-        if result < 0:
+-            log.error("generate_request_header(): authGSSClientStep() failed: "
+-                      "{0}".format(result))
+-            return None
+-
+-        try:
+-            gss_response = kerberos.authGSSClientResponse(self.context[host])
+-        except kerberos.GSSError as e:
+-            log.error("generate_request_header(): authGSSClientResponse() "
+-                      "failed:")
+-            log.exception(e)
+-            return None
+-
+-        return "Negotiate {0}".format(gss_response)
+-
+-    def authenticate_user(self, response, **kwargs):
+-        """Handles user authentication with gssapi/kerberos"""
+-
+-        auth_header = self.generate_request_header(response)
+-        if auth_header is None:
+-            # GSS Failure, return existing response
+-            return response
+-
+-        log.debug("authenticate_user(): Authorization header: {0}".format(
+-            auth_header))
+-        response.request.headers['Authorization'] = auth_header
+-
+-        # Consume the content so we can reuse the connection for the next
+-        # request.
+-        response.content
+-        response.raw.release_conn()
+-
+-        _r = response.connection.send(response.request, **kwargs)
+-        _r.history.append(response)
+-
+-        log.debug("authenticate_user(): returning {0}".format(_r))
+-        return _r
+-
+-    def handle_401(self, response, **kwargs):
+-        """Handles 401's, attempts to use gssapi/kerberos authentication"""
+-
+-        log.debug("handle_401(): Handling: 401")
+-        if _negotiate_value(response) is not None:
+-            _r = self.authenticate_user(response, **kwargs)
+-            log.debug("handle_401(): returning {0}".format(_r))
+-            return _r
+-        else:
+-            log.debug("handle_401(): Kerberos is not supported")
+-            log.debug("handle_401(): returning {0}".format(response))
+-            return response
+-
+-    def handle_other(self, response):
+-        """Handles all responses with the exception of 401s.
+-
+-        This is necessary so that we can authenticate responses if requested"""
+-
+-        log.debug("handle_other(): Handling: %d" % response.status_code)
+-
+-        if self.mutual_authentication in (REQUIRED, OPTIONAL):
+-
+-            is_http_error = response.status_code >= 400
+-
+-            if _negotiate_value(response) is not None:
+-                log.debug("handle_other(): Authenticating the server")
+-                if not self.authenticate_server(response):
+-                    # Mutual authentication failure when mutual auth is wanted,
+-                    # raise an exception so the user doesn't use an untrusted
+-                    # response.
+-                    log.error("handle_other(): Mutual authentication failed")
+-                    raise MutualAuthenticationError("Unable to authenticate "
+-                                                    "{0}".format(response))
+-
+-                # Authentication successful
+-                log.debug("handle_other(): returning {0}".format(response))
+-                return response
+-
+-            elif is_http_error or self.mutual_authentication == OPTIONAL:
+-                log.error("handle_other(): Mutual authentication unavailable "
+-                          "on {0} response".format(response.status_code))
+-
+-                if self.mutual_authentication == REQUIRED:
+-                    return SanitizedResponse(response)
+-                else:
+-                    return response
+-            else:
+-                # Unable to attempt mutual authentication when mutual auth is
+-                # required, raise an exception so the user doesnt use an
+-                # untrusted response.
+-                log.error("handle_other(): Mutual authentication failed")
+-                raise MutualAuthenticationError("Unable to authenticate "
+-                                                "{0}".format(response))
+-        else:
+-            log.debug("handle_other(): returning {0}".format(response))
+-            return response
+-
+-    def authenticate_server(self, response):
+-        """
+-        Uses GSSAPI to authenticate the server.
+-
+-        Returns True on success, False on failure.
+-        """
+-
+-        log.debug("authenticate_server(): Authenticate header: {0}".format(
+-            _negotiate_value(response)))
+-
+-        host = urlparse(response.url).hostname
+-
+-        try:
+-            result = kerberos.authGSSClientStep(self.context[host],
+-                                                _negotiate_value(response))
+-        except kerberos.GSSError as e:
+-            log.error("authenticate_server(): authGSSClientStep() failed:")
+-            log.exception(e)
+-            return False
+-
+-        if result < 1:
+-            log.error("auhenticate_server(): authGSSClientStep() failed: "
+-                      "{0}".format(result))
+-            return False
+-
+-        log.debug("authenticate_server(): returning {0}".format(response))
+-        return True
+-
+-    def handle_response(self, response, **kwargs):
+-        """Takes the given response and tries kerberos-auth, as needed."""
+-
+-        if response.status_code == 401:
+-            _r = self.handle_401(response, **kwargs)
+-            log.debug("handle_response(): returning {0}".format(_r))
+-            return _r
+-        else:
+-            _r = self.handle_other(response)
+-            log.debug("handle_response(): returning {0}".format(_r))
+-            return _r
+-
+-    def deregister(self, response):
+-        """Deregisters the response handler"""
+-        response.request.deregister_hook('response', self.handle_response)
+-
+-    def __call__(self, request):
+-        request.register_hook('response', self.handle_response)
+-        return request
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/requirements.txt b/desktop/core/ext-py/requests-kerberos-0.3/requirements.txt
+deleted file mode 100644
+index a3d1fe7..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/requirements.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-requests==1.1.0
+-kerberos==1.1.1
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/setup.py b/desktop/core/ext-py/requests-kerberos-0.3/setup.py
+deleted file mode 100644
+index 9594600..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/setup.py
++++ /dev/null
+@@ -1,51 +0,0 @@
+-#!/usr/bin/env python
+-# coding: utf-8
+-import os
+-from setuptools import setup
+-
+-import compiler
+-
+-with open('requirements.txt') as requirements:
+-    requires = [line.strip() for line in requirements if line.strip()]
+-
+-path = os.path.dirname(__file__)
+-desc_fd = os.path.join(path, 'README.rst')
+-hist_fd = os.path.join(path, 'HISTORY.rst')
+-
+-long_desc = ''
+-short_desc = 'A Kerberos authentication handler for python-requests'
+-
+-if os.path.isfile(desc_fd):
+-    long_desc = open(desc_fd).read()
+-
+-if os.path.isfile(hist_fd):
+-    long_desc = '\n\n'.join([long_desc, open(hist_fd).read()])
+-
+-# It seems like per the requests module, we'd like to get the version
+-# from __init__.py however, __init__.py will import the kerberos
+-# module.  The kerberos module may not be installed - and when it's
+-# not, it's pulled in by the requirements.txt.  When it's being
+-# installed, however, this setup.py is evaluated before the
+-# kerberos.so module is built and installed, and this bombs.
+-#
+-# To fix this, we can use the compiler module to parse __init__.py,
+-# and as long as __version__ is defined as a constant so that we
+-# don't have to evaluate it to get the value, we can do some dubious
+-# groping arond the AST and get the version from that
+-parsed = compiler.parseFile('requests_kerberos/__init__.py')    
+-for n in parsed.getChildNodes()[0]:
+-    if 'nodes' in dir(n): 
+-        if n.nodes[0].name == '__version__':
+-            my_version = n.expr.value        
+-    
+-setup(
+-    name='requests-kerberos',
+-    description=short_desc,
+-    long_description=long_desc,
+-    url='https://github.com/requests/requests-kerberos',
+-    packages=['requests_kerberos'],
+-    package_data={'': ['LICENSE', 'AUTHORS']},
+-    include_package_data=True,
+-    version = my_version,
+-    install_requires=requires,
+-)
+diff --git a/desktop/core/ext-py/requests-kerberos-0.3/test_requests_kerberos.py b/desktop/core/ext-py/requests-kerberos-0.3/test_requests_kerberos.py
+deleted file mode 100644
+index 82e40d9..0000000
+--- a/desktop/core/ext-py/requests-kerberos-0.3/test_requests_kerberos.py
++++ /dev/null
+@@ -1,418 +0,0 @@
+-#!/usr/bin/env python
+-# -*- coding: utf-8 -*-
+-
+-"""Tests for requests_kerberos."""
+-
+-from mock import Mock, patch
+-import requests
+-import kerberos
+-import requests_kerberos
+-import unittest
+-
+-# kerberos.authClientInit() is called with the service name (HTTP@FQDN) and
+-# returns 1 and a kerberos context object on success. Returns -1 on failure.
+-clientInit_complete = Mock(return_value=(1, "CTX"))
+-clientInit_error = Mock(return_value=(-1, "CTX"))
+-
+-# kerberos.authGSSClientStep() is called with the kerberos context object
+-# returned by authGSSClientInit and the negotiate auth token provided in the
+-# http response's www-authenticate header. It returns 0 or 1 on success. 0
+-# Indicates that authentication is progressing but not complete.
+-clientStep_complete = Mock(return_value=1)
+-clientStep_continue = Mock(return_value=0)
+-clientStep_error = Mock(return_value=-1)
+-clientStep_exception = Mock(side_effect=kerberos.GSSError)
+-
+-# kerberos.authGSSCLientResponse() is called with the kerberos context which
+-# was initially returned by authGSSClientInit and had been mutated by a call by
+-# authGSSClientStep. It returns a string.
+-clientResponse = Mock(return_value="GSSRESPONSE")
+-
+-# Note: we're not using the @mock.patch decorator:
+-# > My only word of warning is that in the past, the patch decorator hides
+-# > tests when using the standard unittest library.
+-# > -- sigmavirus24 in https://github.com/requests/requests-kerberos/issues/1
+-
+-
+-
+-class KerberosTestCase(unittest.TestCase):
+-
+-    def setUp(self):
+-        """Setup."""
+-        clientInit_complete.reset_mock()
+-        clientInit_error.reset_mock()
+-        clientStep_complete.reset_mock()
+-        clientStep_continue.reset_mock()
+-        clientStep_error.reset_mock()
+-        clientStep_exception.reset_mock()
+-        clientResponse.reset_mock()
+-
+-    def tearDown(self):
+-        """Teardown."""
+-        pass
+-
+-    def test_negotate_value_extraction(self):
+-        response = requests.Response()
+-        response.headers = {'www-authenticate': 'negotiate token'}
+-        self.assertEqual(
+-            requests_kerberos.kerberos_._negotiate_value(response),
+-            'token'
+-        )
+-
+-    def test_negotate_value_extraction_none(self):
+-        response = requests.Response()
+-        response.headers = {}
+-        self.assertTrue(
+-            requests_kerberos.kerberos_._negotiate_value(response) is None
+-        )
+-
+-    def test_generate_request_header(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_complete,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_continue):
+-            response = requests.Response()
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            self.assertEqual(
+-                auth.generate_request_header(response),
+-                "Negotiate GSSRESPONSE"
+-            )
+-            clientInit_complete.assert_called_with("HTTP@www.example.org")
+-            clientStep_continue.assert_called_with("CTX", "token")
+-            clientResponse.assert_called_with("CTX")
+-
+-    def test_generate_request_header_init_error(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_error,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_continue):
+-            response = requests.Response()
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            self.assertEqual(
+-                auth.generate_request_header(response),
+-                None
+-            )
+-            clientInit_error.assert_called_with("HTTP@www.example.org")
+-            self.assertFalse(clientStep_continue.called)
+-            self.assertFalse(clientResponse.called)
+-
+-    def test_generate_request_header_step_error(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_complete,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_error):
+-            response = requests.Response()
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            self.assertEqual(
+-                auth.generate_request_header(response),
+-                None
+-            )
+-            clientInit_complete.assert_called_with("HTTP@www.example.org")
+-            clientStep_error.assert_called_with("CTX", "token")
+-            self.assertFalse(clientResponse.called)
+-
+-    def test_authenticate_user(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_complete,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_continue):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken'}
+-
+-            connection = Mock()
+-            connection.send = Mock(return_value=response_ok)
+-
+-            raw = Mock()
+-            raw.release_conn = Mock(return_value=None)
+-
+-            request = requests.Request()
+-            response = requests.Response()
+-            response.request = request
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            response.status_code = 401
+-            response.connection = connection
+-            response._content = ""
+-            response.raw = raw
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            r = auth.authenticate_user(response)
+-
+-            self.assertTrue(response in r.history)
+-            self.assertEqual(r, response_ok)
+-            self.assertEqual(request.headers['Authorization'], 'Negotiate GSSRESPONSE')
+-            connection.send.assert_called_with(request)
+-            raw.release_conn.assert_called_with()
+-            clientInit_complete.assert_called_with("HTTP@www.example.org")
+-            clientStep_continue.assert_called_with("CTX", "token")
+-            clientResponse.assert_called_with("CTX")
+-
+-
+-    def test_handle_401(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_complete,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_continue):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken'}
+-
+-            connection = Mock()
+-            connection.send = Mock(return_value=response_ok)
+-
+-            raw = Mock()
+-            raw.release_conn = Mock(return_value=None)
+-
+-            request = requests.Request()
+-            response = requests.Response()
+-            response.request = request
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            response.status_code = 401
+-            response.connection = connection
+-            response._content = ""
+-            response.raw = raw
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            r = auth.handle_401(response)
+-
+-            self.assertTrue(response in r.history)
+-            self.assertEqual(r, response_ok)
+-            self.assertEqual(request.headers['Authorization'], 'Negotiate GSSRESPONSE')
+-            connection.send.assert_called_with(request)
+-            raw.release_conn.assert_called_with()
+-            clientInit_complete.assert_called_with("HTTP@www.example.org")
+-            clientStep_continue.assert_called_with("CTX", "token")
+-            clientResponse.assert_called_with("CTX")
+-
+-    def test_authenticate_server(self):
+-        with patch.multiple('kerberos', authGSSClientStep=clientStep_complete):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken',
+-                                   'authorization': 'Negotiate GSSRESPONSE'
+-            }
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-            result = auth.authenticate_server(response_ok)
+-
+-            self.assertTrue(result)
+-            clientStep_complete.assert_called_with("CTX", "servertoken")
+-
+-    def test_handle_other(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_complete):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken',
+-                                   'authorization': 'Negotiate GSSRESPONSE'
+-            }
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            r = auth.handle_other(response_ok)
+-
+-            self.assertEqual(r, response_ok)
+-            clientStep_complete.assert_called_with("CTX", "servertoken")
+-
+-    def test_handle_response_200(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_complete):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken',
+-                                   'authorization': 'Negotiate GSSRESPONSE'
+-            }
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            r = auth.handle_response(response_ok)
+-
+-            self.assertEqual(r, response_ok)
+-            clientStep_complete.assert_called_with("CTX", "servertoken")
+-
+-    def test_handle_response_200_mutual_auth_required_failure(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_error):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {}
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            self.assertRaises(requests_kerberos.MutualAuthenticationError,
+-                              auth.handle_response,
+-                              response_ok)
+-
+-            self.assertFalse(clientStep_error.called)
+-
+-    def test_handle_response_200_mutual_auth_required_failure_2(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_exception):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken',
+-                                   'authorization': 'Negotiate GSSRESPONSE'
+-            }
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            self.assertRaises(requests_kerberos.MutualAuthenticationError,
+-                              auth.handle_response,
+-                              response_ok)
+-
+-            clientStep_exception.assert_called_with("CTX", "servertoken")
+-
+-    def test_handle_response_200_mutual_auth_optional_hard_failure(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_error):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken',
+-                                   'authorization': 'Negotiate GSSRESPONSE'
+-            }
+-
+-            auth = requests_kerberos.HTTPKerberosAuth(requests_kerberos.OPTIONAL)
+-            auth.context = {"www.example.org": "CTX"}
+-
+-
+-            self.assertRaises(requests_kerberos.MutualAuthenticationError,
+-                              auth.handle_response,
+-                              response_ok)
+-
+-            clientStep_error.assert_called_with("CTX", "servertoken")
+-
+-
+-    def test_handle_response_200_mutual_auth_optional_soft_failure(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_error):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-
+-            auth = requests_kerberos.HTTPKerberosAuth(requests_kerberos.OPTIONAL)
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            r = auth.handle_response(response_ok)
+-
+-            self.assertEqual(r, response_ok)
+-
+-            self.assertFalse(clientStep_error.called)
+-
+-    def test_handle_response_500_mutual_auth_required_failure(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_error):
+-
+-            response_500 = requests.Response()
+-            response_500.url = "http://www.example.org/"
+-            response_500.status_code = 500
+-            response_500.headers = {}
+-            response_500.request = "REQUEST"
+-            response_500.connection = "CONNECTION"
+-            response_500._content = "CONTENT"
+-            response_500.encoding = "ENCODING"
+-            response_500.raw = "RAW"
+-            response_500.cookies = "COOKIES"
+-
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            r = auth.handle_response(response_500)
+-
+-            self.assertNotEqual(r, response_500)
+-            self.assertNotEqual(r.headers, response_500.headers)
+-            self.assertEqual(r.status_code, response_500.status_code)
+-            self.assertEqual(r.encoding, response_500.encoding)
+-            self.assertEqual(r.raw, response_500.raw)
+-            self.assertEqual(r.url, response_500.url)
+-            self.assertEqual(r.reason, response_500.reason)
+-            self.assertEqual(r.connection, response_500.connection)
+-            self.assertEqual(r.content, b'')
+-            self.assertNotEqual(r.cookies, response_500.cookies)
+-
+-            self.assertFalse(clientStep_error.called)
+-
+-    def test_handle_response_500_mutual_auth_optional_failure(self):
+-        with patch('kerberos.authGSSClientStep', clientStep_error):
+-
+-            response_500 = requests.Response()
+-            response_500.url = "http://www.example.org/"
+-            response_500.status_code = 500
+-            response_500.headers = {}
+-            response_500.request = "REQUEST"
+-            response_500.connection = "CONNECTION"
+-            response_500._content = "CONTENT"
+-            response_500.encoding = "ENCODING"
+-            response_500.raw = "RAW"
+-            response_500.cookies = "COOKIES"
+-
+-            auth = requests_kerberos.HTTPKerberosAuth(requests_kerberos.OPTIONAL)
+-            auth.context = {"www.example.org": "CTX"}
+-
+-            r = auth.handle_response(response_500)
+-
+-            self.assertEqual(r, response_500)
+-
+-            self.assertFalse(clientStep_error.called)
+-
+-
+-    def test_handle_response_401(self):
+-        with patch.multiple('kerberos',
+-                            authGSSClientInit=clientInit_complete,
+-                            authGSSClientResponse=clientResponse,
+-                            authGSSClientStep=clientStep_continue):
+-
+-            response_ok = requests.Response()
+-            response_ok.url = "http://www.example.org/"
+-            response_ok.status_code = 200
+-            response_ok.headers = {'www-authenticate': 'negotiate servertoken'}
+-
+-            connection = Mock()
+-            connection.send = Mock(return_value=response_ok)
+-
+-            raw = Mock()
+-            raw.release_conn = Mock(return_value=None)
+-
+-            request = requests.Request()
+-            response = requests.Response()
+-            response.request = request
+-            response.url = "http://www.example.org/"
+-            response.headers = {'www-authenticate': 'negotiate token'}
+-            response.status_code = 401
+-            response.connection = connection
+-            response._content = ""
+-            response.raw = raw
+-            auth = requests_kerberos.HTTPKerberosAuth()
+-            r = auth.handle_response(response)
+-
+-            self.assertTrue(response in r.history)
+-            self.assertEqual(r, response_ok)
+-            self.assertEqual(request.headers['Authorization'], 'Negotiate GSSRESPONSE')
+-            connection.send.assert_called_with(request)
+-            raw.release_conn.assert_called_with()
+-            clientInit_complete.assert_called_with("HTTP@www.example.org")
+-            clientStep_continue.assert_called_with("CTX", "token")
+-            clientResponse.assert_called_with("CTX")
+-
+-if __name__ == '__main__':
+-    unittest.main()
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/AUTHORS b/desktop/core/ext-py/requests-kerberos-0.6.1/AUTHORS
+new file mode 100644
+index 0000000..eae61ac
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/AUTHORS
+@@ -0,0 +1,3 @@
++Michael Komitee
++Jose Castro Leon
++David Pursehouse
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/HISTORY.rst b/desktop/core/ext-py/requests-kerberos-0.6.1/HISTORY.rst
+new file mode 100644
+index 0000000..32df083
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/HISTORY.rst
+@@ -0,0 +1,56 @@
++History
++=======
++
++0.6.1: 2014-11-14
++-----------------
++
++- Fix HTTPKerberosAuth not to treat non-file as a file
++
++- Prevent infinite recursion when GSSErrors occurs
++
++0.6: 2014-11-04
++---------------
++
++- Handle mutual authentication (see pull request 36_)
++
++  All users should upgrade immediately. This has been reported to
++  oss-security_ and we are awaiting a proper CVE identifier.
++
++  **Update**: We were issued CVE-2014-8650
++
++- Distribute as a wheel.
++
++.. _36: https://github.com/requests/requests-kerberos/pull/36
++.. _oss-security: http://www.openwall.com/lists/oss-security/
++
++0.5: 2014-05-14
++---------------
++
++- Allow non-HTTP service principals with HTTPKerberosAuth using a new optional
++  argument ``service``.
++
++- Fix bug in ``setup.py`` on distributions where the ``compiler`` module is
++  not available.
++
++- Add test dependencies to ``setup.py`` so ``python setup.py test`` will work.
++
++0.4: 2013-10-26
++---------------
++
++- Minor updates in the README
++- Change requirements to depend on requests above 1.1.0
++
++0.3: 2013-06-02
++---------------
++
++- Work with servers operating on non-standard ports
++
++0.2: 2013-03-26
++---------------
++
++- Not documented
++
++0.1: Never released
++-------------------
++
++- Initial Release
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/LICENSE b/desktop/core/ext-py/requests-kerberos-0.6.1/LICENSE
+new file mode 100644
+index 0000000..423d8d1
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/LICENSE
+@@ -0,0 +1,13 @@
++Copyright (c) 2012 Kenneth Reitz
++
++Permission to use, copy, modify and/or distribute this software for any
++purpose with or without fee is hereby granted, provided that the above
++copyright notice and this permission notice appear in all copies.
++
++THE SOFTWARE IS PROVIDED "AS-IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/MANIFEST.in b/desktop/core/ext-py/requests-kerberos-0.6.1/MANIFEST.in
+new file mode 100644
+index 0000000..c5c480f
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/MANIFEST.in
+@@ -0,0 +1,5 @@
++include requirements.txt
++include README.rst
++include LICENSE
++include HISTORY.rst
++include AUTHORS
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/PKG-INFO b/desktop/core/ext-py/requests-kerberos-0.6.1/PKG-INFO
+new file mode 100644
+index 0000000..aa66de8
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/PKG-INFO
+@@ -0,0 +1,144 @@
++Metadata-Version: 1.0
++Name: requests-kerberos
++Version: 0.6.1
++Summary: A Kerberos authentication handler for python-requests
++Home-page: https://github.com/requests/requests-kerberos
++Author: Ian Cordasco, Cory Benfield, Michael Komitee
++Author-email: graffatcolmingov@gmail.com
++License: UNKNOWN
++Description: requests Kerberos/GSSAPI authentication library
++        ===============================================
++        
++        Requests is an HTTP library, written in Python, for human beings. This library
++        adds optional Kerberos/GSSAPI authentication support and supports mutual
++        authentication. Basic GET usage:
++        
++        
++        .. code-block:: pycon
++        
++            >>> import requests
++            >>> from requests_kerberos import HTTPKerberosAuth
++            >>> r = requests.get("http://example.org", auth=HTTPKerberosAuth())
++            ...
++        
++        The entire ``requests.api`` should be supported.
++        
++        Authentication Failures
++        -----------------------
++        
++        Client authentication failures will be communicated to the caller by returning
++        the 401 response.
++        
++        Mutual Authentication
++        ---------------------
++        
++        By default, ``HTTPKerberosAuth`` will require mutual authentication from the
++        server, and if a server emits a non-error response which cannot be
++        authenticated, a ``requests_kerberos.errors.MutualAuthenticationError`` will be
++        raised. If a server emits an error which cannot be authenticated, it will be
++        returned to the user but with its contents and headers stripped.
++        
++        OPTIONAL
++        ^^^^^^^^
++        
++        If you'd prefer to not require mutual authentication, you can set your
++        preference when constructing your ``HTTPKerberosAuth`` object:
++        
++        .. code-block:: pycon
++        
++            >>> import requests
++            >>> from requests_kerberos import HTTPKerberosAuth, OPTIONAL
++            >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=OPTIONAL)
++            >>> r = requests.get("http://example.org", auth=kerberos_auth)
++            ...
++        
++        This will cause ``requests_kerberos`` to attempt mutual authentication if the
++        server advertises that it supports it, and cause a failure if authentication
++        fails, but not if the server does not support it at all.
++        
++        DISABLED
++        ^^^^^^^^
++        
++        While we don't recommend it, if you'd prefer to never attempt mutual
++        authentication, you can do that as well:
++        
++        .. code-block:: pycon
++        
++            >>> import requests
++            >>> from requests_kerberos import HTTPKerberosAuth, DISABLED
++            >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=DISABLED)
++            >>> r = requests.get("http://example.org", auth=kerberos_auth)
++            ...
++        
++        Logging
++        -------
++        
++        This library makes extensive use of Python's logging facilities.
++        
++        Log messages are logged to the ``requests_kerberos`` and
++        ``requests_kerberos.kerberos_`` named loggers.
++        
++        If you are having difficulty we suggest you configure logging. Issues with the
++        underlying kerberos libraries will be made apparent. Additionally, copious debug
++        information is made available which may assist in troubleshooting if you
++        increase your log level all the way up to debug.
++        
++        
++        History
++        =======
++        
++        0.6.1: 2014-11-14
++        -----------------
++        
++        - Fix HTTPKerberosAuth not to treat non-file as a file
++        
++        - Prevent infinite recursion when GSSErrors occurs
++        
++        0.6: 2014-11-04
++        ---------------
++        
++        - Handle mutual authentication (see pull request 36_)
++        
++          All users should upgrade immediately. This has been reported to
++          oss-security_ and we are awaiting a proper CVE identifier.
++        
++          **Update**: We were issued CVE-2014-8650
++        
++        - Distribute as a wheel.
++        
++        .. _36: https://github.com/requests/requests-kerberos/pull/36
++        .. _oss-security: http://www.openwall.com/lists/oss-security/
++        
++        0.5: 2014-05-14
++        ---------------
++        
++        - Allow non-HTTP service principals with HTTPKerberosAuth using a new optional
++          argument ``service``.
++        
++        - Fix bug in ``setup.py`` on distributions where the ``compiler`` module is
++          not available.
++        
++        - Add test dependencies to ``setup.py`` so ``python setup.py test`` will work.
++        
++        0.4: 2013-10-26
++        ---------------
++        
++        - Minor updates in the README
++        - Change requirements to depend on requests above 1.1.0
++        
++        0.3: 2013-06-02
++        ---------------
++        
++        - Work with servers operating on non-standard ports
++        
++        0.2: 2013-03-26
++        ---------------
++        
++        - Not documented
++        
++        0.1: Never released
++        -------------------
++        
++        - Initial Release
++        
++Platform: UNKNOWN
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/README.rst b/desktop/core/ext-py/requests-kerberos-0.6.1/README.rst
+new file mode 100644
+index 0000000..ddf24af
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/README.rst
+@@ -0,0 +1,76 @@
++requests Kerberos/GSSAPI authentication library
++===============================================
++
++Requests is an HTTP library, written in Python, for human beings. This library
++adds optional Kerberos/GSSAPI authentication support and supports mutual
++authentication. Basic GET usage:
++
++
++.. code-block:: pycon
++
++    >>> import requests
++    >>> from requests_kerberos import HTTPKerberosAuth
++    >>> r = requests.get("http://example.org", auth=HTTPKerberosAuth())
++    ...
++
++The entire ``requests.api`` should be supported.
++
++Authentication Failures
++-----------------------
++
++Client authentication failures will be communicated to the caller by returning
++the 401 response.
++
++Mutual Authentication
++---------------------
++
++By default, ``HTTPKerberosAuth`` will require mutual authentication from the
++server, and if a server emits a non-error response which cannot be
++authenticated, a ``requests_kerberos.errors.MutualAuthenticationError`` will be
++raised. If a server emits an error which cannot be authenticated, it will be
++returned to the user but with its contents and headers stripped.
++
++OPTIONAL
++^^^^^^^^
++
++If you'd prefer to not require mutual authentication, you can set your
++preference when constructing your ``HTTPKerberosAuth`` object:
++
++.. code-block:: pycon
++
++    >>> import requests
++    >>> from requests_kerberos import HTTPKerberosAuth, OPTIONAL
++    >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=OPTIONAL)
++    >>> r = requests.get("http://example.org", auth=kerberos_auth)
++    ...
++
++This will cause ``requests_kerberos`` to attempt mutual authentication if the
++server advertises that it supports it, and cause a failure if authentication
++fails, but not if the server does not support it at all.
++
++DISABLED
++^^^^^^^^
++
++While we don't recommend it, if you'd prefer to never attempt mutual
++authentication, you can do that as well:
++
++.. code-block:: pycon
++
++    >>> import requests
++    >>> from requests_kerberos import HTTPKerberosAuth, DISABLED
++    >>> kerberos_auth = HTTPKerberosAuth(mutual_authentication=DISABLED)
++    >>> r = requests.get("http://example.org", auth=kerberos_auth)
++    ...
++
++Logging
++-------
++
++This library makes extensive use of Python's logging facilities.
++
++Log messages are logged to the ``requests_kerberos`` and
++``requests_kerberos.kerberos_`` named loggers.
++
++If you are having difficulty we suggest you configure logging. Issues with the
++underlying kerberos libraries will be made apparent. Additionally, copious debug
++information is made available which may assist in troubleshooting if you
++increase your log level all the way up to debug.
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/__init__.py b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/__init__.py
+new file mode 100644
+index 0000000..c444688
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/__init__.py
+@@ -0,0 +1,25 @@
++"""
++requests Kerberos/GSSAPI authentication library
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++Requests is an HTTP library, written in Python, for human beings. This library
++adds optional Kerberos/GSSAPI authentication support and supports mutual
++authentication. Basic GET usage:
++
++    >>> import requests
++    >>> from requests_kerberos import HTTPKerberosAuth
++    >>> r = requests.get("http://example.org", auth=HTTPKerberosAuth())
++
++The entire `requests.api` should be supported.
++"""
++import logging
++
++from .kerberos_ import HTTPKerberosAuth, REQUIRED, OPTIONAL, DISABLED
++from .exceptions import MutualAuthenticationError
++from .compat import NullHandler
++
++logging.getLogger(__name__).addHandler(NullHandler())
++
++__all__ = ('HTTPKerberosAuth', 'MutualAuthenticationError', 'REQUIRED',
++           'OPTIONAL', 'DISABLED')
++__version__ = '0.6.1'
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/compat.py b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/compat.py
+new file mode 100644
+index 0000000..01b7500
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/compat.py
+@@ -0,0 +1,14 @@
++"""
++Compatibility library for older versions of python
++"""
++import sys
++
++# python 2.7 introduced a NullHandler which we want to use, but to support
++# older versions, we implement our own if needed.
++if sys.version_info[:2] > (2, 6):
++    from logging import NullHandler
++else:
++    from logging import Handler
++    class NullHandler(Handler):
++        def emit(self, record):
++            pass
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/exceptions.py b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/exceptions.py
+new file mode 100644
+index 0000000..f76a422
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/exceptions.py
+@@ -0,0 +1,12 @@
++"""
++requests_kerberos.exceptions
++~~~~~~~~~~~~~~~~~~~
++
++This module contains the set of exceptions.
++
++"""
++from requests.exceptions import RequestException
++
++
++class MutualAuthenticationError(RequestException):
++    """Mutual Authentication Error"""
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
+new file mode 100644
+index 0000000..cece26c
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requests_kerberos/kerberos_.py
+@@ -0,0 +1,270 @@
++import kerberos
++import re
++import logging
++
++from requests.auth import AuthBase
++from requests.models import Response
++from requests.compat import urlparse, StringIO
++from requests.structures import CaseInsensitiveDict
++from requests.cookies import cookiejar_from_dict
++
++from .exceptions import MutualAuthenticationError
++
++log = logging.getLogger(__name__)
++
++
++# Different types of mutual authentication:
++#  with mutual_authentication set to REQUIRED, all responses will be
++#   authenticated with the exception of errors. Errors will have their contents
++#   and headers stripped. If a non-error response cannot be authenticated, a
++#   MutualAuthenticationError exception will be raised.
++# with mutual_authentication set to OPTIONAL, mutual authentication will be
++#   attempted if supported, and if supported and failed, a
++#   MutualAuthenticationError exception will be raised. Responses which do not
++#   support mutual authentication will be returned directly to the user.
++# with mutual_authentication set to DISABLED, mutual authentication will not be
++#   attempted, even if supported.
++REQUIRED = 1
++OPTIONAL = 2
++DISABLED = 3
++
++
++class SanitizedResponse(Response):
++    """The :class:`Response <Response>` object, which contains a server's
++    response to an HTTP request.
++
++    This differs from `requests.models.Response` in that it's headers and
++    content have been sanitized. This is only used for HTTP Error messages
++    which do not support mutual authentication when mutual authentication is
++    required."""
++
++    def __init__(self, response):
++        super(SanitizedResponse, self).__init__()
++        self.status_code = response.status_code
++        self.encoding = response.encoding
++        self.raw = response.raw
++        self.reason = response.reason
++        self.url = response.url
++        self.request = response.request
++        self.connection = response.connection
++        self._content_consumed = True
++
++        self._content = ""
++        self.cookies = cookiejar_from_dict({})
++        self.headers = CaseInsensitiveDict()
++        self.headers['content-length'] = '0'
++        for header in ('date', 'server'):
++            if header in response.headers:
++                self.headers[header] = response.headers[header]
++
++
++def _negotiate_value(response):
++    """Extracts the gssapi authentication token from the appropriate header"""
++    if hasattr(_negotiate_value, 'regex'):
++        regex = _negotiate_value.regex
++    else:
++        # There's no need to re-compile this EVERY time it is called. Compile
++        # it once and you won't have the performance hit of the compilation.
++        regex = re.compile('(?:.*,)*\s*Negotiate\s*([^,]*),?', re.I)
++        _negotiate_value.regex = regex
++
++    authreq = response.headers.get('www-authenticate', None)
++
++    if authreq:
++        match_obj = regex.search(authreq)
++        if match_obj:
++            return match_obj.group(1)
++
++    return None
++
++
++class HTTPKerberosAuth(AuthBase):
++    """Attaches HTTP GSSAPI/Kerberos Authentication to the given Request
++    object."""
++    def __init__(self, mutual_authentication=REQUIRED, service="HTTP"):
++        self.context = {}
++        self.mutual_authentication = mutual_authentication
++        self.pos = None
++        self.service = service
++
++    def generate_request_header(self, response):
++        """
++        Generates the GSSAPI authentication token with kerberos.
++
++        If any GSSAPI step fails, return None.
++
++        """
++        host = urlparse(response.url).hostname
++
++        try:
++            result, self.context[host] = kerberos.authGSSClientInit(
++                "{0}@{1}".format(self.service, host))
++        except kerberos.GSSError:
++            log.exception("generate_request_header(): authGSSClientInit() failed:")
++            return None
++
++        if result < 1:
++            log.error("generate_request_header(): authGSSClientInit() failed: "
++                      "{0}".format(result))
++            return None
++
++        try:
++            result = kerberos.authGSSClientStep(self.context[host],
++                                                _negotiate_value(response))
++        except kerberos.GSSError:
++            log.exception("generate_request_header(): authGSSClientStep() failed:")
++            return None
++
++        if result < 0:
++            log.error("generate_request_header(): authGSSClientStep() failed: "
++                      "{0}".format(result))
++            return None
++
++        try:
++            gss_response = kerberos.authGSSClientResponse(self.context[host])
++        except kerberos.GSSError:
++            log.exception("generate_request_header(): authGSSClientResponse() "
++                      "failed:")
++            return None
++
++        return "Negotiate {0}".format(gss_response)
++
++    def authenticate_user(self, response, **kwargs):
++        """Handles user authentication with gssapi/kerberos"""
++
++        auth_header = self.generate_request_header(response)
++        if auth_header is None:
++            # GSS Failure, return existing response
++            return response
++
++        log.debug("authenticate_user(): Authorization header: {0}".format(
++            auth_header))
++        response.request.headers['Authorization'] = auth_header
++
++        # Consume the content so we can reuse the connection for the next
++        # request.
++        response.content
++        response.raw.release_conn()
++
++        _r = response.connection.send(response.request, **kwargs)
++        _r.history.append(response)
++
++        log.debug("authenticate_user(): returning {0}".format(_r))
++        return _r
++
++    def handle_401(self, response, **kwargs):
++        """Handles 401's, attempts to use gssapi/kerberos authentication"""
++
++        log.debug("handle_401(): Handling: 401")
++        if _negotiate_value(response) is not None:
++            _r = self.authenticate_user(response, **kwargs)
++            log.debug("handle_401(): returning {0}".format(_r))
++            return _r
++        else:
++            log.debug("handle_401(): Kerberos is not supported")
++            log.debug("handle_401(): returning {0}".format(response))
++            return response
++
++    def handle_other(self, response):
++        """Handles all responses with the exception of 401s.
++
++        This is necessary so that we can authenticate responses if requested"""
++
++        log.debug("handle_other(): Handling: %d" % response.status_code)
++
++        if self.mutual_authentication in (REQUIRED, OPTIONAL):
++
++            is_http_error = response.status_code >= 400
++
++            if _negotiate_value(response) is not None:
++                log.debug("handle_other(): Authenticating the server")
++                if not self.authenticate_server(response):
++                    # Mutual authentication failure when mutual auth is wanted,
++                    # raise an exception so the user doesn't use an untrusted
++                    # response.
++                    log.error("handle_other(): Mutual authentication failed")
++                    raise MutualAuthenticationError("Unable to authenticate "
++                                                    "{0}".format(response))
++
++                # Authentication successful
++                log.debug("handle_other(): returning {0}".format(response))
++                return response
++
++            elif is_http_error or self.mutual_authentication == OPTIONAL:
++                log.error("handle_other(): Mutual authentication unavailable "
++                          "on {0} response".format(response.status_code))
++
++                if self.mutual_authentication == REQUIRED:
++                    return SanitizedResponse(response)
++                else:
++                    return response
++            else:
++                # Unable to attempt mutual authentication when mutual auth is
++                # required, raise an exception so the user doesnt use an
++                # untrusted response.
++                log.error("handle_other(): Mutual authentication failed")
++                raise MutualAuthenticationError("Unable to authenticate "
++                                                "{0}".format(response))
++        else:
++            log.debug("handle_other(): returning {0}".format(response))
++            return response
++
++    def authenticate_server(self, response):
++        """
++        Uses GSSAPI to authenticate the server.
++
++        Returns True on success, False on failure.
++        """
++
++        log.debug("authenticate_server(): Authenticate header: {0}".format(
++            _negotiate_value(response)))
++
++        host = urlparse(response.url).hostname
++
++        try:
++            result = kerberos.authGSSClientStep(self.context[host],
++                                                _negotiate_value(response))
++        except kerberos.GSSError:
++            log.exception("authenticate_server(): authGSSClientStep() failed:")
++            return False
++
++        if result < 1:
++            log.error("authenticate_server(): authGSSClientStep() failed: "
++                      "{0}".format(result))
++            return False
++
++        log.debug("authenticate_server(): returning {0}".format(response))
++        return True
++
++    def handle_response(self, response, **kwargs):
++        """Takes the given response and tries kerberos-auth, as needed."""
++
++        if self.pos is not None:
++            # Rewind the file position indicator of the body to where
++            # it was to resend the request.
++            response.request.body.seek(self.pos)
++
++        if response.status_code == 401:
++            _r = self.handle_401(response, **kwargs)
++            log.debug("handle_response(): returning {0}".format(_r))
++            return self.handle_response(_r, **kwargs)
++        else:
++            _r = self.handle_other(response)
++            log.debug("handle_response(): returning {0}".format(_r))
++            return _r
++
++    def deregister(self, response):
++        """Deregisters the response handler"""
++        response.request.deregister_hook('response', self.handle_response)
++
++    def __call__(self, request):
++        request.register_hook('response', self.handle_response)
++        try:
++            self.pos = request.body.tell()
++        except AttributeError:
++            # In the case of HTTPKerberosAuth being reused and the body
++            # of the previous request was a file-like object, pos has
++            # the file position of the previous body. Ensure it's set to
++            # None.
++            self.pos = None
++        return request
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/requirements.txt b/desktop/core/ext-py/requests-kerberos-0.6.1/requirements.txt
+new file mode 100644
+index 0000000..4c19c74
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/requirements.txt
+@@ -0,0 +1,2 @@
++requests>=1.1.0
++kerberos==1.1.1
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/setup.cfg b/desktop/core/ext-py/requests-kerberos-0.6.1/setup.cfg
+new file mode 100644
+index 0000000..6c71b61
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/setup.cfg
+@@ -0,0 +1,8 @@
++[wheel]
++universal = 1
++
++[egg_info]
++tag_build = 
++tag_date = 0
++tag_svn_revision = 0
++
+diff --git a/desktop/core/ext-py/requests-kerberos-0.6.1/setup.py b/desktop/core/ext-py/requests-kerberos-0.6.1/setup.py
+new file mode 100644
+index 0000000..62aa08c
+--- /dev/null
++++ b/desktop/core/ext-py/requests-kerberos-0.6.1/setup.py
+@@ -0,0 +1,56 @@
++#!/usr/bin/env python
++# coding: utf-8
++import os
++import re
++from setuptools import setup
++
++with open('requirements.txt') as requirements:
++    requires = [line.strip() for line in requirements if line.strip()]
++
++path = os.path.dirname(__file__)
++desc_fd = os.path.join(path, 'README.rst')
++hist_fd = os.path.join(path, 'HISTORY.rst')
++
++long_desc = ''
++short_desc = 'A Kerberos authentication handler for python-requests'
++
++if os.path.isfile(desc_fd):
++    with open(desc_fd) as fd:
++        long_desc = fd.read()
++
++if os.path.isfile(hist_fd):
++    with open(hist_fd) as fd:
++        long_desc = '\n\n'.join([long_desc, fd.read()])
++
++
++def get_version():
++    """
++    Simple function to extract the current version using regular expressions.
++    """
++    reg = re.compile(r'__version__ = [\'"]([^\'"]*)[\'"]')
++    with open('requests_kerberos/__init__.py') as fd:
++        matches = filter(lambda x: x, map(reg.match, fd))
++
++    if not matches:
++        raise RuntimeError(
++            'Could not find the version information for requests_kerberos'
++            )
++
++    return matches[0].group(1)
++
++
++setup(
++    name='requests-kerberos',
++    description=short_desc,
++    long_description=long_desc,
++    author='Ian Cordasco, Cory Benfield, Michael Komitee',
++    author_email='graffatcolmingov@gmail.com',
++    url='https://github.com/requests/requests-kerberos',
++    packages=['requests_kerberos'],
++    package_data={'': ['LICENSE', 'AUTHORS']},
++    include_package_data=True,
++    version=get_version(),
++    install_requires=requires,
++    test_suite='test_requests_kerberos',
++    tests_require=['mock'],
++)
+-- 
+1.7.9.5
+

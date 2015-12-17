@@ -1,0 +1,24 @@
+From 8539799ec01a8f195ac7b8e8309d5f640e760bb5 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 16:56:54 -0800
+Subject: [PATCH 0813/1173] HUE-2436 [filebrowser] Remove a debug message
+
+---
+ apps/filebrowser/src/filebrowser/views.py |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 78ed901..bb778b9 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -1241,7 +1241,6 @@ def _upload_archive(request):
+                 # Move the file to where it belongs
+                 dest = dest[:-4]
+             elif dest.lower().endswith('.tar.gz') or dest.lower().endswith('.tgz'):
+-                print uploaded_file
+                 temp_path = archive_factory(uploaded_file, 'tgz').extract()
+                 if not temp_path:
+                     raise PopupException(_('Could not extract contents of file.'))
+-- 
+1.7.9.5
+

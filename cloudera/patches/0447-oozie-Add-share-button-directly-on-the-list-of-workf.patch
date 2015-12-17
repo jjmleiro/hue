@@ -1,0 +1,179 @@
+From 277e491b1b83d34693767861c689b152f907c1f0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 14 Jan 2015 11:15:37 -0800
+Subject: [PATCH 0447/1173] [oozie] Add share button directly on the list of
+ workflows page
+
+---
+ .../templates/editor/list_editor_workflows.mako    |   51 +++++++++++++++-----
+ desktop/core/src/desktop/models.py                 |    1 +
+ .../core/src/desktop/templates/common_share.mako   |    2 +
+ 3 files changed, 43 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index f0049cc..bde7000 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -15,7 +15,7 @@
+ ## limitations under the License.
+ 
+ <%!
+-  from desktop.views import commonheader, commonfooter
++  from desktop.views import commonheader, commonfooter, commonshare
+   from django.utils.translation import ugettext as _
+ %>
+ <%namespace name="actionbar" file="../actionbar.mako" />
+@@ -25,6 +25,9 @@
+ ${ commonheader(_("Workflows"), "oozie", user) | n,unicode }
+ ${ layout.menubar(section='workflows', is_editor=True) }
+ 
++
++<div id="editor">
++
+ <div class="container-fluid">
+   <div class="card card-small">
+   <h1 class="card-heading simple">${ _('Workflow Manager') }</h1>
+@@ -39,13 +42,23 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+         <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
+           <i class="fa fa-play"></i> ${ _('Submit') }
+         </a>
+-        &nbsp;&nbsp;&nbsp;
++
++        <span style="padding-right:40px"></span>
++
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++          attr: {'data-original-title': '${ _("Share") } ' + name},
++          css: {'disabled': ! oneSelected(), 'btn': true}">
++          <i class="fa fa-users"></i> ${ _('Share') }
++        </a>
++
+         <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
++
+         <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
++
+       </div>
+     </%def>
+ 
+@@ -108,21 +121,28 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+ </div>
+ 
+ 
++</div>
++
++
++${ commonshare() | n,unicode }
++
++
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/share.vm.js"></script>
+ 
+ 
+ <script type="text/javascript" charset="utf-8">
+   var Editor = function () {
+     var self = this;
+-    
++
+     self.jobs = ko.mapping.fromJS(${ workflows_json | n });
+     self.selectedJobs = ko.computed(function() {
+       return $.grep(self.jobs(), function(job) { return job.isSelected(); });
+     });
+     self.isLoading = ko.observable(false);
+-    
++
+     self.oneSelected = ko.computed(function() {
+       return self.selectedJobs().length == 1;
+     });
+@@ -143,7 +163,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+     }
+ 
+     self.datatable = null;
+-    
++
+     self.showSubmitPopup = function () {
+       $.get("/oozie/editor/workflow/submit/" + self.selectedJobs()[0].id(), {
+       }, function (data) {
+@@ -152,8 +172,8 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+         $(document).trigger("error", xhr.responseText);
+       });
+     };
+-    
+-    self.delete2 = function() {      
++
++    self.delete2 = function() {
+       $.post("${ url('oozie:delete_workflow') }", {
+         "selection": ko.mapping.toJSON(self.selectedJobs)
+       }, function() {
+@@ -163,7 +183,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+         $(document).trigger("error", xhr.responseText);
+       });
+     };
+-    
++
+     self.copy = function() {
+       $.post("${ url('oozie:copy_workflow') }", {
+         "selection": ko.mapping.toJSON(self.selectedJobs)
+@@ -173,13 +193,22 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+         $(document).trigger("error", xhr.responseText);
+       });
+     };
++
++    self.prepareShareModal = function() {
++     shareViewModel.setDocId(self.selectedJobs()[0].doc1_id());
++      openShareModal();
++    };
+   }
+-    
++
+   var viewModel;
+-    
++  var shareViewModel;
++
+   $(document).ready(function () {
+     viewModel = new Editor();
+-    ko.applyBindings(viewModel, $("#workflowList")[0]);
++    ko.applyBindings(viewModel, $("#editor")[0]);
++
++    shareViewModel = setupSharing("#documentShareModal");
++    shareViewModel.setDocId(-1);
+ 
+     $(document).on("showSubmitPopup", function(event, data){
+       $('#submit-wf-modal').html(data);
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 59aed67..b43f495 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -656,6 +656,7 @@ class Document2(models.Model):
+       'description': self.description,
+       'uuid': self.uuid,
+       'id': self.id,
++      'doc1_id': self.doc.get().id,
+       'type': self.type,
+       'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
+       'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+diff --git a/desktop/core/src/desktop/templates/common_share.mako b/desktop/core/src/desktop/templates/common_share.mako
+index bf3891b..3bde13a 100644
+--- a/desktop/core/src/desktop/templates/common_share.mako
++++ b/desktop/core/src/desktop/templates/common_share.mako
+@@ -18,6 +18,7 @@ from django.utils.translation import ugettext as _
+ %>
+ 
+ <div id="documentShareModal" class="modal hide fade">
++  <!-- ko if: selectedDoc() -->
+   <div class="modal-header">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+     <h3>${_('Sharing settings')}</h3>
+@@ -69,4 +70,5 @@ from django.utils.translation import ugettext as _
+   <div class="modal-footer">
+     <a href="#" data-dismiss="modal" class="btn btn-primary disable-feedback disable-enter">${_('Done')}</a>
+   </div>
++  <!-- /ko -->
+ </div>
+-- 
+1.7.9.5
+

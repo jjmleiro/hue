@@ -1,0 +1,25 @@
+From 82ac71db9aa9fe31980ed0efd52333d39a4d07cc Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 16:02:31 +0100
+Subject: [PATCH 0463/1173] [oozie] Reset workflow node expansion on toggle
+ edit
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 9e2dfd5..4b27e15 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1964,6 +1964,7 @@ ${ dashboard.import_bindings() }
+ 
+   $(document).on("editingToggled", function(){
+     $("canvas").remove();
++    exposeOverlayClickHandler();
+     window.setTimeout(renderChangeables, 100);
+   });
+ 
+-- 
+1.7.9.5
+

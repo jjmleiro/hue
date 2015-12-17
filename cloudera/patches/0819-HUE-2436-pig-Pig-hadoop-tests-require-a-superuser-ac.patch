@@ -1,0 +1,28 @@
+From 6df7c6a21e6a547a3786618385ef8c0b3eb34a45 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 16:02:24 -0800
+Subject: [PATCH 0819/1173] HUE-2436 [pig] Pig hadoop tests require a
+ superuser account
+
+---
+ apps/pig/src/pig/tests.py |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/pig/src/pig/tests.py b/apps/pig/src/pig/tests.py
+index 3c2ad68..9e8130a 100644
+--- a/apps/pig/src/pig/tests.py
++++ b/apps/pig/src/pig/tests.py
+@@ -192,7 +192,9 @@ class TestWithHadoop(OozieBase):
+ 
+   def setUp(self):
+     super(TestWithHadoop, self).setUp()
+-    self.c = make_logged_in_client(is_superuser=False)
++    # FIXME (HUE-2562): The tests unfortunately require superuser at the
++    # moment, but should be rewritten to not need it.
++    self.c = make_logged_in_client(is_superuser=True)
+     grant_access("test", "test", "pig")
+     self.user = User.objects.get(username='test')
+     self.c.post(reverse('pig:install_examples'))
+-- 
+1.7.9.5
+

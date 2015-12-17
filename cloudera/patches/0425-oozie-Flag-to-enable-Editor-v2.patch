@@ -1,0 +1,98 @@
+From d4e312d52bc431a1f7ceea5c6c47427d5c75d86c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 8 Jan 2015 21:44:19 -0800
+Subject: [PATCH 0425/1173] [oozie] Flag to enable Editor v2
+
+---
+ apps/oozie/src/oozie/conf.py                       |   11 +++++++++--
+ .../templates/editor/list_editor_workflows.mako    |   18 +++++++++++++++++-
+ .../core/src/desktop/templates/common_header.mako  |    5 ++++-
+ 3 files changed, 30 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/conf.py b/apps/oozie/src/oozie/conf.py
+index 9cebe84..2144364 100644
+--- a/apps/oozie/src/oozie/conf.py
++++ b/apps/oozie/src/oozie/conf.py
+@@ -60,14 +60,21 @@ OOZIE_JOBS_COUNT = Config(
+   help=_t('Maximum number of Oozie workflows or coodinators or bundles to retrieve in one API call.')
+ )
+ 
+-ENABLE_CRON_SCHEDULING = Config( # Until Hue 4
++ENABLE_V2 = Config( # Until Hue 4
++  key='enable_v2',
++  default=False,
++  type=coerce_bool,
++  help=_t('Use version 2 of Editor.')
++)
++
++
++ENABLE_CRON_SCHEDULING = Config( # Until Hue 3.8
+   key='enable_cron_scheduling',
+   default=True,
+   type=coerce_bool,
+   help=_t('Use Cron format for defining the frequency of a Coordinator instead of the old frequency number/unit.')
+ )
+ 
+-
+ def config_validator(user):
+   res = []
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index 4db6d63..9675a6c 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -30,11 +30,27 @@ ${ layout.menubar(section='workflows') }
+   <div class="card card-small">
+   <h1 class="card-heading simple">${ _('Workflow Manager') }</h1>
+ 
++  <div class="btn-toolbar" style="display: inline; vertical-align: middle">
++    <button class="btn toolbarBtn" id="submit-btn" disabled="disabled"><i class="fa fa-play"></i> ${ _('Submit') }</button>
++
++    <button class="btn toolbarBtn" id="clone-btn" disabled="disabled"><i class="fa fa-files-o"></i> ${ _('Copy') }</button>
++    
++    <button class="btn toolbarBtn" id="clone-btn" disabled="disabled"><i class="fa fa-times"></i> ${ _('Delete') }</button>
++
++    <a href="${ url('oozie:new_workflow') }" class="btn"><i class="fa fa-plus-circle"></i> ${ _('Create') }</a>
++  </div>
++
+   % for workflow in workflows:
+     <div>
+       <a href="${ url('oozie:edit_workflow') }?workflow=${ workflow.id }">
+         ${ workflow.name }
+-      </a>
++        
++        ${ workflow.description }
++        
++        ${ workflow.owner }
++        
++        ${ workflow.last_modified }
++      </a>      
+     </div>
+   % endfor
+ 
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index fe01326..2ea2df1 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -430,6 +430,8 @@ from django.utils.translation import ugettext as _
+                <li><a href="${url('oozie:list_bundles')}"><img src="/oozie/static/art/icon_oozie_bundle_48.png" class="app-icon" /> ${_('Bundles')}</a></li>
+              </ul>
+            </li>
++           <% from oozie.conf import ENABLE_V2 %>
++           % if ENABLE_V2.get():
+            <li class="dropdown-submenu">
+              <a href="${ url('oozie:list_editor_workflows') }"><img src="/oozie/static/art/icon_oozie_editor_48.png" class="app-icon" /> ${_('Editors 2')}</a>
+              <ul class="dropdown-menu">
+@@ -437,7 +439,8 @@ from django.utils.translation import ugettext as _
+                <li><a href="${url('oozie:list_editor_coordinators')}"><img src="/oozie/static/art/icon_oozie_coordinator_48.png" class="app-icon" /> ${_('Coordinators')}</a></li>
+                <li><a href="${url('oozie:list_editor_bundles')}"><img src="/oozie/static/art/icon_oozie_bundle_48.png" class="app-icon" /> ${_('Bundles')}</a></li>
+              </ul>
+-           </li>           
++           </li>
++           % endif
+          </ul>
+        </li>
+        % endif
+-- 
+1.7.9.5
+

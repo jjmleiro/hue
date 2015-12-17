@@ -16,13 +16,14 @@
 # limitations under the License.
 
 import logging
+import json
 import posixpath
 import threading
 
 from desktop.lib.rest.http_client import HttpClient
 from desktop.lib.rest.resource import Resource
 
-from spark.conf import JOB_SERVER_URL
+from spark.conf import get_livy_server_url
 
 
 LOG = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def get_api(user):
     _api_cache_lock.acquire()
     try:
       if _api_cache is None:
-        _api_cache = JobServerApi(JOB_SERVER_URL.get())
+        _api_cache = JobServerApi(get_livy_server_url())
     finally:
       _api_cache_lock.release()
   _api_cache.setuser(user)
@@ -56,7 +57,6 @@ class JobServerApi(object):
     self._client = HttpClient(self._url, logger=LOG)
     self._root = Resource(self._client)
     self._security_enabled = False
-    # To store user info
     self._thread_local = threading.local()
 
   def __str__(self):
@@ -79,33 +79,26 @@ class JobServerApi(object):
       self._thread_local.user = user.username
     else:
       self._thread_local.user = user
+  
+  def get_status(self):
+    return self._root.get('sessions')
 
-  def get_status(self, **kwargs):
-    return self._root.get('healthz', params=kwargs, headers={'Accept': _TEXT_CONTENT_TYPE})
+  def create_session(self, **kwargs):
+    return self._root.post('sessions', data=json.dumps(kwargs), contenttype='application/json')
 
-  def submit_job(self, appName, classPath, data, context=None, sync=False):
-    params = {'appName': appName, 'classPath': classPath, 'sync': sync}
-    if context:
-      params['context'] = context
-    return self._root.post('jobs' % params, params=params, data=data, contenttype=_BINARY_CONTENT_TYPE)
+  def get_session(self, uuid):
+    return self._root.get('sessions/%s' % uuid)
 
-  def job(self, job_id):
-    return self._root.get('jobs/%s' % job_id, headers={'Accept': _JSON_CONTENT_TYPE})
+  def submit_statement(self, uuid, statement):
+    data = {'code': statement}
+    return self._root.post('sessions/%s/statements' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
 
-  def jobs(self, **kwargs):
-    return self._root.get('jobs', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+  def inspect(self, uuid, statement):
+    data = {'code': statement}
+    return self._root.post('sessions/%s/inspect' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
 
-  def create_context(self, name, **kwargs):
-    return self._root.post('contexts/%s' % name, params=kwargs, contenttype=_BINARY_CONTENT_TYPE)
+  def fetch_data(self, session, statement):
+    return self._root.get('sessions/%s/statements/%s' % (session, statement))
 
-  def contexts(self, **kwargs):
-    return self._root.get('contexts', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
-
-  def delete_context(self, name, **kwargs):
-    return self._root.delete('contexts/%s' % name)
-
-  def upload_jar(self, app_name, data):
-    return self._root.post('jars/%s' % app_name, data=data, contenttype=_BINARY_CONTENT_TYPE)
-
-  def jars(self, **kwargs):
-    return self._root.get('jars', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+  def cancel(self, session):
+    return self._root.post('sessions/%s/interrupt' % session)

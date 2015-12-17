@@ -1,0 +1,26 @@
+From 9f01669b872a9bab8096034104969f3067d6c25a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 11 Mar 2015 11:29:28 -0700
+Subject: [PATCH 1038/1173] [impala] Close invalidate metadata statements when
+ installing the examples
+
+---
+ .../commands/beeswax_install_examples.py           |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+index f913eda..4770ab1 100644
+--- a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
++++ b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+@@ -143,7 +143,7 @@ class SampleTable(object):
+     try:
+       # Already exists?
+       if self.app_name == 'impala':
+-        db.execute_statement('INVALIDATE METADATA %s;' % (self.name,))
++        db.invalidate_tables('default', [self.name])
+       db.get_table('default', self.name)
+       msg = _('Table "%(table)s" already exists.') % {'table': self.name}
+       LOG.error(msg)
+-- 
+1.7.9.5
+

@@ -1,0 +1,827 @@
+From 44ffeaee736a5606085884ce351023cfddeab284 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 15 Oct 2014 07:40:12 -0700
+Subject: [PATCH 0202/1173] [oozie] Skeleton of new workflow editor
+
+Can drag and drop a Pig action
+---
+ .../oozie/templates/editor/workflow_editor.mako    |  148 ++++++++++
+ apps/oozie/src/oozie/urls.py                       |    7 +
+ apps/oozie/static/art/icon_beeswax_48.png          |  Bin 0 -> 3548 bytes
+ apps/oozie/static/art/icon_pig_48.png              |  Bin 0 -> 3398 bytes
+ apps/oozie/static/css/workflow-editor.css          |  295 ++++++++++++++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |  150 ++++++++++
+ desktop/core/static/js/hue.utils.js                |   12 +
+ 7 files changed, 612 insertions(+)
+ create mode 100644 apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+ create mode 100644 apps/oozie/static/art/icon_beeswax_48.png
+ create mode 100644 apps/oozie/static/art/icon_pig_48.png
+ create mode 100644 apps/oozie/static/css/workflow-editor.css
+ create mode 100644 apps/oozie/static/js/workflow-editor.ko.js
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+new file mode 100644
+index 0000000..f702a26
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -0,0 +1,148 @@
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++<%!
++from desktop.views import commonheader, commonfooter
++from django.utils.translation import ugettext as _
++%>
++
++<%namespace name="dashboard" file="/common_dashboard.mako" />
++
++${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
++
++
++<%dashboard:layout_toolbar>
++  <%def name="widgets()">
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableHiveAction(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Hive Script')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon"></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true},
++                    draggable: {data: draggablePigAction(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                        'stop': function(event, ui){$('.card-body').slideDown('fast'); }}}"
++         title="${_('Pig Script')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><img src="/oozie/static/art/icon_pig_48.png" class="app-icon"></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableJavaAction(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Java program')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-file-code-o"></i></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableMapReduceAction(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('MapReduce job')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-file-code-o"></i></a>
++    </div>
++</%def>
++</%dashboard:layout_toolbar>
++
++
++<div class="search-bar">
++  <div class="pull-right" style="padding-right:50px">
++    % if user.is_superuser:
++      <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}"><i class="fa fa-pencil"></i></a>
++      &nbsp;&nbsp;&nbsp;
++      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}"><i class="fa fa-save"></i></button>
++      <a class="btn" href="${ url('impala:new_search') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}"><i class="fa fa-file-o"></i></a>
++    % endif
++  </div>
++</div>
++
++
++${ dashboard.layout_skeleton() }
++
++
++<script type="text/html" id="pig-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Pig') }</a></li>
++        <li><a href="#files" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <img src="/oozie/static/art/icon_pig_48.png" class="app-icon">
++        </div>
++        <div class="tab-pane" id="files">
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<link rel="stylesheet" href="/oozie/static/css/workflow-editor.css">
++<link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
++<link rel="stylesheet" href="/static/ext/css/hue-charts.css">
++<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
++
++
++${ dashboard.import_layout() }
++
++<script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/hue.utils.js"></script>
++<script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
++
++${ dashboard.import_bindings() }
++
++<script src="/oozie/static/js/workflow-editor.ko.js" type="text/javascript" charset="utf-8"></script>
++
++
++<script type="text/javascript">
++  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode });
++  ko.applyBindings(viewModel);
++
++  viewModel.init();
++
++  function columnDropAdditionalHandler(widget) {
++    widgetDraggedAdditionalHandler(widget);
++  }
++
++  function widgetDraggedAdditionalHandler(widget) {
++    viewModel.workflow.addNode(widget);
++  }
++</script>
++
++${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 31048e8..bbe4e06 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -68,6 +68,13 @@ urlpatterns = patterns(
+ 
+ 
+ urlpatterns += patterns(
++  'oozie.views.editor2',
++
++  url(r'^editor/workflow$', 'workflow_editor', name='workflow_editor'),
++)
++
++
++urlpatterns += patterns(
+   'oozie.views.api',
+ 
+   url(r'^workflows$', 'workflows', name='workflows'),
+diff --git a/apps/oozie/static/art/icon_beeswax_48.png b/apps/oozie/static/art/icon_beeswax_48.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9ab11f11dc95feef4131975bbf24169f9ebb8e4
+GIT binary patch
+literal 3548
+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
+Wbqg4Gjv*NU0000<MNUMnLSTXdQjAvs
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/oozie/static/art/icon_pig_48.png b/apps/oozie/static/art/icon_pig_48.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..8845894f32d2b193ae0a286d2adb5e1016d0d978
+GIT binary patch
+literal 3398
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+new file mode 100644
+index 0000000..23cf317
+--- /dev/null
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -0,0 +1,295 @@
++/*
++ Licensed to Cloudera, Inc. under one
++ or more contributor license agreements.  See the NOTICE file
++ distributed with this work for additional information
++ regarding copyright ownership.  Cloudera, Inc. licenses this file
++ to you under the Apache License, Version 2.0 (the
++ "License"); you may not use this file except in compliance
++ with the License.  You may obtain a copy of the License at
++
++     http://www.apache.org/licenses/LICENSE-2.0
++
++ Unless required by applicable law or agreed to in writing, software
++ distributed under the License is distributed on an "AS IS" BASIS,
++ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ See the License for the specific language governing permissions and
++ limitations under the License.
++*/
++
++.dropdown-menu li {
++  font-size: 14px;
++}
++
++.dropdown a.dropdown-toggle {
++  padding-left: 10px;
++  padding-right: 10px;
++}
++
++.search-bar {
++  background-color: #F5F5F5;
++  border-bottom: 1px solid #e3e3e3;
++  -webkit-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  -moz-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.065);
++  margin: 0;
++  padding: 10px;
++  padding-left: 20px;
++  padding-right: 20px;
++  text-align: left;
++  width: 100%;
++  position: fixed;
++  top: 28px;
++  z-index: 1000;
++}
++
++.search-bar input {
++  margin-left: 10px;
++  padding-right: 20px;
++}
++
++.search-bar ul li {
++  text-align: right;
++}
++
++.sort-by {
++  font-size: 11px;
++  height: 24px;
++  width: 120px;
++  margin-top: -2px;
++}
++
++.nav-header {
++  padding-left: 0 !important;
++  padding-top: 8px;
++}
++
++.facet-list {
++  list-style: none outside none;
++  padding: 0;
++  margin: 0;
++}
++
++.facet-list li {
++  padding-left: 8px;
++  padding-right: 3px;
++}
++
++.facet-list li a {
++  word-wrap: break-word;
++}
++
++.counter {
++  color: #999999;
++  font-size: 13px;
++}
++
++.pagination {
++  border-radius: 4px 4px 4px 4px;
++  list-style: none outside none;
++  margin: 0 0 20px;
++  padding: 8px 15px;
++}
++
++.results.container {
++  width: 1180px;
++}
++
++.results.span2 {
++  width: 180px;
++}
++
++.results.span10 {
++  width: 980px;
++}
++
++.results.span12 {
++  width: 1180px;
++}
++
++.errorlist {
++  display: none;
++}
++
++.breadcrumb {
++  background-color: #FFFFFF;
++  padding-left: 0;
++  margin-bottom: 0;
++}
++
++#result-container {
++  margin-top: 20px;
++}
++
++.facetItem {
++  display: none;
++}
++
++.selectMask {
++  background-color: #F9F9F9;
++  background-image: linear-gradient(to bottom, #FFFFFF, #F1F1F1);
++  background-repeat: repeat-x;
++  border: 1px solid #C0C0C0;
++  border-right-color: rgba(0, 0, 0, 0.1);
++  border-radius: 2px;
++  border-bottom-right-radius: 0;
++  border-top-right-radius: 0;
++  box-shadow: none;
++  color: #444444;
++  display: inline-block;
++  font-size: 13px;
++  height: 29px;
++  line-height: 29px;
++  margin: 0;
++  margin-left: 5px;
++  min-height: 29px;
++  min-width: 120px;
++  padding: 0 8px;
++  text-shadow: none;
++  vertical-align: middle;
++  overflow: hidden;
++  text-overflow: ellipsis;
++}
++
++.download-btn-group {
++  min-width: auto;
++}
++
++.download-btn-group > ul > li {
++  text-align: left;
++}
++
++em {
++  font-weight: bold;
++  background-color: yellow;
++}
++
++.fields-chooser li {
++  cursor: pointer;
++  margin-bottom: 10px;
++}
++
++.fields-chooser li .badge {
++  font-weight: normal;
++  font-size: 12px;
++}
++
++.badge-left {
++  border-radius: 9px 0px 0px 9px;
++  padding-right: 5px;
++}
++
++.badge-right {
++  border-radius: 0px 9px 9px 0px;
++  padding-left: 5px;
++}
++
++.trash-filter {
++  cursor: pointer;
++}
++
++.editable-click {
++  cursor: pointer;
++}
++
++.CodeMirror {
++  border: 1px dotted #DDDDDD;
++}
++
++[contenteditable=true] {
++  border: 1px dotted #DDDDDD;
++  outline: 0;
++  margin-top: 20px;
++  margin-bottom: 20px;
++  min-height: 150px;
++}
++
++[contenteditable=true] [class*="span"], .tmpl [class*="span"] {
++  background-color: #eee;
++  -webkit-border-radius: 3px;
++  -moz-border-radius: 3px;
++  border-radius: 3px;
++  min-height: 40px;
++  line-height: 40px;
++  background-color: #F3F3F3;
++  border: 2px dashed #DDD;
++}
++
++.tmpl {
++  margin: 10px;
++  height: 60px;
++}
++
++.tmpl [class*="span"] {
++  color: #999;
++  font-size: 12px;
++  text-align: center;
++  font-weight: bold;
++}
++
++.editor-title {
++  font-weight: bold;
++  color: #262626;
++  border-bottom: 1px solid #338bb8;
++}
++
++.document-details {
++  background-color: #F6F6F6;
++  padding: 10px;
++  border: 1px solid #e5e5e5;
++}
++
++.result-row:nth-child(even) {
++  background-color: #F6F6F6;
++}
++
++.result-row td {
++  white-space: nowrap;
++  padding: 3px;
++}
++
++#result-container thead tr {
++  border-bottom: 1px solid #e5e5e5;
++}
++
++.demi-modal {
++  min-height: 80px;
++}
++
++.filter-box {
++  float: left;
++  margin-right: 10px;
++  margin-bottom: 10px;
++  background-color: #F6F6F6;
++  padding: 5px;
++  border: 1px solid #d8d8d8;
++  -webkit-border-radius: 3px;
++  -moz-border-radius: 3px;
++  border-radius: 3px;
++}
++
++.field-selector {
++  display: inline-block;
++  margin-left: 3px;
++  min-height: 20px;
++  line-height: 20px
++}
++
++.field-selector.hoverable {
++  cursor: pointer;
++}
++
++.field-selector.hoverable:hover {
++  background-color: #DDD;
++}
++
++.draggable-icon {
++  cursor: move;
++}
++
++.chosen-container .chosen-results li {
++  text-align: left;
++}
++
++#emptyDashboard {
++  right: 70px!important;
++}
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+new file mode 100644
+index 0000000..43a5a94
+--- /dev/null
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -0,0 +1,150 @@
++// Licensed to Cloudera, Inc. under one
++// or more contributor license agreements.  See the NOTICE file
++// distributed with this work for additional information
++// regarding copyright ownership.  Cloudera, Inc. licenses this file
++// to you under the Apache License, Version 2.0 (the
++// "License"); you may not use this file except in compliance
++// with the License.  You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++function magicLayout(vm) {
++  loadLayout(vm, vm.initial.layout);
++  $(document).trigger("magicLayout");
++}
++
++function loadLayout(viewModel, json_layout) {
++  var _columns = [];
++
++  $(json_layout).each(function (cnt, json_col) {
++    var _rows = [];
++    $(json_col.rows).each(function (rcnt, json_row) {
++      var row = new Row([], viewModel);
++      $(json_row.widgets).each(function (wcnt, widget) {
++        row.addWidget(new Widget({
++          size:widget.size,
++          id: widget.id,
++          name: widget.name,
++          widgetType: widget.widgetType,
++          properties: widget.properties,
++          offset: widget.offset,
++          loading: true,
++          vm: viewModel
++        }));
++      });
++      _rows.push(row);
++    });
++    var column = new Column(json_col.size, _rows);
++    _columns = _columns.concat(column);
++  });
++
++  viewModel.columns(_columns);
++}
++
++// End dashboard lib
++
++var Node = function (node_json) {
++  var self = this;
++
++  self.id = ko.observable(typeof node_json.id != "undefined" && node_json.id != null ? node_json.id : UUID());
++  self.name = ko.observable(typeof node_json.name != "undefined" && node_json.name != null ? node_json.name : "");
++}
++
++var Workflow = function (vm, workflow) {
++  var self = this;
++
++  self.id = ko.observable(typeof workflow.id != "undefined" && workflow.id != null ? workflow.id : UUID());
++  self.name = ko.observable(typeof workflow.name != "undefined" && workflow.name != null ? workflow.name : "");
++  self.nodes = ko.observableArray([]);
++
++  self.addNode = function(widget) {
++    if (self.nodes().length == 0) {
++      var node = new Node(ko.mapping.toJS(widget));
++      self.nodes.push(node);
++    }
++  }
++
++  self.getNodeById = function (node_id) {
++    var _node = null;
++    $.each(self.nodes(), function (index, node) {
++      if (node.id() == node_id) {
++        _node = node;
++        return false;
++      }
++    });
++    return _node;
++  }
++
++}
++
++var WorkflowEditorViewModel = function (layout_json, workflow_json) {
++  var self = this;
++
++  self.isEditing = ko.observable(true);
++  self.toggleEditing = function () {
++    self.isEditing(! self.isEditing());
++  };
++
++  self.columns = ko.observable([]);
++  self.previewColumns = ko.observable("");
++  self.workflow = new Workflow(self, workflow_json);
++
++  self.inited = ko.observable(self.columns().length > 0);
++  self.init = function(callback) {
++    loadLayout(self, layout_json);
++  }
++
++  self.getWidgetById = function (widget_id) {
++    var _widget = null;
++    $.each(self.columns(), function (i, col) {
++      $.each(col.rows(), function (j, row) {
++        $.each(row.widgets(), function (z, widget) {
++          if (widget.id() == widget_id){
++            _widget = widget;
++          }
++        });
++      });
++    });
++    return _widget;
++  }
++
++  self.save = function () {
++    $.post("/impala/dashboard/save", {
++        "dashboard": ko.mapping.toJSON(self.dashboard),
++        "layout": ko.mapping.toJSON(self.columns)
++    }, function (data) {
++      if (data.status == 0) {
++        self.dashboard.id(data.id);
++        $(document).trigger("info", data.message);
++        if (window.location.search.indexOf("dashboard") == -1) {
++          window.location.hash = '#dashboard=' + data.id;
++        }
++      }
++      else {
++        $(document).trigger("error", data.message);
++     }
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
++
++  function bareWidgetBuilder(name, type){
++    return new Widget({
++      size: 12,
++      id: UUID(),
++      name: name,
++      widgetType: type
++    });
++  }
++
++  self.draggableHiveAction = ko.observable(bareWidgetBuilder("Hive Script", "hive-widget"));
++  self.draggablePigAction = ko.observable(bareWidgetBuilder("Pig Script", "pig-widget"));
++  self.draggableJavaAction = ko.observable(bareWidgetBuilder("Java program", "java-widget"));
++  self.draggableMapReduceAction = ko.observable(bareWidgetBuilder("MapReduce job", "mapreduce-widget"));
++};
+diff --git a/desktop/core/static/js/hue.utils.js b/desktop/core/static/js/hue.utils.js
+index 485a9cb..2dfda8f 100644
+--- a/desktop/core/static/js/hue.utils.js
++++ b/desktop/core/static/js/hue.utils.js
+@@ -157,3 +157,15 @@ if (!Object.keys) {
+     };
+   }());
+ }
++
++
++function s4() {
++  return Math.floor((1 + Math.random()) * 0x10000)
++      .toString(16)
++      .substring(1);
++}
++
++
++function UUID() {
++  return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
++}
+-- 
+1.7.9.5
+

@@ -1,0 +1,37 @@
+From 3156170dbaf0d7739e0f9856e38a1768d41f657d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 12 Mar 2015 11:53:44 -0700
+Subject: [PATCH 1055/1173] [search] Display the name of the 2d dimension in
+ map if non edit mode
+
+Only if there there is one obviously
+---
+ apps/search/src/search/templates/search.mako |   10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index c6e6717..724a9a4 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -1157,8 +1157,18 @@ ${ dashboard.layout_skeleton() }
+         </div>
+       </div>
+       <div class="clearfix"></div>
++    </div>
+ 
++    <div class="margin-bottom-10" data-bind="visible: ! $root.isEditing()">
++      <div data-bind="with: $root.collection.getFacetById($parent.id())">
++        <!-- ko if: $data.properties.facets().length == 1 -->
++          <div class="margin-bottom-10">
++            <span data-bind="text: $data.properties.facets()[0].field"></span>
++          </div>
++        <!-- /ko -->
++      </div>
+     </div>
++
+     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+       <div data-bind="mapChart: {data: {counts: $parent.count, scope: $root.collection.getFacetById($parent.id).properties.scope()},
+         transformer: mapChartDataTransformer,
+-- 
+1.7.9.5
+

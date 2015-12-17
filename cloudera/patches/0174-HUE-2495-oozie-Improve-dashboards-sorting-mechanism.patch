@@ -1,0 +1,367 @@
+From 5f24de6bcf285efa500b0f3f1db0a37ceae8ca09 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 18 Dec 2014 20:39:46 +0100
+Subject: [PATCH 0174/1173] HUE-2495 [oozie] Improve dashboards sorting
+ mechanism
+
+Fixed bugs on the sorter algo
+Added sorting functionality to the dashboard pages
+---
+ .../templates/dashboard/list_oozie_bundles.mako    |   21 +++++++++--------
+ .../dashboard/list_oozie_coordinators.mako         |   24 ++++++++++++--------
+ .../templates/dashboard/list_oozie_workflows.mako  |   20 +++++++++-------
+ apps/oozie/src/oozie/views/dashboard.py            |   16 ++++++++++++-
+ .../core/static/js/jquery.datatables.sorting.js    |   20 ++++++++++++----
+ 5 files changed, 69 insertions(+), 32 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+index 8ba5aa9..779fc14 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+@@ -140,10 +140,12 @@ ${layout.menubar(section='bundles', dashboard=True)}
+     return {
+       id: bundle.id,
+       endTime: bundle.endTime,
++      endTimeInMillis: bundle.endTimeInMillis,
+       status: bundle.status,
+       statusClass: "label " + getStatusClass(bundle.status),
+       isRunning: bundle.isRunning,
+       kickoffTime: bundle.kickoffTime,
++      kickoffTimeInMillis: bundle.kickoffTimeInMillis,
+       timeOut: bundle.timeOut,
+       appName: decodeURIComponent(bundle.appName),
+       progress: bundle.progress,
+@@ -154,7 +156,8 @@ ${layout.menubar(section='bundles', dashboard=True)}
+       killUrl: bundle.killUrl,
+       suspendUrl: bundle.suspendUrl,
+       resumeUrl: bundle.resumeUrl,
+-      created: bundle.created
++      created: bundle.created,
++      createdInMillis: bundle.createdInMillis
+     }
+   }
+ 
+@@ -168,12 +171,12 @@ ${layout.menubar(section='bundles', dashboard=True)}
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+         { "bSortable":false },
+-        { "sType":"date" },
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+-        null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null
+       ],
+       "aaSorting":[
+@@ -203,11 +206,11 @@ ${layout.menubar(section='bundles', dashboard=True)}
+       "bLengthChange":false,
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+-        { "sType":"date" },
+-        null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+         null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null
+       ],
+       "aaSorting":[
+@@ -366,12 +369,12 @@ ${layout.menubar(section='bundles', dashboard=True)}
+                 try {
+                   runningTable.fnAddData([
+                     bundle.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
+-                    emptyStringIfNull(bundle.kickoffTime),
++                    '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+                     '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
+                     bundle.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width:1%"></div></div>',
+                     bundle.user,
+-                    emptyStringIfNull(bundle.created),
++                    '<span data-sort-value="'+ bundle.createdInMillis +'">' + emptyStringIfNull(bundle.created) + '</span>',
+                     '<a href="' + bundle.absoluteUrl + '" data-row-selector="true">' + bundle.id + '</a>'
+                   ]);
+                 }
+@@ -406,11 +409,11 @@ ${layout.menubar(section='bundles', dashboard=True)}
+           var bundle = new Bundle(item);
+           try {
+             completedTable.fnAddData([
+-              emptyStringIfNull(bundle.kickoffTime),
++              '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+               '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
+               bundle.appName,
+               bundle.user,
+-              emptyStringIfNull(bundle.created),
++              '<span data-sort-value="'+ bundle.createdInMillis +'">' + emptyStringIfNull(bundle.created) + '</span>',
+               '<a href="' + bundle.absoluteUrl + '" data-row-selector="true">' + bundle.id + '</a>'
+             ], false);
+           }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+index 2c80101..fd6f0b2 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+@@ -164,11 +164,14 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+     return {
+       id: c.id,
+       endTime: c.endTime,
++      endTimeInMillis: c.endTimeInMillis,
+       nextMaterializedTime: c.nextMaterializedTime,
++      nextMaterializedTimeInMillis: c.nextMaterializedTimeInMillis,
+       status: c.status,
+       statusClass: "label " + getStatusClass(c.status),
+       isRunning: c.isRunning,
+       duration: c.duration,
++      durationInMillis: c.durationInMillis,
+       appName: decodeURIComponent(c.appName),
+       progress: c.progress,
+       progressClass: "bar " + getStatusClass(c.status, "bar-"),
+@@ -180,7 +183,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+       resumeUrl: c.resumeUrl,
+       frequency: c.frequency,
+       timeUnit: c.timeUnit,
+-      startTime: c.startTime
++      startTime: c.startTime,
++      startTimeInMillis: c.startTimeInMillis
+     }
+   }
+ 
+@@ -194,7 +198,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+         { "bSortable":false },
+-        { "sType":"date" },
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+@@ -233,16 +237,16 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+       "bLengthChange":false,
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+-        { "sType":"date" },
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+-        null,
+         % if not enable_cron_scheduling:
+-        null,
++          null,
+         % endif
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null
+       ],
+       "aaSorting":[
+@@ -412,7 +416,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+                 try {
+                   runningTable.fnAddData([
+                     coord.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
+-                    emptyStringIfNull(coord.nextMaterializedTime),
++                    '<span data-sort-value="'+ coord.nextMaterializedTimeInMillis +'">' + emptyStringIfNull(coord.nextMaterializedTime) + '</span>',
+                     '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
+                     coord.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+@@ -423,7 +427,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+                     emptyStringIfNull(coord.frequency),
+                     emptyStringIfNull(coord.timeUnit),
+                     % endif
+-                    emptyStringIfNull(coord.startTime),
++                    '<span data-sort-value="'+ coord.startTimeInMillis +'">' + emptyStringIfNull(coord.startTime) + '</span>',
+                     '<a href="' + coord.absoluteUrl + '" data-row-selector="true">' + coord.id + '</a>'
+                   ]);
+                 }
+@@ -456,10 +460,10 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+           var coord = new Coordinator(item);
+           try {
+             completedTable.fnAddData([
+-              emptyStringIfNull(coord.endTime),
++              '<span data-sort-value="'+ coord.endTimeInMillis +'">' + emptyStringIfNull(coord.endTime) + '</span>',
+               '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
+               coord.appName,
+-              emptyStringIfNull(coord.duration),
++              '<span data-sort-value="'+ coord.durationInMillis +'">' + emptyStringIfNull(coord.duration) + '</span>',
+               coord.user,
+               % if enable_cron_scheduling:
+                 emptyStringIfNull(coord.frequency),
+@@ -467,7 +471,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+                 emptyStringIfNull(coord.frequency),
+                 emptyStringIfNull(coord.timeUnit),
+               % endif
+-              emptyStringIfNull(coord.startTime),
++              '<span data-sort-value="'+ coord.startTimeInMillis +'">' + emptyStringIfNull(coord.startTime) + '</span>',
+               '<a href="' + coord.absoluteUrl + '" data-row-selector="true">' + coord.id + '</a>'
+             ], false);
+           }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 6f538f6..83cfcb7 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -144,11 +144,14 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+     return {
+       id: wf.id,
+       lastModTime: wf.lastModTime,
++      lastModTimeInMillis: wf.lastModTimeInMillis,
+       endTime: wf.endTime,
++      endTimeInMillis: wf.endTimeInMillis,
+       status: wf.status,
+       statusClass: "label " + getStatusClass(wf.status),
+       isRunning: wf.isRunning,
+       duration: wf.duration,
++      durationInMillis: wf.durationInMillis,
+       appName: wf.appName,
+       progress: wf.progress,
+       progressClass: "bar " + getStatusClass(wf.status, "bar-"),
+@@ -159,6 +162,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       suspendUrl: wf.suspendUrl,
+       resumeUrl: wf.resumeUrl,
+       created: wf.created,
++      createdInMillis: wf.createdInMillis,
+       run: wf.run
+     }
+   }
+@@ -173,7 +177,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+         { "bSortable":false },
+-        { "sType":"date" },
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
+         null,
+@@ -208,10 +212,10 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       "bLengthChange":false,
+       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
+       "aoColumns":[
+-        { "sType":"date" },
+-        null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null
+@@ -365,12 +369,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+                 try {
+                   runningTable.fnAddData([
+                     wf.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>':'',
+-                    emptyStringIfNull(wf.lastModTime),
++                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+                     '<span class="' + wf.statusClass + '">' + wf.status + '</span>',
+                     wf.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     wf.user,
+-                    emptyStringIfNull(wf.lastModTime),
++                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+                     '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
+                   ]);
+                 }
+@@ -404,11 +408,11 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           var wf = new Workflow(item);
+           try {
+             completedTable.fnAddData([
+-              emptyStringIfNull(wf.endTime),
++              '<span data-sort-value="'+ wf.endTimeInMillis +'">' + emptyStringIfNull(wf.endTime) + '</span>',
+               '<span class="' + wf.statusClass + '">' + wf.status + '</span>', decodeURIComponent(wf.appName),
+-              emptyStringIfNull(wf.duration),
++              '<span data-sort-value="'+ wf.durationInMillis +'">' + emptyStringIfNull(wf.duration) + '</span>',
+               wf.user,
+-              emptyStringIfNull(wf.lastModTime),
++              '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+               '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
+             ], false);
+           }
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 4542dc3..b725d4f 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -20,6 +20,7 @@ import logging
+ import os
+ import re
+ import time
++from datetime import datetime
+ 
+ from django.forms.formsets import formset_factory
+ from django.http import HttpResponse
+@@ -788,6 +789,12 @@ def format_time(st_time):
+   else:
+     return st_time
+ 
++def catch_unicode_time(u_time):
++  if type(u_time) == time.struct_time:
++    return u_time
++  else:
++    return datetime.timetuple(datetime.strptime(u_time, '%a, %d %b %Y %H:%M:%S %Z'))
++
+ 
+ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+   jobs = []
+@@ -797,13 +804,18 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+       massaged_job = {
+         'id': job.id,
+         'lastModTime': hasattr(job, 'lastModTime') and job.lastModTime and format_time(job.lastModTime) or None,
++        'lastModTimeInMillis': hasattr(job, 'lastModTime') and job.lastModTime and time.mktime(job.lastModTime) or 0,
+         'kickoffTime': hasattr(job, 'kickoffTime') and job.kickoffTime and format_time(job.kickoffTime) or '',
++        'kickoffTimeInMillis': hasattr(job, 'kickoffTime') and job.kickoffTime and time.mktime(catch_unicode_time(job.kickoffTime)) or 0,
+         'nextMaterializedTime': hasattr(job, 'nextMaterializedTime') and job.nextMaterializedTime and format_time(job.nextMaterializedTime) or '',
++        'nextMaterializedTimeInMillis': hasattr(job, 'nextMaterializedTime') and job.nextMaterializedTime and time.mktime(job.nextMaterializedTime) or 0,
+         'timeOut': hasattr(job, 'timeOut') and job.timeOut or None,
+         'endTime': job.endTime and format_time(job.endTime) or None,
++        'endTimeInMillis': job.endTime and time.mktime(job.endTime) or 0,
+         'status': job.status,
+         'isRunning': job.is_running(),
+         'duration': job.endTime and job.startTime and format_duration_in_millis(( time.mktime(job.endTime) - time.mktime(job.startTime) ) * 1000) or None,
++        'durationInMillis': job.endTime and job.startTime and ((time.mktime(job.endTime) - time.mktime(job.startTime)) * 1000) or 0,
+         'appName': job.appName,
+         'progress': job.get_progress(),
+         'user': job.user,
+@@ -812,8 +824,10 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+         'killUrl': reverse('oozie:manage_oozie_jobs', kwargs={'job_id':job.id, 'action':'kill'}),
+         'suspendUrl': reverse('oozie:manage_oozie_jobs', kwargs={'job_id':job.id, 'action':'suspend'}),
+         'resumeUrl': reverse('oozie:manage_oozie_jobs', kwargs={'job_id':job.id, 'action':'resume'}),
+-        'created': hasattr(job, 'createdTime') and job.createdTime and job.createdTime and ((job.type == 'Bundle' and job.createdTime) or format_time(job.createdTime)),
++        'created': hasattr(job, 'createdTime') and job.createdTime and format_time(job.createdTime) or '',
++        'createdInMillis': hasattr(job, 'createdTime') and job.createdTime and time.mktime(catch_unicode_time(job.createdTime)) or 0,
+         'startTime': hasattr(job, 'startTime') and format_time(job.startTime) or None,
++        'startTimeInMillis': hasattr(job, 'startTime') and job.startTime and time.mktime(job.startTime) or 0,
+         'run': hasattr(job, 'run') and job.run or 0,
+         'frequency': hasattr(job, 'frequency') and Coordinator.CRON_MAPPING.get(job.frequency, job.frequency) or None,
+         'timeUnit': hasattr(job, 'timeUnit') and job.timeUnit or None,
+diff --git a/desktop/core/static/js/jquery.datatables.sorting.js b/desktop/core/static/js/jquery.datatables.sorting.js
+index 370b0c4..9b0cd24 100644
+--- a/desktop/core/static/js/jquery.datatables.sorting.js
++++ b/desktop/core/static/js/jquery.datatables.sorting.js
+@@ -16,8 +16,20 @@
+ 
+ $.fn.dataTableExt.afnSortData['dom-sort-value'] = function (oSettings, iColumn) {
+   var aData = [];
+-  $( 'td:eq('+iColumn+')', oSettings.oApi._fnGetTrNodes(oSettings) ).each( function () {
+-    aData.push( $(this).attr('data-sort-value') );
+-  } );
++  oSettings.oApi._fnGetTrNodes(oSettings).forEach(function (nRow) {
++    var oElem = $('td:eq(' + iColumn + ')', nRow);
++    var _val = oElem.text();
++    if (typeof oElem.attr('data-sort-value') == 'undefined') {
++      if (typeof oElem.find('span').attr('data-sort-value') != 'undefined') {
++        _val = parseInt(oElem.find('span').attr('data-sort-value'));
++      }
++    }
++    else {
++      _val = parseInt(oElem.attr('data-sort-value'));
++    }
++    aData.push(_val);
++  });
++
+   return aData;
+-};
+\ No newline at end of file
++};
++
+-- 
+1.7.9.5
+

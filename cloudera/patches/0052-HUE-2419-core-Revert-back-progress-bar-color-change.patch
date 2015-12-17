@@ -1,0 +1,56 @@
+From 5e119d100bf22427d908ff91f8bcf4e5cb2e1d3c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 20 Oct 2014 21:25:01 +0200
+Subject: [PATCH 0052/1173] HUE-2419 [core] Revert back progress bar color
+ change
+
+Changed to specific FB uploader class
+---
+ .../filebrowser/static/css/listdir_components.css  |    4 ++++
+ .../filebrowser/templates/listdir_components.mako  |    2 +-
+ desktop/core/static/css/hue3.css                   |    4 ----
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/static/css/listdir_components.css b/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
+index 279e272..9557dfb 100644
+--- a/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
++++ b/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
+@@ -235,4 +235,8 @@
+ 
+ [draggable]:hover {
+   cursor: move;
++}
++
++.progress .bar-upload {
++  background-color: #338BB8;
+ }
+\ No newline at end of file
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 1277da3..cf31569 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -438,7 +438,7 @@ from django.utils.translation import ugettext as _
+   <div id="progressStatus" class="uploadstatus well hide">
+     <h4>${ _('Upload progress') }</h4>
+     <div id="progressStatusBar" class="hide progress active">
+-      <div class="bar"></div>
++      <div class="bar bar-upload"></div>
+     </div>
+     <div id="progressStatusContent" class="scrollable-uploadstatus">
+       <div class="updateStatus"> </div>
+diff --git a/desktop/core/static/css/hue3.css b/desktop/core/static/css/hue3.css
+index 680594d..24bdbe5 100644
+--- a/desktop/core/static/css/hue3.css
++++ b/desktop/core/static/css/hue3.css
+@@ -1894,7 +1894,3 @@ form.form-inline .modal-header .close {
+ .margin-right-30 {
+   margin-right: 30px;
+ }
+-
+-.progress .bar {
+-  background-color: #338BB8;
+-}
+\ No newline at end of file
+-- 
+1.7.9.5
+

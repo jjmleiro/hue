@@ -1,0 +1,32 @@
+From c5ee62422de60c09f4eba5256bc7e121f2c567d8 Mon Sep 17 00:00:00 2001
+From: Christopher Conner <cconner@cloudera.com>
+Date: Thu, 26 Mar 2015 18:08:47 -0700
+Subject: [PATCH 1147/1173] [useradmin] Fix Sentry issue for mixed-case LDAP
+ groups
+
+---
+ apps/useradmin/src/useradmin/ldap_access.py |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/useradmin/src/useradmin/ldap_access.py b/apps/useradmin/src/useradmin/ldap_access.py
+index 32983c5..6279fe0 100644
+--- a/apps/useradmin/src/useradmin/ldap_access.py
++++ b/apps/useradmin/src/useradmin/ldap_access.py
+@@ -211,9 +211,13 @@ class LdapConnection(object):
+             LOG.warn('Could not find %s in ldap attributes' % group_name_attr)
+             continue
+ 
++          group_name = data[group_name_attr][0]
++          if desktop.conf.LDAP.FORCE_USERNAME_LOWERCASE.get():
++            group_name = group_name.lower()
++
+           ldap_info = {
+             'dn': dn,
+-            'name': data[group_name_attr][0]
++            'name': group_name
+           }
+ 
+           if group_member_attr in data and 'posixGroup' not in data['objectClass']:
+-- 
+1.7.9.5
+

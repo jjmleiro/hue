@@ -1,0 +1,39 @@
+From 05ec764c48ed76bd55a70db9fa993ee6c5350e39 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 22 Jan 2015 17:39:17 -0800
+Subject: [PATCH 0657/1173] [spark] Fix running `hue spark-server`
+
+---
+ apps/spark/livy-server       |    2 ++
+ apps/spark/src/spark/conf.py |    2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/livy-server b/apps/spark/livy-server
+index fffe60c..de782e8 100755
+--- a/apps/spark/livy-server
++++ b/apps/spark/livy-server
+@@ -21,6 +21,8 @@ set -e
+ 
+ export LIVY_HOME=$(dirname $0)
+ 
++cd $LIVY_HOME/java
++
+ exec java \
+ 	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 \
+ 	-cp "livy-server/target/lib/*:livy-server/target/livy-server-3.7.0-SNAPSHOT.jar" \
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index ea811c5..9252e8c 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -52,7 +52,7 @@ SPARK_SERVER_BIN = Config(
+   key="spark_server_bin",
+   help=_t("Path to spark_server.sh"),
+   private=True,
+-  default=os.path.join(os.path.dirname(__file__), "..", "..", "spark_server.sh"))
++  default=os.path.join(os.path.dirname(__file__), "..", "..", "livy-server"))
+ 
+ 
+ def get_spark_status(user):
+-- 
+1.7.9.5
+

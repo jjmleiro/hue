@@ -1,0 +1,67 @@
+From 83817e1fac675adb471f4cbf4136b01ddc8d9c84 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 20:23:06 +0100
+Subject: [PATCH 0586/1173] [spark] Added empty message
+
+---
+ apps/spark/src/spark/templates/editor.mako |    3 ++-
+ apps/spark/static/css/spark.css            |    9 ++++++++-
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 872ceba..0a38ad1 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -221,6 +221,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             dragged: function(widget){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}">
+       </div>
+ 
++      <h1 class="empty" data-bind="visible: snippets().length == 0">${ _('Add a snippet to start your new notebook') }</h1>
+ 
+       <div class="add-snippet">
+         <textarea id="shadowEditor">
+@@ -312,7 +313,7 @@ ${_('Example: SELECT * FROM tablename, or press CTRL + space')}
+         <div style="padding-top: 10px;">
+ 
+           <a data-bind="visible: result.meta().length > 0, click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }"><i class="fa fa-th"></i></a>
+-          <div class="btn-group">
++          <div class="btn-group" data-bind="visible: result.meta().length > 0">
+             <button class="btn dropdown-toggle" style="height: 31px" data-bind="css: {'active': $data.showChart}" data-toggle="dropdown"><i class="hcha hcha-bar-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART"></i><i class="hcha hcha-line-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART"></i><i class="hcha hcha-pie-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART"></i><i class="hcha hcha-map-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.MAP"></i> <i class="fa fa-caret-down"></i></button>
+             <ul class="dropdown-menu">
+               <li><a href="javascript:void(0)" data-bind="css: {'active': chartType() == ko.HUE_CHARTS.TYPES.BARCHART}, click: function(){ $data.showChart(true); chartType(ko.HUE_CHARTS.TYPES.BARCHART); }"><i class="hcha hcha-bar-chart"></i> ${_('Bars')}</a></li>
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 1fa66a5..23eb3dc 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -54,6 +54,7 @@
+   margin-top: -60px;
+   z-index: 300;
+   left: 50%;
++  margin-left: -60px;
+ }
+ 
+ .add-snippet .overlay i {
+@@ -147,7 +148,7 @@
+ 
+ .ui-sortable {
+   background-color: #FFF;
+-  min-height: 100px;
++  min-height: 0px;
+ }
+ 
+ .assist {
+@@ -210,4 +211,10 @@
+   font-size: 11px;
+   height: 80px;
+   overflow-y: auto;
++}
++
++h1.empty {
++  margin-top: 50px;
++  text-align: center;
++  color: #DDD;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

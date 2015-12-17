@@ -1,0 +1,68 @@
+From daa5c3dfbe15a40771ac7c4a675fb22e7e87c79a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 18:15:20 +0100
+Subject: [PATCH 0770/1173] [oozie] Show coordinator dataset link with YEAR,
+ MONTH... variables
+
+---
+ .../templates/editor2/coordinator_editor.mako      |   17 ++++++++++++++---
+ apps/oozie/static/js/coordinator-editor.ko.js      |    1 +
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 0617876..1a631b8 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -270,8 +270,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   </span>
+                   <span data-bind="visible: dataset_variable().length > 0">
+                     ${ _('Will convert to') }
+-                    <a href="/filebrowser/view">
+-                    /user/hue/2015/01/01
++                    <a data-bind="text: convertVariables(dataset_variable()), attr: {'href': '/filebrowser/view' + convertVariables(dataset_variable())}"></a>
+                     ## use start_date as the date
+                   </span>
+                   </a>
+@@ -537,6 +536,18 @@ ${ dashboard.import_bindings() }
+       })
+       .jqCronGetInstance();
+ 
++  function convertVariables(path) {
++    var _startDate = moment(viewModel.coordinator.start_date.value());
++    if (_startDate.isValid()){
++      path = path.replace(/\${'$'}{YEAR}/, _startDate.year());
++      path = path.replace(/\${'$'}{MONTH}/, (_startDate.month() < 10 ? '0':'') + _startDate.month());
++      path = path.replace(/\${'$'}{DAY}/, (_startDate.date() < 10 ? '0':'') + _startDate.date());
++      path = path.replace(/\${'$'}{HOUR}/, (_startDate.hours() < 10 ? '0':'') + _startDate.hours());
++      path = path.replace(/\${'$'}{MINUTE}/, (_startDate.minutes() < 10 ? '0':'') + _startDate.minutes());
++    }
++    return path;
++  }
++
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
+ 
+   ko.applyBindings(viewModel, $("#editor")[0]);
+@@ -577,7 +588,7 @@ ${ dashboard.import_bindings() }
+     });
+     
+     $(".dataset-input").typeahead({
+-      source: ["/data/${'${'}YEAR}/${'${'}MONTH}/${'${'}DAY}", "${'${'}MINUTE}", "${'${'}HOUR}", "${'${'}DAY}", "${'${'}MONTH}", "${'${'}YEAR", "${'${'}coord:nominalTime()}", "${'${'}coord:formatTime(coord:nominalTime(), 'yyyyMMdd')}"]
++      source: ["/data/${'${'}YEAR}/${'${'}MONTH}/${'${'}DAY}", "${'${'}MINUTE}", "${'${'}HOUR}", "${'${'}DAY}", "${'${'}MONTH}", "${'${'}YEAR}", "${'${'}coord:nominalTime()}", "${'${'}coord:formatTime(coord:nominalTime(), 'yyyyMMdd')}"]
+     });
+   });
+ </script>
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index df22099..4d00aa7 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -211,6 +211,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+     }, function (data) {
+       if (data.status == 0) {
+         self.coordinator.id(data.id);
++        self.coordinator.tracker().markCurrentStateAsClean();
+         $(document).trigger("info", data.message);
+         if (window.location.search.indexOf("coordinator") == -1) {
+           window.location.hash = '#coordinator=' + data.id;
+-- 
+1.7.9.5
+

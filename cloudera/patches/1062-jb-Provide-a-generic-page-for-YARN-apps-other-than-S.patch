@@ -1,0 +1,79 @@
+From cd57efd90f935d8c5793fba298b09c6df8c6512c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 12 Mar 2015 18:34:36 -0700
+Subject: [PATCH 1062/1173] [jb] Provide a generic page for YARN apps other
+ than Spark or MR
+
+Also fix Spark page
+---
+ apps/jobbrowser/src/jobbrowser/api.py              |    5 ++---
+ apps/jobbrowser/src/jobbrowser/yarn_models.py      |    3 +++
+ desktop/libs/hadoop/src/hadoop/cluster.py          |    2 +-
+ .../hadoop/src/hadoop/yarn/resource_manager_api.py |    1 +
+ 4 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index 3ede1d0..1f2a33f 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -29,8 +29,7 @@ import hadoop.yarn.node_manager_api as node_manager_api
+ 
+ from jobbrowser.conf import SHARE_JOBS
+ from jobbrowser.models import Job, JobLinkage, TaskList, Tracker
+-from jobbrowser.yarn_models import Application, Job as YarnJob, KilledJob as KilledYarnJob, Container
+-from jobbrowser.yarn_models import SparkJob
++from jobbrowser.yarn_models import Application, Job as YarnJob, KilledJob as KilledYarnJob, Container, SparkJob
+ from hadoop.cluster import get_next_ha_mrcluster, get_next_ha_yarncluster
+ from desktop.lib.exceptions_renderable import PopupException
+ 
+@@ -269,7 +268,7 @@ class YarnApi(JobBrowserApi):
+         return KilledYarnJob(self.resource_manager_api, job)
+ 
+       if job.get('applicationType') == 'SPARK':
+-        job = YarnJob(job)
++        job = SparkJob(job)
+       elif job.get('applicationType') == 'MAPREDUCE':
+         jobid = jobid.replace('application', 'job')
+ 
+diff --git a/apps/jobbrowser/src/jobbrowser/yarn_models.py b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+index a984179..8cbb0d4 100644
+--- a/apps/jobbrowser/src/jobbrowser/yarn_models.py
++++ b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+@@ -80,6 +80,9 @@ class Application(object):
+   def kill(self):
+     return self.api.kill(self.id)
+ 
++  def filter_tasks(self, *args, **kwargs):
++    pass
++
+ 
+ class SparkJob(Application):
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/cluster.py b/desktop/libs/hadoop/src/hadoop/cluster.py
+index 0b8bc82..c88dc5d 100644
+--- a/desktop/libs/hadoop/src/hadoop/cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/cluster.py
+@@ -179,7 +179,7 @@ def get_next_ha_yarncluster():
+   for name in conf.YARN_CLUSTERS.keys():
+     config = conf.YARN_CLUSTERS[name]
+     if config.SUBMIT_TO.get():
+-      rm = ResourceManagerApi(config.RESOURCE_MANAGER_API_URL.get(), config.SECURITY_ENABLED.get())
++      rm = ResourceManagerApi(config.RESOURCE_MANAGER_API_URL.get(), config.SECURITY_ENABLED.get(), config.SSL_CERT_CA_VERIFY.get())
+       if has_ha:
+         try:
+           cluster_info = rm.cluster()
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+index 4458c36..2e9d34f 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+@@ -55,6 +55,7 @@ def get_resource_manager():
+ 
+ 
+ class ResourceManagerApi(object):
++
+   def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+     self._url = posixpath.join(oozie_url, 'ws', _API_VERSION)
+     self._client = HttpClient(self._url, logger=LOG)
+-- 
+1.7.9.5
+

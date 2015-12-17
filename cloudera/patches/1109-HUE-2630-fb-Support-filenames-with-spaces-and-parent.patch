@@ -1,0 +1,136 @@
+From 7c86fabb0026a8717199600501554a652980872c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 21:01:09 -0500
+Subject: [PATCH 1109/1173] HUE-2630 [fb] Support filenames with spaces and
+ parenthesis
+
+---
+ apps/filebrowser/src/filebrowser/forms.py          |   12 ++++++++++--
+ .../src/filebrowser/templates/display.mako         |    1 +
+ .../src/filebrowser/templates/edit.mako            |    2 +-
+ apps/filebrowser/src/filebrowser/views.py          |    6 ++++--
+ apps/filebrowser/src/filebrowser/views_test.py     |    2 +-
+ 5 files changed, 17 insertions(+), 6 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/forms.py b/apps/filebrowser/src/filebrowser/forms.py
+index 7749db6..670612d 100644
+--- a/apps/filebrowser/src/filebrowser/forms.py
++++ b/apps/filebrowser/src/filebrowser/forms.py
+@@ -15,20 +15,25 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import logging
++import urllib
++
+ from django import forms
++from django.contrib.auth.models import User, Group
+ from django.forms import FileField, CharField, BooleanField, Textarea
+ from django.forms.formsets import formset_factory, BaseFormSet, ManagementForm
+ 
+ from desktop.lib import i18n
+ from filebrowser.lib import rwx
+ from hadoop.fs import normpath
+-from django.contrib.auth.models import User, Group
++
+ 
+ from django.utils.translation import ugettext_lazy as _
+ 
+-import logging
++
+ logger = logging.getLogger(__name__)
+ 
++
+ class FormSet(BaseFormSet):
+   def __init__(self, data=None, prefix=None, *args, **kwargs):
+     self.prefix = prefix or self.get_default_prefix()
+@@ -63,6 +68,9 @@ class EditorForm(forms.Form):
+   contents = CharField(widget=Textarea, label=_("Contents"), required=False)
+   encoding = CharField(label=_('Encoding'), required=False)
+ 
++  def clean_path(self):
++    return urllib.unquote(self.cleaned_data.get('path', ''))
++
+   def clean_contents(self):
+     return self.cleaned_data.get('contents', '').replace('\r\n', '\n')
+ 
+diff --git a/apps/filebrowser/src/filebrowser/templates/display.mako b/apps/filebrowser/src/filebrowser/templates/display.mako
+index 56cf0a7..6e27da5 100644
+--- a/apps/filebrowser/src/filebrowser/templates/display.mako
++++ b/apps/filebrowser/src/filebrowser/templates/display.mako
+@@ -23,6 +23,7 @@
+ %>
+ <%
+   path_enc = urlencode(path)
++  path_enc = path
+   dirname_enc = urlencode(view['dirname'])
+   base_url = url('filebrowser.views.view', path=path_enc)
+ %>
+diff --git a/apps/filebrowser/src/filebrowser/templates/edit.mako b/apps/filebrowser/src/filebrowser/templates/edit.mako
+index 1091ac2..3c5f059 100644
+--- a/apps/filebrowser/src/filebrowser/templates/edit.mako
++++ b/apps/filebrowser/src/filebrowser/templates/edit.mako
+@@ -147,7 +147,7 @@ ${ fb_components.menubar() }
+ 
+       function resizeTextarea() {
+         var RESIZE_CORRECTION = 246;
+-        $("textarea[name='contents']").height( $(window).height() - RESIZE_CORRECTION);
++        $("textarea[name='contents']").height($(window).height() - RESIZE_CORRECTION);
+       }
+ 
+       var _resizeTimeout = -1;
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index bb778b9..77994d7 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -16,16 +16,16 @@
+ # limitations under the License.
+ 
+ import errno
+-import logging
+ import json
++import logging
+ import mimetypes
+ import operator
++import os
+ import parquet
+ import posixpath
+ import re
+ import shutil
+ import stat as stat_module
+-import os
+ 
+ from datetime import datetime
+ 
+@@ -63,6 +63,7 @@ from filebrowser.lib import xxd
+ from filebrowser.forms import RenameForm, UploadFileForm, UploadArchiveForm, MkDirForm, EditorForm, TouchForm,\
+                               RenameFormSet, RmTreeFormSet, ChmodFormSet, ChownFormSet, CopyFormSet, RestoreFormSet,\
+                               TrashPurgeForm
++import urllib
+ 
+ 
+ DEFAULT_CHUNK_SIZE_BYTES = 1024 * 4 # 4KB
+@@ -279,6 +280,7 @@ def parse_breadcrumbs(path):
+     while (i < len(breadcrumbs_parts)):
+         breadcrumb_url = breadcrumbs[i - 1]['url'] + '/' + breadcrumbs_parts[i]
+         if breadcrumb_url != '/':
++            #breadcrumbs.append({'url': breadcrumb_url, 'label': urllib.unquote(breadcrumbs_parts[i])})
+             breadcrumbs.append({'url': breadcrumb_url, 'label': breadcrumbs_parts[i]})
+         i = i + 1
+     return breadcrumbs
+diff --git a/apps/filebrowser/src/filebrowser/views_test.py b/apps/filebrowser/src/filebrowser/views_test.py
+index a985a96..06b348a 100644
+--- a/apps/filebrowser/src/filebrowser/views_test.py
++++ b/apps/filebrowser/src/filebrowser/views_test.py
+@@ -983,7 +983,7 @@ def edit_helper(cluster, encoding, contents_pass_1, contents_pass_2):
+   c = make_logged_in_client(cluster.superuser)
+ 
+   # This path is non-normalized to test normalization too
+-  filename = u'//test-filebrowser//./test-edit-carácter-internacional'
++  filename = u'//test-filebrowser//./test-edit-carácter-internacional with space and ()'
+ 
+   # File doesn't exist - should be empty
+   edit_url = '/filebrowser/edit' + filename
+-- 
+1.7.9.5
+

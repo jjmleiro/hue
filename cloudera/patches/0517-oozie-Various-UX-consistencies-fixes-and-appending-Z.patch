@@ -1,0 +1,132 @@
+From cc1f03a12b56e8bb7cdac52ae990cec36ad778b7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Feb 2015 13:19:48 -0800
+Subject: [PATCH 0517/1173] [oozie] Various UX consistencies fixes and
+ appending Z to dates
+
+---
+ apps/oozie/src/oozie/models2.py                    |    4 ++--
+ .../oozie/templates/editor/coordinator_editor.mako |    9 +++++++--
+ .../oozie/templates/editor/submit_job_popup2.mako  |    4 ++--
+ .../oozie/templates/editor/workflow_editor.mako    |    6 ++++++
+ apps/oozie/static/js/coordinator-editor.ko.js      |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |    2 +-
+ 6 files changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 1c69dfb..4b82b34 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1472,8 +1472,8 @@ class Coordinator(Job):
+               'credentials': [],
+               'parameters': [
+                   {'name': 'oozie.use.system.libpath', 'value': True},
+-                  {'name': 'start_date', 'value':  datetime.today().strftime('%Y-%m-%dT%H:%M:%S')},
+-                  {'name': 'end_date', 'value': (datetime.today() + timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%S')}
++                  {'name': 'start_date', 'value':  datetime.today().strftime('%Y-%m-%dT%H:%MZ')},
++                  {'name': 'end_date', 'value': (datetime.today() + timedelta(days=7)).strftime('%Y-%m-%dT%H:%MZ')}
+               ],
+               'sla': Workflow.SLA_DEFAULT
+           }
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index ed00657..3cf93c3 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -40,6 +40,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}, visible: coordinator.id() != null">
+       <i class="fa fa-play"></i>
+     </a>
++    
++    &nbsp;&nbsp;&nbsp;
++    
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+       <i class="fa fa-pencil"></i>
+     </a>
+@@ -76,7 +79,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+ 
+   <form class="form-search">
+-    <span data-bind="visible: coordinator.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++    <span data-bind="visible: coordinator.id() == null" class="muted pull-right">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
+ 
+     <div class="inline object-name">
+       <span data-bind="editable: $root.coordinator.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+@@ -103,7 +106,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+             </a>
+             <!-- /ko -->
+             <!-- ko ifnot: isEditing -->
+-            <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + coordinator.properties.workflow() }, text: getWorkflowById(coordinator.properties.workflow()).name" target="_blank" title="${ _('Open') }">
++            <span data-bind="text: getWorkflowById(coordinator.properties.workflow()).name"></span>
++            <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + coordinator.properties.workflow() }" target="_blank" title="${ _('Open') }">
++              <i class="fa fa-external-link-square"></i>
+             </a>
+             <!-- /ko -->
+           <!-- /ko -->
+diff --git a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+index 967d17b..56de567 100644
+--- a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
++++ b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+@@ -82,7 +82,7 @@
+   });
+ 
+   $(".now-link").on("click", function(){
+-    $(this).parents(".controls").find("input[type='text']").val(moment().format("YYYY-MM-DD[T]HH:mm:SS"));
++    $(this).parents(".controls").find("input[type='text']").val(moment().format("YYYY-MM-DD[T]HH:mm") + 'Z');
+   });
+ 
+   $(".calendar-link").on("click", function(){
+@@ -92,7 +92,7 @@
+       format: DATE_FORMAT.toLowerCase()
+      }).on("changeDate", function () {
+       _el.datepicker('hide');
+-      _el.val(_el.val() + "T00:00:00");
++      _el.val(_el.val() + "T00:00Z");
+     });
+    _el.datepicker('show');
+   }); 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 6eb5a6a..c0d86f1 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -148,6 +148,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+     </a>
++    <a title="${ _('Schedule') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
++      <i class="fa fa-fw fa-calendar"></i>
++    </a>
++
++    &nbsp;&nbsp;&nbsp;
++    
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+       <i class="fa fa-fw fa-pencil"></i>
+     </a>
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 1b60e21..3d27910 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -135,7 +135,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   var self = this;
+ 
+   self.canEdit = ko.mapping.fromJS(can_edit_json);
+-  self.isEditing = ko.observable(self.canEdit());
++  self.isEditing = ko.observable(coordinator_json.id == null);
+   self.isEditing.subscribe(function(newVal){
+     $(document).trigger("editingToggled");
+     self.coordinator.properties.cron_advanced.valueHasMutated();
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index ed4b437..0964ea3 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -489,7 +489,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.isNested = ko.observable(true);
+ 
+   self.canEdit = ko.mapping.fromJS(can_edit_json);
+-  self.isEditing = ko.observable(true && self.canEdit());
++  self.isEditing = ko.observable(false);
+   self.isEditing.subscribe(function (newVal) {
+     $(document).trigger("editingToggled");
+   });
+-- 
+1.7.9.5
+

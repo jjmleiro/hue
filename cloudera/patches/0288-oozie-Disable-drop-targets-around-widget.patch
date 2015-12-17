@@ -1,0 +1,158 @@
+From cf169472d724fb3e91ecf246bd8a4e636c3b8a92 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 19 Nov 2014 14:12:36 +0100
+Subject: [PATCH 0288/1173] [oozie] Disable drop targets around widget
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   15 +++++---
+ apps/oozie/static/css/workflow-editor.css          |    6 ++++
+ apps/oozie/static/js/workflow-editor.ko.js         |   38 ++++++++++++++++++++
+ desktop/core/static/js/ko.layout.js                |    4 +++
+ 4 files changed, 58 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 452f9b6..78cbf6a 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -217,12 +217,14 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div data-bind="template: { name: 'row-template', data: oozieStartRow }"></div>
+ 
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && oozieRows().length > 0">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++      <div data-bind="visible: ! enableOozieDropOnBefore(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
++      <div data-bind="visible: enableOozieDropOnBefore, css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: oozieRows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && rows().length > 0">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
++      <div data-bind="visible: ! enableOozieDropOnAfter(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
++      <div data-bind="visible: enableOozieDropOnAfter, css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+ 
+     <div data-bind="template: { name: 'row-template', data: oozieEndRow }"></div>
+@@ -233,12 +235,14 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ <script type="text/html" id="internal-column-template">
+   <div data-bind="css: klass">
+     <div class="container-fluid" data-bind="visible: $root.isEditing()">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++      <div data-bind="visible: ! enableOozieDropOnBefore(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
++      <div data-bind="visible: enableOozieDropOnBefore, css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: rows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing()">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
++      <div data-bind="visible: ! enableOozieDropOnAfter(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
++      <div data-bind="visible: enableOozieDropOnAfter, css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+   </div>
+ </script>
+@@ -265,7 +269,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div class="row-fluid" data-bind="visible: $index() > 0 && $root.isEditing() && ! $root.isRowBeforeJoin($data) && ! $root.isRowAfterFork($data)" style="margin-bottom: 10px">
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+       <div data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+-        <div style="text-align: left" data-bind="visible: $root.isEditing(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div data-bind="visible: $root.isEditing() && ! enableOozieDropOnBefore(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
++        <div style="text-align: left" data-bind="visible: $root.isEditing() && enableOozieDropOnBefore(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+     </div>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 9c0d122..523d287 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -311,6 +311,12 @@ em {
+   background-color: #CCC;
+ }
+ 
++.drop-target-disabled {
++  background-color: #FFFFFF;
++  border-color: #FFFFFF;
++}
++
++
+ .drop-target-side {
+   min-height: 100px;
+   height: 100%;
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 60f2aca..55fa53c 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -414,6 +414,29 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       var _row = self.getWidgetParentRow(widget.id());
+       if (_row) {
+         _row.enableOozieDropOnSide(enable);
++        _row.enableOozieDropOnBefore(enable);
++
++        var _col = self.getRowParentColumn(_row.id());
++        if (self.getColumnParentRow(_col.id())!=null){
++          _col.enableOozieDropOnBefore(enable);
++          _col.enableOozieDropOnAfter(enable);
++        }
++
++        var _prevRow = self.getPrevRow(_row);
++        if (_prevRow){
++          if (_prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "start-widget"){
++            _prevRow.enableOozieDropOnSide(enable);
++            self.getRowParentColumn(_prevRow.id()).enableOozieDropOnBefore(enable);
++          }
++        }
++        var _nextRow = self.getNextRow(_row);
++        if (_nextRow){
++          _nextRow.enableOozieDropOnBefore(enable);
++          if (_nextRow.widgets().length > 0 && _nextRow.widgets()[0].widgetType() == "end-widget"){
++            _nextRow.enableOozieDropOnSide(enable);
++            self.getRowParentColumn(_nextRow.id()).enableOozieDropOnAfter(enable);
++          }
++        }
+       }
+     }
+   }
+@@ -729,6 +752,21 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     return _nextParentRow;
+   }
+ 
++  self.getPrevRow = function (row) {
++    var _parentColumn = self.getRowParentColumn(row.id());
++    var _prevParentRow = null;
++    for (var i = 0; i < _parentColumn.rows().length; i++) {
++      if (_parentColumn.rows()[i].id() == row.id()) {
++        if (i > 0) {
++          _prevParentRow = _parentColumn.rows()[i - 1];
++        }
++        break;
++      }
++      _prevParentRow = _parentColumn.rows()[i];
++    }
++    return _prevParentRow;
++  }
++
+   self.getWidgetParentRow = function (widget_id) {
+     var _row = null;
+     for (var i = 0; i < self.columns().length; i++) {
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index cd6d7c2..9d39b90 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -60,6 +60,9 @@ var Column = function (size, rows) {
+     return _rows;
+   }, self);
+ 
++  self.enableOozieDropOnBefore = ko.observable(true);
++  self.enableOozieDropOnAfter = ko.observable(true);
++
+   self.drops = ko.observableArray(["temp"]);
+   self.klass = ko.computed(function () {
+     return "card card-home card-column span" + self.size();
+@@ -97,6 +100,7 @@ var Row = function (widgets, vm, columns) {
+     return vm.isEditing && vm.isEditing() && self.widgets && self.widgets().length < 1
+   });
+ 
++  self.enableOozieDropOnBefore = ko.observable(true);
+   self.enableOozieDropOnSide = ko.observable(true);
+ 
+   self.addWidget = function (widget) {
+-- 
+1.7.9.5
+

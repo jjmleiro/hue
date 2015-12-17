@@ -1,0 +1,92 @@
+From 791e99f6e023b36a297be74ffa6d68a223ff1bc6 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sun, 4 Jan 2015 00:03:46 +0100
+Subject: [PATCH 0182/1173] HUE-2513 [fb] File list column sorting is broken
+
+Applied smart sorting just to the name column
+Set sorting_asc by default on name
+Added temp files to .gitignore
+---
+ .gitignore                                         |    3 +++
+ .../filebrowser/templates/listdir_components.mako  |   20 ++++++++++++++------
+ 2 files changed, 17 insertions(+), 6 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 559fa17..32d577a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -93,3 +93,6 @@ oozie.sql
+ tools/jenkins/ext/
+ tools/jenkins/oozie.sql
+ apps/logs
++
++# Sublime Text temp files
++*.subl*
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 40a9aa5..1cc83d7 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -41,7 +41,7 @@ from django.utils.translation import ugettext as _
+       <tr>
+         <th width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
+         <th class="sortable sorting" data-sort="type" width="1%" data-bind="click: sort">&nbsp;</th>
+-        <th class="sortable sorting" data-sort="name" data-bind="click: sort">${_('Name')}</th>
++        <th class="sortable sorting_asc" data-sort="name" data-bind="click: sort">${_('Name')}</th>
+         <th class="sortable sorting" data-sort="size" width="10%" data-bind="click: sort">${_('Size')}</th>
+         <th class="sortable sorting" data-sort="user" width="10%" data-bind="click: sort">${_('User')}</th>
+         <th class="sortable sorting" data-sort="group" width="10%" data-bind="click: sort">${_('Group')}</th>
+@@ -768,7 +768,7 @@ from django.utils.translation import ugettext as _
+       self.searchQuery = ko.observable("");
+       self.isCurrentDirSentryManaged = ko.observable(false);
+ 
+-      self.filesSorting = function (l, r) {
++      self.fileNameSorting = function (l, r) {
+         if (l.name == "..") {
+           return -1;
+         }
+@@ -782,14 +782,21 @@ from django.utils.translation import ugettext as _
+           return 1;
+         }
+         else {
+-          return l.name > r.name ? 1 : -1
++          var _ret = l.name > r.name ? 1 : -1;
++          if (self.sortDescending()){
++            _ret = _ret * -1;
++          }
++          return _ret;
+         }
+       }
+ 
+       self.files = ko.observableArray(ko.utils.arrayMap(files, function (file) {
+         return new File(file);
+       }));
+-      self.files.sort(self.filesSorting)
++
++      if (self.sortBy() == "name"){
++        self.files.sort(self.fileNameSorting);
++      }
+ 
+       self.homeDir = ko.observable("${home_directory}");
+ 
+@@ -819,7 +826,6 @@ from django.utils.translation import ugettext as _
+         } else {
+           el.addClass("sorting_asc");
+         }
+-
+         self.retrieveData();
+       }
+ 
+@@ -901,7 +907,9 @@ from django.utils.translation import ugettext as _
+         self.files(ko.utils.arrayMap(files, function (file) {
+           return new File(file);
+         }));
+-        self.files.sort(self.filesSorting)
++        if (self.sortBy() == "name"){
++          self.files.sort(self.fileNameSorting);
++        }
+ 
+         self.breadcrumbs(ko.utils.arrayMap(breadcrumbs, function (breadcrumb) {
+           return new Breadcrumb(breadcrumb);
+-- 
+1.7.9.5
+

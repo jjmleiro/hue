@@ -1,0 +1,30 @@
+From d6c7cd5b87caad62e88c2c147a73eec0ebe15826 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 11 Dec 2014 18:14:40 -0800
+Subject: [PATCH 0144/1173] [beeswax] Clean up test_partition_values
+
+---
+ apps/beeswax/src/beeswax/tests.py |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index 261844c..31901cd 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -1792,8 +1792,11 @@ class TestHiveServer2API():
+   def test_partition_values(self):
+     table = MockHiveServerTable({'path_location': '/my/table'})
+ 
+-    assert_equal(['2013022516'], PartitionValueCompatible(['datehour=2013022516'], table).values)
+-    assert_equal(['2011-07', '2011-07-01', '12'], PartitionValueCompatible(['month=2011-07/dt=2011-07-01/hr=12'], table).values)
++    value = PartitionValueCompatible(['datehour=2013022516'], table)
++    assert_equal(['2013022516'], value.values)
++
++    value = PartitionValueCompatible(['month=2011-07/dt=2011-07-01/hr=12'], table)
++    assert_equal(['2011-07', '2011-07-01', '12'], value.values)
+ 
+   def test_table_properties(self):
+     table = MockHiveServerTable({})
+-- 
+1.7.9.5
+

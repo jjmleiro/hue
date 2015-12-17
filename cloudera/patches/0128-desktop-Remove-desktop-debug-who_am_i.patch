@@ -1,0 +1,48 @@
+From 14e705641ed34f97bdb4e79289835c43011b8074 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 21 Nov 2014 11:50:25 -0800
+Subject: [PATCH 0128/1173] [desktop] Remove /desktop/debug/who_am_i
+
+This is unused, and could be used by a malicious user to hang hue.
+---
+ desktop/core/src/desktop/urls.py  |    1 -
+ desktop/core/src/desktop/views.py |   11 -----------
+ 2 files changed, 12 deletions(-)
+
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index 65ff9d2..3aa292d 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -64,7 +64,6 @@ dynamic_patterns += patterns('desktop.views',
+   (r'^desktop/debug/is_alive$','is_alive'),
+   (r'^desktop/debug/threads$', 'threads'),
+   (r'^desktop/debug/memory$', 'memory'),
+-  (r'^desktop/debug/who_am_i$', 'who_am_i'),
+   (r'^desktop/debug/check_config$', 'check_config'),
+   (r'^desktop/debug/check_config_ajax$', 'check_config_ajax'),
+   (r'^desktop/log_frontend_event$', 'log_frontend_event'),
+diff --git a/desktop/core/src/desktop/views.py b/desktop/core/src/desktop/views.py
+index 6cbb4bc..702b67f 100644
+--- a/desktop/core/src/desktop/views.py
++++ b/desktop/core/src/desktop/views.py
+@@ -353,17 +353,6 @@ def log_frontend_event(request):
+   _LOG_FRONTEND_LOGGER.log(level, msg)
+   return HttpResponse("")
+ 
+-def who_am_i(request):
+-  """
+-  Returns username and FS username, and optionally sleeps.
+-  """
+-  try:
+-    sleep = float(request.REQUEST.get("sleep") or 0.0)
+-  except ValueError:
+-    sleep = 0.0
+-  time.sleep(sleep)
+-  return HttpResponse(request.user.username + "\t" + request.fs.user + "\n")
+-
+ def commonheader(title, section, user, padding="90px"):
+   """
+   Returns the rendered common header
+-- 
+1.7.9.5
+

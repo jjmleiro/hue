@@ -1,0 +1,91 @@
+From 35c71fb40757fdd5d1a672da67da2e17bb6ec832 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 3 Mar 2015 15:45:40 -0800
+Subject: [PATCH 0974/1173] [desktop] Remove the redundant database_logging
+ option
+
+This has been a part of Django since 1.3.
+---
+ desktop/conf/pseudo-distributed.ini.tmpl |    3 ---
+ desktop/core/src/desktop/conf.py         |    6 ------
+ desktop/core/src/desktop/middleware.py   |   20 --------------------
+ desktop/core/src/desktop/settings.py     |    1 -
+ 4 files changed, 30 deletions(-)
+
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index df31a99..c6e7459 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -22,9 +22,6 @@
+ 
+   send_dbug_messages=1
+ 
+-  # To show database transactions, set database_logging to 1
+-  database_logging=0
+-
+   # Set this to a random string, the longer the better.
+   # This is used for secure hashing in the session store.
+   secret_key=
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index baba128..dd5199c 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -728,12 +728,6 @@ SEND_DBUG_MESSAGES = Config(
+   default=False
+ )
+ 
+-DATABASE_LOGGING = Config(
+-  key="database_logging",
+-  help=_("If true, log all database requests."),
+-  type=coerce_bool,
+-  default=False)
+-
+ DJANGO_ADMINS = UnspecifiedConfigSection(
+   key="django_admins",
+   help=_("Administrators that should receive error emails."),
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 58eab14..936921b 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -365,26 +365,6 @@ class AuditLoggingMiddleware(object):
+     return response
+ 
+ 
+-class DatabaseLoggingMiddleware(object):
+-  """
+-  If configured, logs database queries for every request.
+-  """
+-  DATABASE_LOG = logging.getLogger("desktop.middleware.DatabaseLoggingMiddleware")
+-
+-  def __init__(self):
+-    if not desktop.conf.DATABASE_LOGGING.get():
+-      LOG.info('Unloading DatabaseLoggingMiddleware')
+-      raise exceptions.MiddlewareNotUsed
+-
+-  def process_response(self, request, response):
+-    if desktop.conf.DATABASE_LOGGING.get():
+-      if self.DATABASE_LOG.isEnabledFor(logging.INFO):
+-          # This only exists if desktop.settings.DEBUG is true, hence the use of getattr
+-          for query in getattr(django.db.connection, "queries", []):
+-            self.DATABASE_LOG.info("(%s) %s" % (query["time"], query["sql"]))
+-    return response
+-
+-
+ try:
+   import tidylib
+   _has_tidylib = True
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 150c976..9c309d1 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -121,7 +121,6 @@ TEMPLATE_LOADERS = (
+ MIDDLEWARE_CLASSES = [
+     # The order matters
+     'desktop.middleware.EnsureSafeMethodMiddleware',
+-    'desktop.middleware.DatabaseLoggingMiddleware',
+     'desktop.middleware.AuditLoggingMiddleware',
+     'django.middleware.common.CommonMiddleware',
+     'django.contrib.sessions.middleware.SessionMiddleware',
+-- 
+1.7.9.5
+

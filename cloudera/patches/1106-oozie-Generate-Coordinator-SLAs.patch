@@ -1,0 +1,50 @@
+From 5922126487fbe7311adfb8f2e0ccea6800c5ed19 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 16:37:43 -0500
+Subject: [PATCH 1106/1173] [oozie] Generate Coordinator SLAs
+
+---
+ apps/oozie/src/oozie/models2.py                    |    4 +---
+ .../templates/editor2/gen/coordinator.xml.mako     |    4 ++--
+ 2 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 16b6db2..2e91bde 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1600,8 +1600,6 @@ class Coordinator(Job):
+               'execution': None,
+               'throttle': None,
+               'job_xml': '',
+-              'sla_enabled': False,
+-              'sla_workflow_enabled': False,
+               'credentials': [],
+               'parameters': [
+                   {'name': 'oozie.use.system.libpath', 'value': True},
+@@ -1692,7 +1690,7 @@ class Coordinator(Job):
+ 
+   @property
+   def sla_enabled(self):
+-    return self.data['properties']['sla_enabled']
++    return self.data['properties']['sla'][0].get('value')
+ 
+   @property
+   def sla(self):
+diff --git a/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
+index ac2578d..6c83249 100644
+--- a/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
+@@ -58,8 +58,8 @@
+   frequency="${ coord.frequency }"
+   % endif
+   start="${ coord.start_utc }" end="${ coord.end_utc }" timezone="${ coord.data['properties']['timezone'] }"
+-  xmlns="${ 'uri:oozie:coordinator:0.4' if coord.data['properties']['sla_enabled'] else coord.data['properties']['schema_version'] | n,unicode }"
+-  ${ 'xmlns:sla="uri:oozie:sla:0.2"' if coord.data['properties']['sla_enabled'] else '' | n,unicode }>
++  xmlns="${ 'uri:oozie:coordinator:0.4' if coord.sla_enabled else coord.data['properties']['schema_version'] | n,unicode }"
++  ${ 'xmlns:sla="uri:oozie:sla:0.2"' if coord.sla_enabled else '' | n,unicode }>
+   % if coord.data['properties']['timeout'] or coord.data['properties'].get('concurrency') or coord.data['properties']['execution'] or coord.data['properties'].get('throttle'):
+   <controls>
+     % if coord.data['properties']['timeout']:
+-- 
+1.7.9.5
+

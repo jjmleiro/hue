@@ -1,0 +1,26 @@
+From 97f084fedcc8e6f49dc262fc0a05f7bbc9fef16b Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 10 Mar 2015 15:17:43 -0700
+Subject: [PATCH 1024/1173] [desktop] Django-1.6 deprecated TEMPLATE_DIRS not
+ being a tuple
+
+---
+ desktop/core/src/desktop/settings.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 9018ba8..661d22e 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -152,7 +152,7 @@ ROOT_URLCONF = 'desktop.urls'
+ WSGI_APPLICATION = None
+ 
+ TEMPLATE_DIRS = (
+-    get_desktop_root("core/templates")
++    get_desktop_root("core/templates"),
+ )
+ 
+ INSTALLED_APPS = [
+-- 
+1.7.9.5
+

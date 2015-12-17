@@ -1,0 +1,183 @@
+From 6555c3139524fdffd46783d2a6b0b29feaaf0da5 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 3 Jan 2015 08:50:01 -0800
+Subject: [PATCH 0655/1173] [spark] Initial progress on a SparkYarnSession
+
+---
+ apps/spark/java/livy-server/pom.xml                |    6 +++
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |    2 +-
+ .../cloudera/hue/livy/server/SessionFactory.scala  |   26 +++++++++-
+ .../hue/livy/server/SparkYarnSession.scala         |   52 ++++++++++++++++++++
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |   17 +++++++
+ 5 files changed, 100 insertions(+), 3 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkYarnSession.scala
+
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index c6e0695..fe7be12 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -65,6 +65,12 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-yarn</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-databind</artifactId>
+             <version>2.4.4</version>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index bbefc54..f545aa7 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -23,7 +23,7 @@ object Main {
+ 
+ class ScalatraBootstrap extends LifeCycle {
+ 
+-  val sessionFactory = new ProcessSessionFactory
++  val sessionFactory = new YarnSessionFactory
+   val sessionManager = new SessionManager(sessionFactory)
+ 
+   override def init(context: ServletContext): Unit = {
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index 59c17f4..a83f12d 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -2,20 +2,42 @@ package com.cloudera.hue.livy.server
+ 
+ import java.util.UUID
+ 
++import com.cloudera.hue.livy.yarn.Client
++import org.apache.hadoop.yarn.conf.YarnConfiguration
++
+ import scala.concurrent.{ExecutionContext, Future}
+ 
+ trait SessionFactory {
+-  def createSparkSession: Future[Session]
++  def createSparkSession(): Future[Session]
++
++  def close(): Unit = {}
+ }
+ 
+ class ProcessSessionFactory extends SessionFactory {
+ 
+   implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+-  override def createSparkSession: Future[Session] = {
++  override def createSparkSession(): Future[Session] = {
+     Future {
+       val id = UUID.randomUUID().toString
+       SparkProcessSession.create(id)
+     }
+   }
+ }
++
++class YarnSessionFactory extends SessionFactory {
++
++  val yarnConf = new YarnConfiguration()
++  yarnConf.set("yarn.resourcemanager.am.max-attempts", "1")
++
++  val client = new Client(yarnConf)
++
++  override def createSparkSession(): Future[Session] = {
++    val id = UUID.randomUUID().toString
++    SparkYarnSession.create(client, id)
++  }
++
++  override def close(): Unit = {
++    client.close()
++  }
++}
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkYarnSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkYarnSession.scala
+new file mode 100644
+index 0000000..41d485e
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkYarnSession.scala
+@@ -0,0 +1,52 @@
++package com.cloudera.hue.livy.server
++
++import com.cloudera.hue.livy.yarn.{Client, Job}
++import org.apache.hadoop.fs.Path
++import org.apache.hadoop.yarn.api.ApplicationConstants
++
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, TimeoutException}
++
++object SparkYarnSession {
++  private val LIVY_YARN_PACKAGE = System.getenv("LIVY_YARN_PACKAGE")
++
++  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++
++  def create(client: Client, id: String): Future[Session] = {
++    val packagePath = new Path(LIVY_YARN_PACKAGE)
++
++    val job = client.submitApplication(
++      packagePath,
++      List(
++        "__package/bin/run-am.sh 1>%s/stdout 2>%s/stderr" format (
++          ApplicationConstants.LOG_DIR_EXPANSION_VAR,
++          ApplicationConstants.LOG_DIR_EXPANSION_VAR
++          )
++      )
++    )
++
++    Future {
++      var x = job.waitForRPC(10000)
++
++      println("x: %s" format x)
++
++      x match {
++        case Some((hostname, port)) =>
++          new SparkYarnSession(id, job, hostname, port)
++        case None =>
++          throw new TimeoutException()
++      }
++    }
++  }
++}
++
++private class SparkYarnSession(id: String, job: Job, hostname: String, port: Int)
++  extends SparkWebSession(id, hostname, port) {
++
++  override def close(): Future[Unit] = {
++    super.close() andThen { case r =>
++      job.waitForFinish(10000)
++      r
++    }
++  }
++
++}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 9f5da40..9ad64c2 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -163,6 +163,23 @@ class Job(client: YarnClient, appId: ApplicationId) {
+     None
+   }
+ 
++  def waitForRPC(timeoutMs: Long): Option[(String, Int)] = {
++    waitForStatus(Running(), timeoutMs)
++
++    val startTimeMs = System.currentTimeMillis()
++
++    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
++      val statusResponse = client.getApplicationReport(appId)
++
++      (statusResponse.getHost, statusResponse.getRpcPort) match {
++        case ("N/A", _) | (_, -1) =>
++        case (hostname, port) => return Some((hostname, port))
++      }
++    }
++
++    None
++  }
++
+   def getHost: String = {
+     val statusResponse = client.getApplicationReport(appId)
+     statusResponse.getHost
+-- 
+1.7.9.5
+

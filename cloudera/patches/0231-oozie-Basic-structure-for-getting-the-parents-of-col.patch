@@ -1,0 +1,224 @@
+From 0ca17e93949b2bc3b4d1c851fb3351ee390cd0c1 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 4 Nov 2014 13:48:26 +0100
+Subject: [PATCH 0231/1173] [oozie] Basic structure for getting the parents of
+ columns, rows and widgets
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    5 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |  136 ++++++++++++++++++--
+ desktop/core/static/js/ko.layout.js                |    2 +
+ 3 files changed, 127 insertions(+), 16 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f169719..75ec6c6 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -199,12 +199,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ <script type="text/html" id="internal-column-template">
+   <div data-bind="css: klass">
+     <div class="container-fluid" data-bind="visible: $root.isEditing()">
+-      <div data-bind="click: function(){$data.addEmptyRow(true)}, css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: rows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && (rows().length > 0 ||  $root.isNested())">
+-      <div data-bind="click: function(){$data.addEmptyRow()}, css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
+     </div>
+   </div>
+ </script>
+@@ -769,6 +769,7 @@ ${ dashboard.import_bindings() }
+   function addActionDemiModalFieldCancel() {
+     viewModel.removeWidgetById(newAction.id());
+   }
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index fd2a80c..51396ba 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -256,16 +256,136 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.removeWidgetById = function (widget_id) {
+     $.each(self.columns(), function (i, col) {
++      self.deeplyRemoveWidgetById(widget_id, col, self)
++    });
++  }
++
++  self.deeplyRemoveWidgetById = function (widget_id, col, parent) {
++    if (col) {
+       $.each(col.rows(), function (j, row) {
+         $.each(row.widgets(), function (z, widget) {
+-          if (widget.id() == widget_id){
++          if (widget.id() == widget_id) {
+             row.widgets.remove(widget);
++            col.rows.remove(row);
+           }
+         });
++        $.each(row.columns(), function (i, icol) {
++          self.deeplyRemoveWidgetById(widget_id, icol, row);
++        });
+       });
+-    });
++      if (col.rows().length == 0) {
++        parent.columns.remove(col);
++        var _size = Math.max(1, Math.floor(12 / (parent.columns().length)));
++        parent.columns().forEach(function (icol) {
++          icol.size(_size);
++        });
++      }
++    }
+   }
+ 
++  self.getWidgetParentRow = function (widget_id) {
++    var _row = null;
++    for (var i = 0; i < self.columns().length; i++) {
++      _row = self.traverseColumnForWidget(widget_id, self.columns()[i]);
++      if (_row != null) {
++        break;
++      }
++    }
++    return _row;
++  }
++
++  self.getRowParentColumn = function (row_id) {
++    var _column = null;
++    for (var i = 0; i < self.columns().length; i++) {
++      _column = self.traverseColumnForColumn(row_id, self.columns()[i]);
++    }
++    return _column;
++  }
++
++  self.getColumnParentRow = function (col_id) {
++    var _row = null;
++    for (var i = 0; i < self.columns().length; i++) {
++      _row = self.traverseColumnForRow(col_id, self.columns()[i]);
++      if (_row != null) {
++        break;
++      }
++    }
++    return _row;
++  }
++
++  self.getRowParentRow = function (row_id) {
++    var _col = self.getRowParentColumn(row_id);
++    if (_col != null) {
++      return self.getColumnParentRow(_col.id());
++    }
++  }
++
++  self.traverseColumnForColumn = function (row_id, col) {
++    var _column = null;
++    if (col) {
++      for (var j = 0; j < col.rows().length; j++) {
++        var row = col.rows()[j];
++
++        if (row.id() == row_id) {
++          _column = col;
++          break;
++        }
++
++        for (var z = 0; z < row.columns().length; z++) {
++          _column = self.traverseColumnForColumn(row_id, row.columns()[z]);
++          if (_column != null) {
++            break;
++          }
++        }
++      }
++    }
++    return _column;
++  }
++
++  self.traverseColumnForRow = function (col_id, col) {
++    var _row = null;
++    if (col) {
++      for (var j = 0; j < col.rows().length; j++) {
++        var row = col.rows()[j];
++        for (var z = 0; z < row.columns().length; z++) {
++          var _col = row.columns()[z];
++          if (_col.id() == col_id) {
++            _row = row;
++          }
++          else {
++            _row = self.traverseColumnForRow(col_id, _col);
++          }
++          if (_row != null) {
++            break;
++          }
++        }
++      }
++    }
++    return _row;
++  }
++
++  self.traverseColumnForWidget = function (widget_id, col) {
++    var _row = null;
++    if (col) {
++      for (var j = 0; j < col.rows().length; j++) {
++        var row = col.rows()[j];
++        for (var z = 0; z < row.widgets().length; z++) {
++          var widget = row.widgets()[z];
++          if (widget.id() == widget_id) {
++            _row = row;
++            break;
++          }
++        }
++        for (var z = 0; z < row.columns().length; z++) {
++          _row = self.traverseColumnForWidget(widget_id, row.columns()[z]);
++          if (_row != null) {
++            break;
++          }
++        }
++      }
++    }
++    return _row;
++  }
+ 
+   self.save = function () {
+     $.post("/oozie/editor/workflow/save/", {        
+@@ -314,18 +434,6 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     });
+   };
+ 
+-  self.removeWidgetById = function (widget_id) {
+-    $.each(self.columns(), function (i, col) {
+-      $.each(col.rows(), function (j, row) {
+-        $.each(row.widgets(), function (z, widget) {
+-          if (widget.id() == widget_id){
+-            row.widgets.remove(widget);
+-          }
+-        });
+-      });
+-    });
+-  }  
+-    
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+       size: 12,
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index c5766e4..cdadc88 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -26,6 +26,7 @@ function UUID() {
+ 
+ var Column = function (size, rows) {
+   var self = this;
++  self.id = ko.observable(UUID());
+   self.size = ko.observable(size);
+   self.rows = ko.observableArray(rows);
+   self.oozieStartRow = ko.computed(function() {
+@@ -82,6 +83,7 @@ var Column = function (size, rows) {
+ 
+ var Row = function (widgets, vm, columns) {
+   var self = this;
++  self.id = ko.observable(UUID());
+   self.widgets = ko.observableArray(widgets);
+   self.columns = ko.observableArray(columns ? columns : []);
+ 
+-- 
+1.7.9.5
+

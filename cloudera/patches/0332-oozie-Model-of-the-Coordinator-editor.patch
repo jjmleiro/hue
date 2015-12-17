@@ -1,0 +1,449 @@
+From 9aebc7a503a388248502224ebca868f0c32b5db6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 11 Dec 2014 18:43:34 -0800
+Subject: [PATCH 0332/1173] [oozie] Model of the Coordinator editor
+
+---
+ apps/oozie/src/oozie/models2.py                    |   47 ++------
+ .../oozie/templates/editor/coordinator_editor.mako |  114 +++++++++++++++-----
+ apps/oozie/src/oozie/views/editor2.py              |    1 +
+ apps/oozie/static/js/coordinator-editor.ko.js      |   77 +++++++++++--
+ desktop/core/src/desktop/api2.py                   |   73 +++++++++++++
+ desktop/core/src/desktop/urls.py                   |    4 +
+ 6 files changed, 250 insertions(+), 66 deletions(-)
+ create mode 100644 desktop/core/src/desktop/api2.py
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 8cfeb0c..a4d4e19 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -21,6 +21,7 @@ import re
+ import time
+ import uuid
+ 
++from datetime import datetime, timedelta
+ from string import Template
+ 
+ from django.utils.encoding import force_unicode
+@@ -1203,6 +1204,16 @@ class Coordinator():
+               "uuid": None,
+               "name": "My Coordinator",
+               "properties": {
++                  "frequency_number": 1,
++                  "frequency_unit": "days",
++                  "cron_frequency": "0 0 * * *",
++                  "timezone": "America/Los_Angeles",
++                  "start": datetime.today().strftime('%s'),
++                  "end": (datetime.today() + timedelta(days=3)).strftime('%s'),
++                  "workflow": None,
++                  "concurrency": None,
++                  "execution": None,
++                  "throttle": None,
+                   "job_xml": "",
+                   "sla_enabled": False,
+                   "sla_workflow_enabled": False,
+@@ -1222,39 +1233,3 @@ class Coordinator():
+     _data = json.loads(self.data)
+ 
+     return _data
+-
+-
+-#frequency_number = models.SmallIntegerField(default=1, choices=FREQUENCY_NUMBERS, verbose_name=_t('Frequency number'),
+-#                                              help_text=_t('The number of units of the rate at which '
+-#                                                           'data is periodically created.')) # unused
+-#  frequency_unit = models.CharField(max_length=20, choices=FREQUENCY_UNITS, default='days', verbose_name=_t('Frequency unit'),
+-#                                    help_text=_t('The unit of the rate at which data is periodically created.')) # unused
+-#  timezone = models.CharField(max_length=24, choices=TIMEZONES, default='America/Los_Angeles', verbose_name=_t('Timezone'),
+-#                              help_text=_t('The timezone of the coordinator. Only used for managing the daylight saving time changes when combining several coordinators.'))
+-#  start = models.DateTimeField(default=datetime.today(), verbose_name=_t('Start'),
+-#                               help_text=_t('When to start the first workflow.'))
+-#  end = models.DateTimeField(default=datetime.today() + timedelta(days=3), verbose_name=_t('End'),
+-#                             help_text=_t('When to start the last workflow.'))
+-#  workflow = models.ForeignKey(Workflow, null=True, verbose_name=_t('Workflow'),
+-#                               help_text=_t('The workflow to schedule repeatedly.'))
+-#  timeout = models.SmallIntegerField(null=True, blank=True, verbose_name=_t('Timeout'),
+-#                                     help_text=_t('Number of minutes the coordinator action will be in '
+-#                                                  'WAITING or READY status before giving up on its execution.'))
+-#  concurrency = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_NUMBERS, verbose_name=_t('Concurrency'),
+-#                                 help_text=_t('The number of coordinator actions that are allowed to run concurrently (RUNNING status) '
+-#                                              'before the coordinator engine starts throttling them.'))
+-#  execution = models.CharField(max_length=10, null=True, blank=True, verbose_name=_t('Execution'),
+-#                               choices=(('FIFO', _t('FIFO (oldest first) default')),
+-#                                        ('LIFO', _t('LIFO (newest first)')),
+-#                                        ('LAST_ONLY', _t('LAST_ONLY (discards all older materializations)'))),
+-#                                 help_text=_t('Execution strategy of its coordinator actions when there is backlog of coordinator '
+-#                                              'actions in the coordinator engine. The different execution strategies are \'oldest first\', '
+-#                                              '\'newest first\' and \'last one only\'. A backlog normally happens because of delayed '
+-#                                              'input data, concurrency control or because manual re-runs of coordinator jobs.'))
+-#  throttle = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_NUMBERS, verbose_name=_t('Throttle'),
+-#                                 help_text=_t('The materialization or creation throttle value for its coordinator actions. '
+-#                                              'Number of maximum coordinator actions that are allowed to be in WAITING state concurrently.'))
+-#  job_properties = models.TextField(default='[]', verbose_name=_t('Workflow properties'),
+-#                                    help_text=_t('Additional properties to transmit to the workflow, e.g. limit=100, and EL functions, e.g. username=${coord:user()}'))
+-
+-
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 93717ca..4f33c0a 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -72,15 +72,96 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   <form class="form-search" style="margin: 0">
+     <strong>${_("Name")}</strong>
+     <input data-bind="value: $root.coordinator.name"/>
++    
++    &nbsp;&nbsp;&nbsp;
++    1
++    2
++    3
++    4
++    Scrollspy?
+   </form>
+ </div>
+ 
+ <div>
+-  <div class="span6">
+-    ss
++  <div>     
++    <h1>1 Which workflow to schedule?</h1> 
++
++    <select data-bind="options: workflows,
++                       optionsText: 'name',
++                       value: coordinator.properties.workflow,
++                       optionsCaption: 'Choose...'">
++    </select>
+   </div>
+-  <div class="span6">
+-    Datasets
++  
++  <div data-bind="visible: coordinator.properties.workflow">
++    <h1>2 How often?</h1>
++    
++    [hourly] [daily] [weekly] [monthly]
++    <input data-bind="value: coordinator.properties.cron_frequency"/>
++    
++  </div>
++  
++  <div data-bind="visible: coordinator.properties.workflow">
++    <h1>3 Workflow Parameters</h1>    
++
++    <ul data-bind="foreach: coordinator.variables">
++      <li>
++        <input data-bind="value: workflow_variable"/>
++		<div class="btn-group">
++		  <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
++		      <!-- ko if: dataset_type() == 'parameter' -->
++              ${ _('Parameter') }
++              <!-- /ko -->
++              <!-- ko if: dataset_type() == 'input_path' -->
++              ${ _('Input Path') }
++              <!-- /ko -->
++              <!-- ko if: dataset_type() == 'output_path' -->
++              ${ _('Output Path') }
++              <!-- /ko --> <span class="caret"></span>
++		  </button>
++		  <ul class="dropdown-menu" role="menu" data-bind="foreach: $parent.coordinator.variablesUI">
++		    <!-- ko if: $data != $parent.dataset_type() -->
++		    <li>
++		      <a href="#" data-bind="click: function() { $parent.dataset_type($data) } ">
++		      <!-- ko if: $data == 'parameter' -->
++		      ${ _('Parameter') }
++		      <!-- /ko -->
++              <!-- ko if: $data == 'input_path' -->
++              ${ _('Input Path') }
++              <!-- /ko -->
++              <!-- ko if: $data == 'output_path' -->
++              ${ _('Output Path') }
++              <!-- /ko -->
++		      </a>
++		    </li>
++		    <!-- /ko -->
++		  </ul>
++		</div>        
++        <input data-bind="value: dataset_variable"/>
++        
++        <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->
++          [hourly] [daily] [weekly] [monthly]
++          <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
++            <i class="fa fa-sliders"></i>
++          </a>
++          
++          <span data-bind="visible: show_advanced">            
++            Done flag <input data-bind="value: done_flag"/>
++            Range <input data-bind="value: range"/>
++            ...
++          </span>          
++        <!-- /ko -->
++                
++        <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }">
++          <i class="fa fa-minus"></i>
++        </a>
++      </li>
++    </ul>
++
++    <button data-bind="click: coordinator.addVariable">
++      <i class="fa fa-plus"></i>
++    </button>
++
+   </div>
+ </div>
+ 
+@@ -90,6 +171,10 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+     <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
+     <div style="float: left; margin-right: 30px; text-align: center; line-height: 28px">
+ 
++      ${ _('Throttle') }
++      <input data-bind="value: coordinator.properties.throttle"/>
++      <br/>
++
+       ${ _('Oozie Parameters') }
+       <ul data-bind="foreach: $root.coordinator.properties.parameters">
+         <li>
+@@ -104,25 +189,6 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <i class="fa fa-plus"></i>
+       </button>
+ 
+-	  <br/>
+-	  ${ _('Hadoop Properties') }
+-	  <ul data-bind="foreach: $root.coordinator.properties.properties">
+-	    <li>
+-	      <input data-bind="value: name"/>
+-	      <input data-bind="value: value"/>
+-	      <a href="#" data-bind="click: function(){ $root.coordinator.properties.properties.remove(this); }">
+-	        <i class="fa fa-minus"></i>
+-	      </a>
+-	    </li>
+-	  </ul>
+-	  <button data-bind="click: function(){ $root.coordinator.properties.properties.push({'name': '', 'value': ''}); }">
+-	    <i class="fa fa-plus"></i>
+-	  </button>
+-
+-      <br/>
+-      ${ _("Job XML") }
+-      <input data-bind="value: $root.coordinator.properties.job_xml"/>
+-
+       <br/>
+       <div class="control-group">
+         <label class="control-label">${ _('SLA Configuration') }</label>
+@@ -161,7 +227,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-  var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode });
++  var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode });
+   ko.applyBindings(viewModel);
+ 
+   function showAddActionDemiModal(widget) {
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 401f567..5416383 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -263,6 +263,7 @@ def edit_coordinator(request):
+   return render('editor/coordinator_editor.mako', request, {
+       'coordinator_json': json.dumps(coordinator_data['coordinator']),
+       'credentials_json': json.dumps(credentials.credentials.keys()),
++      'workflows_json': json.dumps(list(Document2.objects.filter(type='oozie-workflow2', owner=request.user).values('uuid', 'name')))
+   })
+ 
+ 
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 4945006..8ba6fcd 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -19,6 +19,35 @@
+ 
+ // End dashboard lib
+ 
++
++
++var Dataset = function (vm, dataset) {
++  var self = this;
++
++}
++
++
++var InputDataset = function (vm, input_dataset) {
++  var self = this;
++  
++  
++}
++
++
++var OutputDataset = function (vm, output_dataset) {
++  var self = this;
++  
++  
++}
++
++
++var Workflow = function (vm, workflow_json) {
++  var self = this;
++  
++  
++}
++
++
+ var Coordinator = function (vm, coordinator) {
+   var self = this;
+ 
+@@ -27,13 +56,48 @@ var Coordinator = function (vm, coordinator) {
+   self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "");
+ 
+   self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
+-  self.datasets = ko.observableArray([]);
+-  self.inputDatasets = ko.observableArray([]);
+-  self.outputDatasets = ko.observableArray([]);
++
++  self.variables = ko.observableArray([]);
++  self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
++
++  
++  self.properties.workflow.subscribe(function(newVal) {
++    if (newVal) {
++	  $.get("/desktop/api2/doc/get", {
++		  "uuid":  self.properties.workflow().uuid()
++	   }, function (data) {
++	     // set wf
++	  }).fail(function (xhr, textStatus, errorThrown) {
++	     $(document).trigger("error", xhr.responseText);
++	  });
++	}
++  });
++  
++  self.addVariable = function() {
++    var _var = {
++       'workflow_variable': '',
++       'dataset_type': 'parameter',
++       'dataset_variable': '',
++       'show_advanced': false,
++       
++       'done_flag': '',
++       'timzone': 'America/Los_Angeles',
++       'range': 'single',
++       'frequency_number': 1,
++       'frequency_unit': 'DAYS',
++       'start': null,
++       'name': '',
++    };
++	self.variables.push(ko.mapping.fromJS(_var));	  
++  };
++  
++  self.init = function() {
++    // load
++  };
+ }
+ 
+ 
+-var CoordinatorEditorViewModel = function (coordinator_json, credentials_json) {
++var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, workflows_json) {
+   var self = this;
+ 
+   self.isEditing = ko.observable(true);
+@@ -45,8 +109,9 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json) {
+   };
+ 
+   self.coordinator = new Coordinator(self, coordinator_json);
+-  self.credentials = ko.mapping.fromJSON(credentials_json);
+-
++  self.credentials = ko.mapping.fromJS(credentials_json);
++  self.workflows = ko.mapping.fromJS(workflows_json);
++  
+   self.save = function () {
+     $.post("/oozie/editor/coodinator/save/", {
+         "coordinator": ko.mapping.toJSON(self.coordinator)
+diff --git a/desktop/core/src/desktop/api2.py b/desktop/core/src/desktop/api2.py
+new file mode 100644
+index 0000000..6b7e8da
+--- /dev/null
++++ b/desktop/core/src/desktop/api2.py
+@@ -0,0 +1,73 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import itertools
++import logging
++import json
++import time
++
++from collections import defaultdict
++
++from django.http import HttpResponse
++from django.core.urlresolvers import reverse
++
++from django.utils import html
++from django.utils.translation import ugettext as _
++
++from desktop.lib.i18n import force_unicode
++from desktop.models import Document2, DocumentTag
++
++
++LOG = logging.getLogger(__name__)
++
++
++def get_document(request):
++  if request.GET.get('id'):
++    doc = Document2.objects.get(id=request.GET['id'])
++  else:
++    doc = Document2.objects.get(uuid=request.GET['uuid'])
++
++  response = _massage_doc_for_json(doc, request.user, with_data=request.GET.get('with_data'))
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def _massage_doc_for_json(document, user, with_data=False):
++
++  massaged_doc = {
++    'id': document.id,
++    'uuid': document.uuid,
++    
++    'owner': document.owner.username,
++    'type': html.conditional_escape(document.type),    
++    'name': html.conditional_escape(document.name),
++    'description': html.conditional_escape(document.description),    
++
++    'isMine': document.owner == user,
++    'lastModified': document.last_modified.strftime("%x %X"),
++    'lastModifiedInMillis': time.mktime(document.last_modified.timetuple()),
++    'version': document.version,
++    'is_history': document.is_history,
++    
++    # tags
++    # dependencies
++  }
++  
++  if with_data:
++    massaged_doc['data'] = document.data_dict
++
++  return massaged_doc
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index 3aa292d..b3e4c8f 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -90,6 +90,10 @@ dynamic_patterns += patterns('desktop.api',
+   (r'^desktop/api/doc/update_permissions', 'update_permissions'),
+ )
+ 
++dynamic_patterns += patterns('desktop.api2',
++  (r'^desktop/api2/doc/get$', 'get_document'),
++)
++
+ dynamic_patterns += patterns('useradmin.views',
+   (r'^desktop/api/users/autocomplete', 'list_for_autocomplete'),
+ )
+-- 
+1.7.9.5
+

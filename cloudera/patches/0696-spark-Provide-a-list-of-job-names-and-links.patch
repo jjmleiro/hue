@@ -1,0 +1,65 @@
+From fc8ce49e32eeeeca1ce81c9f1b35858ed20d4eb2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 28 Jan 2015 08:39:24 +0800
+Subject: [PATCH 0696/1173] [spark] Provide a list of job names and links
+
+---
+ apps/spark/src/spark/api.py    |    5 +++++
+ apps/spark/src/spark/models.py |    7 ++++++-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 95281dc..110bfee 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -19,6 +19,7 @@ import json
+ import logging
+ 
+ from django.http import HttpResponse
++from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
+@@ -122,6 +123,10 @@ def get_logs(request):
+   db = get_api(request.user, snippet)
+   response['logs'] = db.get_log(snippet)
+   response['progress'] = db._progress(snippet, response['logs']) if snippet['status'] != 'available' else 100
++  response['job_urls'] = [{
++      'name': job,
++      'url': reverse('jobbrowser.views.single_job', kwargs={'job': job})
++    } for job in db._get_jobs(response['logs'])]
+   response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index da28277..a1e8679 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -28,7 +28,7 @@ from beeswax import conf as beeswax_conf
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory, HiveServerQueryHistory
+ from beeswax.server import dbms
+ from beeswax.server.dbms import get_query_server_config, QueryServerException
+-from beeswax.views import safe_get_design, save_design
++from beeswax.views import safe_get_design, save_design, _parse_out_hadoop_jobs
+ 
+ from spark.job_server_api import get_api as get_spark_api
+ 
+@@ -257,6 +257,9 @@ class HS2Api():
+     else:
+       return {'status': 'skipped'}
+ 
++  def _get_jobs(self, log):
++    return _parse_out_hadoop_jobs(log)
++
+ 
+ # Spark
+ 
+@@ -343,3 +346,5 @@ class SparkApi():
+   def close(self, snippet):
+     pass
+ 
++  def _get_jobs(self, log):
++    return []
+-- 
+1.7.9.5
+

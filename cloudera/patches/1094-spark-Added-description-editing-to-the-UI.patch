@@ -1,0 +1,44 @@
+From f778a5adf2c0e25d48cb71f81f94ae99a77f2919 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 16 Mar 2015 13:58:06 -0500
+Subject: [PATCH 1094/1173] [spark] Added description editing to the UI
+
+---
+ apps/spark/src/spark/templates/editor.mako |   14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 7702e9d..9459919 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -155,7 +155,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   </div>
+ 
+ 
+-  <ul class="nav nav-tabs">
++  <ul class="nav nav-tabs pull-left">
+     <!-- ko foreach: notebooks -->
+       <li data-bind="css: { active: $parent.selectedNotebook() === $data }">
+         <a href="javascript:void(0)"><span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span></a>
+@@ -165,6 +165,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       ## <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
+     </li>
+   </ul>
++
++  <div class="pull-left" style="padding: 9px">
++    <!-- ko foreach: notebooks -->
++      <!-- ko if: $root.isEditing() -->
++        <span data-bind="editable: description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_('Add a description...')}'}" class="muted"></span>
++      <!-- /ko  -->
++      <!-- ko ifnot: $root.isEditing() -->
++        <span data-bind="text: description" class="muted"></span>
++      <!-- /ko  -->
++    <!-- /ko -->
++  </div>
++
+ </div>
+ 
+ 
+-- 
+1.7.9.5
+

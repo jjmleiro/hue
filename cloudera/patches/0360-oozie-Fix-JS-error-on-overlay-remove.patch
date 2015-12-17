@@ -1,0 +1,27 @@
+From 2792721e83bbbae0e741d7ff62dc1433dd667a4d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 29 Dec 2014 12:09:15 +0100
+Subject: [PATCH 0360/1173] [oozie] Fix JS error on overlay remove
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 0620cf5..fcefabd 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1628,7 +1628,9 @@ ${ dashboard.import_bindings() }
+   function addActionDemiModalFieldCancel() {
+     $("#exposeOverlay").fadeOut(300);
+     $("#addActionDemiModal").modal("hide");
+-    viewModel.removeWidgetById(viewModel.newAction().id());
++    if (viewModel.newAction()){
++      viewModel.removeWidgetById(viewModel.newAction().id());
++    }
+     viewModel.newAction(null);
+   }
+ 
+-- 
+1.7.9.5
+

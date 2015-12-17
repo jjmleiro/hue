@@ -1,0 +1,225 @@
+From 4e7518b4aa83cf013d1d05872de2aa553332a16f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 13 Mar 2015 14:11:18 -0700
+Subject: [PATCH 1068/1173] [livy] Relocate jetty so it does not conflict with
+ spark's jetty
+
+---
+ apps/spark/java/livy-core/pom.xml                  |   31 +++++++-
+ .../scala/com/cloudera/hue/livy/WebServer.scala    |    5 +-
+ apps/spark/java/livy-server/pom.xml                |   21 +++++
+ apps/spark/java/pom.xml                            |   80 +++++++++++++++++++-
+ 4 files changed, 130 insertions(+), 7 deletions(-)
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index 67a5e07..c2a8890 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -25,14 +25,41 @@
+             <artifactId>logback-access</artifactId>
+         </dependency>
+ 
++        <!-- promoted to compile so they are included in the assembly. -->
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-http</artifactId>
++            <scope>compile</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-continuation</artifactId>
++            <scope>compile</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-servlet</artifactId>
++            <scope>compile</scope>
++        </dependency>
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+             <artifactId>jetty-server</artifactId>
++            <scope>compile</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-util</artifactId>
++            <scope>compile</scope>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-plus</artifactId>
++            <scope>compile</scope>
+         </dependency>
+-
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-webapp</artifactId>
++            <artifactId>jetty-security</artifactId>
++            <scope>compile</scope>
+         </dependency>
+ 
+         <dependency>
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+index 8cdcdd1..c9452a6 100644
+--- a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+@@ -6,8 +6,7 @@ import javax.servlet.ServletContextListener
+ import ch.qos.logback.access.jetty.RequestLogImpl
+ import org.eclipse.jetty.server.Server
+ import org.eclipse.jetty.server.handler.{HandlerCollection, RequestLogHandler}
+-import org.eclipse.jetty.servlet.DefaultServlet
+-import org.eclipse.jetty.webapp.WebAppContext
++import org.eclipse.jetty.servlet.{ServletContextHandler, DefaultServlet}
+ import org.scalatra.servlet.AsyncSupport
+ 
+ import scala.concurrent.ExecutionContext
+@@ -19,7 +18,7 @@ class WebServer(var host: String, var port: Int) extends Logging {
+   server.setGracefulShutdown(1000)
+   server.setStopAtShutdown(true)
+ 
+-  val context = new WebAppContext()
++  val context = new ServletContextHandler()
+ 
+   context.setContextPath("/")
+ 
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index 268be42..a7ba006 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -51,6 +51,27 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-servlet</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-server</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-plus</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-util</artifactId>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-http</artifactId>
++        </dependency>
++
++        <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s-jackson_${scala.binary.version}</artifactId>
+         </dependency>
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 385a454..4d3b365 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -81,16 +81,48 @@
+                 <version>${logback.version}</version>
+             </dependency>
+ 
++            <!-- These will be stored in the assembly -->
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-http</artifactId>
++                <version>${jetty.version}</version>
++                <scope>provided</scope>
++            </dependency>
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-continuation</artifactId>
++                <version>${jetty.version}</version>
++                <scope>provided</scope>
++            </dependency>
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-servlet</artifactId>
++                <version>${jetty.version}</version>
++                <scope>provided</scope>
++            </dependency>
+             <dependency>
+                 <groupId>org.eclipse.jetty</groupId>
+                 <artifactId>jetty-server</artifactId>
+                 <version>${jetty.version}</version>
++                <scope>provided</scope>
++            </dependency>
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-util</artifactId>
++                <version>${jetty.version}</version>
++                <scope>provided</scope>
+             </dependency>
+-
+             <dependency>
+                 <groupId>org.eclipse.jetty</groupId>
+-                <artifactId>jetty-webapp</artifactId>
++                <artifactId>jetty-plus</artifactId>
+                 <version>${jetty.version}</version>
++                <scope>provided</scope>
++            </dependency>
++            <dependency>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-security</artifactId>
++                <version>${jetty.version}</version>
++                <scope>provided</scope>
+             </dependency>
+ 
+             <dependency>
+@@ -366,6 +398,50 @@
+                 <artifactId>scala-maven-plugin</artifactId>
+             </plugin>
+ 
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>2.2</version>
++                <configuration>
++                    <shadedArtifactAttached>false</shadedArtifactAttached>
++                    <artifactSet>
++                        <includes>
++                            <include>com.cloudera.hue:unused</include>
++                            <include>org.eclipse.jetty:jetty-http</include>
++                            <include>org.eclipse.jetty:jetty-io</include>
++                            <include>org.eclipse.jetty:jetty-continuation</include>
++                            <include>org.eclipse.jetty:jetty-servlet</include>
++                            <include>org.eclipse.jetty:jetty-plus</include>
++                            <include>org.eclipse.jetty:jetty-security</include>
++                            <include>org.eclipse.jetty:jetty-util</include>
++                            <include>org.eclipse.jetty:jetty-server</include>
++                            <include>com.google.guava:guava</include>
++                        </includes>
++                    </artifactSet>
++                    <relocations>
++                        <relocation>
++                            <pattern>org.eclipse.jetty</pattern>
++                            <shadedPattern>com.cloudera.hue.jetty</shadedPattern>
++                            <excludes>
++                                <exclude>com/google/common/base/Absent*</exclude>
++                                <exclude>com/google/common/base/Function*</exclude>
++                                <exclude>com/google/common/base/Optional*</exclude>
++                                <exclude>com/google/common/base/Present*</exclude>
++                                <exclude>com/google/common/base/Supplier</exclude>
++                            </excludes>
++                        </relocation>
++                    </relocations>
++                </configuration>
++                <executions>
++                    <execution>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>shade</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++
+         </plugins>
+ 
+     </build>
+-- 
+1.7.9.5
+

@@ -1,0 +1,57 @@
+From a766c0d47c6405813fc8e1f50d60e5b7a7700457 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 7 Nov 2014 11:39:13 +0000
+Subject: [PATCH 0268/1173] [oozie] Add a node on top of node in a Fork
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4a63294..ea2e8df 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -264,14 +264,21 @@ var Workflow = function (vm, workflow) {
+ 	        // Link to end
+ 	        node.set_link('to', '33430f0f-ebfa-c3ec-f237-3e77efa03d0a');
+ 	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
++          } if (parentWidget.widgetType() == 'fork-widget') {
++            var child = vm.getWidgetSuccessor(node.id());
++            parent.remove_link('to', child.id());            
++            parent.children.push({'to': node.id()});
++
++  	        node.set_link('to', child.id());
++  	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+           } else {
+-            // Parent regular node        	
++            // Parent is regular node        	
+   	        node.set_link('to', parent.get_link('to')['to']);
+   	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+   	
+   	        parent.set_link('to', node.id());        	
+           }
+-    	  // Parent fork/decision/join...
++    	  // Todo decision/join
+         }
+ 
+         vm.currentlyCreatingFork = false;
+@@ -289,7 +296,7 @@ var Workflow = function (vm, workflow) {
+ 	
+     var parentWidget = vm.getWidgetPredecessor(node_id); // Use smarter self.getParents if action node with multi parents
+     var parent = self.getNodeById(parentWidget.id());
+-
++    
+     var childLink = node.get_link('to');
+     var childId = ko.mapping.toJS(childLink)['to'];
+     
+@@ -301,6 +308,7 @@ var Workflow = function (vm, workflow) {
+     if (parentWidget.widgetType() == 'fork-widget') {
+       var fork = parent;
+       var join = self.getNodeById(childId);
++
+       if (join.type() == 'join-widget') {
+     	if (fork.children().length == 2) {
+           // Link top to above and delete fork
+-- 
+1.7.9.5
+

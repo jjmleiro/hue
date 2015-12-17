@@ -1,0 +1,109 @@
+From 166c3075147c17df5b2937c5d00580ddbc563261 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 8 Oct 2014 16:32:15 -0700
+Subject: [PATCH 0014/1173] [indexer] Remove reference to SOLR_HOME
+
+---
+ desktop/conf.dist/hue.ini                      |    6 ------
+ desktop/conf/pseudo-distributed.ini.tmpl       |    6 ------
+ desktop/libs/indexer/src/indexer/conf.py       |    6 ------
+ desktop/libs/indexer/src/indexer/controller.py |    5 +----
+ 4 files changed, 1 insertion(+), 22 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 4eb29db..4015ef1 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -871,15 +871,9 @@
+   # Location of the solrctl binary.
+   ## solrctl_path=/usr/bin/solrctl
+ 
+-  # Location of the solr home.
+-  ## solr_home=/usr/lib/solr
+-
+   # Zookeeper ensemble.
+   ## solr_zk_ensemble=localhost:2181/solr
+ 
+-  # The contents of this directory will be copied over to the solrctl host to its temporary directory.
+-  ## config_template_path=/../hue/desktop/libs/indexer/src/data/solr_configs
+-
+ 
+ ###########################################################################
+ # Settings to configure Job Designer
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 8c2e0ad..2887f12 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -878,15 +878,9 @@
+   # Location of the solrctl binary.
+   ## solrctl_path=/usr/bin/solrctl
+ 
+-  # Location of the solr home.
+-  ## solr_home=/usr/lib/solr
+-
+   # Zookeeper ensemble.
+   ## solr_zk_ensemble=localhost:2181/solr
+ 
+-  # The contents of this directory will be copied over to the solrctl host to its temporary directory.
+-  ## config_template_path=/../hue/desktop/libs/indexer/src/data/solr_configs
+-
+ 
+ ###########################################################################
+ # Settings to configure Job Designer
+diff --git a/desktop/libs/indexer/src/indexer/conf.py b/desktop/libs/indexer/src/indexer/conf.py
+index 938e270..9723998 100644
+--- a/desktop/libs/indexer/src/indexer/conf.py
++++ b/desktop/libs/indexer/src/indexer/conf.py
+@@ -78,12 +78,6 @@ SOLRCTL_PATH = Config(
+   type=str,
+   dynamic_default=solrctl)
+ 
+-SOLR_HOME = Config(
+-  key="solr_home",
+-  help=_t("Location of the solr home."),
+-  type=str,
+-  default="/usr/lib/solr")
+-
+ SOLR_ZK_ENSEMBLE  = Config(
+   key="solr_zk_ensemble",
+   help=_t("Zookeeper ensemble."),
+diff --git a/desktop/libs/indexer/src/indexer/controller.py b/desktop/libs/indexer/src/indexer/controller.py
+index 572843e..4871da4 100644
+--- a/desktop/libs/indexer/src/indexer/controller.py
++++ b/desktop/libs/indexer/src/indexer/controller.py
+@@ -116,7 +116,6 @@ class CollectionManagerController(object):
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  env={
+-                                   'SOLR_HOME': conf.SOLR_HOME.get(),
+                                    'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
+                                  })
+       status = process.wait()
+@@ -127,7 +126,7 @@ class CollectionManagerController(object):
+       if status != 0:
+         LOG.error("Could not create instance directory.\nOutput: %s\nError: %s" % process.communicate())
+         raise PopupException(_('Could not create instance directory. '
+-                               'Check if [indexer] solr_zk_ensemble is correct in Hue config and look at the Solr error logs for more info.'))
++                               'Check if solr_zk_ensemble and solrctl_path are correct in Hue config [indexer].'))
+ 
+       api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
+       if not api.create_collection(name):
+@@ -136,7 +135,6 @@ class CollectionManagerController(object):
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    env={
+-                                     'SOLR_HOME': conf.SOLR_HOME.get(),
+                                      'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
+                                    })
+         if process.wait() != 0:
+@@ -172,7 +170,6 @@ class CollectionManagerController(object):
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    env={
+-                                     'SOLR_HOME': conf.SOLR_HOME.get(),
+                                      'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
+                                    })
+         if process.wait() != 0:
+-- 
+1.7.9.5
+

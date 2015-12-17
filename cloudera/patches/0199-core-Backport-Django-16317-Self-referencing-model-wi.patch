@@ -1,0 +1,33 @@
+From cb809d54bd51f947084e581ef189d13913ff7dd6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 10 Oct 2014 13:52:06 -0700
+Subject: [PATCH 0199/1173] [core] Backport Django #16317 Self-referencing
+ model with natural key
+
+Getting error: dumpdata can't resolve dependencies
+https://code.djangoproject.com/ticket/16317
+---
+ .../django/core/management/commands/dumpdata.py    |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/ext-py/Django-1.4.5/django/core/management/commands/dumpdata.py b/desktop/core/ext-py/Django-1.4.5/django/core/management/commands/dumpdata.py
+index 1622929..2e14451 100644
+--- a/desktop/core/ext-py/Django-1.4.5/django/core/management/commands/dumpdata.py
++++ b/desktop/core/ext-py/Django-1.4.5/django/core/management/commands/dumpdata.py
+@@ -146,11 +146,11 @@ def sort_dependencies(app_list):
+             for field in model._meta.fields:
+                 if hasattr(field.rel, 'to'):
+                     rel_model = field.rel.to
+-                    if hasattr(rel_model, 'natural_key'):
++                    if hasattr(rel_model, 'natural_key') and rel_model != model:
+                         deps.append(rel_model)
+             for field in model._meta.many_to_many:
+                 rel_model = field.rel.to
+-                if hasattr(rel_model, 'natural_key'):
++                if hasattr(rel_model, 'natural_key') and rel_model != model:
+                     deps.append(rel_model)
+             model_dependencies.append((model, deps))
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,32 @@
+From 097edc630e68180dcd2804dfc45462597073fbd7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 6 Mar 2015 18:10:01 -0800
+Subject: [PATCH 1004/1173] [sentry] Do not error out when the group does not
+ exist in Sentry
+
+There is no error code to detect this, just looking for the error
+in the exception.
+---
+ apps/security/src/security/api/hive.py |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/security/src/security/api/hive.py b/apps/security/src/security/api/hive.py
+index 620987b..7f75b20 100644
+--- a/apps/security/src/security/api/hive.py
++++ b/apps/security/src/security/api/hive.py
+@@ -63,7 +63,11 @@ def list_sentry_roles_by_group(request):
+     result['message'] = ''
+     result['status'] = 0
+   except Exception, e:
+-    result['message'] = unicode(str(e), "utf8")
++    if "couldn't be retrieved." in str(e):
++      result['roles'] = []
++      result['status'] = 0
++    else:
++      result['message'] = unicode(str(e), "utf8")
+ 
+   return JsonResponse(result)
+ 
+-- 
+1.7.9.5
+

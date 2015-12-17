@@ -19,13 +19,12 @@ import json
 import logging
 
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse
 from django.utils.encoding import smart_str, force_unicode
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
 from django.shortcuts import redirect
 
-from desktop.lib.django_util import render
+from desktop.lib.django_util import JsonResponse, render
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.rest.http_client import RestException
 
@@ -35,10 +34,9 @@ from indexer.management.commands import indexer_setup
 from search.api import _guess_gap, _zoom_range_facet, _new_range_facet
 from search.conf import SOLR_URL
 from search.data_export import download as export_download
-from search.decorators import allow_admin_only
+from search.decorators import allow_owner_only, allow_viewer_only
 from search.management.commands import search_setup
-from search.models import Collection, augment_solr_response, augment_solr_exception,\
-  pairwise2
+from search.models import Collection, augment_solr_response, augment_solr_exception, pairwise2
 from search.search_controller import SearchController
 
 
@@ -50,15 +48,12 @@ def index(request):
   collection_id = request.GET.get('collection')
 
   if not hue_collections or not collection_id:
-    if request.user.is_superuser:
-      return admin_collections(request, True)
-    else:
-      return no_collections(request)
+    return admin_collections(request, True)
 
   try:
-    collection = Collection.objects.get(id=collection_id) # TODO perms HUE-1987
+    collection = hue_collections.get(id=collection_id)
   except Exception, e:
-    raise PopupException(e, title=_('Error while accessing the collection'))
+    raise PopupException(e, title=_("Dashboard does not exist or you don't have the permission to access it."))
 
   query = {'qs': [{'q': ''}], 'fqs': [], 'start': 0}
 
@@ -66,10 +61,10 @@ def index(request):
     'collection': collection,
     'query': query,
     'initial': json.dumps({'collections': [], 'layout': []}),
+    'is_owner': request.user == collection.owner
   })
 
 
-@allow_admin_only
 def new_search(request):
   collections = SearchController(request.user).get_all_indexes()
   if not collections:
@@ -86,11 +81,15 @@ def new_search(request):
          'layout': [
               {"size":2,"rows":[{"widgets":[]}],"drops":["temp"],"klass":"card card-home card-column span2"},
               {"size":10,"rows":[{"widgets":[
-                  {"size":12,"name":"Grid Results","id":"52f07188-f30f-1296-2450-f77e02e1a5c0","widgetType":"resultset-widget",
+                  {"size":12,"name":"Filter Bar","widgetType":"filter-widget",
+                   "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]},
+                                 {"widgets":[
+                  {"size":12,"name":"Grid Results","widgetType":"resultset-widget",
                    "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]}],
-              "drops":["temp"],"klass":"card card-home card-column span10"}
+                 "drops":["temp"],"klass":"card card-home card-column span10"},
          ]
      }),
+    'is_owner': True
   })
 
 
@@ -115,19 +114,17 @@ def browse(request, name):
               "drops":["temp"],"klass":"card card-home card-column span10"}
          ]
      }),
+     'is_owner': True
   })
 
 
+@allow_viewer_only
 def search(request):
   response = {}
 
   collection = json.loads(request.POST.get('collection', '{}'))
   query = json.loads(request.POST.get('query', '{}'))
   query['download'] = 'download' in request.POST
-  # todo: remove the selected histo facet if multiq
-
-  if collection['id']:
-    hue_collection = Collection.objects.get(id=collection['id']) # TODO perms
 
   if collection:
     try:
@@ -148,14 +145,14 @@ def search(request):
   if 'error' in response:
     augment_solr_exception(response, collection)
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
-@allow_admin_only
+@allow_owner_only
 def save(request):
   response = {'status': -1}
 
-  collection = json.loads(request.POST.get('collection', '{}')) # TODO perms
+  collection = json.loads(request.POST.get('collection', '{}'))
   layout = json.loads(request.POST.get('layout', '{}'))
 
   collection['template']['extracode'] = escape(collection['template']['extracode'])
@@ -164,7 +161,7 @@ def save(request):
     if collection['id']:
       hue_collection = Collection.objects.get(id=collection['id'])
     else:
-      hue_collection = Collection.objects.create2(name=collection['name'], label=collection['label'])
+      hue_collection = Collection.objects.create2(name=collection['name'], label=collection['label'], owner=request.user)
     hue_collection.update_properties({'collection': collection})
     hue_collection.update_properties({'layout': layout})
     hue_collection.name = collection['name']
@@ -177,18 +174,18 @@ def save(request):
   else:
     response['message'] = _('There is no collection to search.')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
+@allow_viewer_only
 def download(request):
   try:
     file_format = 'csv' if 'csv' in request.POST else 'xls' if 'xls' in request.POST else 'json'
     response = search(request)
 
     if file_format == 'json':
-      mimetype = 'application/json'
-      json_docs = json.dumps(json.loads(response.content)['response']['docs'])
-      resp = HttpResponse(json_docs, mimetype=mimetype)
+      docs = json.loads(response.content)['response']['docs']
+      resp = JsonResponse(docs, safe=False)
       resp['Content-Disposition'] = 'attachment; filename=%s.%s' % ('query_result', file_format)
       return resp
     else:
@@ -202,9 +199,8 @@ def no_collections(request):
   return render('no_collections.mako', request, {})
 
 
-@allow_admin_only
 def admin_collections(request, is_redirect=False):
-  existing_hue_collections = Collection.objects.all()
+  existing_hue_collections = SearchController(request.user).get_search_collections()
 
   if request.GET.get('format') == 'json':
     collections = []
@@ -215,10 +211,12 @@ def admin_collections(request, is_redirect=False):
         'label': collection.label,
         'enabled': collection.enabled,
         'isCoreOnly': collection.is_core_only,
-        'absoluteUrl': collection.get_absolute_url()
+        'absoluteUrl': collection.get_absolute_url(),
+        'owner': collection.owner and collection.owner.username,
+        'isOwner': collection.owner == request.user or request.user.is_superuser
       }
       collections.append(massaged_collection)
-    return HttpResponse(json.dumps(collections), mimetype="application/json")
+    return JsonResponse(collections, safe=False)
 
   return render('admin_collections.mako', request, {
     'existing_hue_collections': existing_hue_collections,
@@ -226,7 +224,6 @@ def admin_collections(request, is_redirect=False):
   })
 
 
-@allow_admin_only
 def admin_collection_delete(request):
   if request.method != 'POST':
     raise PopupException(_('POST request required.'))
@@ -237,10 +234,10 @@ def admin_collection_delete(request):
     'result': searcher.delete_collections([collection['id'] for collection in collections])
   }
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
-@allow_admin_only
+@allow_owner_only
 def admin_collection_copy(request):
   if request.method != 'POST':
     raise PopupException(_('POST request required.'))
@@ -251,7 +248,7 @@ def admin_collection_copy(request):
     'result': searcher.copy_collections([collection['id'] for collection in collections])
   }
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def query_suggest(request, collection_id, query=""):
@@ -269,7 +266,7 @@ def query_suggest(request, collection_id, query=""):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
 def index_fields_dynamic(request):
@@ -277,7 +274,6 @@ def index_fields_dynamic(request):
 
   try:
     name = request.POST['name']
-
     hue_collection = Collection(name=name, label=name)
 
     dynamic_fields = SolrApi(SOLR_URL.get(), request.user).luke(hue_collection.name)
@@ -291,9 +287,10 @@ def index_fields_dynamic(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
+@allow_viewer_only
 def get_document(request):
   result = {'status': -1, 'message': 'Error'}
 
@@ -316,9 +313,10 @@ def get_document(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
+@allow_viewer_only
 def get_stats(request):
   result = {'status': -1, 'message': 'Error'}
 
@@ -340,9 +338,10 @@ def get_stats(request):
       result['status'] = 1
       result['message'] = _('This field does not support stats')
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
+@allow_viewer_only
 def get_terms(request):
   result = {'status': -1, 'message': 'Error'}
 
@@ -371,9 +370,10 @@ def get_terms(request):
       result['status'] = 1
       result['message'] = _('This field does not support stats')
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
+@allow_viewer_only
 def get_timeline(request):
   result = {'status': -1, 'message': 'Error'}
 
@@ -417,14 +417,15 @@ def get_timeline(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
+@allow_viewer_only
 def new_facet(request):
   result = {'status': -1, 'message': 'Error'}
 
   try:
-    collection = json.loads(request.POST.get('collection', '{}')) # Perms
+    collection = json.loads(request.POST.get('collection', '{}'))
 
     facet_id = request.POST['id']
     facet_label = request.POST['label']
@@ -437,7 +438,7 @@ def new_facet(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
 def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_type):
@@ -447,11 +448,10 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
     'stacked': False,
     'limit': 10,
     'mincount': 0,
-    'isDate': False,
-    'andUp': False,  # Not used yet
+    'isDate': False
   }
 
-  if widget_type in ('tree-widget', 'heatmap-widget'):
+  if widget_type in ('tree-widget', 'heatmap-widget', 'map-widget'):
     facet_type = 'pivot'
   else:
     solr_api = SolrApi(SOLR_URL.get(), user)
@@ -460,20 +460,24 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
     if range_properties:
       facet_type = 'range'
       properties.update(range_properties)
+      properties['initial_gap'] = properties['gap']
+      properties['initial_start'] = properties['start']
+      properties['initial_end'] = properties['end']
     elif widget_type == 'hit-widget':
       facet_type = 'query'
     else:
       facet_type = 'field'
 
-  if widget_type == 'map-widget':
-    properties['scope'] = 'world'
-    properties['mincount'] = 1
-    properties['limit'] = 100
-  elif widget_type in ('tree-widget', 'heatmap-widget'):
+  if widget_type in ('tree-widget', 'heatmap-widget', 'map-widget'):
     properties['mincount'] = 1
     properties['facets'] = []
     properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
-    properties['scope'] = 'stack' if widget_type == 'heatmap-widget' else 'tree'
+
+    if widget_type == 'map-widget':
+      properties['scope'] = 'world'
+      properties['limit'] = 100
+    else:
+      properties['scope'] = 'stack' if widget_type == 'heatmap-widget' else 'tree'
 
   return {
     'id': facet_id,
@@ -484,11 +488,13 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
     'properties': properties
   }
 
+
+@allow_viewer_only
 def get_range_facet(request):
   result = {'status': -1, 'message': ''}
 
   try:
-    collection = json.loads(request.POST.get('collection', '{}')) # Perms
+    collection = json.loads(request.POST.get('collection', '{}'))
     facet = json.loads(request.POST.get('facet', '{}'))
     action = request.POST.get('action', 'select')
 
@@ -497,7 +503,7 @@ def get_range_facet(request):
     if action == 'select':
       properties = _guess_gap(solr_api, collection, facet, facet['properties']['start'], facet['properties']['end'])
     else:
-      properties = _zoom_range_facet(solr_api, collection, facet)
+      properties = _zoom_range_facet(solr_api, collection, facet) # Zoom out
 
     result['properties'] = properties
     result['status'] = 0
@@ -505,7 +511,7 @@ def get_range_facet(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
 def get_collection(request):
@@ -523,14 +529,15 @@ def get_collection(request):
   except Exception, e:
     result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
 def get_collections(request):
   result = {'status': -1, 'message': ''}
 
   try:
-    result['collection'] = SearchController(request.user).get_all_indexes()
+    show_all = json.loads(request.POST.get('show_all'))
+    result['collection'] = SearchController(request.user).get_all_indexes(show_all=show_all)
     result['status'] = 0
 
   except Exception, e:
@@ -540,11 +547,14 @@ def get_collections(request):
     else:
       result['message'] = unicode(str(e), "utf8")
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 
 def install_examples(request):
   result = {'status': -1, 'message': ''}
+
+  if not request.user.is_superuser:
+    return PopupException(_("You must be a superuser."))
 
   if request.method != 'POST':
     result['message'] = _('A POST request is required.')
@@ -557,4 +567,4 @@ def install_examples(request):
       LOG.exception(e)
       result['message'] = str(e)
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)

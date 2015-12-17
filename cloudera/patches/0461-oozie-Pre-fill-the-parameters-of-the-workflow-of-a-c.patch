@@ -1,0 +1,191 @@
+From 85e3ee93a5466499e901111a7dbc1616031b9f5f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 16 Jan 2015 16:55:30 -0800
+Subject: [PATCH 0461/1173] [oozie] Pre-fill the parameters of the workflow of
+ a coordinator with its variables
+
+---
+ apps/oozie/src/oozie/models2.py                    |   14 +++++----
+ .../oozie/templates/editor/coordinator_editor.mako |   31 +++++++++++++++-----
+ apps/oozie/src/oozie/views/editor2.py              |    2 ++
+ apps/oozie/static/js/coordinator-editor.ko.js      |   12 ++++++--
+ 4 files changed, 44 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 325bd67..db66d7e 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1413,10 +1413,11 @@ class Coordinator(Job):
+   def name(self):
+     return self.data['name']
+ 
++  def set_workspace(self, user):
++    self.data['properties']['deployment_dir'] = Job.get_workspace(user)
++
+   @property      
+-  def deployment_dir(self):
+-    if not self.data['properties'].get('deployment_dir'):
+-      self.data['properties']['deployment_dir'] = Job.get_workspace(user)    
++  def deployment_dir(self):    
+     return self.data['properties']['deployment_dir']
+   
+   def find_parameters(self):
+@@ -1651,10 +1652,11 @@ class Bundle(Job):
+   def kick_off_time_utc(self):
+     return utc_datetime_format(self.data['properties']['kickoff'])  
+   
++  def set_workspace(self, user):
++    self.data['properties']['deployment_dir'] = Job.get_workspace(user)
++  
+   @property      
+-  def deployment_dir(self):
+-    if not self.data['properties'].get('deployment_dir'):
+-      self.data['properties']['deployment_dir'] = Job.get_workspace(user)    
++  def deployment_dir(self):    
+     return self.data['properties']['deployment_dir']
+   
+   def find_parameters(self):
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index dcb84d7..8b3dcc5 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -53,7 +53,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+     &nbsp;&nbsp;&nbsp;
+ 
+     <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" 
+-        data-bind="click: $root.save, css: {'btn': true}, visible: canEdit">
++        data-bind="click: $root.save, css: {'btn': true}, visible: coordinator.properties.workflow() && canEdit">
+       <i class="fa fa-save"></i>
+     </button>
+     
+@@ -93,11 +93,17 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <div class="card-body">
+           <a class="pointer" data-bind="visible: ! coordinator.properties.workflow(), click: showChooseWorkflow">${ _('Choose a workflow...') }</a>
+           <!-- ko if: coordinator.properties.workflow -->
++            <!-- ko if: isEditing -->            
+             <a class="pointer" data-bind="click: showChooseWorkflow, text: getWorkflowById(coordinator.properties.workflow()).name"></a>
+             
+             <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + coordinator.properties.workflow() }" target="_blank" title="${ _('Open') }">
+              <i class="fa fa-external-link-square"></i>
++            </a>
++            <!-- /ko -->
++            <!-- ko ifnot: isEditing -->
++            <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + coordinator.properties.workflow() }, text: getWorkflowById(coordinator.properties.workflow()).name" target="_blank" title="${ _('Open') }">              
+             </a>            
++            <!-- /ko -->            
+           <!-- /ko -->
+         </div>
+       </div>
+@@ -142,14 +148,15 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+ 
+-      <div class="card card-home" data-bind="visible: coordinator.properties.workflow">
++      <div class="card card-home" data-bind="visible: coordinator.properties.workflow()">
+         <h1 class="card-heading simple">${ _('Workflow Parameters') }</h1>
+ 
+         <div class="card-body">
+           <ul data-bind="foreach: coordinator.variables" class="unstyled">
+             <li>
+-              <input data-bind="value: workflow_variable"/>
+-              <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name'"></select>
++              <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name', value: workflow_variable, optionsValue: 'name', visible: $root.isEditing"></select>
++
++              <span data-bind="text: workflow_variable, visible: ! $root.isEditing()"/></span>
+ 
+               <div class="btn-group">
+                 <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"
+@@ -254,18 +261,28 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                 </div>
+               </div>
+               <!-- /ko -->
+-              <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }">
++              <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }, visible: $root.isEditing">
+                 <i class="fa fa-minus"></i>
+               </a>              
+             </li>
+           </ul>
+ 
+-          <a class="pointer" data-bind="click: coordinator.addVariable">
+-            <i class="fa fa-plus"></i> ${ _('Add a parameter') }
++          <a class="pointer" data-bind="click: function() { coordinator.addVariable() }, visible: isEditing">
++            <i class="fa fa-plus"></i> ${ _('Add parameter') }
+           </a>
++
+         </div>
++        
+       </div>
+ 
++      <div class="card card-home" data-bind="visible: coordinator.id() == null && coordinator.properties.workflow()">
++        <div class="card-body">
++          <a href type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" 
++            data-bind="click: $root.save, css: {'btn': true}">
++            ${ _('Save') }
++          </a>        
++        </div>
++      </div>
+ 
+     </div>
+   </div>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index ef6d2cb..c748c56 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -358,6 +358,7 @@ def edit_coordinator(request):
+     coordinator = Coordinator(document=doc)
+   else:
+     coordinator = Coordinator()
++    coordinator.set_workspace(request.user)
+ 
+   api = get_oozie(request.user)
+   credentials = Credentials()
+@@ -527,6 +528,7 @@ def edit_bundle(request):
+     bundle = Bundle(document=doc)
+   else:
+     bundle = Bundle()
++    bundle.set_workspace(request.user)
+ 
+   coordinators = [dict([('uuid', d.content_object.uuid), ('name', d.content_object.name)])
+                       for d in Document.objects.get_docs(request.user, Document2, extra='coordinator2')]
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 822a1d2..8a24ee3 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -35,6 +35,13 @@ var Coordinator = function (vm, coordinator) {
+ 		"uuid": self.properties.workflow(),
+ 	   }, function (data) {
+ 		 self.workflowParameters(data.parameters);
++		 // Pre-add the variables
++		 $.each(data.parameters, function(index, param) {
++		   if (self.variables().length < data.parameters.length) {
++		     self.addVariable();
++		   }
++		   self.variables()[self.variables().length - 1].workflow_variable(param['name']);
++		 });
+ 	  }).fail(function (xhr, textStatus, errorThrown) {
+ 	    $(document).trigger("error", xhr.responseText);
+ 	  });
+@@ -42,7 +49,7 @@ var Coordinator = function (vm, coordinator) {
+   });
+ 
+   self.properties.cron_advanced.subscribe(function(value) {
+-    if (value) {
++    if (value || ! vm.isEditing()) {
+       coordCron.disable();
+     } else {
+       coordCron.enable();
+@@ -87,9 +94,10 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   var self = this;
+ 
+   self.canEdit = ko.mapping.fromJS(can_edit_json);
+-  self.isEditing = ko.observable(true && self.canEdit());
++  self.isEditing = ko.observable(self.canEdit());
+   self.isEditing.subscribe(function(newVal){
+     $(document).trigger("editingToggled");
++    self.coordinator.properties.cron_advanced.valueHasMutated();
+   });
+   self.toggleEditing = function () {
+     self.isEditing(! self.isEditing());
+-- 
+1.7.9.5
+

@@ -1,0 +1,61 @@
+From 3faf6ea37404b77dfd80d27761c8ab979c2ea131 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 15 Dec 2014 13:27:18 -0800
+Subject: [PATCH 0631/1173] [spark] Route the output of statement execution to
+ /statement
+
+---
+ .../cloudera/hue/sparker/repl/Interpreter.scala    |   10 ++--------
+ .../com/cloudera/hue/sparker/repl/WebApp.scala     |    6 +++---
+ 2 files changed, 5 insertions(+), 11 deletions(-)
+
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+index b4282be..89062f5 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+@@ -4,8 +4,6 @@ import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
+ import java.util.concurrent.{BlockingQueue, SynchronousQueue}
+ 
+ import org.apache.spark.repl.SparkILoop
+-import org.json4s.DefaultFormats
+-import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
+ 
+ import scala.concurrent._
+@@ -33,14 +31,10 @@ class SparkerInterpreter {
+   }
+   thread.start()
+ 
+-  def execute(statement: String): Future[String] = {
++  def execute(statement: String): Future[Map[String, String]] = {
+     val promise = Promise[Map[String, String]]()
+     inQueue.put(ExecuteRequest(statement, promise))
+-    promise.future.map {
+-      case(response) => {
+-        compact(render(response))
+-      }
+-    }
++    promise.future
+   }
+ 
+   def close(): Unit = {
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+index e081f90..ac74ecf 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+@@ -23,9 +23,9 @@ class HelloWorldApp(interpreter: SparkerInterpreter) extends ScalatraServlet wit
+   }
+ 
+   post("/statement") {
+-    val request = parsedBody.extract[ExecuteRequest]
+-    val statement = request.statement
+-    new AsyncResult { def is = interpreter.execute(statement) }
++    val req = parsedBody.extract[ExecuteRequest]
++    val statement = req.statement
++    new AsyncResult { val is = interpreter.execute(statement) }
+   }
+ }
+ 
+-- 
+1.7.9.5
+

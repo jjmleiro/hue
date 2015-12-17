@@ -1,0 +1,138 @@
+From c529fe5a503f5388b2ed7b35c9b9d56f5db8bba9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Tue, 10 Feb 2015 12:01:11 -0800
+Subject: [PATCH 0798/1173] HUE-2436 [desktop] Fix
+ EnsureSafeRedirectURLMiddleware to work with
+ https
+
+This middleware wasn't written to take into account hue running under
+https, so it would require the end user to explicitly whitelist their
+hostname. Furthermore, this switches to using `is_safe_url`, which
+protects from a couple other redirection attacks:
+
+https://www.djangoproject.com/weblog/2013/aug/13/security-releases-issued/
+---
+ desktop/core/src/desktop/middleware.py      |   12 +++++++-----
+ desktop/core/src/desktop/middleware_test.py |   27 +++++++++++++++++++++------
+ desktop/core/src/desktop/tests.py           |   16 ++++++++++------
+ 3 files changed, 38 insertions(+), 17 deletions(-)
+
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 9ff535c..7220f63 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -34,7 +34,7 @@ from django.http import HttpResponseNotAllowed
+ from django.core.urlresolvers import resolve
+ from django.http import HttpResponseRedirect, HttpResponse
+ from django.utils.translation import ugettext as _
+-from django.utils.http import urlquote
++from django.utils.http import urlquote, is_safe_url
+ from django.utils.encoding import iri_to_uri
+ import django.views.static
+ 
+@@ -623,11 +623,13 @@ class EnsureSafeRedirectURLMiddleware(object):
+   """
+   def process_response(self, request, response):
+     if response.status_code in (301, 302, 303, 305, 307, 308) and response.get('Location'):
+-      redirection_pattern =  desktop.conf.REDIRECT_WHITELIST.get()
+-      if 'HTTP_HOST' in request.META.keys():
+-        redirection_pattern.append(re.compile(r"^http:\/\/" + request.META.get('HTTP_HOST') + ".*$"))
++      redirection_patterns = desktop.conf.REDIRECT_WHITELIST.get()
++      location = response['Location']
+ 
+-      if any([regexp.match(response['Location']) for regexp in redirection_pattern]):
++      if any(regexp.match(location) for regexp in redirection_patterns):
++        return response
++
++      if is_safe_url(location, request.get_host()):
+         return response
+ 
+       response = render("error.mako", request, dict(error=_('Redirect to %s is not allowed.') % response['Location']))
+diff --git a/desktop/core/src/desktop/middleware_test.py b/desktop/core/src/desktop/middleware_test.py
+index 30aee62..e2a760e 100644
+--- a/desktop/core/src/desktop/middleware_test.py
++++ b/desktop/core/src/desktop/middleware_test.py
+@@ -121,24 +121,39 @@ def test_ensure_safe_redirect_middleware():
+     # Super user
+     c = make_logged_in_client()
+ 
+-    # GET works
+-    response = c.get("/useradmin/")
+-    assert_equal(200, response.status_code)
++    # POST works
++    response = c.post("/accounts/login/", {
++      'username': 'test',
++      'password': 'test',
++    })
++    assert_equal(302, response.status_code)
+ 
+     # Disallow most redirects
+     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\d+$'))
+-    response = c.get("")
++    response = c.post("/accounts/login/", {
++      'username': 'test',
++      'password': 'test',
++      'next': 'http://example.com',
++    })
+     assert_equal(403, response.status_code)
+ 
+     # Allow all redirects
+     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('.*'))
+-    response = c.get("")
++    response = c.post("/accounts/login/", {
++      'username': 'test',
++      'password': 'test',
++      'next': 'http://example.com',
++    })
+     assert_equal(302, response.status_code)
+ 
+     # Allow all redirects and disallow most at the same time.
+     # should have a logic OR functionality.
+     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('\d+,.*'))
+-    response = c.get("")
++    response = c.post("", {
++      'username': 'test',
++      'password': 'test',
++      'next': 'http://example.com',
++    })
+     assert_equal(302, response.status_code)
+   finally:
+     settings.MIDDLEWARE_CLASSES.pop()
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index e00924c..4443a4a 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -654,7 +654,7 @@ class TestStrictRedirection():
+   def setUp(self):
+     self.client = make_logged_in_client()
+     self.user = dict(username="test", password="test")
+-    desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
++    desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/example.com\/.*$')
+ 
+   def test_redirection_blocked(self):
+     # Redirection with code 301 should be handled properly
+@@ -670,12 +670,16 @@ class TestStrictRedirection():
+     self._test_redirection(redirection_url='/', expected_status_code=302)
+     self._test_redirection(redirection_url='/pig', expected_status_code=302)
+     self._test_redirection(redirection_url='http://testserver/', expected_status_code=302)
+-
+-  def _test_redirection(self, redirection_url, expected_status_code):
+-    self.client.get('/accounts/logout')
+-    response = self.client.post('/accounts/login/?next=' + redirection_url, self.user)
++    self._test_redirection(redirection_url='https://testserver/', expected_status_code=302, **{
++      'SERVER_PORT': '443',
++      'wsgi.url_scheme': 'https',
++    })
++    self._test_redirection(redirection_url='http://example.com/', expected_status_code=302)
++
++  def _test_redirection(self, redirection_url, expected_status_code, **kwargs):
++    self.client.get('/accounts/logout', **kwargs)
++    response = self.client.post('/accounts/login/?next=' + redirection_url, self.user, **kwargs)
+     assert_equal(expected_status_code, response.status_code)
+     if expected_status_code == 403:
+         error_msg = 'Redirect to ' + redirection_url + ' is not allowed.'
+         assert_true(error_msg in response.content, response.content)
+-
+-- 
+1.7.9.5
+

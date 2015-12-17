@@ -154,8 +154,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
   </div>
 </div>
 
-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('oozie/js/dashboard-utils.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
 
 
 <script type="text/javascript" charset="utf-8">
@@ -164,11 +164,14 @@ ${layout.menubar(section='coordinators', dashboard=True)}
     return {
       id: c.id,
       endTime: c.endTime,
+      endTimeInMillis: c.endTimeInMillis,
       nextMaterializedTime: c.nextMaterializedTime,
+      nextMaterializedTimeInMillis: c.nextMaterializedTimeInMillis,
       status: c.status,
       statusClass: "label " + getStatusClass(c.status),
       isRunning: c.isRunning,
       duration: c.duration,
+      durationInMillis: c.durationInMillis,
       appName: decodeURIComponent(c.appName),
       progress: c.progress,
       progressClass: "bar " + getStatusClass(c.status, "bar-"),
@@ -180,7 +183,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
       resumeUrl: c.resumeUrl,
       frequency: c.frequency,
       timeUnit: c.timeUnit,
-      startTime: c.startTime
+      startTime: c.startTime,
+      startTimeInMillis: c.startTimeInMillis
     }
   }
 
@@ -194,7 +198,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
         { "bSortable":false },
-        { "sType":"date" },
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
@@ -233,16 +237,16 @@ ${layout.menubar(section='coordinators', dashboard=True)}
       "bLengthChange":false,
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
-        { "sType":"date" },
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
-        null,
         % if not enable_cron_scheduling:
-        null,
+          null,
         % endif
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null
       ],
       "aaSorting":[
@@ -296,7 +300,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
       drawTable();
     });
 
-    var hash = window.location.hash;
+    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
     if (hash != "" && hash.indexOf("=") > -1) {
       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
     }
@@ -314,30 +318,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
 
     $.fn.dataTableExt.sErrMode = "throw";
 
-    $.fn.dataTableExt.afnFiltering.push(
-      function (oSettings, aData, iDataIndex) {
-        var urlHashes = ""
-
-        var statusBtn = $("a.btn-status.active");
-        var statusFilter = true;
-        if (statusBtn.length > 0) {
-          var statuses = []
-          $.each(statusBtn, function () {
-            statuses.push($(this).attr("data-value"));
-          });
-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
-        }
-
-        var dateBtn = $("a.btn-date.active");
-        var dateFilter = true;
-        if (dateBtn.length > 0) {
-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
-          dateFilter = Date.parse(aData[0]) >= minAge;
-        }
-
-        return statusFilter && dateFilter;
-      }
-    );
+    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
 
     $(document).on("click", ".confirmationModal", function () {
       var _this = $(this);
@@ -369,13 +350,13 @@ ${layout.menubar(section='coordinators', dashboard=True)}
 
     refreshRunning = function () {
       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
-        if (data) {
+        if (data.jobs) {
           var nNodes = runningTable.fnGetNodes();
 
           // check for zombie nodes
           $(nNodes).each(function (iNode, node) {
             var nodeFound = false;
-            $(data).each(function (iCoord, currentItem) {
+            $(data.jobs).each(function (iCoord, currentItem) {
               % if enable_cron_scheduling:
               if ($(node).children("td").eq(8).text() == currentItem.id) {
                  nodeFound = true;
@@ -393,7 +374,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
             }
           });
 
-          $(data).each(function (iCoord, item) {
+          $(data.jobs).each(function (iCoord, item) {
             var coord = new Coordinator(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -412,8 +393,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
                 try {
                   runningTable.fnAddData([
                     coord.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
-                    emptyStringIfNull(coord.nextMaterializedTime),
-                    '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
+                    '<span data-sort-value="'+ coord.nextMaterializedTimeInMillis +'" data-type="date">' + emptyStringIfNull(coord.nextMaterializedTime) + '</span>',
+                    '<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>',
                     coord.appName,
                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
                     coord.user,
@@ -423,7 +404,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
                     emptyStringIfNull(coord.frequency),
                     emptyStringIfNull(coord.timeUnit),
                     % endif
-                    emptyStringIfNull(coord.startTime),
+                    '<span data-sort-value="'+ coord.startTimeInMillis +'">' + emptyStringIfNull(coord.startTime) + '</span>',
                     '<a href="' + coord.absoluteUrl + '" data-row-selector="true">' + coord.id + '</a>'
                   ]);
                 }
@@ -433,18 +414,18 @@ ${layout.menubar(section='coordinators', dashboard=True)}
               }
             }
             else {
-              runningTable.fnUpdate('<span class="' + coord.statusClass + '">' + coord.status + '</span>', foundRow, 2, false);
+              runningTable.fnUpdate('<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>', foundRow, 2, false);
             }
           });
         }
-        if (data.length == 0) {
+        if (data.jobs.length == 0) {
           runningTable.fnClearTable();
         }
 
-        if (data.length != numRunning) {
+        if (data.jobs.length != numRunning) {
           refreshCompleted();
         }
-        numRunning = data.length;
+        numRunning = data.jobs.length;
         window.setTimeout(refreshRunning, 20000);
       });
     }
@@ -452,14 +433,14 @@ ${layout.menubar(section='coordinators', dashboard=True)}
     function refreshCompleted() {
       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
         completedTable.fnClearTable();
-        $(data).each(function (iWf, item) {
+        $(data.jobs).each(function (iWf, item) {
           var coord = new Coordinator(item);
           try {
             completedTable.fnAddData([
-              emptyStringIfNull(coord.endTime),
-              '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
+              '<span data-sort-value="'+ coord.endTimeInMillis +'" data-type="date">' + emptyStringIfNull(coord.endTime) + '</span>',
+              '<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>',
               coord.appName,
-              emptyStringIfNull(coord.duration),
+              '<span data-sort-value="'+ coord.durationInMillis +'">' + emptyStringIfNull(coord.duration) + '</span>',
               coord.user,
               % if enable_cron_scheduling:
                 emptyStringIfNull(coord.frequency),
@@ -467,7 +448,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
                 emptyStringIfNull(coord.frequency),
                 emptyStringIfNull(coord.timeUnit),
               % endif
-              emptyStringIfNull(coord.startTime),
+              '<span data-sort-value="'+ coord.startTimeInMillis +'">' + emptyStringIfNull(coord.startTime) + '</span>',
               '<a href="' + coord.absoluteUrl + '" data-row-selector="true">' + coord.id + '</a>'
             ], false);
           }
@@ -482,7 +463,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
     function refreshProgress() {
       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
         var nNodes = runningTable.fnGetNodes();
-          $(data).each(function (iCoord, item) {
+          $(data.jobs).each(function (iCoord, item) {
             var coord = new Coordinator(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -497,6 +478,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
               % endif
             });
             if (foundRow != null) {
+              runningTable.fnUpdate('<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>', foundRow, 2, false);
               if (coord.progress == 0){
                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
               }

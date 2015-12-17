@@ -1,0 +1,25 @@
+From cae8b06217d3bcdc5860ff33053849af4bd18c88 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 23 Feb 2015 23:12:49 -0800
+Subject: [PATCH 0896/1173] [oozie] Fix Fs action
+
+---
+ apps/oozie/src/oozie/models2.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 80bbf9a..df3673d 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -942,7 +942,7 @@ class FsAction(Action):
+ 
+   @classmethod
+   def get_mandatory_fields(cls):
+-    return [cls.FIELDS['deletes'], cls.FIELDS['mkdirs'], cls.FIELDS['moves'], cls.FIELDS['chmods']]
++    return []
+ 
+ 
+ class EmailAction(Action):
+-- 
+1.7.9.5
+

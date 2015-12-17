@@ -1,0 +1,62 @@
+From 5a14a7e505860d48584ade061cc4a4d7af361f0c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 1 May 2015 11:35:04 -0700
+Subject: [PATCH 1168/1173] HUE-2722 [beeswax] Revert default Thrift version
+ to 5 instead of 7
+
+Working around HUE-2722 for now:
+[hive] against Hive 0.14 CSV/XLS truncated downloads
+https://issues.cloudera.org/browse/HUE-2722
+
+Conflicts:
+
+	desktop/conf/pseudo-distributed.ini.tmpl
+---
+ apps/beeswax/src/beeswax/conf.py         |    2 +-
+ desktop/conf.dist/hue.ini                |    2 +-
+ desktop/conf/pseudo-distributed.ini.tmpl |    3 ++-
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/conf.py b/apps/beeswax/src/beeswax/conf.py
+index 69664c6..298c8c7 100644
+--- a/apps/beeswax/src/beeswax/conf.py
++++ b/apps/beeswax/src/beeswax/conf.py
+@@ -92,7 +92,7 @@ THRIFT_VERSION = Config(
+   key="thrift_version",
+   help=_t("Thrift version to use when communicating with HiveServer2."),
+   type=int,
+-  default=7
++  default=5
+ )
+ 
+ 
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index b39d482..a1bc527 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -842,7 +842,7 @@
+ 
+   # Thrift version to use when communicating with HiveServer2.
+   # New column format is from version 7.
+-  ## thrift_version=7
++  ## thrift_version=5
+ 
+   [[ssl]]
+     # Path to Certificate Authority certificates.
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 6135d8f..f8ada4a 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -844,7 +844,8 @@
+   ## close_queries=false
+ 
+   # Thrift version to use when communicating with HiveServer2.
+-  ## thrift_version=7
++  # New column format is from version 7.
++  ## thrift_version=5
+ 
+   [[ssl]]
+     # Path to Certificate Authority certificates.
+-- 
+1.7.9.5
+

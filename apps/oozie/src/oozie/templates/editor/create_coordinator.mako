@@ -40,8 +40,8 @@ ${ layout.menubar(section='coordinators') }
   }
 </style>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <div class="container-fluid">
   <div class="row-fluid">
@@ -64,7 +64,7 @@ ${ layout.menubar(section='coordinators') }
         <li><a href="#step5" class="step">${ _('Step 5: Advanced settings') }</a></li>
       </ul>
       <form class="form-horizontal" action="${ url('oozie:create_coordinator') }" method="POST">
-
+        ${ csrf_token(request) | n,unicode }
         <div class="steps">
 
           <div id="step1" class="stepDetails">
@@ -134,11 +134,11 @@ ${ layout.menubar(section='coordinators') }
 </div>
 
 % if enable_cron_scheduling:
-<link href="/static/css/jqCron.css" rel="stylesheet" type="text/css" />
-<script src="/static/js/jqCron.js" type="text/javascript"></script>
+<link href="${ static('desktop/css/jqCron.css') }" rel="stylesheet" type="text/css" />
+<script src="${ static('desktop/js/jqCron.js') }" type="text/javascript"></script>
 % endif
 
-<script type="text/javascript" src="/oozie/static/js/coordinator.js"></script>
+<script type="text/javascript" src="${ static('oozie/js/coordinator.js') }"></script>
 
 
 <script type="text/javascript" charset="utf-8">

@@ -1,0 +1,131 @@
+From 117783283ef2edfed83ef9ea633f504397d4c196 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 4 Dec 2014 10:09:14 -0600
+Subject: [PATCH 0558/1173] [spark] start_over support when fetching results
+
+---
+ apps/spark/src/spark/api.py                |    3 ++-
+ apps/spark/src/spark/models.py             |    6 +++---
+ apps/spark/src/spark/templates/editor.mako |    4 +++-
+ apps/spark/static/js/spark.vm.js           |   22 +++++++++++++++-------
+ 4 files changed, 23 insertions(+), 12 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 7ceb66c..a011c14 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -91,9 +91,10 @@ def fetch_result_data(request):
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+   rows = json.loads(request.POST.get('rows', 100))
++  start_over = json.loads(request.POST.get('startOver', False))
+ 
+   try:
+-    response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet, rows)
++    response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet, rows, start_over)
+     response['status'] = 0
+   except Exception, e:
+     message = force_unicode(str(e))
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 8fd7292..5ef53e8 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -151,11 +151,11 @@ class HS2Api():
+           )
+     }
+ 
+-  def fetch_result(self, notebook, snippet, rows):
++  def fetch_result(self, notebook, snippet, rows, start_over):
+     db = self._get_db(snippet)
+       
+     handle = self._get_handle(snippet)
+-    results = db.fetch(handle, start_over=False, rows=rows)
++    results = db.fetch(handle, start_over=start_over, rows=rows)
+     
+     # no escaping...
+     return {
+@@ -220,7 +220,7 @@ class SparkApi():  # Pig, DBquery, Phoenix...
+   def check_status(self, notebook, snippet):
+     return {'status': 'available'}
+ 
+-  def fetch_result(self, notebook, snippet, rows):
++  def fetch_result(self, notebook, snippet, rows, start_over):
+     api = get_spark_api(self.user)
+     session = _get_snippet_session(notebook, snippet)
+     cell = snippet['result']['handle']['id']  
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 4d74fec..24c7b53 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -210,8 +210,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </div>
+ 
+       <div style="padding-top: 10px;">
++        <span>
+         <a data-bind="visible: result.meta().length > 0, click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }"><i class="fa fa-th"></i></a>
+         <a data-bind="visible: result.meta().length > 0, click: function() { $data.showChart(true); }, css: {'active': $data.showChart}" href="javascript:void(0)" class="btn" title="${ _('Chart') }"><i class="fa fa-line-chart"></i></a>
++        </span>
+         &nbsp;
+         <a data-bind="visible: status() != 'ready', click: function() { $data.showLogs(! $data.showLogs()); }, css: {'active': $data.showLogs}" href="javascript:void(0)" class="btn" title="${ _('Logs') }"><i class="fa fa-file-text-o"></i></a>
+       </div>
+@@ -243,7 +245,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               </tbody>
+             </table>
+             
+-            <a href="javascript:void(0)" data-bind="click: function() { $data.fetchResult(100); }" class="btn">${ _('Next') }</a>            
++            <a href="javascript:void(0)" data-bind="click: function() { $data.fetchResult(100, false); }" class="btn">${ _('Next') }</a>            
+           </div>
+         </div>
+       </div>
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index e61b39b..01e3fc8 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -226,21 +226,29 @@ var Snippet = function (notebook, snippet) {
+     });    
+   };
+   
+-  self.fetchResult = function(rows) {
+-    self.fetchResultData(rows);
++  self.fetchResult = function(rows, startOver) {
++	if (typeof startOver == "undefined") {
++	  startOver = true;
++	}
++    self.fetchResultData(rows, startOver);
+     //self.fetchResultMetadata(rows); 
+   };
+ 
+-  self.fetchResultData = function (rows) {
++  self.fetchResultData = function(rows, startOver) {
+     $.post("/spark/api/fetch_result_data", {
+       notebook: ko.mapping.toJSON(notebook),
+       snippet: ko.mapping.toJSON(self),
+-      rows: rows
++      rows: rows,
++      startOver: startOver
+     }, function (data) {
+       if (data.status == 0) {
+         rows -= data.result.data.length;
+-        data.result.meta.unshift({ type: "INT_TYPE", name: "", comment: null});
+-        self.result.meta(data.result.meta);
++
++        if (self.result.meta().length == 0) {
++   	      data.result.meta.unshift({type: "INT_TYPE", name: "", comment: null});
++   	      self.result.meta(data.result.meta);
++        }
++
+         var _initialIndex = self.result.data().length;
+         var _tempData = [];
+         $.each(data.result.data, function (index, row) {
+@@ -253,7 +261,7 @@ var Snippet = function (notebook, snippet) {
+ 
+         if (data.result.hasMore && rows > 0) {
+           setTimeout(function () {
+-            self.fetchResultData(rows);
++            self.fetchResultData(rows, false);
+           }, 500);
+         }
+       } else if (data.status == -2) {
+-- 
+1.7.9.5
+

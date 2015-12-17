@@ -22,11 +22,9 @@
   from jobbrowser.views import format_counter_name
   from filebrowser.views import location_to_url
   from desktop.views import commonheader, commonfooter
-
   from django.template.defaultfilters import urlencode
   from django.utils.translation import ugettext as _
 %>
-
 <%def name="task_table(dom_id, tasks)">
     <table id="${ dom_id }" class="taskTable table table-condensed">
         <thead>
@@ -88,7 +86,7 @@
 ${ commonheader(_('Job: %(jobId)s') % dict(jobId=job.jobId_short), "jobbrowser", user) | n,unicode }
 ${ comps.menubar() }
 
-<link href="/jobbrowser/static/css/jobbrowser.css" rel="stylesheet">
+<link href="${ static('jobbrowser/css/jobbrowser.css') }" rel="stylesheet">
 
 <style type="text/css">
   .killJob {
@@ -101,6 +99,110 @@ ${ comps.menubar() }
   %endif
 </style>
 
+% if job.applicationType == 'SPARK':
+
+<div class="container-fluid">
+  <div class="row-fluid">
+    <div class="span2">
+      <div class="sidebar-nav" style="padding-top: 0">
+        <ul class="nav nav-list">
+          <li class="nav-header">${_('App ID')}</li>
+          <li class="white hellipsify">${job.jobId_short}</li>
+          <li class="nav-header">${_('User')}</li>
+          <li class="white">${job.user}</li>
+          <li class="nav-header">${_('Status')}</li>
+          <li class="white" id="jobStatus">&nbsp;</li>
+          <li class="nav-header">${_('Logs')}</li>
+          <li><a href="${job.trackingUrl }" target="_blank"><i class="fa fa-tasks"></i> ${_('Logs')}</a></li>
+          <li class="nav-header">${_('Progress')}</li>
+          <li class="white">${job.progress}%</li>
+          <li class="nav-header">${_('Duration')}</li>
+          <li class="white">${job.durationFormatted}</li>
+          <li class="nav-header killJob">${_('Actions')}</li>
+          <li id="killJobContainer" class="white killJob"></li>
+        </ul>
+      </div>
+    </div>
+    <div class="span10">
+      <div class="card card-small">
+        <h1 class="card-heading simple">${_(job.name)}</h1>
+        <div class="card-body">
+          <ul class="nav nav-tabs">
+            <li  class="active"><a href="#metadata" data-toggle="tab">${_('Metadata')}</a></li>
+            % if job.scrapedData.get('metrics'):
+              <li><a href="#metrics" data-toggle="tab">${_('Metrics')}</a></li>
+            % endif
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane active" id="metadata">
+              <table class="table table-condensed">
+                <thead>
+                  <th>${_('Name')}</th>
+                  <th>${_('Value')}</th>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>${_('Jobs')}</td>
+                    <td><a href="${job.trackingUrl}">${job.trackingUrl}</a></td>
+                  </tr>
+                  <tr>
+                    <td>${_('Host')}</td>
+                    <td><a href="http://${job.amHostHttpAddress}">http://${job.amHostHttpAddress}</a></td>
+                  </tr>
+                  <tr>
+                    <td>${_('Queue Name')}</td>
+                    <td>${job.queueName}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('Started')}</td>
+                    <td>${job.startTimeFormatted}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('Finished')}</td>
+                    <td>${job.finishTimeFormatted}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('Pre-empted Resource VCores')}</td>
+                    <td>${job.preemptedResourceVCores}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('VCore seconds')}</td>
+                    <td>${job.vcoreSeconds}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('Memory seconds')}</td>
+                    <td>${job.memorySeconds}</td>
+                  </tr>
+                  <tr>
+                    <td>${_('Diagnostics')}</td>
+                    <td>${job.diagnostics}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="tab-pane" id="metrics">
+              <table class="table table-condensed">
+                <thead>
+                  <th>${_('Metric')}</th>
+                  <th>${_('Value')}</th>
+                </thead>
+                <tbody>
+                % for metric in job.scrapedData.get('metrics', []):
+                  <tr>
+                    <td>${_(metric['header'])}</td>
+                    <td>${metric['value']}</td>
+                  </tr>
+                % endfor
+                </tbody>
+              </table>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+% else:
 <div class="container-fluid">
   <div class="row-fluid">
     <div class="span2">
@@ -147,9 +249,10 @@ ${ comps.menubar() }
     </div>
     <div class="span10">
       <div class="card card-small">
-        <h1 class="card-heading simple">${_('Job: %(jobId)s') % dict(jobId=job.jobId_short)}</h1>
+	<h1 class="card-heading simple">${_('Job: %(jobId)s') % dict(jobId=job.jobId_short)}</h1>
           <div class="card-body">
             <p>
+
               <ul class="nav nav-tabs">
                 % if job.is_mr2:
                 <li class="active"><a href="#attempts" data-toggle="tab">${_('Attempts')}</a></li>
@@ -308,6 +411,7 @@ ${ comps.menubar() }
     </div>
   </div>
 </div>
+% endif
 
 
 <div id="killModal" class="modal hide fade">
@@ -324,7 +428,7 @@ ${ comps.menubar() }
   </div>
 </div>
 
-<script src="/jobbrowser/static/js/utils.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('jobbrowser/js/utils.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 $(document).ready(function () {
@@ -396,8 +500,10 @@ $(document).ready(function () {
     $.getJSON("?format=json", function (data) {
       if (data != null && data.job != null) {
         updateJob(data.job);
-        updateFailedTasks(data.failedTasks);
-        updateRecentTasks(data.recentTasks);
+        if (data.applicationType != 'SPARK') {
+          updateFailedTasks(data.failedTasks);
+          updateRecentTasks(data.recentTasks);
+        }
       }
       isUpdating = false;
     });
@@ -545,6 +651,5 @@ $(document).ready(function () {
   $("a[data-row-selector='true']").jHueRowSelector();
 });
 </script>
-
 
 ${ commonfooter(messages) | n,unicode }

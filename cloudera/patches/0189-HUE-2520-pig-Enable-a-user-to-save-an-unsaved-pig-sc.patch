@@ -1,0 +1,44 @@
+From 603a03894bbf5357f35daa9fcb0a9b87d9bdcefc Mon Sep 17 00:00:00 2001
+From: Luca Natali <lucan@amazon.com>
+Date: Thu, 16 Oct 2014 01:21:48 +0000
+Subject: [PATCH 0189/1173] HUE-2520 [pig] Enable a user to save an unsaved
+ pig script after execution
+
+---
+ apps/pig/src/pig/models.py         |    4 ++++
+ desktop/core/src/desktop/models.py |    4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/apps/pig/src/pig/models.py b/apps/pig/src/pig/models.py
+index 68675fd..fc99f5c 100644
+--- a/apps/pig/src/pig/models.py
++++ b/apps/pig/src/pig/models.py
+@@ -94,6 +94,10 @@ def create_or_update_script(id, name, script, user, parameters, resources, hadoo
+     if not is_design:
+       pig_script.doc.get().add_to_history()
+ 
++  # A user decided eventually to save an unsaved script after execution:
++  if is_design and pig_script.doc.get().is_historic():
++    pig_script.doc.get().remove_from_history()
++
+   pig_script.update_from_dict({
+       'name': name,
+       'script': script,
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 11b2feb..252f3ad 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -394,6 +394,10 @@ class Document(models.Model):
+     tag = DocumentTag.objects.get_history_tag(user=self.owner)
+     self.tags.add(tag)
+ 
++  def remove_from_history(self):
++    tag = DocumentTag.objects.get_history_tag(user=self.owner)
++    self.tags.remove(tag)
++
+   def share_to_default(self, name='read'):
+     DocumentPermission.objects.share_to_default(self, name=name)
+ 
+-- 
+1.7.9.5
+

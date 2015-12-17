@@ -1,0 +1,35 @@
+From a2a3830198975691bfb8d28af4c51935f1baa6b8 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 11:49:18 -0800
+Subject: [PATCH 0609/1173] [spark] More logging tweaks
+
+---
+ .../hue/sparker/server/SparkerSession.java         |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
+index 797f0f8..acb7f73 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
+@@ -85,7 +85,8 @@ public class SparkerSession implements Session {
+                         }
+                     }
+ 
+-                    process.waitFor();
++                    int exitCode = process.waitFor();
++                    logger.info("[" + key + "]: process exited with " + exitCode);
+                 } catch (IOException e) {
+                     e.printStackTrace();
+                 } catch (InterruptedException e) {
+@@ -165,7 +166,7 @@ public class SparkerSession implements Session {
+             throw new TimeoutException();
+         }
+ 
+-        logger.info("[" + key + "]: shell closed");
++        logger.info("[" + key + "]: shell closed with " + process.exitValue());
+     }
+ 
+     protected long lastActivity = Long.MAX_VALUE;
+-- 
+1.7.9.5
+

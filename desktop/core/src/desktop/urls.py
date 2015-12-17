@@ -19,26 +19,27 @@ import logging
 import os
 import re
 
+# FIXME: This could be replaced with hooking into the `AppConfig.ready()`
+# signal in Django 1.7:
+#
+# https://docs.djangoproject.com/en/1.7/ref/applications/#django.apps.AppConfig.ready
+#
+# For now though we have to load in the monkey patches here because we know
+# this file has been loaded after `desktop.settings` has been loaded.
+import desktop.monkey_patches
+
 from django.conf import settings
-from django.conf.urls.defaults import include, patterns
+from django.conf.urls import include, patterns
+from django.conf.urls.static import static
 from django.contrib import admin
 
 from desktop import appmanager
 
 # Django expects handler404 and handler500 to be defined.
-# django.conf.urls.defaults provides them. But we want to override them.
+# django.conf.urls provides them. But we want to override them.
 # Also see http://code.djangoproject.com/ticket/5350
 handler404 = 'desktop.views.serve_404_error'
 handler500 = 'desktop.views.serve_500_error'
-
-
-# Set up /appname/static mappings for any apps that have static directories
-def static_pattern(urlprefix, root):
-  """
-  First argument is the url mapping, and second argument is the
-  directory to serve.
-  """
-  return (r'^%s/(?P<path>.*)$' % urlprefix, 'django.views.static.serve', { 'document_root': root, 'show_indexes': False })
 
 
 admin.autodiscover()
@@ -61,9 +62,9 @@ dynamic_patterns += patterns('desktop.views',
 
   (r'^desktop/prefs/(?P<key>\w+)?$', 'prefs'),
   (r'^desktop/status_bar/?$', 'status_bar'),
+  (r'^desktop/debug/is_alive$','is_alive'),
   (r'^desktop/debug/threads$', 'threads'),
   (r'^desktop/debug/memory$', 'memory'),
-  (r'^desktop/debug/who_am_i$', 'who_am_i'),
   (r'^desktop/debug/check_config$', 'check_config'),
   (r'^desktop/debug/check_config_ajax$', 'check_config_ajax'),
   (r'^desktop/log_frontend_event$', 'log_frontend_event'),
@@ -84,9 +85,14 @@ dynamic_patterns += patterns('desktop.api',
   (r'^desktop/api/tag/remove_tag$', 'remove_tag'),
   (r'^desktop/api/doc/tag$', 'tag'),
   (r'^desktop/api/doc/update_tags$', 'update_tags'),
+  (r'^desktop/api/doc/get$', 'get_document'),
 
   # Permissions
   (r'^desktop/api/doc/update_permissions', 'update_permissions'),
+)
+
+dynamic_patterns += patterns('desktop.api2',
+  (r'^desktop/api2/doc/get$', 'get_document'),
 )
 
 dynamic_patterns += patterns('useradmin.views',
@@ -110,15 +116,11 @@ if settings.OPENID_AUTHENTICATION:
 
 if settings.OAUTH_AUTHENTICATION:
   static_patterns.append((r'^oauth/', include('liboauth.urls')))
-  static_patterns.append(static_pattern("liboauth_static",
-        os.path.join(os.path.dirname(__file__), "..", '..', '..', "libs/liboauth/src/liboauth/static/")))
 
 # Add indexer app
 if 'search' in [app.name for app in appmanager.DESKTOP_APPS]:
   namespace = {'namespace': 'indexer', 'app_name': 'indexer'}
   dynamic_patterns.extend( patterns('', ('^indexer/', include('indexer.urls', **namespace))) )
-  static_patterns.append(static_pattern('indexer/static',
-                                        os.path.join(os.path.dirname(__file__), "..", '..', '..', "libs/indexer/static/")))
 
 # Root each app at /appname if they have a "urls" module
 for app in appmanager.DESKTOP_APPS:
@@ -130,19 +132,11 @@ for app in appmanager.DESKTOP_APPS:
     dynamic_patterns.extend( patterns('', ('^' + re.escape(app.name) + '/', include(app.urls, **namespace))) )
     app.urls_imported = True
 
-  # Root a /appname/static if they have a static dir
-  if app.static_dir:
-    static_patterns.append(
-      static_pattern('%s/static' % app.name, app.static_dir))
-
-# TODO this stuff should probably be moved into a "ui" lib or such so it
-# is autodiscovered
-def buildpath(d):
-  return os.path.join(os.path.dirname(__file__), "..", '..', '..', d)
-static_patterns.append(static_pattern("static", buildpath("core/static")))
-static_patterns.append((r'^(?P<path>favicon.ico)$',
-                        'django.views.static.serve',
-                        { 'document_root': buildpath('core/static/art') }))
+static_patterns.append(
+    (r'^%s(?P<path>.*)$' % re.escape(settings.STATIC_URL.lstrip('/')),
+      'django.views.static.serve',
+      { 'document_root': settings.STATIC_ROOT })
+)
 
 urlpatterns = patterns('', *static_patterns) + dynamic_patterns
 

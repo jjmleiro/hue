@@ -1,0 +1,29 @@
+From 33b0b051fcc2019bc0d82e30c5ddda51fe45d5c9 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 14 Oct 2014 15:03:09 +0200
+Subject: [PATCH 0037/1173] HUE-2406 [search] New dashboard page has a margin
+ problem
+
+Fixed form and select margins
+---
+ apps/search/static/css/search.css |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/apps/search/static/css/search.css b/apps/search/static/css/search.css
+index 07fc05b..a2e7a9c 100644
+--- a/apps/search/static/css/search.css
++++ b/apps/search/static/css/search.css
+@@ -42,6 +42,10 @@
+   z-index: 1010;
+ }
+ 
++.search-bar form, .search-bar form select {
++  margin-bottom: 0;
++}
++
+ .search-bar input {
+   margin-left: 10px;
+   padding-right: 20px;
+-- 
+1.7.9.5
+

@@ -1,0 +1,30 @@
+From 6f7709ee28f485daf32358d6d4b22fb7fddcf5af Mon Sep 17 00:00:00 2001
+From: Peter Slawski <petersla@amazon.com>
+Date: Thu, 30 Oct 2014 20:18:35 -0700
+Subject: [PATCH 0179/1173] HUE-2512 [impala] Fix installing Impala examples
+ when tables already exist
+
+This fixes an InstallException raised when installing
+impala examples after hive examples are installed
+by properly checking if the sample table already exists
+in impala.
+---
+ .../commands/beeswax_install_examples.py           |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+index 3f91cf5..3165ce0 100644
+--- a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
++++ b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+@@ -132,6 +132,8 @@ class SampleTable(object):
+ 
+     try:
+       # Already exists?
++      if self.app_name == 'impala':
++        db.execute_statement('INVALIDATE METADATA %s;' % (self.name,))
+       db.get_table('default', self.name)
+       msg = _('Table "%(table)s" already exists.') % {'table': self.name}
+       LOG.error(msg)
+-- 
+1.7.9.5
+

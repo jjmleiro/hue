@@ -1,0 +1,44 @@
+From 905895dbb75719dd2b368d6ecce8a20ec4956440 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 11 Mar 2015 12:08:51 +0100
+Subject: [PATCH 1029/1173] [oozie] Hide logs icon if logs are empty
+
+---
+ .../templates/dashboard/list_oozie_workflow.mako   |    7 ++++++-
+ .../oozie/templates/editor2/common_workflow.mako   |    2 +-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 6738ddd..638af82 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -217,7 +217,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         <script id="actionTemplate" type="text/html">
+           <tr>
+             <td>
+-              <a data-bind="visible:externalId !='', attr: { href: log}" data-row-selector-exclude="true"><i class="fa fa-tasks"></i></a>
++              <!-- ko if: externalId !='' && log != '' && log != null -->
++              <a data-bind="attr: { href: log}" data-row-selector-exclude="true"><i class="fa fa-tasks"></i></a>
++              <!-- /ko -->
++              <!-- ko if: externalId =='' || log == '' || log == null -->
++              <i class="fa fa-ban muted"></i>
++              <!-- /ko -->
+             </td>
+             <td>
+               <a data-bind="text: id, attr: { href: url}" data-row-selector="true"></a>
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index c01edaa..9211354 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -535,7 +535,7 @@
+ </script>
+ 
+ <script type="text/html" id="logs-icon">
+-  <!-- ko if: $parent.logsURL() != '' -->
++  <!-- ko if: $parent.logsURL() != '' && $parent.logsURL() != null -->
+     <a class="pull-right pointer logs-icon" data-bind="click: function(){ location.href = $parent.logsURL(); }" title="${ _('View logs') }"><i class="fa fa-tasks"></i></a>
+   <!-- /ko -->
+ </script>
+-- 
+1.7.9.5
+

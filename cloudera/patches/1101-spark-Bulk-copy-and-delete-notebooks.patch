@@ -1,0 +1,140 @@
+From ea402096cd8d0c812b12b9a70dc716761330717c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 10:41:54 -0500
+Subject: [PATCH 1101/1173] [spark] Bulk copy and delete notebooks
+
+---
+ apps/spark/src/spark/templates/notebooks.mako |   22 +++-----------
+ apps/spark/src/spark/urls.py                  |    2 ++
+ apps/spark/src/spark/views.py                 |   40 ++++++++++++++++++++++++-
+ 3 files changed, 45 insertions(+), 19 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/notebooks.mako b/apps/spark/src/spark/templates/notebooks.mako
+index 9d711cd..5d440a9 100644
+--- a/apps/spark/src/spark/templates/notebooks.mako
++++ b/apps/spark/src/spark/templates/notebooks.mako
+@@ -35,11 +35,6 @@ ${ commonheader(_("Notebooks"), "oozie", user, "60px") | n,unicode }
+ 
+     <%def name="actions()">
+       <div class="btn-toolbar" style="display: inline; vertical-align: middle">
+-        <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
+-          <i class="fa fa-play"></i> ${ _('Submit') }
+-        </a>
+-
+-        <span style="padding-right:40px"></span>
+ 
+         <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
+           attr: {'data-original-title': '${ _("Share") } ' + name},
+@@ -161,18 +156,9 @@ ${ commonshare() | n,unicode }
+ 
+     self.datatable = null;
+ 
+-    self.showSubmitPopup = function () {
+-      $.get("/oozie/editor/workflow/submit/" + self.selectedJobs()[0].id(), {
+-      }, function (data) {
+-        $(document).trigger("showSubmitPopup", data);
+-      }).fail(function (xhr, textStatus, errorThrown) {
+-        $(document).trigger("error", xhr.responseText);
+-      });
+-    };
+-
+     self.delete2 = function() {
+-      $.post("${ url('oozie:delete_editor_workflow') }", {
+-        "selection": ko.mapping.toJSON(self.selectedJobs)
++      $.post("${ url('spark:delete') }", {
++        "notebooks": ko.mapping.toJSON(self.selectedJobs)
+       }, function() {
+         window.location.reload();
+         $('#deleteNotebook').modal('hide');
+@@ -182,8 +168,8 @@ ${ commonshare() | n,unicode }
+     };
+ 
+     self.copy = function() {
+-      $.post("${ url('oozie:copy_workflow') }", {
+-        "selection": ko.mapping.toJSON(self.selectedJobs)
++      $.post("${ url('spark:copy') }", {
++        "notebooks": ko.mapping.toJSON(self.selectedJobs)
+       }, function(data) {
+         window.location.reload();
+       }).fail(function (xhr, textStatus, errorThrown) {
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 4d76f8b..c764f27 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -35,6 +35,8 @@ urlpatterns = patterns('spark.views',
+   url(r'^new$', 'new', name='new'),
+   url(r'^download$', 'download', name='download'),
+   url(r'^install_examples$', 'install_examples', name='install_examples'),
++  url(r'^delete$', 'delete', name='delete'),
++  url(r'^copy$', 'copy', name='copy'),
+ )
+ 
+ # APIs
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index 54fa8a2..42d71c2 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -17,6 +17,7 @@
+ 
+ import json
+ import logging
++import uuid
+ 
+ from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+@@ -26,7 +27,8 @@ from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.models import Document2, Document
+ 
+ from spark.conf import LANGUAGES
+-from spark.decorators import check_document_access_permission
++from spark.decorators import check_document_access_permission,\
++  check_document_modify_permission
+ from spark.models import Notebook, get_api
+ from spark.management.commands.spark_setup import Command
+ 
+@@ -77,6 +79,42 @@ def notebooks(request):
+   })
+ 
+ 
++@check_document_modify_permission()
++def delete(request):
++  notebooks = json.loads(request.POST.get('notebooks', '[]'))
++
++  for notebook in notebooks:
++    doc2 = Document2.objects.get(uuid=notebook['uuid'])
++    doc = doc2.doc.get()
++    doc.can_write_or_exception(request.user)
++
++    doc.delete()
++    doc2.delete()
++
++  return JsonResponse({})
++
++
++@check_document_access_permission()
++def copy(request):
++  notebooks = json.loads(request.POST.get('notebooks', '[]'))
++
++  for notebook in notebooks:
++    doc2 = Document2.objects.get(uuid=notebook['uuid'])
++    copy_doc = doc2.doc.get().copy(owner=request.user)
++
++    doc2.pk = None
++    doc2.id = None
++    doc2.uuid = str(uuid.uuid4())
++    doc2.owner = request.user
++    doc2.save()
++
++    doc2.doc.all().delete()
++    doc2.doc.add(copy_doc)
++    doc2.save()
++
++  return JsonResponse({})
++
++
+ @check_document_access_permission()
+ def download(request):
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+-- 
+1.7.9.5
+

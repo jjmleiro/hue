@@ -1,0 +1,40 @@
+From 8272c4928c17c21efa5e56d4b29c2dab2f39101d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 19 Nov 2014 14:17:42 +0100
+Subject: [PATCH 0289/1173] [oozie] Just regular nodes can be moved
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ desktop/core/static/js/ko.layout.js                |    3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 78cbf6a..f2fad40 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -304,7 +304,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ <script type="text/html" id="widget-template">
+   <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass, draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.currentlyDraggedWidget($data); }, 'stop': function(event, ui){ $root.enableSideDrop($data); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.toElement).text());_title.appendTo(_par);_par.height(80);_par.width(180);return _par;}}}">
+     <h2 class="card-heading simple">
+-      <span data-bind="visible: $root.isEditing">
++      <span data-bind="visible: $root.isEditing() && oozieMovable()">
+         <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
+         &nbsp;
+       </span>
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index 9d39b90..3598d2e 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -198,6 +198,9 @@ var Widget = function (params) {
+   self.offset = ko.observable(typeof params.offset != "undefined" && params.offset != null ? params.offset : 0).extend({ numeric: 0 });
+   self.isLoading = ko.observable(typeof params.loading != "undefined" && params.loading != null ? params.loading : false);
+ 
++  self.oozieMovable = ko.computed(function() {
++    return ["end-widget", "start-widget", "fork-widget", "decision-widget"].indexOf(self.widgetType()) == - 1
++  });
+ 
+   self.klass = ko.computed(function () {
+     return "card card-widget span" + self.size() + (self.offset() * 1 > 0 ? " offset" + self.offset() : "");
+-- 
+1.7.9.5
+

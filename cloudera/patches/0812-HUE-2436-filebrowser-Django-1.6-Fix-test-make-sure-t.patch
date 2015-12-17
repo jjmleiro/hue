@@ -1,0 +1,66 @@
+From 1054d10ee6562c6963ecf86184f03ff909f4cf61 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 16:55:19 -0800
+Subject: [PATCH 0812/1173] HUE-2436 [filebrowser] Django-1.6: Fix test, make
+ sure to always close avro file reader
+
+---
+ apps/filebrowser/src/filebrowser/views.py      |   26 ++++++++++++++----------
+ apps/filebrowser/src/filebrowser/views_test.py |    4 +++-
+ 2 files changed, 18 insertions(+), 12 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index b6c1b9e..78ed901 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -700,17 +700,21 @@ def _read_avro(fhandle, path, offset, length, stats):
+     try:
+         fhandle.seek(offset)
+         data_file_reader = datafile.DataFileReader(fhandle, io.DatumReader())
+-        contents_list = []
+-        read_start = fhandle.tell()
+-        # Iterate over the entire sought file.
+-        for datum in data_file_reader:
+-            read_length = fhandle.tell() - read_start
+-            if read_length > length and len(contents_list) > 0:
+-                break
+-            else:
+-                datum_str = str(datum) + "\n"
+-                contents_list.append(datum_str)
+-        data_file_reader.close()
++
++        try:
++            contents_list = []
++            read_start = fhandle.tell()
++            # Iterate over the entire sought file.
++            for datum in data_file_reader:
++                read_length = fhandle.tell() - read_start
++                if read_length > length and len(contents_list) > 0:
++                    break
++                else:
++                    datum_str = str(datum) + "\n"
++                    contents_list.append(datum_str)
++        finally:
++            data_file_reader.close()
++
+         contents = "".join(contents_list)
+     except:
+         logging.warn("Could not read avro file at %s" % path, exc_info=True)
+diff --git a/apps/filebrowser/src/filebrowser/views_test.py b/apps/filebrowser/src/filebrowser/views_test.py
+index b01035f..a985a96 100644
+--- a/apps/filebrowser/src/filebrowser/views_test.py
++++ b/apps/filebrowser/src/filebrowser/views_test.py
+@@ -731,7 +731,9 @@ def test_view_avro():
+ 
+     # autodetect
+     response = c.get('/filebrowser/view/test-avro-filebrowser/test-view.avro')
+-    assert_equal(json.loads(response.context['view']['contents']), dummy_datum)
++    # (Note: we use eval here cause of an incompatibility issue between
++    # the representation string of JSON dicts in simplejson vs. json)
++    assert_equal(eval(response.context['view']['contents']), dummy_datum)
+ 
+     # offsetting should work as well
+     response = c.get('/filebrowser/view/test-avro-filebrowser/test-view.avro?offset=1')
+-- 
+1.7.9.5
+

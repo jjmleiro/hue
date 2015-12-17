@@ -1,0 +1,822 @@
+From 8ec97d838a8923aab1294143d22ea2d49df2dc18 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 21 Oct 2014 18:16:57 -0700
+Subject: [PATCH 0208/1173] [oozie] Submit a workflow
+
+---
+ apps/oozie/src/oozie/models2.py                    |  134 ++++++--
+ .../templates/editor/gen2/workflow-end.xml.mako    |    2 +-
+ .../templates/editor/gen2/workflow-pig.xml.mako    |    6 +-
+ .../templates/editor/gen2/workflow-start.xml.mako  |    2 +-
+ .../oozie/templates/editor/gen2/workflow.xml.mako  |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |   21 +-
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   50 +++
+ apps/oozie/static/js/workflow-editor.ko.js         |   33 +-
+ desktop/libs/liboozie/src/liboozie/submission2.py  |  323 ++++++++++++++++++++
+ 10 files changed, 540 insertions(+), 34 deletions(-)
+ create mode 100644 desktop/libs/liboozie/src/liboozie/submission2.py
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 36f9b05..5116902 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -19,6 +19,8 @@ import json
+ import logging
+ import re
+ 
++from string import Template
++
+ from django.utils.encoding import force_unicode
+ from django.utils.translation import ugettext as _
+ 
+@@ -31,6 +33,9 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ class Workflow():
++  XML_FILE_NAME = 'workflow.xml'
++  PROPERTY_APP_PATH = 'oozie.wf.application.path'
++  HUE_ID = 'hue-id-w'
+   
+   def __init__(self, data=None, document=None, workflow=None):
+     self.document = document
+@@ -42,20 +47,29 @@ class Workflow():
+     else:
+       self.data = json.dumps({
+           'layout': [
+-              #{"size":12,"rows":[{"widgets":[]}],"drops":["temp"],"klass":"card card-home card-column span2"}
+-{"size":12, "rows":[
+-      {"widgets":[{"size":12, "name":"Start", "id":"3f107997-04cc-8733-60a9-a4bb62cebffc", "widgetType":"start-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]},
+-      {"widgets":[]},  
+-      {"widgets":[{"size":12, "name":"End", "id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a", "widgetType":"end-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]}], 
+-   "drops":[ "temp"],
+-   "klass":"card card-home card-column span12"}              
++              {"size":12, "rows":[
++                    {"widgets":[{"size":12, "name":"Start", "id":"3f107997-04cc-8733-60a9-a4bb62cebffc", "widgetType":"start-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]},
++                    {"widgets":[]},  
++                    {"widgets":[{"size":12, "name":"End", "id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a", "widgetType":"end-widget", "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span12"}]}], 
++                 "drops":[ "temp"],
++                 "klass":"card card-home card-column span12"}              
+           ],
+-           'workflow': workflow if workflow is not None else {"id": None,"uuid":"549e2697-97cf-f931-2ce4-83dfdd03b7e7","name":"",
+-   "properties":{"job_xml":"","sla_enabled":False,"schema_version":"uri:oozie:workflow:0.4","sla_workflow_enabled":False,"credentials":[],"properties":{}},
+-   "nodes":[{"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
+-            {"id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a","name":"End","type":"end-widget","properties":{},"children":[]}]
+-   }
++          'workflow': workflow if workflow is not None else {
++               "id": None,"uuid":"549e2697-97cf-f931-2ce4-83dfdd03b7e7","name":"My Workflow",
++               "properties":{"job_xml":"","sla_enabled":False,"schema_version":"uri:oozie:workflow:0.4","sla_workflow_enabled":False,"credentials":[],"properties":{}},
++               "nodes":[{"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
++                        {"id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a","name":"End","type":"end-widget","properties":{},"children":[]}]
++          }
+       })
++      
++  @property      
++  def id(self):
++    return self.document.id
++
++  @property      
++  def deployment_dir(self):
++    _data = json.loads(self.data)
++    return _data['workflow']['properties']['deployment_dir']  
+   
+   def get_json(self):
+     _data = self.get_data()
+@@ -69,6 +83,9 @@ class Workflow():
+       _data['workflow']['id'] = self.document.id
+     if 'properties' not in _data['workflow']:
+       _data['workflow']['properties'] = {}
++      
++    if 'deployment_dir' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['deployment_dir'] = '/tmp/aa'
+ 
+     if 'sla_workflow_enabled' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['sla_workflow_enabled'] = False
+@@ -83,7 +100,7 @@ class Workflow():
+       _data['workflow']['properties']['properties'] = {}
+ 
+     if 'credentials' not in _data['workflow']['properties']:
+-      _data['workflow']['properties']['credentials'] = []      
++      _data['workflow']['properties']['credentials'] = []
+ 
+     return _data
+   
+@@ -92,33 +109,72 @@ class Workflow():
+       mapping = {}
+     tmpl = 'editor/gen2/workflow.xml.mako'
+ 
+-    data = self.get_data()  
++    data = self.get_data()
+     nodes = [Node(node) for node in data['workflow']['nodes']]
++    node_mapping = dict([(node.id, node.name) for node in nodes])
+ 
+     xml = re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {
+               'workflow': data['workflow'],
+               'nodes': nodes,
+-              'mapping': mapping
++              'mapping': mapping,
++              'node_mapping': node_mapping
+           }))
+     return force_unicode(xml)  
+ 
++  def find_parameters(self):
++    params = set()
++
++#    if self.sla_enabled:
++#      for param in find_json_parameters(self.sla):
++#        params.add(param)
++
++#    for node in self.node_list:
++#      if hasattr(node, 'find_parameters'):
++#        params.update(node.find_parameters())
++
++    return dict([(param, '') for param in list(params)])
++
++  def find_all_parameters(self):
++    params = self.find_parameters()
++
++#    if hasattr(self, 'sla') and self.sla_enabled:
++#      for param in find_json_parameters(self.sla):
++#        if param not in params:
++#          params[param] = ''
++
++#    for param in self.get_parameters():
++#      params[param['name'].strip()] = param['value']
++
++    return  [{'name': name, 'value': value} for name, value in params.iteritems()]
++
+ 
+ class Node():
+-  def __init__(self, data):
++  def __init__(self, data):    
+     self.data = data
+     
+     self._augment_data()
+     
+-  def to_xml(self, mapping=None):
++  def to_xml(self, mapping=None, node_mapping=None):
+     if mapping is None:
+       mapping = {}
+-
++    if node_mapping is None:
++      node_mapping = {}
++      
+     data = {
+       'node': self.data,
+-      'mapping': mapping
++      'mapping': mapping,
++      'node_mapping': node_mapping
+     }
+ 
+     return django_mako.render_to_string(self.get_template_name(), data)
++
++  @property      
++  def name(self):
++    return self.data['name']
++  
++  @property      
++  def id(self):
++    return self.data['id']    
+   
+   def _augment_data(self):
+     self.data['type'] = self.data['type'].replace('-widget', '')
+@@ -140,11 +196,47 @@ class Node():
+     if 'archives' not in self.data['properties']:
+       self.data['properties']['archives'] = []
+ 
+-#    if 'script_path' not in self.data['properties']:
+-#      self.data['properties']['script_path'] = 'test.pig'      
+ 
+     if 'sla_enabled' not in self.data['properties']:
+       self.data['properties']['sla_enabled'] = False
+     
+   def get_template_name(self):
+     return 'editor/gen2/workflow-%s.xml.mako' % self.data['type']    
++
++
++
++def find_parameters(instance, fields=None):
++  """Find parameters in the given fields"""
++  if fields is None:
++    fields = [field.name for field in instance._meta.fields]
++
++  params = []
++  for field in fields:
++    data = getattr(instance, field)
++    if field == 'sla' and not instance.sla_enabled:
++      continue
++    if isinstance(data, list):
++      params.extend(find_json_parameters(data))
++    elif isinstance(data, basestring):
++      for match in Template.pattern.finditer(data):
++        name = match.group('braced')
++        if name is not None:
++          params.append(name)
++
++  return params
++
++def find_json_parameters(fields):
++  # To make smarter
++  # Input is list of json dict
++  params = []
++
++  for field in fields:
++    for data in field.values():
++      if isinstance(data, basestring):
++        for match in Template.pattern.finditer(data):
++          name = match.group('braced')
++          if name is not None:
++            params.append(name)
++
++  return params
++
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
+index d993580..ba02df8 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-end.xml.mako
+@@ -15,4 +15,4 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ 
+-    <end name="${ node['uuid'] }"/>
++    <end name="${ node['name'] }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+index 69172c3..223c0ab 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+@@ -17,7 +17,7 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node['uuid'] }"${ common.credentials(node['properties']['credentials']) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <pig>
+             <job-tracker>${'${'}jobTracker}</job-tracker>
+             <name-node>${'${'}nameNode}</name-node>
+@@ -36,7 +36,7 @@
+ 
+             ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+         </pig>
+-        <ok to="${ node['children'][0]['to'] }"/>
+-        <error to="${ node['children'][0]['to'] }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']] }"/>
++        <error to="${ node_mapping[node['children'][0]['to']] }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
+index 4d938d0..c5f0a3e 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-start.xml.mako
+@@ -15,4 +15,4 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ 
+-    <start to="${ node['children'][0]['to'] }"/>
++    <start to="${ node_mapping[node['children'][0]['to']] }"/>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+index 489e337..16af4b4 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+@@ -47,7 +47,7 @@
+   </credentials>
+   % endif
+   % for node in nodes:
+-      ${ node.to_xml(mapping) | n }
++      ${ node.to_xml(mapping, node_mapping) | n }
+   % endfor
+   ${ common.sla(workflow) }
+ </workflow-app>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index cf90028..5eb6351 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -65,7 +65,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
+       <i class="fa fa-file-code-o"></i>
+     </a>
+-    &nbsp;&nbsp;
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
++      <i class="fa fa-play"></i>
++    </a>
++    &nbsp;&nbsp;&nbsp;&nbsp;
+     % if user.is_superuser:
+       <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+         <i class="fa fa-pencil"></i>
+@@ -208,12 +211,13 @@ ${ dashboard.layout_skeleton() }
+     <a data-bind="click: addActionDemiModalFieldPreview">
+       Add
+     </a>
+-    
+-    <div>
+   </div>
+ </div>
+ 
+ 
++<div id="submit-wf-modal" class="modal hide"></div>
++
++
+ <link rel="stylesheet" href="/oozie/static/css/workflow-editor.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-charts.css">
+@@ -238,13 +242,20 @@ ${ dashboard.import_bindings() }
+ 
+   viewModel.init();
+ 
++
+   function columnDropAdditionalHandler(widget) {
+     widgetDraggedAdditionalHandler(widget);
+   }
+-
+   function widgetDraggedAdditionalHandler(widget) {
+     showAddActionDemiModal(widget);
+   }
++
++
++  $(document).on("showSubmitPopup", function(event, data){
++    $('#submit-wf-modal').html(data);
++    $('#submit-wf-modal').modal('show');
++  });
++
+   
+   var newAction = null;
+ 
+@@ -252,7 +263,7 @@ ${ dashboard.import_bindings() }
+     newAction = widget;
+     $("#addActionDemiModal").modal("show");
+   }
+-  
++
+   function addActionDemiModalFieldPreview(field) {    
+     if (newAction != null) {
+       newAction.properties()['script_path'] = viewModel.addActionScriptPath();
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index c51e826..9780930 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -74,6 +74,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/edit/$', 'edit_workflow', name='edit_workflow'),
+   url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),
+   url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
++  url(r'^editor/workflow/submit/(?P<doc_id>\d+)$', 'submit_workflow', name='editor_submit_workflow'),
+   
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+ )
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 31ee685..af5e8ae 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -19,13 +19,20 @@ import json
+ import logging
+ 
+ from django.core.urlresolvers import reverse
++from django.forms.formsets import formset_factory
+ from django.http import HttpResponse
+ from django.shortcuts import redirect
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.django_util import render
++from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.i18n import smart_str
++from desktop.lib.rest.http_client import RestException
+ from desktop.models import Document2
+ 
++from liboozie.submission2 import Submission
++
++from oozie.forms import ParameterForm
+ from oozie.models2 import Workflow
+ 
+ 
+@@ -100,3 +107,46 @@ def gen_xml_workflow(request):
+     response['message'] = str(e)
+     
+   return HttpResponse(json.dumps(response), mimetype="application/json") 
++
++
++def submit_workflow(request, doc_id):
++  workflow = Workflow(document=Document2.objects.get(id=doc_id)) # Todo perms
++  ParametersFormSet = formset_factory(ParameterForm, extra=0)
++
++  if request.method == 'POST':
++    params_form = ParametersFormSet(request.POST)    
++
++    if params_form.is_valid():
++      mapping = dict([(param['name'], param['value']) for param in params_form.cleaned_data])
++
++      job_id = _submit_workflow(request.user, request.fs, request.jt, workflow, mapping)
++
++      request.info(_('Workflow submitted'))
++      return redirect(reverse('oozie:list_oozie_workflow', kwargs={'job_id': job_id}))
++    else:
++      request.error(_('Invalid submission form: %s' % params_form.errors))
++  else:
++    parameters = workflow.find_all_parameters()
++    initial_params = ParameterForm.get_initial_params(dict([(param['name'], param['value']) for param in parameters]))
++    params_form = ParametersFormSet(initial=initial_params)
++
++  popup = render('editor/submit_job_popup.mako', request, {
++                   'params_form': params_form,
++                   'action': reverse('oozie:editor_submit_workflow', kwargs={'doc_id': workflow.id})
++                 }, force_template=True).content
++  return HttpResponse(json.dumps(popup), mimetype="application/json")
++
++
++def _submit_workflow(user, fs, jt, workflow, mapping):
++  try:
++    submission = Submission(user, workflow, fs, jt, mapping)
++    job_id = submission.run()
++    return job_id
++  except RestException, ex:
++    detail = ex._headers.get('oozie-error-message', ex)
++    if 'Max retries exceeded with url' in str(detail):
++      detail = '%s: %s' % (_('The Oozie server is not running'), detail)
++    LOG.error(smart_str(detail))
++    raise PopupException(_("Error submitting workflow %s") % (workflow,), detail=detail)
++
++  return redirect(reverse('oozie:list_oozie_workflow', kwargs={'job_id': job_id}))
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 3222bc8..e0e22c9 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -85,12 +85,14 @@ var Workflow = function (vm, workflow) {
+   
+ 
+   self.addNode = function(widget) {
+-	// Todo get parent cell, link nodes...
+-	  
++  // Todo get parent cell, link nodes...
++    
+     //if (self.nodes().length == 0) {
+       var node = new Node(ko.mapping.toJS(widget));
+       node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
++      var end = self.nodes.pop()  
+       self.nodes.push(node);
++      self.nodes.push(end);
+ 
+       self.nodes()[0].children.removeAll();
+       self.nodes()[0].children().push({'to': node.id()});
+@@ -180,6 +182,33 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
++
++
++  self.showSubmitPopup = function () {
++	// if self.workflow.id() == null, need to save wf
++    $.get("/oozie/editor/workflow/submit/" + self.workflow.id(), {
++      }, function (data) {
++        $(document).trigger("showSubmitPopup", data);
++     }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    };
++  
++//  self.submit = function () {
++//    $.post("/oozie/editor/workflow/submit/", {        
++//        "layout": ko.mapping.toJSON(self.columns),
++//        "workflow": ko.mapping.toJSON(self.workflow)
++//    }, function (data) {
++//      if (data.status == 0) {
++//      submitWorkflow(data);
++//      }
++//      else {
++//        $(document).trigger("error", data.message);
++//     }
++//   }).fail(function (xhr, textStatus, errorThrown) {
++//      $(document).trigger("error", xhr.responseText);
++//    });
++//  };
+   
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+diff --git a/desktop/libs/liboozie/src/liboozie/submission2.py b/desktop/libs/liboozie/src/liboozie/submission2.py
+new file mode 100644
+index 0000000..08a169a
+--- /dev/null
++++ b/desktop/libs/liboozie/src/liboozie/submission2.py
+@@ -0,0 +1,323 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import errno
++import logging
++import os
++import time
++
++from django.utils.translation import ugettext as _
++
++from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.i18n import smart_str
++from hadoop import cluster
++from hadoop.fs.hadoopfs import Hdfs
++
++from liboozie.oozie_api import get_oozie
++from liboozie.conf import REMOTE_DEPLOYMENT_DIR
++from jobsub.parameterization import find_variables
++from liboozie.credentials import Credentials
++
++LOG = logging.getLogger(__name__)
++
++
++class Submission(object):
++  """
++  Represents one unique Oozie submission.
++
++  Actions are:
++  - submit
++  - rerun
++  """
++  def __init__(self, user, job=None, fs=None, jt=None, properties=None, oozie_id=None):
++    self.job = job
++    self.user = user
++    self.fs = fs
++    self.jt = jt # Deprecated with YARN, we now use logical names only for RM
++    self.oozie_id = oozie_id
++    self.api = get_oozie(self.user)
++
++    if properties is not None:
++      self.properties = properties
++    else:
++      self.properties = {}
++
++  def __str__(self):
++    if self.oozie_id:
++      res = "Submission for job '%s'." % (self.oozie_id,)
++    else:
++      res = "Submission for job '%s' (id %s, owner %s)." % (self.job.name, self.job.id, self.user)
++    if self.oozie_id:
++      res += " -- " + self.oozie_id
++    return res
++
++  def run(self, deployment_dir=None):
++    """
++    Take care of all the actions of submitting a Oozie workflow.
++    Returns the oozie job id if all goes well.
++    """
++    if self.oozie_id is not None:
++      raise Exception(_("Submission already submitted (Oozie job id %s)") % (self.oozie_id,))
++
++    jt_address = cluster.get_cluster_addr_for_job_submission()
++
++    if deployment_dir is None:
++      self._update_properties(jt_address) # Needed as we need to set some properties like Credentials before
++      deployment_dir = self.deploy()
++
++    self._update_properties(jt_address, deployment_dir)
++
++    self.oozie_id = self.api.submit_job(self.properties)
++    LOG.info("Submitted: %s" % (self,))
++
++    if self._is_workflow():
++      self.api.job_control(self.oozie_id, 'start')
++      LOG.info("Started: %s" % (self,))
++
++    return self.oozie_id
++
++  def rerun(self, deployment_dir, fail_nodes=None, skip_nodes=None):
++    jt_address = cluster.get_cluster_addr_for_job_submission()
++
++    self._update_properties(jt_address, deployment_dir)
++    self.properties.update({'oozie.wf.application.path': deployment_dir})
++
++    if fail_nodes:
++      self.properties.update({'oozie.wf.rerun.failnodes': fail_nodes})
++    elif not skip_nodes:
++      self.properties.update({'oozie.wf.rerun.failnodes': 'false'}) # Case empty 'skip_nodes' list
++    else:
++      self.properties.update({'oozie.wf.rerun.skip.nodes': skip_nodes})
++
++    self.api.rerun(self.oozie_id, properties=self.properties)
++
++    LOG.info("Rerun: %s" % (self,))
++
++    return self.oozie_id
++
++
++  def rerun_coord(self, deployment_dir, params):
++    jt_address = cluster.get_cluster_addr_for_job_submission()
++
++    self._update_properties(jt_address, deployment_dir)
++    self.properties.update({'oozie.coord.application.path': deployment_dir})
++
++    self.api.job_control(self.oozie_id, action='coord-rerun', properties=self.properties, parameters=params)
++    LOG.info("Rerun: %s" % (self,))
++
++    return self.oozie_id
++
++
++  def rerun_bundle(self, deployment_dir, params):
++    jt_address = cluster.get_cluster_addr_for_job_submission()
++
++    self._update_properties(jt_address, deployment_dir)
++    self.properties.update({'oozie.bundle.application.path': deployment_dir})
++    self.api.job_control(self.oozie_id, action='bundle-rerun', properties=self.properties, parameters=params)
++    LOG.info("Rerun: %s" % (self,))
++
++    return self.oozie_id
++
++
++  def deploy(self):
++    try:
++      deployment_dir = self._create_deployment_dir()
++    except Exception, ex:
++      msg = _("Failed to create deployment directory: %s" % ex)
++      LOG.exception(msg)
++      raise PopupException(message=msg, detail=str(ex))
++
++    oozie_xml = self.job.to_xml(self.properties)
++    self._do_as(self.user.username , self._copy_files, deployment_dir, oozie_xml)
++
++    if hasattr(self.job, 'actions'):
++      for action in self.job.actions:
++        # Make sure XML is there
++        # Don't support shared sub-worfklow
++        if action.node_type == 'subworkflow':
++          node = action.get_full_node()
++          sub_deploy = Submission(self.user, node.sub_workflow, self.fs, self.jt, self.properties)
++          sub_deploy.deploy()
++
++    return deployment_dir
++
++
++  def get_external_parameters(self, application_path):
++    """From XML and job.properties HDFS files"""
++    deployment_dir = os.path.dirname(application_path)
++    xml = self.fs.do_as_user(self.user, self.fs.read, application_path, 0, 1 * 1024**2)
++
++    properties_file = deployment_dir + '/job.properties'
++    if self.fs.do_as_user(self.user, self.fs.exists, properties_file):
++      properties = self.fs.do_as_user(self.user, self.fs.read, properties_file, 0, 1 * 1024**2)
++    else:
++      properties = None
++
++    return self._get_external_parameters(xml, properties)
++
++  def _get_external_parameters(self, xml, properties=None):
++    from oozie.models import DATASET_FREQUENCY
++    parameters = dict([(var, '') for var in find_variables(xml, include_named=False) if not self._is_coordinator() or var not in DATASET_FREQUENCY])
++
++    if properties:
++      parameters.update(dict([line.strip().split('=')
++                              for line in properties.split('\n') if not line.startswith('#') and len(line.strip().split('=')) == 2]))
++    return parameters
++
++  def _update_properties(self, jobtracker_addr, deployment_dir=None):
++    LOG.info('Using FS %s and JT %s' % (self.fs, self.jt))
++
++    if self.jt and self.jt.logical_name:
++      jobtracker_addr = self.jt.logical_name
++
++    if self.fs.logical_name:
++      fs_defaultfs = self.fs.logical_name
++    else:
++      fs_defaultfs = self.fs.fs_defaultfs
++
++    self.properties.update({
++      'jobTracker': jobtracker_addr,
++      'nameNode': fs_defaultfs,
++    })
++
++    if self.job and deployment_dir:
++      self.properties.update({
++        self.job.PROPERTY_APP_PATH: self.fs.get_hdfs_path(deployment_dir),
++        self.job.HUE_ID: self.job.id
++      })
++
++    # Generate credentials when using security
++    if self.api.security_enabled:
++      credentials = Credentials()
++      credentials.fetch(self.api)
++      self.properties['credentials'] = credentials.get_properties()
++
++  def _create_deployment_dir(self):
++    """
++    Return the job deployment directory in HDFS, creating it if necessary.
++    The actual deployment dir should be 0711 owned by the user
++    """
++    # Automatic setup of the required directories if needed
++    create_directories(self.fs)
++
++    # Case of a shared job
++    if self.user != self.job.document.owner:
++      path = Hdfs.join(REMOTE_DEPLOYMENT_DIR.get(), '_%s_-oozie-%s-%s' % (self.user.username, self.job.id, time.time()))
++      # Shared coords or bundles might not have any existing workspaces
++      if self.fs.exists(self.job.deployment_dir):
++        self.fs.copy_remote_dir(self.job.deployment_dir, path, owner=self.user, dir_mode=0711)
++      else:
++        self._create_dir(path)
++    else:
++      path = self.job.deployment_dir
++      self._create_dir(path)
++    return path
++
++  def _create_dir(self, path, perms=0711):
++    """
++    Return the directory in HDFS, creating it if necessary.
++    """
++    try:
++      statbuf = self.fs.stats(path)
++      if not statbuf.isDir:
++        msg = _("Path is not a directory: %s.") % (path,)
++        LOG.error(msg)
++        raise Exception(msg)
++    except IOError, ex:
++      if ex.errno != errno.ENOENT:
++        msg = _("Error accessing directory '%s': %s.") % (path, ex)
++        LOG.exception(msg)
++        raise IOError(ex.errno, msg)
++
++    if not self.fs.exists(path):
++      self._do_as(self.user.username, self.fs.mkdir, path, perms)
++
++    self._do_as(self.user.username, self.fs.chmod, path, perms)
++
++    return path
++
++  def _copy_files(self, deployment_dir, oozie_xml):
++    """
++    Copy XML and the jar_path files from Java or MR actions to the deployment directory.
++    This should run as the workflow user.
++    """
++    xml_path = self.fs.join(deployment_dir, self.job.XML_FILE_NAME)
++    self.fs.create(xml_path, overwrite=True, permission=0644, data=smart_str(oozie_xml))
++    LOG.debug("Created %s" % (xml_path,))
++
++    # List jar files
++    files = []
++    lib_path = self.fs.join(deployment_dir, 'lib')
++    if hasattr(self.job, 'node_list'):
++      for node in self.job.node_list:
++        if hasattr(node, 'jar_path') and not node.jar_path.startswith(lib_path):
++          files.append(node.jar_path)
++
++    # Copy the jar files to the workspace lib
++    if files:
++      for jar_file in files:
++        LOG.debug("Updating %s" % jar_file)
++        jar_lib_path = self.fs.join(lib_path, self.fs.basename(jar_file))
++        # Refresh if needed
++        if self.fs.exists(jar_lib_path):
++          stat_src = self.fs.stats(jar_file)
++          stat_dest = self.fs.stats(jar_lib_path)
++          if stat_src.fileId != stat_dest.fileId:
++            self.fs.remove(jar_lib_path, skip_trash=True)
++        self.fs.copyfile(jar_file, jar_lib_path)
++
++  def _do_as(self, username, fn, *args, **kwargs):
++    prev_user = self.fs.user
++    try:
++      self.fs.setuser(username)
++      return fn(*args, **kwargs)
++    finally:
++      self.fs.setuser(prev_user)
++
++  def remove_deployment_dir(self):
++    """Delete the workflow deployment directory."""
++    try:
++      path = self.job.deployment_dir
++      if self._do_as(self.user.username , self.fs.exists, path):
++        self._do_as(self.user.username , self.fs.rmtree, path)
++    except Exception, ex:
++      LOG.warn("Failed to clean up workflow deployment directory for "
++               "%s (owner %s). Caused by: %s",
++               self.job.name, self.user, ex)
++
++  def _is_workflow(self):
++    from oozie.models2 import Workflow
++    return Workflow.PROPERTY_APP_PATH in self.properties
++
++  def _is_coordinator(self):
++    from oozie.models2 import Coordinator
++    return Coordinator.PROPERTY_APP_PATH in self.properties
++
++
++def create_directories(fs, directory_list=[]):
++  # If needed, create the remote home, deployment and data directories
++  directories = [REMOTE_DEPLOYMENT_DIR.get()] + directory_list
++
++  for directory in directories:
++    if not fs.do_as_user(fs.DEFAULT_USER, fs.exists, directory):
++      remote_home_dir = Hdfs.join('/user', fs.DEFAULT_USER)
++      if directory.startswith(remote_home_dir):
++        # Home is 755
++        fs.do_as_user(fs.DEFAULT_USER, fs.create_home_dir, remote_home_dir)
++      # Shared by all the users
++      fs.do_as_user(fs.DEFAULT_USER, fs.mkdir, directory, 01777)
++      fs.do_as_user(fs.DEFAULT_USER, fs.chmod, directory, 01777) # To remove after https://issues.apache.org/jira/browse/HDFS-3491
+-- 
+1.7.9.5
+

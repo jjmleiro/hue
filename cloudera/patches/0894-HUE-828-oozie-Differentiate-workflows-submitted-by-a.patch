@@ -1,0 +1,168 @@
+From fc708de56ed5b3df957661849241bda50f68c0a7 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 19 Feb 2015 18:54:31 -0800
+Subject: [PATCH 0894/1173] HUE-828 [oozie] Differentiate workflows submitted
+ by a coordinator from ones submitted manually
+
+---
+ .../templates/dashboard/list_oozie_workflows.mako  |   30 ++++++++++++++++----
+ apps/oozie/src/oozie/views/dashboard.py            |    1 +
+ apps/oozie/static/js/dashboard-utils.js            |   20 ++++++++++++-
+ 3 files changed, 45 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 40b1335..fd1678d 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -58,6 +58,11 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         <a class="btn btn-status btn-warning" data-value='RUNNING'>${ _('Running') }</a>
+         <a class="btn btn-status btn-danger disable-feedback" data-value='KILLED'>${ _('Killed') }</a>
+       </span>
++      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px">${ _('submitted') }</span>
++      <span class="btn-group" style="float:left;">
++        <a class="btn btn-submitted btn-info" data-value='MANUALLY'>${ _('Manually') }</a>
++        <a class="btn btn-submitted btn-info" data-value='COORDINATOR'>${ _('Coordinator') }</a>
++      </span>
+     </span>
+  </form>
+ 
+@@ -74,6 +79,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <th width="7%">${ _('Submitter') }</th>
+           <th width="15%">${ _('Last Modified') }</th>
+           <th width="20%">${ _('Id') }</th>
++          <th width="1%">${ _('parentId') }</th>
+         </tr>
+       </thead>
+       <tbody>
+@@ -86,6 +92,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <td></td>
+           <td></td>
+           <td></td>
++          <td></td>
+         </tr>
+       </tbody>
+     </table>
+@@ -104,6 +111,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <th width="10%">${ _('Submitter') }</th>
+           <th width="15%">${ _('Last Modified') }</th>
+           <th width="25%">${ _('Id') }</th>
++          <th width="1%">${ _('parentId') }</th>
+         </tr>
+       </thead>
+       <tbody>
+@@ -115,6 +123,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <td></td>
+           <td></td>
+           <td></td>
++          <td></td>
+         </tr>
+       </tbody>
+      </table>
+@@ -163,7 +172,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       resumeUrl: wf.resumeUrl,
+       created: wf.created,
+       createdInMillis: wf.createdInMillis,
+-      run: wf.run
++      run: wf.run,
++      parentId: wf.parentId,
+     }
+   }
+ 
+@@ -183,7 +193,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         null,
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+-        null
++        null,
++        { "bVisible":false }
+       ],
+       "aaSorting":[
+         [ 0, "desc" ]
+@@ -218,7 +229,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+-        null
++        null,
++        { "bVisible":false }
+       ],
+       "aaSorting":[
+         [ 0, "desc" ]
+@@ -260,6 +272,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       drawTable();
+     });
+ 
++    $("a.btn-submitted").click(function () {
++      $("a.btn-submitted").not(this).removeClass("active");
++      $(this).toggleClass("active");
++      drawTable();
++    });
++
+     $("a.btn-date").click(function () {
+       $("a.btn-date").not(this).removeClass("active");
+       $(this).toggleClass("active");
+@@ -352,7 +370,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     wf.user,
+                     '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+-                    '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
++                    '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
++                    wf.parentId
+                   ]);
+                 }
+                 catch (error) {
+@@ -390,7 +409,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+               '<span data-sort-value="'+ wf.durationInMillis +'">' + emptyStringIfNull(wf.duration) + '</span>',
+               wf.user,
+               '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+-              '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
++              '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
++              wf.parentId
+             ], false);
+           }
+           catch (error) {
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 0c60512..d24202e 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -867,6 +867,7 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+         'run': hasattr(job, 'run') and job.run or 0,
+         'frequency': hasattr(job, 'frequency') and Coordinator.CRON_MAPPING.get(job.frequency, job.frequency) or None,
+         'timeUnit': hasattr(job, 'timeUnit') and job.timeUnit or None,
++        'parentId': hasattr(job, 'parentId') and job.parentId or None,
+       }
+       jobs.append(massaged_job)
+ 
+diff --git a/apps/oozie/static/js/dashboard-utils.js b/apps/oozie/static/js/dashboard-utils.js
+index 6c09d9d..d10cbb0 100644
+--- a/apps/oozie/static/js/dashboard-utils.js
++++ b/apps/oozie/static/js/dashboard-utils.js
+@@ -76,5 +76,23 @@ var PersistedButtonsFilters = function (oSettings, aData, iDataIndex) {
+     dateFilter = _dateColumn * 1000 >= minAge;
+   }
+ 
+-  return statusFilter && dateFilter;
++  var submittedBtn = $("a.btn-submitted.active");
++  var submittedByFilter = true;
++  if (submittedBtn.length > 0) {
++    var statuses = [];
++    $.each(submittedBtn, function () {
++      statuses.push($(this).attr("data-value"));
++    });
++
++    var _statusColumn = aData[aData.length - 1];
++    if (statuses.length == 1) {
++      if(statuses[0] == 'MANUALLY') {
++        submittedByFilter = _statusColumn == null;
++      } else {
++        submittedByFilter = _statusColumn != null;
++      }
++    }
++  }
++
++  return statusFilter && dateFilter && submittedByFilter;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

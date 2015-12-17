@@ -1,0 +1,260 @@
+From 5f2718422eda9acde02a6ca6153d903c508f761e Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 24 Nov 2014 13:34:48 -0800
+Subject: [PATCH 0310/1173] [oozie] Add Sqoop 1 action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   63 +++++++++++++++++++-
+ .../templates/editor/gen2/workflow-hive2.xml.mako  |    9 +--
+ .../templates/editor/gen2/workflow-sqoop.xml.mako  |   24 ++++----
+ .../oozie/templates/editor/workflow_editor.mako    |   51 +++++++++++++++-
+ 4 files changed, 127 insertions(+), 20 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 879db25..a1d1356 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -356,7 +356,7 @@ class JavaAction(Action):
+           'label': _('Arguments'),
+           'value': [],
+           'help_text': _('Arguments of the main method. The value of each arg element is considered a single argument '
+-                       'and they are passed to the main method in the same order.')
++                         'and they are passed to the main method in the same order.')
+      },
+      'java_opts': { 
+           'name': 'java_opts',
+@@ -527,8 +527,8 @@ class HiveServer2Action(Action):
+           'label': _('Job XML'),
+           'value': [],
+           'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
+-                       'Properties specified in the Job Properties element override properties specified in the '
+-                       'files specified in the Job XML element.')
++                        'Properties specified in the Job Properties element override properties specified in the '
++                        'files specified in the Job XML element.')
+      }
+   }
+ 
+@@ -565,6 +565,62 @@ class SubWorkflowAction(Action):
+     return []
+ 
+ 
++class SqoopAction(Action):
++  TYPE = 'sqoop'
++  FIELDS = {
++     'command': { 
++          'name': 'command',
++          'label': _('Sqoop command'),
++          'value': 'import  --connect jdbc:hsqldb:file:db.hsqldb --table TT --target-dir hdfs://localhost:8020/user/foo -m 1',
++          'help_text': _('The full %(type)s command. Either put it here or split it by spaces and insert the parts as multiple parameters below.') % {'type': TYPE}
++     },            
++     'parameters': { 
++          'name': 'parameters',
++          'label': _('Arguments'),
++          'value': [],
++          'help_text': _('If no command is specified, split the command by spaces and insert the %(type)s parameters '
++                         'here e.g. import, --connect, jdbc:hsqldb:file:db.hsqldb, ...') % {'type': TYPE}
++     },
++     # Common
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                        'Properties specified in the Job Properties element override properties specified in the '
++                        'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['command']]
++
++
+ class KillAction(Action):
+   TYPE = 'kill'
+   FIELDS = {
+@@ -596,6 +652,7 @@ NODES = {
+   'hive-widget': HiveAction,
+   'hive2-widget': HiveServer2Action,  
+   'subworkflow-widget': SubWorkflowAction,
++  'sqoop-widget': SqoopAction,
+   'kill-widget': KillAction,
+   'join-widget': JoinAction,
+ }
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
+index 1bd761e..992b25a 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
+@@ -18,7 +18,7 @@
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+     <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+-        <hive xmlns="uri:oozie:hive2-action:0.1">
++        <hive2 xmlns="uri:oozie:hive2-action:0.1">
+             <job-tracker>${'${'}jobTracker}</job-tracker>
+             <name-node>${'${'}nameNode}</name-node>
+ 
+@@ -27,18 +27,19 @@
+               <job-xml>${ node['properties']['job_xml'] }</job-xml>
+             % endif
+             ${ common.configuration(node['properties']['properties']) }
+-
+-            <script>${ node['properties']['script_path'] }</script>
++            
+             <jdbc-url>${ node['properties']['jdbc_url'] }</jdbc-url>
+             % if node['properties']['password']:
+             <password>${ node['properties']['password'] }</password>
+             % endif
++            <script>${ node['properties']['script_path'] }</script>
++
+             % for param in node['properties']['parameters']:
+               <param>${ param['value'] }</param>
+             % endfor
+ 
+             ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+-        </hive>
++        </hive2>
+         <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
+         <error to="${ node_mapping[node['children'][1]['error']].name }"/>
+         ${ common.sla(node) }
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
+index 7991579..068e78b 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-sqoop.xml.mako
+@@ -17,28 +17,28 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <sqoop xmlns="uri:oozie:sqoop-action:0.2">
+             <job-tracker>${'${'}jobTracker}</job-tracker>
+             <name-node>${'${'}nameNode}</name-node>
+ 
+-            ${ common.prepares(node.get_prepares()) }
+-            % if node.job_xml:
+-              <job-xml>${ node.job_xml }</job-xml>
++            ${ common.prepares(node['properties']['prepares']) }
++            % if node['properties']['job_xml']:
++              <job-xml>${ node['properties']['job_xml'] }</job-xml>
+             % endif
+-            ${ common.configuration(node.get_properties()) }
++            ${ common.configuration(node['properties']['properties']) }
+ 
+-            % if node.script_path:
+-            <command>${ node.script_path }</command>
++            % if node['properties']['command']:
++            <command>${ node['properties']['command'] }</command>
+             % endif
+ 
+-            % for param in node.get_params():
+-              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % for param in node['properties']['parameters']:
++              <arg>${ param['value'] }</arg>
+             % endfor
+ 
+-            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+         </sqoop>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
++        <error to="${ node_mapping[node['children'][1]['error']].name }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index e7fd40c..faf0ddd 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -65,7 +65,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableSqoopAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){}}}"
++                    options: {'start': function(event, ui){$root.currentlyDraggedWidget(draggableSqoopAction());}}}"
+          title="${_('Sqoop 1')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><img src="/oozie/static/art/icon_sqoop_48.png" class="app-icon"></a>
+     </div>
+@@ -825,6 +825,55 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="sqoop-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Sqoop') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
++
++          <span data-bind="text: $root.workflow_properties.command.label"></span>
++          <input type="text" data-bind="value: properties.command" />                    
++          </br>
++          <span data-bind="template: { name: 'common-properties-parameters' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <br/>
++          </br>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="subworkflow-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+-- 
+1.7.9.5
+

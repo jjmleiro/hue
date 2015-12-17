@@ -1,0 +1,55 @@
+From cf572ca6c1cfe2538cb97ba63d49c3beba741865 Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Sat, 11 Oct 2014 13:55:28 -0500
+Subject: [PATCH 0030/1173] HUE-2398 [fb] Drag and Drop hover message should
+ not appear when elements originating in DOM are
+ dragged
+
+Added dragstart/dragend event listeners to body inorder to determine if dragged elements originated outside DOM
+---
+ .../filebrowser/templates/listdir_components.mako  |   19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 58964c6..3a46a31 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -1324,11 +1324,25 @@ from django.utils.translation import ugettext as _
+           $('.hoverMsg').addClass('hide');
+         };
+ 
+-        var _isDraggingOverText = false;
++        var _isDraggingOverText = false,
++          // determine if the item dragged originated outside DOM
++          _isExternalFile = true;
++
++        $('body').on('dragstart', function (e) {
++          // External files being dragged into the DOM won't have a dragstart event
++          _isExternalFile = false;
++        });
++
++        $('body').on('dragend', function (e) {
++          _isExternalFile = true;
++        });
+ 
+         $('.card').on('dragenter', function (e) {
+           e.preventDefault();
+-          showHoverMsg("${_('Drop files here to upload')}");
++
++          if (_isExternalFile) {
++            showHoverMsg("${_('Drop files here to upload')}");
++          }
+         });
+ 
+         $('.hoverText').on('dragenter', function (e) {
+@@ -1343,6 +1357,7 @@ from django.utils.translation import ugettext as _
+           e.stopPropagation();
+           e.stopImmediatePropagation();
+           _isDraggingOverText = false;
++          _isExternalFile = true;
+         });
+ 
+         $('.hoverMsg').on('dragleave', function (e) {
+-- 
+1.7.9.5
+

@@ -1,0 +1,170 @@
+From 0573db16735ba007fe240734cb75b9e96d4e7d22 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Feb 2015 17:48:20 -0800
+Subject: [PATCH 0885/1173] [spark] Check for running status of a new session
+
+---
+ apps/spark/src/spark/api.py                |   10 ++++------
+ apps/spark/src/spark/job_server_api.py     |    3 +++
+ apps/spark/src/spark/models.py             |   17 +++++++++++++----
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ apps/spark/src/spark/views.py              |   12 ++++++++++--
+ 5 files changed, 31 insertions(+), 13 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 878305a..15d39de 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -22,9 +22,7 @@ from django.http import HttpResponse
+ from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+ 
+-from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.django_util import JsonResponse
+-from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2, Document
+ 
+ from spark.models import get_api, Notebook, QueryExpired
+@@ -98,7 +96,7 @@ def fetch_result_metadata(request):
+   response['result'] = get_api(request.user, snippet).fetch_result_metadata(notebook, snippet)
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -111,7 +109,7 @@ def cancel_statement(request):
+   response['result'] = get_api(request.user, snippet).cancel(notebook, snippet)
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ @api_error_handler
+@@ -182,7 +180,7 @@ def close_notebook(request):
+       pass
+   response['message'] = _('Notebook closed !')
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+ 
+ 
+ def close_statement(request):
+@@ -197,4 +195,4 @@ def close_statement(request):
+     pass
+   response['status'] = 0
+ 
+-  return HttpResponse(json.dumps(response), mimetype="application/json")
++  return JsonResponse(response)
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index a442dff..c6f6a90 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -86,6 +86,9 @@ class JobServerApi(object):
+   def create_session(self, **kwargs):
+     return self._root.post('sessions', data=json.dumps(kwargs), contenttype='application/json')
+ 
++  def get_session(self, uuid):
++    return self._root.get('sessions/%s' % uuid)
++
+   def submit_statement(self, uuid, statement):
+     data = {'code': statement}
+     return self._root.post('sessions/%s/statements' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index f08346a..0490971 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -17,18 +17,18 @@
+ 
+ import json
+ import re
++import time
+ 
+ from desktop.lib.exceptions_renderable import PopupException
+-from desktop.lib.i18n import smart_str, force_unicode
+-from desktop.lib.rest.http_client import RestException
++from desktop.lib.i18n import force_unicode
+ 
+-from beeswax import models as beeswax_models, data_export
++from beeswax import data_export
+ from beeswax.design import hql_query
+ from beeswax import conf as beeswax_conf
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory, HiveServerQueryHistory
+ from beeswax.server import dbms
+ from beeswax.server.dbms import get_query_server_config, QueryServerException
+-from beeswax.views import safe_get_design, save_design, _parse_out_hadoop_jobs
++from beeswax.views import _parse_out_hadoop_jobs
+ 
+ from spark.job_server_api import get_api as get_spark_api
+ from spark.data_export import download as spark_download
+@@ -274,6 +274,15 @@ class SparkApi():
+   def create_session(self, lang='scala'):
+     api = get_spark_api(self.user)
+     response = api.create_session(lang=lang)
++
++    status = api.get_session(response['id'])
++    count = 0
++
++    while status['state'] == 'starting' or count < 60:
++      status = api.get_session(response['id'])
++      count += 1
++      time.sleep(1)
++
+     return {
+         'type': lang,
+         'id': response['id']
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 3fbafb7..2af9283 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -605,7 +605,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     app: "beeswax",
+     user: "${user}",
+     failsSilentlyOn: [500], // error codes from beeswax/views.py - autocomplete
+-    baseURL: "${url('beeswax:api_autocomplete_databases')}"
++    baseURL: "${ autocomplete_base_url | n,unicode }"
+   });
+ 
+   Number.prototype.toHHMMSS = function () {
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index 7fee9ad..33bd6ca 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -18,6 +18,7 @@
+ import json
+ import logging
+ 
++from django.core.urlresolvers import reverse
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.django_util import render
+@@ -37,7 +38,13 @@ def editor(request):
+     notebook = Notebook(document=Document2.objects.get(id=notebook_id)) # Todo perms
+   else:
+     notebook = Notebook()
+-    
++
++  autocomplete_base_url = ''
++  try:
++    autocomplete_base_url = reverse('beeswax:api_autocomplete_databases', kwargs={})
++  except:
++    pass
++
+   return render('editor.mako', request, {
+       'notebooks_json': json.dumps([notebook.get_data()]),
+       'options_json': json.dumps({
+@@ -49,7 +56,8 @@ def editor(request):
+               'hive': _('Example: SELECT * FROM tablename, or press CTRL + space'),
+               'text': _('<h2>This is a text snippet</h2>Type your text here')
+           }
+-      })
++      }),
++      'autocomplete_base_url': autocomplete_base_url,
+   })
+ 
+ 
+-- 
+1.7.9.5
+

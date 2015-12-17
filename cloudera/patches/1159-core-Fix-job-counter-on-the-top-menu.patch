@@ -1,0 +1,29 @@
+From bebdbc5026dd1e8c3a46d99a608bdbeafa6dc420 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 29 Apr 2015 15:48:57 +0200
+Subject: [PATCH 1159/1173] [core] Fix job counter on the top menu
+
+---
+ .../core/src/desktop/templates/common_header.mako  |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 1ab65f3..611ceaf 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -237,9 +237,9 @@ from django.utils.translation import ugettext as _
+ 
+       function checkJobBrowserStatus(){
+         $.getJSON("/${apps['jobbrowser'].display_name}/?format=json&state=running&user=${user.username}", function(data){
+-          if (data != null){
+-            if (data.length > 0){
+-              $("#jobBrowserCount").removeClass("hide").text(data.length);
++          if (data != null && data.jobs != null){
++            if (data.jobs.length > 0){
++              $("#jobBrowserCount").removeClass("hide").text(data.jobs.length);
+             }
+             else {
+               $("#jobBrowserCount").addClass("hide");
+-- 
+1.7.9.5
+

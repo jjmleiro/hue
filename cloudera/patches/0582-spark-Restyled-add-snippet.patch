@@ -1,0 +1,130 @@
+From 6fe8d1b44e50686db372b81cfbae4e9fb2b4e729 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 18:49:03 +0100
+Subject: [PATCH 0582/1173] [spark] Restyled add snippet
+
+---
+ apps/spark/src/spark/templates/editor.mako |   24 ++++++++++++++-----
+ apps/spark/static/css/spark.css            |   36 +++++++++++++++++++++++++++-
+ apps/spark/static/js/spark.vm.js           |    8 +++++--
+ 3 files changed, 59 insertions(+), 9 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index a6940fd..e16cd68 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -222,12 +222,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </div>
+ 
+ 
+-      <div style="margin: 20px">
+-        <a href="javascript: void(0)" data-bind="click: newSnippet">
+-          <i class="fa fa-plus" title="${ _('Add') }"></i> ${ _('Add a new snippet') }
+-        </a>
+-        <select data-bind="options: availableSnippets, value: selectedSnippet">
+-        </select>
++      <div class="add-snippet">
++        <textarea id="shadowEditor">
++${_('Example: SELECT * FROM tablename, or press CTRL + space')}
++
++
++
++
++        </textarea>
++        <div class="overlay">
++          <select data-bind="options: availableSnippets, value: selectedSnippet"></select>
++          <i class="fa fa-plus-circle" data-bind="click: newSnippet" title="${ _('Add a new snippet') }"></i>
++        </div>
+       </div>
+     </div>
+   </div>
+@@ -1359,6 +1365,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     $(".CodeMirror").each(function () {
+       $(this)[0].CodeMirror.refresh();
+     });
++
++    var shadowEditor = CodeMirror.fromTextArea($("#shadowEditor")[0], {
++      lineNumbers: true,
++      readOnly: true,
++      mode: "text/x-hiveql"
++    });
+   });
+ 
+ </script>
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 8d1095d..8d654ce 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -25,12 +25,46 @@
+ }
+ 
+ .CodeMirror {
+-  border: 1px solid #DDD;
++  border: 1px solid #EEE;
+   border-top: none;
+   border-bottom: none;
+   height: auto;
+ }
+ 
++.add-snippet {
++  margin: 10px;
++  margin-top: 60px;
++  background-color: #F1F1F1;
++  cursor: default;
++}
++
++.add-snippet .CodeMirror {
++  opacity: .30;
++  border: 1px solid #DDD;
++  cursor: default;
++}
++
++.add-snippet .CodeMirror-lines {
++  cursor: default;
++}
++
++.add-snippet .overlay {
++  position: absolute;
++  margin-top: -60px;
++  z-index: 300;
++  left: 50%;
++}
++
++.add-snippet .overlay i {
++  font-size: 28px;
++  color: #CCC;
++  cursor: pointer;
++}
++
++.add-snippet .overlay i:hover {
++  color: #666;
++}
++
+ .codeMirror-overlaybtn {
+   position: absolute;
+   margin-top: -40px;
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 62fbbc1..3d7f257 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -526,11 +526,15 @@ function EditorViewModel(notebooks, options) {
+   };
+ 
+   self.loadNotebook = function(notebook) {
+-    self.notebooks.push(new Notebook(self, notebook));
++    var _n = new Notebook(self, notebook);
++    self.notebooks.push(_n);
++    if (_n.snippets().length > 0){
++      _n.selectedSnippet(_n.snippets()[_n.snippets().length - 1].type());
++    }
+   };
+ 
+   self.newNotebook = function() {
+-	self.notebooks.push(new Notebook(self, {}));
++	  self.notebooks.push(new Notebook(self, {}));
+     self.selectedNotebook(self.notebooks()[self.notebooks().length - 1]);
+   };
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,52 @@
+From 98d5faaa99af015ec95dda1ffbf601bfaa9c1040 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Fri, 16 Jan 2015 16:31:37 -0800
+Subject: [PATCH 0462/1173] [useradmin] Update LDAP groupanme_pattern test
+ case
+
+---
+ apps/useradmin/src/useradmin/test_ldap.py          |    9 +++++++--
+ .../src/useradmin/test_ldap_deprecated.py          |    7 +++++--
+ 2 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/test_ldap.py b/apps/useradmin/src/useradmin/test_ldap.py
+index 100f931..fb79d16 100644
+--- a/apps/useradmin/src/useradmin/test_ldap.py
++++ b/apps/useradmin/src/useradmin/test_ldap.py
+@@ -584,8 +584,13 @@ def test_add_ldap_groups():
+     assert_true('Location' in response, response)
+     assert_true('/useradmin/groups' in response['Location'], response)
+ 
+-    response = c.post(URL, dict(server='nonsense', groupname_pattern='toolongnametoolongnametoolongnametoolongnametoolongnametoolongnametoolongnametoolongname'))
+-    assert_true('Ensure this value has at most 80 characters' in response.context['form'].errors['groupname_pattern'][0], response)
++    response = c.post(URL, dict(server='nonsense', groupname_pattern='toolongnametoolongnametoolongnametoolongname'
++                                                                     'toolongnametoolongnametoolongnametoolongname'
++                                                                     'toolongnametoolongnametoolongnametoolongname'
++                                                                     'toolongnametoolongnametoolongnametoolongname'
++                                                                     'toolongnametoolongnametoolongnametoolongname'
++                                                                     'toolongnametoolongnametoolongnametoolongname'))
++    assert_true('Ensure this value has at most 256 characters' in response.context['form'].errors['groupname_pattern'][0], response)
+ 
+     # Test wild card
+     response = c.post(URL, dict(server='nonsense', groupname_pattern='*r*'))
+diff --git a/apps/useradmin/src/useradmin/test_ldap_deprecated.py b/apps/useradmin/src/useradmin/test_ldap_deprecated.py
+index ed8b8c7..1e27235 100644
+--- a/apps/useradmin/src/useradmin/test_ldap_deprecated.py
++++ b/apps/useradmin/src/useradmin/test_ldap_deprecated.py
+@@ -534,8 +534,11 @@ def test_add_ldap_groups():
+   assert_true('Location' in response, response)
+   assert_true('/useradmin/groups' in response['Location'], response)
+ 
+-  response = c.post(URL, dict(groupname_pattern='toolongnametoolongnametoolongnametoolongnametoolongnametoolongnametoolongnametoolongname'))
+-  assert_true('Ensure this value has at most 80 characters' in response.context['form'].errors['groupname_pattern'][0], response)
++  response = c.post(URL, dict(groupname_pattern='toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'
++                                                'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'
++                                                'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'
++                                                'toolongnametoolongnametoolongnametoolongnametoolongnametoolongname'))
++  assert_true('Ensure this value has at most 256 characters' in response.context['form'].errors['groupname_pattern'][0], response)
+ 
+   # Test wild card
+   response = c.post(URL, dict(groupname_pattern='*r*'))
+-- 
+1.7.9.5
+

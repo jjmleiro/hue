@@ -1,0 +1,74 @@
+From f54517de190838d71941d8a474cc090550c49658 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Feb 2015 16:05:53 -0800
+Subject: [PATCH 0826/1173] HUE-2257 [hive] Add a workaround for missing
+ hasMoreRows in the API
+
+---
+ apps/beeswax/src/beeswax/api.py                    |    3 +--
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    2 +-
+ desktop/conf.dist/hue.ini                          |    4 ++--
+ desktop/conf/pseudo-distributed.ini.tmpl           |    4 ++--
+ 4 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/api.py b/apps/beeswax/src/beeswax/api.py
+index 872047a..59082d1 100644
+--- a/apps/beeswax/src/beeswax/api.py
++++ b/apps/beeswax/src/beeswax/api.py
+@@ -269,9 +269,8 @@ def execute(request, design_id=None):
+   design = safe_get_design(request, query_type, design_id)
+ 
+   try:
+-    print 'aaa'
+     query_form = get_query_form(request)
+-    print 'bb'
++
+     if query_form.is_valid():
+       query_str = query_form.query.cleaned_data["query"]
+       explain = request.GET.get('explain', 'false').lower() == 'true'
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index 92996de..d405dc0 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -170,7 +170,7 @@ class HiveServerTRowSet2:
+     self.startRowOffset = row_set.startRowOffset
+ 
+   def is_empty(self):
+-    return len(self.rows) == 0
++    return len(self.row_set.columns) == 0
+ 
+   def cols(self, col_names):
+     cols_rows = []
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index bfaf25b..b70a3e4 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -792,8 +792,8 @@
+   # This will free all the query resources in HiveServer2, but also make its results inaccessible.
+   ## close_queries=false
+ 
+-  # Thrift version to use when communicating with HiveServer2. Version 7 is a faster prototype.
+-  ## thrift_version=5
++  # Thrift version to use when communicating with HiveServer2.
++  ## thrift_version=7
+ 
+   [[ssl]]
+     # SSL communication enabled for this server.
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 55b8f43..091a15b 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -798,8 +798,8 @@
+   # This will free all the query resources in HiveServer2, but also make its results inaccessible.
+   ## close_queries=false
+ 
+-  # Thrift version to use when communicating with HiveServer2. Version 7 is a faster prototype.
+-  ## thrift_version=5
++  # Thrift version to use when communicating with HiveServer2.
++  ## thrift_version=7
+ 
+   [[ssl]]
+     # SSL communication enabled for this server.
+-- 
+1.7.9.5
+

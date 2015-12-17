@@ -1,0 +1,212 @@
+From 9c8caca23e8a136ec3226d1b157a588ddf77562b Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 23 Jan 2015 19:33:27 -0800
+Subject: [PATCH 0663/1173] [livy] Work around scalatra AsyncResults not
+ erroring out properly
+
+---
+ .../com/cloudera/hue/livy/server/Session.scala     |    2 +
+ .../cloudera/hue/livy/server/SessionManager.scala  |   11 +++--
+ .../hue/livy/server/SparkProcessSession.scala      |   11 ++++-
+ .../com/cloudera/hue/livy/server/WebApp.scala      |   46 +++++++++++++-------
+ 4 files changed, 49 insertions(+), 21 deletions(-)
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
+index 5743744..876796f 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
+@@ -28,3 +28,5 @@ trait Session {
+ 
+   def close(): Future[Unit]
+ }
++
++class SessionFailedtoStart(msg: String) extends Exception(msg) {}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+index 5c16a88..3bb25e5 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.server
+ 
++import com.cloudera.hue.livy.Logging
++
+ import scala.collection.concurrent.TrieMap
+ import scala.concurrent.duration.Duration
+ import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
+@@ -12,7 +14,7 @@ object SessionManager {
+   val GC_PERIOD = 1000 * 60 * 60
+ }
+ 
+-class SessionManager(factory: SessionFactory) {
++class SessionManager(factory: SessionFactory) extends Logging {
+ 
+   private implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+ 
+@@ -30,11 +32,12 @@ class SessionManager(factory: SessionFactory) {
+   }
+ 
+   def createSparkSession(): Future[Session] = {
+-    val session = factory.createSparkSession
++    val session = factory.createSparkSession()
+ 
+     session.map({ case(session: Session) =>
+-        sessions.put(session.id, session)
+-        session
++      info("created session %s" format session.id)
++      sessions.put(session.id, session)
++      session
+     })
+   }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
+index 14309fa..47c8cc9 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
+@@ -1,10 +1,14 @@
+ package com.cloudera.hue.livy.server
+ 
++import java.lang.ProcessBuilder.Redirect
++
++import com.cloudera.hue.livy.Logging
++
+ import scala.annotation.tailrec
+ import scala.concurrent.Future
+ import scala.io.Source
+ 
+-object SparkProcessSession {
++object SparkProcessSession extends Logging {
+   val LIVY_HOME = System.getenv("LIVY_HOME")
+   val SPARK_SHELL = LIVY_HOME + "/bin/spark-shell"
+ 
+@@ -21,6 +25,8 @@ object SparkProcessSession {
+     def parsePort(lines: Iterator[String]): Option[Int] = {
+       if (lines.hasNext) {
+         val line = lines.next()
++        info("shell output: %s" format line)
++
+         line match {
+           case regex(port_) => Some(port_.toInt)
+           case _ => parsePort(lines)
+@@ -33,6 +39,7 @@ object SparkProcessSession {
+     def startProcess(): (Process, Int) = {
+       val pb = new ProcessBuilder(SPARK_SHELL)
+       pb.environment().put("PORT", "0")
++      pb.redirectError(Redirect.INHERIT)
+       val process = pb.start()
+ 
+       val source = Source.fromInputStream(process.getInputStream)
+@@ -47,7 +54,7 @@ object SparkProcessSession {
+         case None =>
+           // Make sure to reap the process.
+           process.waitFor()
+-          throw new Exception("Couldn't start livy-repl")
++          throw new SessionFailedtoStart("Couldn't start livy-repl")
+       }
+     }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index c0f8110..2573ce8 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -1,11 +1,12 @@
+ package com.cloudera.hue.livy.server
+ 
+ import com.fasterxml.jackson.core.JsonParseException
+-import org.json4s.{MappingException, DefaultFormats, Formats}
++import org.json4s.{DefaultFormats, Formats, MappingException}
+ import org.scalatra._
+ import org.scalatra.json.JacksonJsonSupport
+ 
+-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
++import scala.concurrent.duration.Duration
++import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor}
+ 
+ object WebApp {
+   case class CreateSessionRequest(lang: String)
+@@ -40,32 +41,40 @@ class WebApp(sessionManager: SessionManager)
+       case lang => halt(400, "unsupported language: " + lang)
+     }
+ 
+-    val rep = for {
+-      session <- sessionFuture
+-    } yield redirect(url(getSession, "sessionId" -> session.id))
++    val rep = sessionFuture.map {
++      case session => Map("id" -> session.id, "state" -> session.state)
++    }
+ 
+-    new AsyncResult { val is = rep }
++    // FIXME: this is silently eating exceptions.
++    //new AsyncResult { val is = rep }
++    Await.result(rep, Duration.Inf)
+   }
+ 
+   val getStatements = get("/sessions/:sessionId/statements") {
+     sessionManager.get(params("sessionId")) match {
+       case Some(session: Session) =>
+         val statements = session.statements()
+-        new AsyncResult() { val is = statements }
++
++        // FIXME: this is silently eating exceptions.
++        //new AsyncResult() { val is = statements }
++        Await.result(statements, Duration.Inf)
+       case None => NotFound("Session not found")
+     }
+   }
+ 
+   val getSession = get("/sessions/:sessionId") {
+-    redirect(url(getStatements, "sessionId" -> params("sessionId")))
++    sessionManager.get(params("sessionId")) match {
++      case Some(session) => Map("id" -> session.id, "state" -> session.state)
++      case None => NotFound("Session not found")
++    }
+   }
+ 
+   delete("/sessions/:sessionId") {
+-    new AsyncResult() {
+-      val is = for {
+-      _ <- sessionManager.close(params("sessionId"))
+-      } yield NoContent
+-    }
++    val future = sessionManager.close(params("sessionId"))
++
++    // FIXME: this is silently eating exceptions.
++    //new AsyncResult() { val is = for { _ <- future } yield NoContent }
++    Await.result(future, Duration.Inf)
+   }
+ 
+   post("/sessions/:sessionId/statements") {
+@@ -74,7 +83,10 @@ class WebApp(sessionManager: SessionManager)
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+         val statement = session.executeStatement(req.statement)
+-        new AsyncResult() { val is = statement }
++
++        // FIXME: this is silently eating exceptions.
++        //new AsyncResult() { val is = statement }
++        Await.result(statement, Duration.Inf)
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -83,7 +95,10 @@ class WebApp(sessionManager: SessionManager)
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+         val statement = session.statement(params("statementId").toInt)
+-        new AsyncResult() { val is = statement }
++
++        // FIXME: this is silently eating exceptions.
++        //new AsyncResult() { val is = statement }
++        Await.result(statement, Duration.Inf)
+       case None => NotFound("Session not found")
+     }
+   }
+@@ -91,6 +106,7 @@ class WebApp(sessionManager: SessionManager)
+   error {
+     case e: JsonParseException => halt(400, e.getMessage)
+     case e: MappingException => halt(400, e.getMessage)
++    case e: SessionFailedtoStart => halt(500, e.getMessage)
+     case t => throw t
+   }
+ }
+-- 
+1.7.9.5
+

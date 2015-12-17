@@ -1,0 +1,177 @@
+From 588eb689c598e846ecea9e37934404942abfcb66 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 22 Dec 2014 18:13:54 -0800
+Subject: [PATCH 0356/1173] [oozie] Support a customizable pattern for
+ workflow workspace path
+
+---
+ apps/oozie/src/oozie/conf.py                      |    4 +--
+ apps/oozie/src/oozie/models2.py                   |   35 ++++++++++-----------
+ apps/oozie/src/oozie/views/editor2.py             |    5 +--
+ desktop/libs/hadoop/src/hadoop/fs/hadoopfs.py     |    3 +-
+ desktop/libs/liboozie/src/liboozie/conf.py        |    5 +--
+ desktop/libs/liboozie/src/liboozie/submission2.py |    3 +-
+ 6 files changed, 28 insertions(+), 27 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/conf.py b/apps/oozie/src/oozie/conf.py
+index c8e373c..9cebe84 100644
+--- a/apps/oozie/src/oozie/conf.py
++++ b/apps/oozie/src/oozie/conf.py
+@@ -49,8 +49,8 @@ LOCAL_SAMPLE_DATA_DIR = Config(
+ 
+ REMOTE_SAMPLE_DIR = Config(
+   key="remote_data_dir",
+-  default="/user/hue/oozie/workspaces",
+-  help=_t("Location on HDFS where the Oozie workflows are stored.")
++  default="/user/hue/oozie/workspaces/hue-oozie-$TIME",
++  help=_t("Location on HDFS where the Oozie workflows are stored. Parameters are $TIME and $USER, e.g. /user/$USER/hue/workspaces/workflow-$TIME")
+ )
+ 
+ OOZIE_JOBS_COUNT = Config(
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 2c817c5..48fa7fc 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -44,6 +44,7 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ class Job(object):
++  
+   def find_all_parameters(self, with_lib_path=True):
+     params = self.find_parameters()
+ 
+@@ -52,6 +53,10 @@ class Job(object):
+ 
+     return  [{'name': name, 'value': value} for name, value in params.iteritems() if with_lib_path or name != 'oozie.use.system.libpath']  
+ 
++  @classmethod
++  def get_workspace(cls, user):
++    return REMOTE_SAMPLE_DIR.get().replace('$USER', user.username).replace('$TIME', str(time.time()))
++
+ 
+ class Workflow(Job):
+   XML_FILE_NAME = 'workflow.xml'
+@@ -130,10 +135,6 @@ class Workflow(Job):
+       _data['workflow']['dependencies'] = list(self.document.dependencies.values('uuid',))
+     else:
+       _data['workflow']['dependencies'] = []
+-      
+-    if 'deployment_dir' not in _data['workflow']['properties']:
+-      default_dir = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too
+-      _data['workflow']['properties']['deployment_dir'] = default_dir
+ 
+     if 'parameters' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['parameters'] = [
+@@ -200,23 +201,21 @@ class Workflow(Job):
+ 
+     return dict([(param, '') for param in list(params)])
+ 
+-  def create_workspace(self, fs, user):
+-    perms = 0711
+-    # if shared, perms = 0755
+-    Submission(user, self, fs, None, {})._create_dir(self.deployment_dir, perms=perms)
+-    Submission(user, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
++  def set_workspace(self, user):
++    _data = json.loads(self.data)
+ 
+-  def create_workspace2(self, fs, user):
+-    pass
++    _data['workflow']['properties']['deployment_dir'] = Job.get_workspace(user)
++    
++    self.data = json.dumps(_data)
+ 
+-  def check_workspace(self, fs):
+-    create_directories(fs, [REMOTE_SAMPLE_DIR.get()])
+-      
+-    perms = 0711
+-    # if shared, perms = 0755
++  def check_workspace(self, fs, user):
++    # Create optional root workspace for the first submission    
++    root = REMOTE_SAMPLE_DIR.get().rsplit('/', 1)
++    if len(root) > 1 and '$' not in root[0]:      
++      create_directories(fs, [root[0]])
+ 
+-    Submission(self.document.owner, self, fs, None, {})._create_dir(self.deployment_dir, perms=perms)
+-    Submission(self.document.owner, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
++    Submission(user, self, fs, None, {})._create_dir(self.deployment_dir)
++    Submission(user, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
+ 
+ 
+ class Node():
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 105966b..f0dfbf8 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -58,7 +58,8 @@ def edit_workflow(request):
+     workflow = Workflow(document=Document2.objects.get(type='oozie-workflow2', id=workflow_id)) # Todo perms
+   else:
+     workflow = Workflow()
+-    workflow.create_workspace(request.fs, request.user)
++    workflow.set_workspace(request.user)
++    workflow.check_workspace(request.fs, request.user)
+   
+   workflow_data = workflow.get_data()
+ 
+@@ -105,7 +106,7 @@ def save_workflow(request):
+   workflow_doc.save()
+   
+   workflow_instance = Workflow(document=workflow_doc)
+-  workflow_instance.check_workspace(request.fs)
++  #workflow_instance.check_workspace(request.fs, request.user)
+   
+   response['status'] = 0
+   response['id'] = workflow_doc.id
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/hadoopfs.py b/desktop/libs/hadoop/src/hadoop/fs/hadoopfs.py
+index 1a2480e..efd731a 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/hadoopfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/hadoopfs.py
+@@ -247,8 +247,7 @@ class Hdfs(object):
+           self.chmod(home_path, 0755)
+           self.chown(home_path, user, user)
+         except IOError:
+-          msg = 'Failed to create home dir ("%s") as superuser %s' %\
+-                (home_path, self.superuser)
++          msg = 'Failed to create home dir ("%s") as superuser %s' % (home_path, self.superuser)
+           LOG.exception(msg)
+           raise
+       finally:
+diff --git a/desktop/libs/liboozie/src/liboozie/conf.py b/desktop/libs/liboozie/src/liboozie/conf.py
+index ed89ea7..591661a 100644
+--- a/desktop/libs/liboozie/src/liboozie/conf.py
++++ b/desktop/libs/liboozie/src/liboozie/conf.py
+@@ -36,8 +36,9 @@ SECURITY_ENABLED = Config(
+ 
+ REMOTE_DEPLOYMENT_DIR = Config(
+   key="remote_deployement_dir",
+-  default="/user/hue/oozie/deployments",
+-  help=_t("Location on HDFS where the workflows/coordinators are deployed when submitted by a non-owner."))
++  default="/user/hue/oozie/deployments/_$USER_-oozie-$JOBID-$TIME",
++  help=_t("Location on HDFS where the workflows/coordinators are deployed when submitted by a non-owner."
++          " Parameters are $TIME, $USER and $JOBID, e.g. /user/$USER/hue/deployments/$JOBID-$TIME"))
+ 
+ 
+ def get_oozie_status(user):
+diff --git a/desktop/libs/liboozie/src/liboozie/submission2.py b/desktop/libs/liboozie/src/liboozie/submission2.py
+index a071fc1..55a38e5 100644
+--- a/desktop/libs/liboozie/src/liboozie/submission2.py
++++ b/desktop/libs/liboozie/src/liboozie/submission2.py
+@@ -216,7 +216,7 @@ class Submission(object):
+ 
+     # Case of a shared job
+     if self.user != self.job.document.owner:
+-      path = Hdfs.join(REMOTE_DEPLOYMENT_DIR.get(), '_%s_-oozie-%s-%s' % (self.user.username, self.job.id, time.time()))
++      path = REMOTE_DEPLOYMENT_DIR.get().replace('$USER', user.username).replace('$TIME', str(time.time())).replace('$JOBID', self.job.id)
+       # Shared coords or bundles might not have any existing workspaces
+       if self.fs.exists(self.job.deployment_dir):
+         self.fs.copy_remote_dir(self.job.deployment_dir, path, owner=self.user, dir_mode=0711)
+@@ -308,6 +308,7 @@ class Submission(object):
+     return Coordinator.PROPERTY_APP_PATH in self.properties
+ 
+ 
++
+ def create_directories(fs, directory_list=[]):
+   # If needed, create the remote home, deployment and data directories
+   directories = [REMOTE_DEPLOYMENT_DIR.get()] + directory_list
+-- 
+1.7.9.5
+

@@ -1,0 +1,94 @@
+From c4fb6b761062feaef84c3a0d1a05f1ca848308a9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 07:35:52 -0800
+Subject: [PATCH 0796/1173] HUE-2436 [desktop] Django-1.6: response.template
+ was renamed to response.templates
+
+---
+ desktop/core/src/desktop/auth/views_test.py |    2 +-
+ desktop/core/src/desktop/tests.py           |   18 +++++++++---------
+ 2 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/desktop/core/src/desktop/auth/views_test.py b/desktop/core/src/desktop/auth/views_test.py
+index 15b5065..d0a1c62 100644
+--- a/desktop/core/src/desktop/auth/views_test.py
++++ b/desktop/core/src/desktop/auth/views_test.py
+@@ -344,7 +344,7 @@ class TestLogin(object):
+     client.get('/accounts/logout')
+     # Login
+     response = client.post('/accounts/login/', dict(username="test", password="test"), follow=True)
+-    assert_true(any(["admin_wizard.mako" in _template.filename for _template in response.template]), response.content) # Go to superuser wizard
++    assert_true(any(["admin_wizard.mako" in _template.filename for _template in response.templates]), response.content) # Go to superuser wizard
+ 
+   def test_login_expiration(self):
+     """ Expiration test without superusers """
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index 16765ef..e00924c 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -134,29 +134,29 @@ def test_skip_wizard():
+   c = make_logged_in_client() # is_superuser
+ 
+   response = c.get('/', follow=True)
+-  assert_true(['admin_wizard.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['admin_wizard.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+   c.cookies['hueLandingPage'] = 'home'
+   response = c.get('/', follow=True)
+-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+   c.cookies['hueLandingPage'] = ''
+   response = c.get('/', follow=True)
+-  assert_true(['admin_wizard.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['admin_wizard.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+ 
+   c = make_logged_in_client(username="test_skip_wizard", password="test_skip_wizard", is_superuser=False)
+ 
+   response = c.get('/', follow=True)
+-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+   c.cookies['hueLandingPage'] = 'home'
+   response = c.get('/', follow=True)
+-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+   c.cookies['hueLandingPage'] = ''
+   response = c.get('/', follow=True)
+-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
++  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
+ 
+ def test_log_view():
+   c = make_logged_in_client()
+@@ -399,7 +399,7 @@ def test_error_handling():
+     c.store_exc_info = store_exc_info
+ 
+     response = c.get('/500_internal_error')
+-    assert_true(any(["500.mako" in _template.filename for _template in response.template]))
++    assert_true(any(["500.mako" in _template.filename for _template in response.templates]))
+     assert_true('Thank you for your patience' in response.content)
+     assert_true(exc_msg not in response.content)
+ 
+@@ -411,7 +411,7 @@ def test_error_handling():
+ 
+     # PopupException
+     response = c.get('/popup_exception')
+-    assert_true(any(["popup_error.mako" in _template.filename for _template in response.template]))
++    assert_true(any(["popup_error.mako" in _template.filename for _template in response.templates]))
+     assert_true(exc_msg in response.content)
+   finally:
+     # Restore the world
+@@ -513,7 +513,7 @@ def test_404_handling():
+   view_name = '/the-view-that-is-not-there'
+   c = make_logged_in_client()
+   response = c.get(view_name)
+-  assert_true(any(['404.mako' in _template.filename for _template in response.template]), response.template)
++  assert_true(any(['404.mako' in _template.filename for _template in response.templates]), response.templates)
+   assert_true('Not Found' in response.content)
+   assert_true(view_name in response.content)
+ 
+-- 
+1.7.9.5
+

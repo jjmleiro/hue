@@ -1,0 +1,52 @@
+From 4101f834caf81f8be94da6c049deaa53ac6a5284 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 9 Oct 2014 23:20:22 +0200
+Subject: [PATCH 0020/1173] HUE-2389 [impala] Expand results table after the
+ results are added to datatables
+
+Moved logic to the datatables draw callback
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index c5e3158..90c1b16 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -1916,7 +1916,12 @@ function addRowNumberToResults(data, startIndex) {
+   return _tmpdata;
+ }
+ 
++var firstFnDrawcallback = false;
++
+ function addResults(viewModel, dataTable, index, pageSize) {
++  if (index == 0) {
++    firstFnDrawcallback = true;
++  }
+   if (viewModel.hasMoreResults() && index + pageSize > viewModel.design.results.rows().length) {
+     $(document).one('fetched.results', function () {
+       $.totalStorage(hac_getTotalStorageUserPrefix() + "${app_name}_temp_query", null);
+@@ -1926,9 +1931,6 @@ function addResults(viewModel, dataTable, index, pageSize) {
+   } else {
+     dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(index, index + pageSize), index));
+   }
+-  if (index == 0){
+-    window.setTimeout(reinitializeTable, 500);
+-  }
+ }
+ 
+ function resultsTable(e, data) {
+@@ -1945,6 +1947,10 @@ function resultsTable(e, data) {
+       },
+       "fnDrawCallback": function (oSettings) {
+         reinitializeTableExtenders();
++        if (firstFnDrawcallback) {
++          firstFnDrawcallback = false;
++          window.setTimeout(reinitializeTable, 100);
++        }
+       },
+       "aoColumnDefs": [
+         {
+-- 
+1.7.9.5
+

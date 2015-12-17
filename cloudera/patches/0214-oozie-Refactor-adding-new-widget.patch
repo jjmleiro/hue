@@ -1,0 +1,406 @@
+From b6f28a247c9367cfcfbd938e567f9e039d471a3d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 24 Oct 2014 17:32:09 -0700
+Subject: [PATCH 0214/1173] [oozie] Refactor adding new widget
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |  163 ++++++++++++++++----
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   53 ++++++-
+ apps/oozie/static/js/workflow-editor.ko.js         |   47 +++++-
+ 4 files changed, 226 insertions(+), 38 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 505b3c5..f101c20 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -56,6 +56,42 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+          title="${_('MapReduce job')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-file-code-o"></i></a>
+     </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableSubworkflowAction(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Sub workflow')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-code-fork"></i></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true }" rel="tooltip" data-placement="top">
++          
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableForkNode(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Fork')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-share-alt"></i></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableDecisionNode(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Decision')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-question"></i></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableStopNode(), isEnabled: true,
++                    options: {'start': function(event, ui){lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                              'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
++         title="${_('Kill')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-stop"></i></a>
++    </div>
+ </%def>
+ </%dashboard:layout_toolbar>
+ 
+@@ -268,17 +304,106 @@ ${ dashboard.layout_skeleton() }
+ </script>
+ 
+ 
++<script type="text/html" id="subworkflow-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Java') }</a></li>
++        <li><a href="#files" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <input type="text" data-bind="value: properties.jar_path" />
++        </div>
++        <div class="tab-pane" id="files">
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="fork-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      End
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="decision-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      End
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="enkill-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      End
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <div id="addActionDemiModal" class="demi-modal hide" data-backdrop="false">
+   <div class="modal-body">
+     <a href="javascript: void(0)" data-dismiss="modal" data-bind="click: addActionDemiModalFieldCancel" class="pull-right"><i class="fa fa-times"></i></a>
+     
+     <ul data-bind="foreach: addActionProperties">
+-      <li>        
++      <li>
+         <span data-bind="text: label"></span>
+         <input data-bind="value: value"/>
+       </li>
+     </ul>
+     
++    <!-- ko if: addActionWorkflows().length > 0 -->
++      <select data-bind="options: addActionWorkflows, optionsText: 'name'"></select>
++    <!-- /ko -->        
++    
+     <br/>
+     <a data-bind="click: addActionDemiModalFieldPreview">
+       Add
+@@ -326,6 +451,7 @@ ${ dashboard.layout_skeleton() }
+ 
+ ${ dashboard.import_layout() }
+ 
++
+ <script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/js/hue.utils.js"></script>
+ <script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
+@@ -346,34 +472,9 @@ ${ dashboard.import_bindings() }
+   function columnDropAdditionalHandler(widget) {
+     widgetDraggedAdditionalHandler(widget);
+   }
++
+   function widgetDraggedAdditionalHandler(widget) {
+-    viewModel.addActionProperties.removeAll();
+-
+-    if (widget.widgetType() == 'java-widget') {
+-      viewModel.addActionProperties.push({
+-        'name': 'jar_path',
+-        'label': '${ _("Jar Path") }',
+-        'value': ''
+-      });
+-      viewModel.addActionProperties.push({
+-        'name': 'main_class',
+-        'label': '${ _("Main class") }',
+-        'value': ''
+-      });
+-    } else if (widget.widgetType() == 'hive-widget') {
+-      viewModel.addActionProperties.push({
+-        'name': 'script_path',
+-        'label': '${ _("Script Path") }',
+-        'value': ''
+-      });
+-    } else if (widget.widgetType() == 'pig-widget') {
+-      viewModel.addActionProperties.push({
+-        'name': 'script_path',
+-        'label': '${ _("Script Path") }',
+-        'value': ''
+-      });
+-    }
+-    
++    viewModel.workflow.newNode(widget);
+     showAddActionDemiModal(widget);
+   }
+ 
+@@ -397,10 +498,10 @@ ${ dashboard.import_bindings() }
+       $("#addActionDemiModal").modal("hide");
+     }
+   }
+-    
++
+   function addActionDemiModalFieldCancel() {
+-    //viewModel.removeWidget(selectedWidget); todo remove node
+-  }  
++    viewModel.removeWidgetById(newAction.id());
++  }
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 188e43d..dac156f 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -75,6 +75,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),
+   url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
+   url(r'^editor/workflow/submit/(?P<doc_id>\d+)$', 'submit_workflow', name='editor_submit_workflow'),
++  url(r'^editor/workflow/new_node/$', 'new_node', name='new_node'),
+   url(r'^editor/workflow/add_node/$', 'add_node', name='add_node'),
+   
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 5b8f345..8f82912 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -96,6 +96,58 @@ def save_workflow(request):
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
++P = {
++  'jar_path': {
++      'name': 'jar_path',
++      'label': _("Jar Path"),
++      'value': ''
++  },
++  'main_class': {
++      'name': 'main_class',
++      'label': _("Main class"),
++      'value': ''
++  },
++  'script_path': {
++      'name': 'script_path',
++      'label': _("Script Path"),
++      'value': ''
++  }
++}
++
++def new_node(request):
++  response = {'status': -1}
++
++  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  node = json.loads(request.POST.get('node', '{}'))
++
++  print node
++  
++  properties = []
++  workflows = []
++
++  if node['widgetType'] == 'java-widget':
++    properties = [P['jar_path'], P['main_class'] ]
++  elif node['widgetType'] == 'pig-widget':
++    properties = [P['script_path']]
++  elif node['widgetType'] == 'hive-widget':
++    properties = [P['script_path']]
++  elif node['widgetType'] == 'subworkflow-widget':
++    workflows = [{
++        'name': workflow.name,
++        'owner': workflow.owner.username,
++        'value': workflow.uuid
++      } for workflow in Document2.objects.filter(type='oozie-workflow2', owner=request.user)
++    ]
++    
++  print properties
++  
++
++  response['status'] = 0
++  response['properties'] = properties 
++  response['workflows'] = workflows
++  
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
+ 
+ def add_node(request):
+   response = {'status': -1}
+@@ -115,7 +167,6 @@ def add_node(request):
+ 
+   response['status'] = 0
+   response['properties'] = properties 
+-  response['message'] = _('Page saved !')
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 1443190..eb1761a 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -83,6 +83,24 @@ var Workflow = function (vm, workflow) {
+     self.nodes(nodes)
+   }
+   
++  self.newNode = function(widget) {
++    $.ajax({
++      type: "POST",
++      url: "/oozie/editor/workflow/new_node/",
++      data: {
++        "workflow": ko.mapping.toJSON(workflow),
++        "node": ko.mapping.toJSON(widget)  
++      },
++      success: function (data) {
++        if (data.status == 0) {
++          viewModel.addActionProperties(data.properties);
++          viewModel.addActionWorkflows(data.workflows);
++        }
++      },
++      async: false
++    });
++  };
++  
+   self.addNode = function(widget) {
+     // Todo get parent cell, link nodes... when we have the new layout
+     $.post("/oozie/editor/workflow/add_node/", {        
+@@ -91,12 +109,12 @@ var Workflow = function (vm, workflow) {
+         "properties": ko.mapping.toJSON(viewModel.addActionProperties()),        
+       }, function (data) {
+       if (data.status == 0) {
+-    	  widget.properties = data.properties;
++        widget.properties = data.properties;
+           var node = new Node(ko.mapping.toJS(widget));
+           node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}) // Link to child
+ 
+           // Add to list of nodes
+-          var end = self.nodes.pop()
++          var end = self.nodes.pop();
+           self.nodes.push(node);
+           self.nodes.push(end);
+ 
+@@ -141,6 +159,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+   }
+ 
+   self.addActionProperties = ko.observableArray([]);
++  self.addActionWorkflows = ko.observableArray([]);
+ 
+ 
+   self.getWidgetById = function (widget_id) {
+@@ -195,16 +214,27 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+   };
+ 
+   self.showSubmitPopup = function () {
+-    // if self.workflow.id() == null, need to save wf for now
++    // If self.workflow.id() == null, need to save wf for now
+ 
+     $.get("/oozie/editor/workflow/submit/" + self.workflow.id(), {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+-     }).fail(function (xhr, textStatus, errorThrown) {
++    }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
+-      });
+-    };
++    });
++  };
+ 
++  self.removeWidgetById = function (widget_id) {
++    $.each(self.columns(), function (i, col) {
++      $.each(col.rows(), function (j, row) {
++        $.each(row.widgets(), function (z, widget) {
++          if (widget.id() == widget_id){
++            row.widgets.remove(widget);
++          }
++        });
++      });
++    });
++  }  
+     
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+@@ -219,4 +249,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+   self.draggablePigAction = ko.observable(bareWidgetBuilder("Pig Script", "pig-widget"));
+   self.draggableJavaAction = ko.observable(bareWidgetBuilder("Java program", "java-widget"));
+   self.draggableMapReduceAction = ko.observable(bareWidgetBuilder("MapReduce job", "mapreduce-widget"));
++  self.draggableSubworkflowAction = ko.observable(bareWidgetBuilder("Sub workflow", "subworkflow-widget"));
++
++  self.draggableForkNode = ko.observable(bareWidgetBuilder("Fork", "fork-widget"));
++  self.draggableDecisionNode = ko.observable(bareWidgetBuilder("Decision", "decision-widget"));
++  self.draggableStopNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
+ };
+-- 
+1.7.9.5
+

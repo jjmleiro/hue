@@ -25,7 +25,7 @@ from django.utils.translation import ugettext as _
 ${ commonheader(_('Create table from file'), 'metastore', user) | n,unicode }
 ${ layout.metastore_menubar() }
 
-<link rel="stylesheet" href="/metastore/static/css/metastore.css">
+<link rel="stylesheet" href="${ static('metastore/css/metastore.css') }">
 
 <div class="container-fluid">
     <div class="row-fluid">
@@ -73,6 +73,7 @@ ${ layout.metastore_menubar() }
                 <li><a id="step3" href="#">${_('Step 3: Define Columns')}</a></li>
             </ul>
                 <form id="delimiterForm" action="${action}" method="POST" class="form-horizontal">
+                ${ csrf_token(request) | n,unicode }
                 <div class="hide">
                     ${util.render_form(file_form)}
                     ${comps.field(delim_form['file_type'])}
@@ -139,8 +140,8 @@ ${ layout.metastore_menubar() }
   }
 </style>
 
-<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
-<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
+<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
+<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {

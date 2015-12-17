@@ -1,0 +1,58 @@
+From 8e32521d4c64fc146a0d076054b837a305070ab9 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 21 Jan 2015 16:30:04 -0800
+Subject: [PATCH 0487/1173] [oozie] Add message warning about using the old
+ editor
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    8 ++++----
+ apps/oozie/src/oozie/templates/navigation-bar.mako |    7 +++++++
+ 2 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 22b856d..1f5a0fe 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -197,10 +197,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_('Add a description...')}'}"></span>
+     </div>
+     
+-<div class="inline alert alert-warn" style="margin-left:200px" data-bind="visible: $root.workflow.properties.imported">
+-    ${ _('This workflow was imported from an old Hue version, save it to create a copy in the new format or') }
+-    <a data-bind="attr: { href: '/oozie/edit_workflow/' + $root.workflow.properties.wf1_id() }">${ _('open it in the old editor.') }</a>
+-  </div>    
++    <div class="inline alert alert-warn" style="margin-left:200px" data-bind="visible: $root.workflow.properties.imported">
++      ${ _('This workflow was imported from an old Hue version, save it to create a copy in the new format or') }
++      <a data-bind="attr: { href: '/oozie/edit_workflow/' + $root.workflow.properties.wf1_id() }">${ _('open it in the old editor.') }</a>
++    </div>    
+   </form>
+ </div>
+ 
+diff --git a/apps/oozie/src/oozie/templates/navigation-bar.mako b/apps/oozie/src/oozie/templates/navigation-bar.mako
+index ec72329..551ff11 100644
+--- a/apps/oozie/src/oozie/templates/navigation-bar.mako
++++ b/apps/oozie/src/oozie/templates/navigation-bar.mako
+@@ -16,6 +16,7 @@
+ 
+ <%!
+   from django.utils.translation import ugettext as _
++  from oozie.conf import ENABLE_V2
+ %>
+ 
+ <%namespace name="utils" file="utils.inc.mako" />
+@@ -52,6 +53,12 @@
+                   <li class="${utils.is_selected(section, 'workflows')}"><a href="${url('oozie:list_workflows')}">${ _('Workflows') }</a></li>
+                   <li class="${utils.is_selected(section, 'coordinators')}"><a href="${url('oozie:list_coordinators')}">${ _('Coordinators') }</a></li>
+                   <li class="${utils.is_selected(section, 'bundles')}"><a href="${url('oozie:list_bundles')}">${ _('Bundles') }</a></li>
++
++                  % if ENABLE_V2.get():
++                    <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px">
++                     ${ _('This is the old editor, please migrate your workflows to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows')}">${ _('new editor.') }</a>
++                    </li>
++                  % endif
+                 % endif
+               % endif
+             </ul>
+-- 
+1.7.9.5
+

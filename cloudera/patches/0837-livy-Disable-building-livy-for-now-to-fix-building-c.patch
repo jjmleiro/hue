@@ -1,0 +1,83 @@
+From becf60eb19675fce7bd6d9faca9a1beac838a001 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 17 Feb 2015 10:06:26 -0800
+Subject: [PATCH 0837/1173] [livy] Disable building livy for now to fix
+ building cdh packages
+
+---
+ apps/spark/Makefile |   62 +++++++++++++++++++++++++--------------------------
+ 1 file changed, 31 insertions(+), 31 deletions(-)
+
+diff --git a/apps/spark/Makefile b/apps/spark/Makefile
+index 39107c0..6a8d5f6 100644
+--- a/apps/spark/Makefile
++++ b/apps/spark/Makefile
+@@ -23,34 +23,34 @@ endif
+ APP_NAME = spark
+ include $(ROOT)/Makefile.sdk
+ 
+-SPARK_ROOT := $(realpath .)
+-BLD_DIR_SPARK = $(SPARK_ROOT)/java/target
+-SPARK_JAVA_LIB = $(SPARK_ROOT)/java-lib
+-
+-SPARK := $(SPARK_JAVA_LIB)/SparkServer.jar
+-SPARK_JAVA_DIR := $(SPARK_ROOT)/java
+-
+-HAVE_JAVA_SRC = $(wildcard $(SPARK_JAVA_DIR))
+-
+-compile: $(SPARK)
+-
+-ifneq (,$(HAVE_JAVA_SRC))
+-
+-clean::
+-	rm -Rf $(SPARK_JAVA_LIB)
+-	cd $(SPARK_JAVA_DIR) && mvn clean $(MAVEN_OPTIONS) || :
+-
+-$(SPARK): $(shell find $(SPARK_JAVA_DIR) -type f)
+-	@echo "--- Building Desktop spark"
+-	cd $(SPARK_JAVA_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
+-
+-else
+-$(SPARK):
+-	$(error Cannot build spark jars without source)
+-endif
+-
+-BDIST_EXCLUDES += \
+-	--exclude=java
+-
+-SDIST_EXCLUDES += \
+-	--exclude=java-lib
++#SPARK_ROOT := $(realpath .)
++#BLD_DIR_SPARK = $(SPARK_ROOT)/java/target
++#SPARK_JAVA_LIB = $(SPARK_ROOT)/java-lib
++#
++#SPARK := $(SPARK_JAVA_LIB)/SparkServer.jar
++#SPARK_JAVA_DIR := $(SPARK_ROOT)/java
++#
++#HAVE_JAVA_SRC = $(wildcard $(SPARK_JAVA_DIR))
++#
++#compile: $(SPARK)
++#
++#ifneq (,$(HAVE_JAVA_SRC))
++#
++#clean::
++#	rm -Rf $(SPARK_JAVA_LIB)
++#	cd $(SPARK_JAVA_DIR) && mvn clean $(MAVEN_OPTIONS) || :
++#
++#$(SPARK): $(shell find $(SPARK_JAVA_DIR) -type f)
++#	@echo "--- Building Desktop spark"
++#	cd $(SPARK_JAVA_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
++#
++#else
++#$(SPARK):
++#	$(error Cannot build spark jars without source)
++#endif
++#
++#BDIST_EXCLUDES += \
++#	--exclude=java
++#
++#SDIST_EXCLUDES += \
++#	--exclude=java-lib
+-- 
+1.7.9.5
+

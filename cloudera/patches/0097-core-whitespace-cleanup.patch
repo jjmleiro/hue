@@ -1,0 +1,23 @@
+From 5749d0d0f0adb69c01159a4a68696e77e46e9032 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 5 Nov 2014 18:14:13 -0800
+Subject: [PATCH 0097/1173] [core] whitespace cleanup
+
+---
+ desktop/libs/libsaml/src/libsaml/saml_settings.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/saml_settings.py b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+index 88acc59..8d5c85b 100644
+--- a/desktop/libs/libsaml/src/libsaml/saml_settings.py
++++ b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+@@ -87,4 +87,4 @@ SAML_CONFIG = {
+ }
+ 
+ SAML_ATTRIBUTE_MAPPING = libsaml.conf.USER_ATTRIBUTE_MAPPING.get()
+-SAML_CREATE_UNKNOWN_USER = libsaml.conf.CREATE_USERS_ON_LOGIN.get()
+\ No newline at end of file
++SAML_CREATE_UNKNOWN_USER = libsaml.conf.CREATE_USERS_ON_LOGIN.get()
+-- 
+1.7.9.5
+

@@ -1,0 +1,53 @@
+From 1cae021247c5448eb5d8913d9341a89fbccb5aee Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 16 Jan 2015 17:22:22 -0800
+Subject: [PATCH 0815/1173] HUE-2436 [oozie] Django-1.6: Change
+ massaged_oozie_jobs_for_json to return dict
+
+Django-1.6 now raises an exception if you create a json response
+and the `safe=True` flag is not set. This is because on some older
+browsers it's possible to replace the JavaScript Array constructor
+to do bad things:
+
+http://django.readthedocs.org/en/latest/ref/request-response.html#serializing-non-dictionary-objects
+
+One odd thing to note is we don't appear to be using:
+
+list_oozie_coordinators?format=json
+list_oozie_bundles?format=json
+
+so we could probably delete this from the functions.
+---
+ .../oozie/templates/dashboard/list_oozie_sla.mako  |    2 +-
+ apps/oozie/src/oozie/views/dashboard.py            |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+index 3f03f4f..cfff681 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+@@ -237,7 +237,7 @@ ${ layout.menubar(section='sla', dashboard=True) }
+ 
+     $.getJSON("${url('oozie:list_oozie_workflows')}?format=json&justsla=true", function (data) {
+       var _autocomplete = [];
+-      $(data).each(function (iWf, item) {
++      $(data.jobs).each(function (iWf, item) {
+         _autocomplete.push(item.id);
+       });
+       $("input[name='job_name']").typeahead({
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 22ec7f2..b1d43ef 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -860,7 +860,7 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+       }
+       jobs.append(massaged_job)
+ 
+-  return jobs
++  return { 'jobs': jobs }
+ 
+ 
+ def check_job_access_permission(request, job_id):
+-- 
+1.7.9.5
+

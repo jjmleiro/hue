@@ -1,0 +1,256 @@
+From c029e0b49d1075422bdbf17931ee0086111914c1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 24 Nov 2014 12:08:01 -0800
+Subject: [PATCH 0309/1173] [oozie] HiveServer2 Action support in workflow
+ editor
+
+---
+ apps/oozie/src/oozie/models2.py                    |   70 +++++++++++++++++++-
+ .../templates/editor/gen2/workflow-hive2.xml.mako  |   45 +++++++++++++
+ .../oozie/templates/editor/workflow_editor.mako    |   63 ++++++++++++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |    1 +
+ 4 files changed, 178 insertions(+), 1 deletion(-)
+ create mode 100644 apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 0e121bc..879db25 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -428,7 +428,7 @@ class HiveAction(Action):
+           'name': 'parameters',
+           'label': _('Parameters'),
+           'value': [],
+-          'help_text': ('The %(type)s parameters of the script. E.g. N=5, INPUT=${inputDir}')  % {'type': TYPE.title()}
++          'help_text': _('The %(type)s parameters of the script. E.g. N=5, INPUT=${inputDir}')  % {'type': TYPE.title()}
+      },
+      # Common
+      'files': { 
+@@ -470,6 +470,73 @@ class HiveAction(Action):
+     return [cls.FIELDS['script_path']]
+ 
+ 
++class HiveServer2Action(Action):
++  TYPE = 'hive2'
++  FIELDS = {
++     'script_path': { 
++          'name': 'script_path',
++          'label': _('Script name'),
++          'value': '',
++          'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
++     },            
++     'parameters': { 
++          'name': 'parameters',
++          'label': _('Parameters'),
++          'value': [],
++          'help_text': _('The %(type)s parameters of the script. E.g. N=5, INPUT=${inputDir}')  % {'type': TYPE.title()}
++     },
++     # Common
++     'jdbc_url': { 
++          'name': 'jdbc_url',
++          'label': _('JDBC URL'),
++          'value': 'jdbc:hive2://localhost:10000/default',
++          'help_text': _('JDBC URL for the Hive Server 2. Beeline will use this to know where to connect to.')
++     },     
++     'password': { 
++          'name': 'password',
++          'label': _('Password'),
++          'value': '',
++          'help_text': _('The password element must contain the password of the current user. However, the password is only used if Hive Server 2 is backed by something requiring a password (e.g. LDAP); non-secured Hive Server 2 or Kerberized Hive Server 2 don\'t require a password.')
++     },
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                       'Properties specified in the Job Properties element override properties specified in the '
++                       'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['script_path']]
++
++
+ class SubWorkflowAction(Action):
+   TYPE = 'subworkflow'
+   FIELDS = {
+@@ -527,6 +594,7 @@ NODES = {
+   'pig-widget': PigAction,
+   'java-widget': JavaAction,
+   'hive-widget': HiveAction,
++  'hive2-widget': HiveServer2Action,  
+   'subworkflow-widget': SubWorkflowAction,
+   'kill-widget': KillAction,
+   'join-widget': JoinAction,
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
+new file mode 100644
+index 0000000..1bd761e
+--- /dev/null
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive2.xml.mako
+@@ -0,0 +1,45 @@
++## -*- coding: utf-8 -*-
++## Licensed to Cloudera, Inc. under one
++## or more contributor license agreements.  See the NOTICE file
++## distributed with this work for additional information
++## regarding copyright ownership.  Cloudera, Inc. licenses this file
++## to you under the Apache License, Version 2.0 (the
++## "License"); you may not use this file except in compliance
++## with the License.  You may obtain a copy of the License at
++##
++##     http://www.apache.org/licenses/LICENSE-2.0
++##
++## Unless required by applicable law or agreed to in writing, software
++## distributed under the License is distributed on an "AS IS" BASIS,
++## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++## See the License for the specific language governing permissions and
++## limitations under the License.
++
++<%namespace name="common" file="workflow-common.xml.mako" />
++
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
++        <hive xmlns="uri:oozie:hive2-action:0.1">
++            <job-tracker>${'${'}jobTracker}</job-tracker>
++            <name-node>${'${'}nameNode}</name-node>
++
++            ${ common.prepares(node['properties']['prepares']) }
++            % if node['properties']['job_xml']:
++              <job-xml>${ node['properties']['job_xml'] }</job-xml>
++            % endif
++            ${ common.configuration(node['properties']['properties']) }
++
++            <script>${ node['properties']['script_path'] }</script>
++            <jdbc-url>${ node['properties']['jdbc_url'] }</jdbc-url>
++            % if node['properties']['password']:
++            <password>${ node['properties']['password'] }</password>
++            % endif
++            % for param in node['properties']['parameters']:
++              <param>${ param['value'] }</param>
++            % endfor
++
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
++        </hive>
++        <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
++        <error to="${ node_mapping[node['children'][1]['error']].name }"/>
++        ${ common.sla(node) }
++    </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 3916ec9..e7fd40c 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -42,6 +42,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+          <a class="draggable-icon"><img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon"></a>
+     </div>
+ 
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableHive2Action(), isEnabled: true,
++                    options: {'refreshPositions': true, 'start': function(event, ui){$root.currentlyDraggedWidget(draggableHive2Action());}}}"
++         title="${_('HiveServer2 Script')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon"></a>
++    </div>
++
+     <div data-bind="css: { 'draggable-widget': true},
+                     draggable: {data: draggablePigAction(), isEnabled: true,
+                     options: {'refreshPositions': true, 'start': function(event, ui){$root.currentlyDraggedWidget(draggablePigAction());}}}"
+@@ -637,6 +644,62 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="hive2-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Hive') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++
++          <span data-bind="text: $root.workflow_properties.script_path.label"></span>
++          <input type="text" data-bind="value: properties.script_path" />                    
++          </br>
++          <span data-bind="template: { name: 'common-properties-parameters' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
++          <span data-bind="text: $root.workflow_properties.jdbc_url.label"></span>
++          <input type="text" data-bind="value: properties.jdbc_url" />                    
++          </br>
++          <span data-bind="text: $root.workflow_properties.password.label"></span>
++          <input type="text" data-bind="value: properties.password" />                    
++          </br>        
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <br/>
++          </br>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="pig-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 6125a4b..b75f77d 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -1000,6 +1000,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   }
+ 
+   self.draggableHiveAction = ko.observable(bareWidgetBuilder("Hive Script", "hive-widget"));
++  self.draggableHive2Action = ko.observable(bareWidgetBuilder("HiveServer2 Script", "hive2-widget"));
+   self.draggablePigAction = ko.observable(bareWidgetBuilder("Pig Script", "pig-widget"));
+   self.draggableJavaAction = ko.observable(bareWidgetBuilder("Java program", "java-widget"));
+   self.draggableMapReduceAction = ko.observable(bareWidgetBuilder("MapReduce job", "mapreduce-widget"));
+-- 
+1.7.9.5
+

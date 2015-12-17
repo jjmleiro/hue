@@ -21,12 +21,14 @@ import logging
 import numbers
 import re
 
+from django.contrib.auth.models import User
+from django.core.urlresolvers import reverse
 from django.db import models
 from django.utils.html import escape
 from django.utils.translation import ugettext as _, ugettext_lazy as _t
-from django.core.urlresolvers import reverse
 
-from desktop.lib.i18n import smart_unicode
+
+from desktop.lib.i18n import smart_unicode, smart_str
 
 from libsolr.api import SolrApi
 
@@ -205,7 +207,7 @@ class Sorting(models.Model):
 
 class CollectionManager(models.Manager):
 
-  def create2(self, name, label, is_core_only=False):
+  def create2(self, name, label, is_core_only=False, owner=None):
     facets = Facet.objects.create()
     result = Result.objects.create()
     sorting = Sorting.objects.create()
@@ -213,6 +215,8 @@ class CollectionManager(models.Manager):
     collection = Collection.objects.create(
         name=name,
         label=label,
+        owner=owner,
+        enabled=False,
         cores=json.dumps({'version': 2}),
         is_core_only=is_core_only,
         facets=facets,
@@ -225,7 +229,7 @@ class CollectionManager(models.Manager):
 
 class Collection(models.Model):
   """All the data is now saved into the properties field"""
-  enabled = models.BooleanField(default=True)
+  enabled = models.BooleanField(default=False) # Aka shared
   name = models.CharField(max_length=40, verbose_name=_t('Solr index name pointing to'))
   label = models.CharField(max_length=100, verbose_name=_t('Friendlier name in UI'))
   is_core_only = models.BooleanField(default=False)
@@ -239,8 +243,10 @@ class Collection(models.Model):
   result = models.ForeignKey(Result)
   sorting = models.ForeignKey(Sorting)
 
+  owner = models.ForeignKey(User, db_index=True, verbose_name=_t('Owner'), help_text=_t('User who created the job.'), default=None, null=True)
+
   _ATTRIBUTES = ['collection', 'layout', 'autocomplete']
-  ICON = '/search/static/art/icon_search_48.png'
+  ICON = 'search/art/icon_search_48.png'
 
   objects = CollectionManager()
 
@@ -274,6 +280,19 @@ class Collection(models.Model):
       props['collection']['enabled'] = True
     if 'leafletmap' not in props['collection']['template']:
       props['collection']['template']['leafletmap'] = {'latitudeField': None, 'longitudeField': None, 'labelField': None}
+    for facet in props['collection']['facets']:
+      properties = facet['properties']
+      if 'gap' in properties and not 'initial_gap' in properties:
+        properties['initial_gap'] = properties['gap']
+      if 'start' in properties and not 'initial_start' in properties:
+        properties['initial_start'] = properties['start']
+      if 'end' in properties and not 'initial_end' in properties:
+        properties['initial_end'] = properties['end']
+
+      if facet['widgetType'] == 'map-widget' and facet['type'] == 'field':
+        facet['type'] = 'pivot'
+        properties['facets'] = []
+        properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
 
     return json.dumps(props)
 
@@ -372,13 +391,13 @@ class Collection(models.Model):
   @property
   def icon(self):
     if self.name == 'twitter_demo':
-      return '/search/static/art/icon_twitter_48.png'
+      return 'search/art/icon_twitter_48.png'
     elif self.name == 'yelp_demo':
-      return '/search/static/art/icon_yelp_48.png'
+      return 'search/art/icon_yelp_48.png'
     elif self.name == 'log_analytics_demo':
-      return '/search/static/art/icon_logs_48.png'
+      return 'search/art/icon_logs_48.png'
     else:
-      return '/search/static/art/icon_search_48.png'
+      return 'search/art/icon_search_48.png'
 
   def _import_hue_3_5_collections(self, props, user):
     props['collection']['template']['template'] = self.result.get_template()
@@ -409,46 +428,75 @@ class Collection(models.Model):
 
 
 def get_facet_field(category, field, facets):
-  facets = filter(lambda facet: facet['type'] == category and facet['field'] == field, facets)
+  facets = filter(lambda facet: facet['type'] == category and '%(field)s-%(id)s' % facet == field, facets)
   if facets:
     return facets[0]
   else:
     return None
 
-def pairwise2(cat, fq_filter, iterable):
+def pairwise2(field, fq_filter, iterable):
   pairs = []
   selected_values = [f['value'] for f in fq_filter]
   a, b = itertools.tee(iterable)
   for element in a:
     pairs.append({
-        'cat': cat, 'value': element, 'count': next(a), 'selected': element in selected_values,
+        'cat': field, 'value': element, 'count': next(a), 'selected': element in selected_values,
         'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element])
     })
   return pairs
 
-def range_pair(cat, fq_filter, iterable, end):
+def range_pair(field, cat, fq_filter, iterable, end, collection_facet):
   # e.g. counts":["0",17430,"1000",1949,"2000",671,"3000",404,"4000",243,"5000",165],"gap":1000,"start":0,"end":6000}
   pairs = []
   selected_values = [f['value'] for f in fq_filter]
+  is_single_unit_gap = re.match('^[\+\-]?1[A-Za-z]*$', str(collection_facet['properties']['gap'])) is not None
+  is_up = collection_facet['properties']['sort'] == 'asc'
+
+  if collection_facet['properties']['sort'] == 'asc' and collection_facet['type'] == 'range-up':
+    prev = None
+    n = []
+    for e in iterable:
+      if prev is not None:
+        n.append(e)
+        n.append(prev)
+        prev = None
+      else:
+        prev = e
+    iterable = n
+    iterable.reverse()
+
   a, to = itertools.tee(iterable)
   next(to, None)
+  counts = iterable[1::2]
+  total_counts = counts.pop(0) if collection_facet['properties']['sort'] == 'asc' else 0
+
   for element in a:
     next(to, None)
     to_value = next(to, end)
+    count = next(a)
+
     pairs.append({
-        'field': cat, 'from': element, 'value': next(a), 'to': to_value, 'selected': element in selected_values,
-        'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element])
+        'field': field, 'from': element, 'value': count, 'to': to_value, 'selected': element in selected_values,
+        'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element]),
+        'is_single_unit_gap': is_single_unit_gap,
+        'total_counts': total_counts,
+        'is_up': is_up
     })
+    total_counts += counts.pop(0) if counts else 0
+
+  if collection_facet['properties']['sort'] == 'asc' and collection_facet['type'] != 'range-up':
+    pairs.reverse()
+
   return pairs
 
 
 def augment_solr_response(response, collection, query):
   augmented = response
   augmented['normalized_facets'] = []
-
+  NAME = '%(field)s-%(id)s'
   normalized_facets = []
 
-  selected_values = dict([((fq['id'], fq['field'], fq['type']), fq['filter']) for fq in query['fqs']])
+  selected_values = dict([((fq['id'], NAME % fq, fq['type']), fq['filter']) for fq in query['fqs']])
 
   if response and response.get('facet_counts'):
     # e.g. [{u'field': u'sun', u'type': u'query', u'id': u'67b43a63-ed22-747b-47e8-b31aad1431ea', u'label': u'sun'}
@@ -456,31 +504,28 @@ def augment_solr_response(response, collection, query):
       category = facet['type']
 
       if category == 'field' and response['facet_counts']['facet_fields']:
-        name = facet['field']
+        name = NAME % facet
         collection_facet = get_facet_field(category, name, collection['facets'])
-        counts = pairwise2(name, selected_values.get((facet['id'], name, category), []), response['facet_counts']['facet_fields'][name])
+        counts = pairwise2(facet['field'], selected_values.get((facet['id'], name, category), []), response['facet_counts']['facet_fields'][name])
         if collection_facet['properties']['sort'] == 'asc':
           counts.reverse()
         facet = {
           'id': collection_facet['id'],
-          'field': name,
+          'field': facet['field'],
           'type': category,
           'label': collection_facet['label'],
           'counts': counts,
-          # add total result count?
         }
         normalized_facets.append(facet)
-      elif category == 'range' and response['facet_counts']['facet_ranges']:
-        name = facet['field']
+      elif (category == 'range' or category == 'range-up') and response['facet_counts']['facet_ranges']:
+        name = NAME % facet
         collection_facet = get_facet_field(category, name, collection['facets'])
         counts = response['facet_counts']['facet_ranges'][name]['counts']
         end = response['facet_counts']['facet_ranges'][name]['end']
-        counts = range_pair(name, selected_values.get((facet['id'], name, 'range'), []), counts, end)
-        if collection_facet['properties']['sort'] == 'asc':
-          counts.reverse()
+        counts = range_pair(facet['field'], name, selected_values.get((facet['id'], name, category), []), counts, end, collection_facet)
         facet = {
           'id': collection_facet['id'],
-          'field': name,
+          'field': facet['field'],
           'type': category,
           'label': collection_facet['label'],
           'counts': counts,
@@ -526,16 +571,26 @@ def augment_solr_response(response, collection, query):
         value = smart_unicode(value, errors='replace')
         escaped_value = escape(value)
       doc[field] = escaped_value
-    doc['showDetails'] = False
-    doc['details'] = []
+
+    if not query.get('download'):
+      doc['showDetails'] = False
+      doc['details'] = []
 
   highlighted_fields = response.get('highlighting', {}).keys()
   if highlighted_fields and not query.get('download'):
     id_field = collection.get('idField')
     if id_field:
       for doc in response['response']['docs']:
-        if id_field in doc and doc[id_field] in highlighted_fields:
-          doc.update(response['highlighting'][doc[id_field]])
+        if id_field in doc and str(doc[id_field]) in highlighted_fields:
+          highlighting = response['highlighting'][str(doc[id_field])]
+
+          if highlighting:
+            escaped_highlighting = {}
+            for field, hls in highlighting.iteritems():
+              _hls = [escape(smart_unicode(hl, errors='replace')).replace('&lt;em&gt;', '<em>').replace('&lt;/em&gt;', '</em>') for hl in hls]
+              escaped_highlighting[field] = _hls
+
+            doc.update(escaped_highlighting)
     else:
       response['warning'] = _("The Solr schema requires an id field for performing the result highlighting")
 
@@ -584,7 +639,7 @@ def _augment_pivot_nd(facet_id, counts, selected_values, fields='', values=''):
 
   for c in counts:
     fq_fields = (fields + ':' if fields else '') + c['field']
-    fq_values = (values + ':' if values else '') + c['value']
+    fq_values = (smart_str(values) + ':' if values else '') + smart_str(c['value'])
     if 'pivot' in c:
       _augment_pivot_nd(facet_id, c['pivot'], selected_values, fq_fields, fq_values)
 

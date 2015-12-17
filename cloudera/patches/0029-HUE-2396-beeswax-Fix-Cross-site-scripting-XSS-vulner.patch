@@ -1,0 +1,183 @@
+From 667a43ca61b19b7776e41a052ffe1fc6653d576a Mon Sep 17 00:00:00 2001
+From: Shuo Diao <shuodiao@amazon.com>
+Date: Mon, 29 Sep 2014 15:23:40 -0700
+Subject: [PATCH 0029/1173] HUE-2396 [beeswax] Fix Cross-site scripting(XSS)
+ vulnerbility
+
+This change adds proper html encoding to user input and
+applies XSS vulnerbility fix to Hue home page and beeswax Query Editor.
+
+Conflicts:
+	desktop/core/src/desktop/api.py
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    6 ++---
+ desktop/core/src/desktop/api.py                 |   27 ++++++++++++++---------
+ desktop/core/src/desktop/templates/home.mako    |   11 ++++-----
+ desktop/core/static/js/hue.utils.js             |   10 +++++++++
+ 4 files changed, 35 insertions(+), 19 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 27909b0..ff1d664 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -587,14 +587,14 @@ ${layout.menubar(section='query')}
+       <label class="control-label">${_('Name')}</label>
+ 
+       <div class="controls">
+-        <input data-bind="value: $root.design.name" type="text" class="input-xlarge">
++        <input data-bind="value: $root.design.name, html" type="text" class="input-xlarge">
+       </div>
+     </div>
+     <div class="control-group">
+       <label class="control-label">${_('Description')}</label>
+ 
+       <div class="controls">
+-        <input data-bind="value: $root.design.description" type="text" class="input-xlarge">
++        <input data-bind="value: $root.design.description, html" type="text" class="input-xlarge">
+       </div>
+     </div>
+   </form>
+@@ -1053,7 +1053,7 @@ $(document).ready(function () {
+         $(data.queries).each(function(cnt, item){
+           _rows.push([
+             '<span data-time="' + item.timeInMs + '">' + item.timeFormatted + '</span>',
+-            '<code style="cursor:pointer">' + item.query + '</code>',
++            '<code style="cursor:pointer">' + hue.htmlEncode(item.query) + '</code>',
+             (item.resultsUrl != "" ? '<a href="' + item.resultsUrl + '" data-row-selector-exclude="true">${_('See results...')}</a>': ''),
+             (item.designUrl != "" ? '<a href="' + item.designUrl + '" data-row-selector="true">&nbsp;</a>': '')
+           ]);
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index f4a394d..15fce60 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -24,6 +24,8 @@ from collections import defaultdict
+ 
+ from django.http import HttpResponse
+ from django.core.urlresolvers import reverse
++
++from django.utils import html
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.i18n import force_unicode
+@@ -94,7 +96,7 @@ def massaged_tags_for_json(docs, user):
+ def massaged_tags(tag, tag_doc_mapping):
+   return {
+     'id': tag.id,
+-    'name': tag.tag,
++    'name': html.conditional_escape(tag.tag),
+     'owner': tag.owner.username,
+     'docs': [doc.id for doc in tag_doc_mapping[tag]] # Could get with one request groupy
+   }
+@@ -141,16 +143,18 @@ def massaged_documents_for_json(documents, user):
+     write_perms = document.list_permissions(perm='write')
+     docs[document.id] = {
+       'id': document.id,
+-      'contentType': document.content_type.name,
++      'contentType': html.conditional_escape(document.content_type.name),
+       'icon': document.icon,
+-      'name': document.name,
+-      'url': url,
+-      'description': document.description,
+-      'tags': [{'id': tag.id, 'name': tag.tag} for tag in document.tags.all()],
++      'name': html.conditional_escape(document.name),
++      'url': html.conditional_escape(url),
++      'description': html.conditional_escape(document.description),
++      'tags': [{'id': tag.id, 'name': html.conditional_escape(tag.tag)} \
++               for tag in document.tags.all()],
+       'perms': {
+         'read': {
+           'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in read_perms.users.all()],
+-          'groups': [{'id': perm_group.id, 'name': perm_group.name} for perm_group in read_perms.groups.all()]
++          'groups': [{'id': perm_group.id, 'name': perm_group.name} \
++                     for perm_group in read_perms.groups.all()]
+         },
+         'write': {
+           'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in write_perms.users.all()],
+@@ -173,10 +177,11 @@ def massage_doc_for_json(doc, user):
+       'id': doc.id,
+       'contentType': doc.content_type.name,
+       'icon': doc.icon,
+-      'name': doc.name,
+-      'url': doc.content_object.get_absolute_url(),
+-      'description': doc.description,
+-      'tags': [{'id': tag.id, 'name': tag.tag} for tag in doc.tags.all()],
++      'name': html.conditional_escape(doc.name),
++      'url': html.conditional_escape(doc.content_object.get_absolute_url()),
++      'description': html.conditional_escape(doc.description),
++      'tags': [{'id': tag.id, 'name': html.conditional_escape(tag.tag)} \
++               for tag in doc.tags.all()],
+       'perms': {
+         'read': {
+           'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in read_perms.users.all()],
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index 39d9660..84109ca 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -229,7 +229,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+ <script type="text/html" id="tag-template">
+   <li data-bind="click: $root.filterDocs, css: {'active': $root.selectedTag().id == id}">
+     <a href="javascript:void(0)" style="padding-right: 4px">
+-      <i data-bind="css: {'fa': true, 'fa-trash-o':name() == 'trash', 'fa-clock-o': name() == 'history', 'fa-tag': name() != 'trash' && name() != 'history'}"></i> <span data-bind="text: name"></span>
++      <i data-bind="css: {'fa': true, 'fa-trash-o':name() == 'trash', 'fa-clock-o': name() == 'history', 'fa-tag': name() != 'trash' && name() != 'history'}"></i> <span data-bind="html: name"></span>
+       <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
+     </a>
+   </li>
+@@ -242,7 +242,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+   <!-- ko foreach: projects-->
+   <li data-bind="click: $root.filterDocs, css: {'active': $root.selectedTag().id == id}">
+     <a href="javascript:void(0)" style="padding-right: 4px">
+-      &nbsp;&nbsp;&nbsp;<i class="fa fa-tag"></i> <span data-bind="text: name"></span> <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
++      &nbsp;&nbsp;&nbsp;<i class="fa fa-tag"></i> <span data-bind="html: name"></span> <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
+     </a>
+   </li>
+   <!-- /ko -->
+@@ -251,14 +251,14 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+ <script type="text/html" id="document-template">
+   <tr>
+     <td style="width: 26px"><img data-bind="attr: { src: icon }" class="app-icon"></td>
+-    <td><a data-bind="attr: { href: url }, text: name"></a></td>
+-    <td data-bind="text: description"></td>
++    <td><a data-bind="attr: { href: url }, html: name"></a></td>
++    <td data-bind="html: description"></td>
+     <td data-bind="text: lastModified"></td>
+     <td style="text-align: center; white-space: nowrap">
+       <a href="javascript:void(0)" rel="tooltip" data-placement="left" data-bind="click: moveDoc, attr: {'data-original-title': '${ _("Change project for") } '+name}" style="padding-left:8px; padding-right: 8px">
+         <span data-bind="foreach: tags">
+           <!-- ko if: name != 'trash'-->
+-          <span class="badge" data-bind="text: name"></span>
++          <span class="badge" data-bind="html: name"></span>
+           <!-- /ko -->
+         </span>
+       </a>
+@@ -516,6 +516,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+       $.post("/desktop/api/tag/add_tag", {
+         name: tag_name
+       },function (data) {
++        data.name = hue.htmlEncode(data.name);
+         viewModel.createTag(data);
+         $("#tagsNew").val("");
+         $(document).trigger("info", "${_('Project created')}");
+diff --git a/desktop/core/static/js/hue.utils.js b/desktop/core/static/js/hue.utils.js
+index cc3dfa5..485a9cb 100644
+--- a/desktop/core/static/js/hue.utils.js
++++ b/desktop/core/static/js/hue.utils.js
+@@ -104,6 +104,16 @@ Array.prototype.diff = function (a) {
+     }
+     return this;
+   };
++
++  /*
++   * Create a in-memory div, set it's inner text(which jQuery automatically encodes)
++   * then grab the encoded contents back out.
++  */
++
++  hue.htmlEncode = function (value){
++    return $('<div/>').text(value).html();
++  };
++
+ }(hue = window.hue || {}));
+ 
+ 
+-- 
+1.7.9.5
+

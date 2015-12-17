@@ -1,0 +1,89 @@
+From a9e4ddd41135eea951e13d875f7a89c7a44ca187 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 3 Feb 2015 12:43:24 +0100
+Subject: [PATCH 0741/1173] [spark] Collapse snippets on sortable
+
+---
+ apps/spark/src/spark/templates/editor.mako |   26 ++++++++++++++++++++------
+ apps/spark/static/css/spark.css            |    5 +++++
+ 2 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index e3544ec..89d9693 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -244,12 +244,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </div>
+     </div>
+     <div data-bind="css:{'span10': $root.isAssistVisible, 'span12 nomargin': ! $root.isAssistVisible()}">
+-      <div data-bind="css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
++      <div data-bind="css: {'row-fluid row-container sortable-snippets':true, 'is-editing': $root.isEditing},
+         sortable: { template: 'snippet', data: snippets, isEnabled: $root.isEditing,
+         options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
+-            'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});},
+-            'helper': function(event){lastWindowScrollPosition = $(window).scrollTop(); $('.card-body').slideUp('fast'); var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.toElement).text());_title.appendTo(_par);_par.height(80);_par.width(180);return _par;}},
+-            dragged: function(widget){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}">
++            'stop': function(event, ui){$('.snippet-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition); notifyTypeSubscribers(); });},
++            'helper': function(event){lastWindowScrollPosition = $(window).scrollTop(); $('.snippet-body').slideUp('fast', function(){ $('.sortable-snippets').sortable('refreshPositions') }); var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.html($(event.toElement).parents('h2').find('img').outerHTML());_title.appendTo(_par);_par.height(40);_par.width(120);return _par;}},
++            dragged: function(widget){$('.snippet-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition); notifyTypeSubscribers(); });}}">
+       </div>
+ 
+       <h1 class="empty" data-bind="visible: snippets().length == 0">${ _('Add a snippet to start your new notebook') }</h1>
+@@ -316,7 +316,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+       </h2>
+ 
+-      <div data-bind="visible: type() != 'text'">
++      <div data-bind="visible: type() != 'text'" class="snippet-body">
+         <div class="row-fluid">
+           <div data-bind="css: editorKlass">
+             <div data-bind="foreach: variables">
+@@ -589,7 +589,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+       </div>
+ 
+-      <div data-bind="visible: type() == 'text'">
++      <div data-bind="visible: type() == 'text'" class="snippet-body">
+         <div data-bind="html: statement_raw, visible: ! $root.isEditing()" class="text-snippet"></div>
+         <div data-bind="attr:{'id': 'editor_'+id()}, html: statement_raw, value: statement_raw, medium: {}, visible: $root.isEditing()" class="text-snippet"></div>
+       </div>
+@@ -628,6 +628,20 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     return _width;
+   };
+ 
++  jQuery.fn.outerHTML = function(s) {
++    return (s)
++    ? this.before(s).remove()
++    : jQuery("<p>").append(this.eq(0).clone()).html();
++  }
++
++  function notifyTypeSubscribers() {
++    viewModel.notebooks().forEach(function(nb) {
++      nb.snippets().forEach(function(sp) {
++        sp.type.notifySubscribers();
++      });
++    });
++  }
++
+   ko.bindingHandlers.medium = {
+     init: function (element, valueAccessor, allBindings) {
+         var editor = new MediumEditor($(element), {
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index acec267..cd3b8cc 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -24,6 +24,11 @@
+   margin: 10px;
+ }
+ 
++.snippet-body {
++  margin-top: 0;
++  min-height: 40px;
++}
++
+ .CodeMirror {
+   border: 1px solid #EEE;
+   border-top: none;
+-- 
+1.7.9.5
+

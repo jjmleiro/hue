@@ -1,0 +1,68 @@
+From 65cffcf0fcb8883e7419eb8b3e9ef7573764a3e7 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 17 Mar 2015 19:11:11 -0700
+Subject: [PATCH 1116/1173] [oozie] Add config option ssl_cert_ca_verify
+
+This is helpful to test against self-signed oozie setups
+---
+ desktop/libs/liboozie/src/liboozie/conf.py      |    6 ++++++
+ desktop/libs/liboozie/src/liboozie/oozie_api.py |   12 ++++++++----
+ 2 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/desktop/libs/liboozie/src/liboozie/conf.py b/desktop/libs/liboozie/src/liboozie/conf.py
+index 591661a..8af80d3 100644
+--- a/desktop/libs/liboozie/src/liboozie/conf.py
++++ b/desktop/libs/liboozie/src/liboozie/conf.py
+@@ -40,6 +40,12 @@ REMOTE_DEPLOYMENT_DIR = Config(
+   help=_t("Location on HDFS where the workflows/coordinators are deployed when submitted by a non-owner."
+           " Parameters are $TIME, $USER and $JOBID, e.g. /user/$USER/hue/deployments/$JOBID-$TIME"))
+ 
++SSL_CERT_CA_VERIFY=Config(
++  key="ssl_cert_ca_verify",
++  help="In secure mode (HTTPS), if SSL certificates from Oozie Rest APIs have to be verified against certificate authority",
++  default=True,
++  type=coerce_bool)
++
+ 
+ def get_oozie_status(user):
+   from liboozie.oozie_api import get_oozie
+diff --git a/desktop/libs/liboozie/src/liboozie/oozie_api.py b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+index 448e364..3075553 100644
+--- a/desktop/libs/liboozie/src/liboozie/oozie_api.py
++++ b/desktop/libs/liboozie/src/liboozie/oozie_api.py
+@@ -23,8 +23,7 @@ from desktop.conf import DEFAULT_USER
+ from desktop.lib.rest.http_client import HttpClient
+ from desktop.lib.rest.resource import Resource
+ 
+-from liboozie.conf import SECURITY_ENABLED
+-from liboozie.conf import OOZIE_URL
++from liboozie.conf import SECURITY_ENABLED, OOZIE_URL, SSL_CERT_CA_VERIFY
+ from liboozie.types import WorkflowList, CoordinatorList, Coordinator, Workflow,\
+   CoordinatorAction, WorkflowAction, BundleList, Bundle, BundleAction
+ from liboozie.utils import config_gen
+@@ -40,15 +39,20 @@ _XML_CONTENT_TYPE = 'application/xml;charset=UTF-8'
+ def get_oozie(user, api_version=API_VERSION):
+   oozie_url = OOZIE_URL.get()
+   secure = SECURITY_ENABLED.get()
+-  return OozieApi(oozie_url, user, security_enabled=secure, api_version=api_version)
++  ssl_cert_ca_verify = SSL_CERT_CA_VERIFY.get()
++  return OozieApi(oozie_url, user, security_enabled=secure, api_version=api_version, ssl_cert_ca_verify=ssl_cert_ca_verify)
+ 
+ 
+ class OozieApi(object):
+-  def __init__(self, oozie_url, user, security_enabled=False, api_version=API_VERSION):
++  def __init__(self, oozie_url, user, security_enabled=False, api_version=API_VERSION, ssl_cert_ca_verify=True):
+     self._url = posixpath.join(oozie_url, api_version)
+     self._client = HttpClient(self._url, logger=LOG)
++
+     if security_enabled:
+       self._client.set_kerberos_auth()
++
++    self._client.set_verify(ssl_cert_ca_verify)
++
+     self._root = Resource(self._client)
+     self._security_enabled = security_enabled
+     # To store username info
+-- 
+1.7.9.5
+

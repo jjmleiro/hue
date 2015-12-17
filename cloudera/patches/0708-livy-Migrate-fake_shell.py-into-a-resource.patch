@@ -1,0 +1,552 @@
+From 68b4eff7985d644d0ee1af3cd4cbb3019448576e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 28 Jan 2015 07:28:58 +0800
+Subject: [PATCH 0708/1173] [livy] Migrate fake_shell.py into a resource
+
+---
+ .../java/livy-repl/src/main/python/fake_shell.py   |  180 --------------------
+ .../livy-repl/src/main/resources/fake_shell.py     |  180 ++++++++++++++++++++
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |    2 +-
+ .../hue/livy/repl/python/PythonSession.scala       |   29 +++-
+ .../java/livy-yarn/src/main/assembly/dist.xml      |    8 -
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |   12 +-
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    4 +-
+ 7 files changed, 217 insertions(+), 198 deletions(-)
+ delete mode 100644 apps/spark/java/livy-repl/src/main/python/fake_shell.py
+ create mode 100644 apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+
+diff --git a/apps/spark/java/livy-repl/src/main/python/fake_shell.py b/apps/spark/java/livy-repl/src/main/python/fake_shell.py
+deleted file mode 100644
+index 1d711fb..0000000
+--- a/apps/spark/java/livy-repl/src/main/python/fake_shell.py
++++ /dev/null
+@@ -1,180 +0,0 @@
+-import cStringIO
+-import json
+-import logging
+-import sys
+-import traceback
+-
+-logging.basicConfig()
+-logger = logging.getLogger('fake_shell')
+-
+-sys_stdin = sys.stdin
+-sys_stdout = sys.stdout
+-sys_stderr = sys.stderr
+-
+-fake_stdin = cStringIO.StringIO()
+-fake_stdout = cStringIO.StringIO()
+-fake_stderr = cStringIO.StringIO()
+-
+-sys.stdin = fake_stdin
+-sys.stdout = fake_stdout
+-sys.stderr = fake_stderr
+-
+-global_dict = {}
+-
+-execution_count = 0
+-
+-def execute_request(msg):
+-    global execution_count
+-
+-    try:
+-        code = msg['code']
+-    except KeyError:
+-        logger.error('missing code', exc_info=True)
+-        return
+-
+-    execution_count += 1
+-
+-    try:
+-        code = compile(code, '<stdin>', 'single')
+-        exec code in global_dict
+-    except:
+-        exc_type, exc_value, tb = sys.exc_info()
+-        return {
+-            'msg_type': 'execute_reply',
+-            'execution_count': execution_count - 1,
+-            'content': {
+-                'status': 'error',
+-                'ename': exc_type.__name__,
+-                'evalue': str(exc_value),
+-                'traceback': traceback.extract_tb(tb),
+-            }
+-        }
+-
+-    stdout = fake_stdout.getvalue()
+-    stderr = fake_stderr.getvalue()
+-
+-    output = ''
+-
+-    if stdout:
+-        output += stdout
+-
+-    if stderr:
+-        output += stderr
+-
+-    return {
+-        'msg_type': 'execute_result',
+-        'execution_count': execution_count,
+-        'content': {
+-            'status': 'ok',
+-            'execution_count': execution_count - 1,
+-            'data': {
+-                'text/plain': output,
+-            },
+-        }
+-    }
+-
+-def inspect_value(name):
+-    try:
+-        value = global_dict[name]
+-    except KeyError:
+-        return {
+-            'msg_type': 'inspect_reply',
+-            'execution_count': execution_count - 1,
+-            'content': {
+-                'status': 'error',
+-                'ename': 'KeyError',
+-                'evalue': 'unknown variable %s' % name,
+-            }
+-        }
+-
+-    return {
+-        'msg_type': 'inspect_result',
+-        'content': {
+-            'data': {
+-                'application/json': value,
+-            },
+-        }
+-    }
+-
+-
+-inspect_router = {
+-    '%inspect': inspect_value,
+-}
+-
+-def inspect_request(msg):
+-    try:
+-        code = msg['code']
+-    except KeyError:
+-        logger.error('missing code', exc_info=True)
+-        return
+-
+-    try:
+-        inspect_magic, code = code.split(' ', 1)
+-    except ValueError:
+-        logger.error('invalid magic', exc_info=True)
+-        return
+-
+-    try:
+-        handler = inspect_router[inspect_magic]
+-    except KeyError:
+-        logger.error('unknown magic', exc_info=True)
+-        return
+-
+-    return handler(code)
+-
+-
+-msg_type_router = {
+-    'execute_request': execute_request,
+-    'inspect_request': inspect_request,
+-}
+-
+-try:
+-    while True:
+-        fake_stdout.truncate(0)
+-
+-        line = sys_stdin.readline()
+-
+-        if line == '':
+-            break
+-        elif line == '\n':
+-            continue
+-
+-        try:
+-            msg = json.loads(line)
+-        except ValueError:
+-            logger.error('failed to parse message', exc_info=True)
+-            continue
+-
+-        try:
+-            msg_type = msg['msg_type']
+-        except KeyError:
+-            logger.error('missing message type')
+-            continue
+-
+-        try:
+-            handler = msg_type_router[msg_type]
+-        except KeyError:
+-            logger.error('unknown message type: %s', msg_type)
+-            continue
+-
+-        response = handler(msg)
+-        if response is not None:
+-            try:
+-                response = json.dumps(response)
+-            except ValueError:
+-                response = json.dumps({
+-                    'msg_type': 'inspect_reply',
+-                    'execution_count': execution_count - 1,
+-                    'content': {
+-                        'status': 'error',
+-                        'ename': 'ValueError',
+-                        'evalue': 'cannot json-ify %s' % name,
+-                    }
+-                })
+-
+-            print >> sys_stdout, response
+-            sys_stdout.flush()
+-finally:
+-    sys.stdin = sys_stdin
+-    sys.stdout = sys_stdout
+-    sys.stderr = sys_stderr
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+new file mode 100644
+index 0000000..1d711fb
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -0,0 +1,180 @@
++import cStringIO
++import json
++import logging
++import sys
++import traceback
++
++logging.basicConfig()
++logger = logging.getLogger('fake_shell')
++
++sys_stdin = sys.stdin
++sys_stdout = sys.stdout
++sys_stderr = sys.stderr
++
++fake_stdin = cStringIO.StringIO()
++fake_stdout = cStringIO.StringIO()
++fake_stderr = cStringIO.StringIO()
++
++sys.stdin = fake_stdin
++sys.stdout = fake_stdout
++sys.stderr = fake_stderr
++
++global_dict = {}
++
++execution_count = 0
++
++def execute_request(msg):
++    global execution_count
++
++    try:
++        code = msg['code']
++    except KeyError:
++        logger.error('missing code', exc_info=True)
++        return
++
++    execution_count += 1
++
++    try:
++        code = compile(code, '<stdin>', 'single')
++        exec code in global_dict
++    except:
++        exc_type, exc_value, tb = sys.exc_info()
++        return {
++            'msg_type': 'execute_reply',
++            'execution_count': execution_count - 1,
++            'content': {
++                'status': 'error',
++                'ename': exc_type.__name__,
++                'evalue': str(exc_value),
++                'traceback': traceback.extract_tb(tb),
++            }
++        }
++
++    stdout = fake_stdout.getvalue()
++    stderr = fake_stderr.getvalue()
++
++    output = ''
++
++    if stdout:
++        output += stdout
++
++    if stderr:
++        output += stderr
++
++    return {
++        'msg_type': 'execute_result',
++        'execution_count': execution_count,
++        'content': {
++            'status': 'ok',
++            'execution_count': execution_count - 1,
++            'data': {
++                'text/plain': output,
++            },
++        }
++    }
++
++def inspect_value(name):
++    try:
++        value = global_dict[name]
++    except KeyError:
++        return {
++            'msg_type': 'inspect_reply',
++            'execution_count': execution_count - 1,
++            'content': {
++                'status': 'error',
++                'ename': 'KeyError',
++                'evalue': 'unknown variable %s' % name,
++            }
++        }
++
++    return {
++        'msg_type': 'inspect_result',
++        'content': {
++            'data': {
++                'application/json': value,
++            },
++        }
++    }
++
++
++inspect_router = {
++    '%inspect': inspect_value,
++}
++
++def inspect_request(msg):
++    try:
++        code = msg['code']
++    except KeyError:
++        logger.error('missing code', exc_info=True)
++        return
++
++    try:
++        inspect_magic, code = code.split(' ', 1)
++    except ValueError:
++        logger.error('invalid magic', exc_info=True)
++        return
++
++    try:
++        handler = inspect_router[inspect_magic]
++    except KeyError:
++        logger.error('unknown magic', exc_info=True)
++        return
++
++    return handler(code)
++
++
++msg_type_router = {
++    'execute_request': execute_request,
++    'inspect_request': inspect_request,
++}
++
++try:
++    while True:
++        fake_stdout.truncate(0)
++
++        line = sys_stdin.readline()
++
++        if line == '':
++            break
++        elif line == '\n':
++            continue
++
++        try:
++            msg = json.loads(line)
++        except ValueError:
++            logger.error('failed to parse message', exc_info=True)
++            continue
++
++        try:
++            msg_type = msg['msg_type']
++        except KeyError:
++            logger.error('missing message type')
++            continue
++
++        try:
++            handler = msg_type_router[msg_type]
++        except KeyError:
++            logger.error('unknown message type: %s', msg_type)
++            continue
++
++        response = handler(msg)
++        if response is not None:
++            try:
++                response = json.dumps(response)
++            except ValueError:
++                response = json.dumps({
++                    'msg_type': 'inspect_reply',
++                    'execution_count': execution_count - 1,
++                    'content': {
++                        'status': 'error',
++                        'ename': 'ValueError',
++                        'evalue': 'cannot json-ify %s' % name,
++                    }
++                })
++
++            print >> sys_stdout, response
++            sys_stdout.flush()
++finally:
++    sys.stdin = sys_stdin
++    sys.stdout = sys_stdout
++    sys.stderr = sys_stderr
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index b5f3167..339d3ff 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -34,8 +34,8 @@ object Main extends Logging {
+     val server = new WebServer(port)
+ 
+     server.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-    server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+     server.context.addEventListener(new ScalatraListener)
++    server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+     server.context.setInitParameter(SESSION_KIND, session_kind)
+ 
+     server.start()
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+index 7a3ef92..9604b9f 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+@@ -1,11 +1,11 @@
+ package com.cloudera.hue.livy.repl.python
+ 
+ import java.io._
++import java.nio.file.Files
+ 
+ import com.cloudera.hue.livy.ExecuteResponse
+ import com.cloudera.hue.livy.repl.Session
+ import org.json4s.DefaultFormats
+-import org.json4s.JsonAST._
+ import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
+ 
+@@ -13,11 +13,9 @@ import scala.collection.mutable.ArrayBuffer
+ import scala.concurrent.{ExecutionContext, Future}
+ 
+ object PythonSession {
+-  val LIVY_HOME = System.getenv("LIVY_HOME")
+-  val FAKE_SHELL = LIVY_HOME + "/livy-repl/src/main/python/fake_shell.py"
+-
+   def create(): Session = {
+-    val pb = new ProcessBuilder("python", FAKE_SHELL)
++    val file = createScript()
++    val pb = new ProcessBuilder("python", file.toString)
+     val process = pb.start()
+     val in = process.getInputStream
+     val out = process.getOutputStream
+@@ -25,6 +23,27 @@ object PythonSession {
+     new PythonSession(process, in, out)
+   }
+ 
++  private def createScript(): File = {
++    val source: InputStream = getClass.getClassLoader.getResourceAsStream("fake_shell.py")
++
++    val file = Files.createTempFile("", "").toFile
++    file.deleteOnExit()
++
++    val sink = new FileOutputStream(file)
++    val buf = new Array[Byte](1024)
++    var n = source.read(buf)
++
++    while (n > 0) {
++      sink.write(buf, 0, n)
++      n = source.read(buf)
++    }
++
++    source.close()
++    sink.close()
++
++    file
++  }
++
+   // Java unfortunately wraps the input stream in a buffer, so we need to hack around it so we can read the output
+   // without blocking.
+   private def unwrapInputStream(inputStream: InputStream) = {
+diff --git a/apps/spark/java/livy-yarn/src/main/assembly/dist.xml b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+index d52ff8b..c15d221 100644
+--- a/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
++++ b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+@@ -24,14 +24,6 @@
+             <outputDirectory>lib</outputDirectory>
+             <useProjectArtifact>true</useProjectArtifact>
+ 
+-            <!--
+-            <includes>
+-                <include>com.cloudera.hue.livy:livy-yarn</include>
+-                <include>org.slf4j:slf4j-log4j12</include>
+-                <include>org.apache.hadoop:hadoop-hdfs</include>
+-            </includes>
+-            -->
+-
+             <useTransitiveFiltering>true</useTransitiveFiltering>
+         </dependencySet>
+     </dependencySets>
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index 9656d18..329fd6c 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -7,11 +7,16 @@ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+ import org.apache.hadoop.yarn.client.api.AMRMClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+ import org.apache.hadoop.yarn.util.ConverterUtils
++import org.apache.spark.repl.Main
+ import org.scalatra.servlet.ScalatraListener
+ 
+ object AppMaster extends Logging {
+ 
++  val SESSION_KIND = "livy-repl.session.kind"
++
+   def main(args: Array[String]): Unit = {
++    val lang = args(1)
++
+     val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
+     info("got container id: %s" format containerIdString)
+     val containerId = ConverterUtils.toContainerId(containerIdString)
+@@ -26,20 +31,21 @@ object AppMaster extends Logging {
+     info("got node manager port: %s" format nodePortString)
+ 
+     val yarnConfig = new YarnConfiguration()
+-    val service = new AppMasterService(yarnConfig, nodeHostString)
++    val service = new AppMasterService(yarnConfig, nodeHostString, lang)
+     service.run()
+   }
+ 
+ }
+ 
+-class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String) extends Logging {
++class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String, lang: String) extends Logging {
+   val webServer = new WebServer(0)
+   val amRMClient = AMRMClient.createAMRMClient()
+   amRMClient.init(yarnConfig)
+ 
+   webServer.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-  webServer.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+   webServer.context.addEventListener(new ScalatraListener)
++  webServer.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
++  webServer.context.setInitParameter(AppMaster.SESSION_KIND, lang)
+ 
+   def run(): Unit = {
+     webServer.start()
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 9ad64c2..6b6e04a 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -14,6 +14,7 @@ object Client extends Logging {
+ 
+   def main(args: Array[String]): Unit = {
+     val packagePath = new Path(args(1))
++    val lang = args(2)
+ 
+     val yarnConf = new YarnConfiguration()
+     yarnConf.set("yarn.resourcemanager.am.max-attempts", "1")
+@@ -24,7 +25,8 @@ object Client extends Logging {
+       val job = client.submitApplication(
+         packagePath,
+         List(
+-          "__package/bin/run-am.sh 1>%s/stdout 2>%s/stderr" format (
++          "__package/bin/run-am.sh %s 1>%s/stdout 2>%s/stderr" format (
++            lang,
+             ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+             ApplicationConstants.LOG_DIR_EXPANSION_VAR
+           )
+-- 
+1.7.9.5
+

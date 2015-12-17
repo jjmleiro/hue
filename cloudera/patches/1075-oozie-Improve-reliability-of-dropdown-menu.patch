@@ -1,0 +1,56 @@
+From 77147cde737361444d70657f25273b625f612ff1 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sun, 15 Mar 2015 09:32:38 -0500
+Subject: [PATCH 1075/1173] [oozie] Improve reliability of dropdown menu
+
+---
+ .../core/src/desktop/templates/common_header.mako  |   33 +++++++++++++++++---
+ 1 file changed, 28 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index d0b235f..5955203 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -276,11 +276,34 @@ from django.utils.translation import ugettext as _
+           $(".navigator").find("ul.dropdown-menu").hide();
+         }, 1000);
+       });
+-      $(".navigator ul.nav li.dropdown-submenu").hover(function () {
+-        $(this).find(".dropdown-menu").show();
+-      },
+-      function () {
+-        $(this).find(".dropdown-menu").hide();
++
++      function showSubmenu(menuElement) {
++        $(".tooltip").remove();
++        menuElement.data("lastShown", (new Date()).getTime())
++        menuElement.show();
++      }
++
++      $(".navigator ul.nav li.dropdown-submenu a").on("mouseenter", function () {
++        showSubmenu($(this).siblings(".dropdown-menu"));
++      });
++
++      $(".navigator ul.nav li.dropdown-submenu a img").on("mouseenter", function () {
++        showSubmenu($(this).parent().siblings(".dropdown-menu"));
++      });
++
++      $(".navigator ul.nav li.dropdown-submenu").on("mouseenter", function () {
++        $(this).siblings().find(".dropdown-menu").hide();
++        showSubmenu($(this).find(".dropdown-menu"));
++      });
++
++      $(".navigator ul.nav li.dropdown-submenu").on("mouseleave", function () {
++        var _lastShown = $(this).find(".dropdown-menu").data("lastShown");
++        if (_lastShown == null || (new Date()).getTime() - _lastShown > 300) {
++          var _el = $(this);
++          window.setTimeout(function () {
++            _el.find(".dropdown-menu").hide();
++          }, 50);
++        }
+       });
+ 
+       var _skew = -1;
+-- 
+1.7.9.5
+

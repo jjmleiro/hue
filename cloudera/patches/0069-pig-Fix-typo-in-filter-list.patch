@@ -1,0 +1,29 @@
+From 0a4e02496281843b623a6e06165bf41f91144840 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 22 Oct 2014 22:49:46 -0700
+Subject: [PATCH 0069/1173] [pig] Fix typo in filter list
+
+---
+ apps/pig/src/pig/api.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/src/pig/api.py b/apps/pig/src/pig/api.py
+index f478161..c28fb2d 100644
+--- a/apps/pig/src/pig/api.py
++++ b/apps/pig/src/pig/api.py
+@@ -137,10 +137,10 @@ class OozieApi:
+ 
+   def get_jobs(self):
+     kwargs = {'cnt': OozieApi.MAX_DASHBOARD_JOBS,}
+-    kwargs['filters'] = {
++    kwargs['filters'] = [
+         ('user', self.user.username),
+         ('name', OozieApi.WORKFLOW_NAME)
+-    }
++    ]
+ 
+     return get_oozie(self.user).get_workflows(**kwargs).jobs
+ 
+-- 
+1.7.9.5
+

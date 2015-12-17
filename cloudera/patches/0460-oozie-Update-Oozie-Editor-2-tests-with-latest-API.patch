@@ -1,0 +1,57 @@
+From e0d90680abeb89b88ef5e094938eadb80f0337e1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 16 Jan 2015 14:14:17 -0800
+Subject: [PATCH 0460/1173] [oozie] Update Oozie Editor 2 tests with latest
+ API
+
+---
+ apps/oozie/src/oozie/tests2.py |   28 +++++++++++++++++++---------
+ 1 file changed, 19 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/tests2.py b/apps/oozie/src/oozie/tests2.py
+index 2f1fcb5..3b15f7b 100644
+--- a/apps/oozie/src/oozie/tests2.py
++++ b/apps/oozie/src/oozie/tests2.py
+@@ -65,20 +65,30 @@ LIMIT $limit"""))
+ 
+ 
+   def test_workflow_gen_xml(self):
+-    assert_equal(
+-        '<workflow-app name="Test" xmlns="0">\n'
+-        '</workflow-app>'
+-        .split(),
++    assert_equal([
++        u'<workflow-app', u'name="My_Workflow"', u'xmlns="uri:oozie:workflow:0.5">', u'<start', u'to="End"/>', u'<kill', u'name="Kill">', u'<message>Action', u'failed,', 
++        u'error', u'message[${wf:errorMessage(wf:lastErrorNode())}]</message>', u'</kill>', u'<end', u'name="End"/>', u'</workflow-app>'],
+         self.wf.to_xml({'output': '/path'}).split()
+     )
+ 
+ 
+   def test_job_validate_xml_name(self):
+-    assert_equal('a', Job.validate_name('a'))
+-    assert_equal('aa', Job.validate_name('aa'))
+-    assert_equal('_a', Job.validate_name('%a'))
+-    assert_equal(len('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), len(Job.validate_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaz')))
+-    assert_equal('My_______1st_Workflow__With___Bad__letter_', Job.validate_name('My <...> 1st Workflow [With] (Bad) letter$'))
++    job = Workflow()
++
++    job.update_name('a')
++    assert_equal('a', job.validated_name)
++
++    job.update_name('aa')
++    assert_equal('aa', job.validated_name)
++    
++    job.update_name('%a')
++    assert_equal('_a', job.validated_name)
++    
++    job.update_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaz')
++    assert_equal(len('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), len(job.validated_name))
++    
++    job.update_name('My <...> 1st W$rkflow [With] (Bad) letter$')
++    assert_equal('My_______1st_W_rkflow__With___Bad__lette', job.validated_name)
+ 
+ 
+ #  def test_workflow_name(self):
+-- 
+1.7.9.5
+

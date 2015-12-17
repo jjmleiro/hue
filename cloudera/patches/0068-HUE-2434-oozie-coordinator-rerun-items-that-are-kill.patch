@@ -1,0 +1,51 @@
+From 8a8a6fee37b5af9f36d9cde50ad6ed9595e8fea5 Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 22 Oct 2014 19:12:09 -0500
+Subject: [PATCH 0068/1173] HUE-2434 [oozie] coordinator rerun items that are
+ killed should not display MANAGE section
+
+Removed display of MANAGE section of side bar if the action was killed
+Updated unit tests
+---
+ .../dashboard/list_oozie_coordinator.mako          |    2 +-
+ apps/oozie/src/oozie/tests.py                      |    4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+index 65b85c8..8194f44 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+@@ -78,7 +78,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+                   <li class="white">${ _('No available datasets') }</li>
+                 % endif
+ 
+-                % if has_job_edition_permission(oozie_coordinator, user):
++                % if has_job_edition_permission(oozie_coordinator, user) and oozie_coordinator.status != 'KILLED':
+                   <li class="nav-header">${ _('Manage') }</li>
+                   <li class="white">
+                     <button title="${_('Kill %(coordinator)s') % dict(coordinator=oozie_coordinator.id)}"
+diff --git a/apps/oozie/src/oozie/tests.py b/apps/oozie/src/oozie/tests.py
+index 3832aff..23f22b7 100644
+--- a/apps/oozie/src/oozie/tests.py
++++ b/apps/oozie/src/oozie/tests.py
+@@ -3149,7 +3149,7 @@ class TestDashboard(OozieMockBase):
+ 
+   def test_rerun_coordinator(self):
+     response = self.c.get(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.WORKFLOW_IDS[0], '/path']))
+-    assert_true('Select actions to rerun' in response.content, response.content)
++    assert_true('Rerun' in response.content, response.content)
+ 
+ 
+   def test_rerun_coordinator_permissions(self):
+@@ -3175,7 +3175,7 @@ class TestDashboard(OozieMockBase):
+ 
+   def test_rerun_bundle(self):
+     response = self.c.get(reverse('oozie:rerun_oozie_coord', args=[MockOozieApi.WORKFLOW_IDS[0], '/path']))
+-    assert_true('Select actions to rerun' in response.content, response.content)
++    assert_true('Rerun' in response.content, response.content)
+ 
+ 
+   def test_rerun_bundle_permissions(self):
+-- 
+1.7.9.5
+

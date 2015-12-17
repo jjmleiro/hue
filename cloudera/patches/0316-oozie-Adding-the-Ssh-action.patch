@@ -1,0 +1,184 @@
+From 0b96f7ffc46f379ba74e2faf10caa6a8c5b68296 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 24 Nov 2014 15:18:03 -0800
+Subject: [PATCH 0316/1173] [oozie] Adding the Ssh action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   61 +++++---------------
+ .../templates/editor/gen2/workflow-ssh.xml.mako    |   18 +++---
+ .../oozie/templates/editor/workflow_editor.mako    |   25 ++++----
+ 3 files changed, 36 insertions(+), 68 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index bb02380..3e18859 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -743,28 +743,26 @@ class ShellAction(Action):
+ 
+ 
+ class SshAction(Action):
+-  TYPE = 'shell' 
++  TYPE = 'ssh' 
+   FIELDS = {
+      'host': { 
+-          'name': 'shell_command',
+-          'label': _('Shell command'),
+-          'value': 'script.sh',
++          'name': 'host',
++          'label': _('User and Host'),
++          'value': 'user@host.com',
++          'help_text': _('Where the shell will be executed.')
++     },         
++     'ssh_command': { 
++          'name': 'ssh_command',
++          'label': _('Ssh command'),
++          'value': 'ls',
+           'help_text': _('The path of the Shell command to execute.')
+-     },            
++     },    
+      'arguments': {
+           'name': 'arguments',
+           'label': _('Arguments'),
+           'value': [],
+           'help_text': _('The arguments of the command can then be specified using one or more argument element.')
+-     },    
+-     'env_var': { 
+-          'name': 'env_var',
+-          'label': _('Environment variables'),
+-          'value': [],
+-          'help_text': _('Environemnt to be passed to the Shell command. env-var should contain only one pair of environment variable and value. '
+-                         'If the pair contains the variable such as $PATH, it should follow the Unix convention such as PATH=$PATH:mypath. '
+-                         'Don\'t use ${PATH} which will be substitued by Oozie\'s EL evaluator.')
+-     },         
++     },
+      'capture_output': { 
+           'name': 'capture_output',
+           'label': _('Capture output'),
+@@ -774,44 +772,11 @@ class SshAction(Action):
+                          'From within the workflow definition, the output of an %(program)s action node is accessible '
+                          'via the String action:output(String node, String key) function') % {'program': TYPE}
+      },
+-     # Common
+-     'files': { 
+-          'name': 'files',
+-          'label': _('Files'),
+-          'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
+-     },
+-     'archives': { 
+-          'name': 'archives',
+-          'label': _('Archives'),
+-          'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
+-     },
+-     'job_properties': { 
+-          'name': 'job_properties',
+-          'label': _('Hadoop job properties'),
+-          'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
+-     },
+-     'prepares': { 
+-          'name': 'prepares',
+-          'label': _('Prepares'),
+-          'value': [],
+-          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
+-     },
+-     'job_xml': { 
+-          'name': 'job_xml',
+-          'label': _('Job XML'),
+-          'value': [],
+-          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
+-                        'Properties specified in the Job Properties element override properties specified in the '
+-                        'files specified in the Job XML element.')
+-     }
+   }
+ 
+   @classmethod
+   def get_mandatory_fields(cls):
+-    return [cls.FIELDS['shell_command']]
++    return [cls.FIELDS['host'], cls.FIELDS['ssh_command']]
+ 
+ 
+ class FsAction(Action):
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
+index a439de8..f65c59e 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-ssh.xml.mako
+@@ -17,20 +17,20 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <ssh xmlns="uri:oozie:ssh-action:0.1">
+-            <host>${ node.user }@${ node.host }</host>
+-            <command>${ node.command }</command>
++            <host>${ node['properties']['host'] }</host>
++            <command>${ node['properties']['ssh_command'] }</command>
+ 
+-            % for param in node.get_params():
+-              <args>${ param['value'] }</args>
++            % for param in node['properties']['arguments']:
++            <args>${ param['value'] }</args>
+             % endfor
+ 
+-            % if node.capture_output:
+-              <capture-output/>
++            % if node['properties']['capture_output']:
++            <capture-output/>
+             % endif
+         </ssh>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
++        <error to="${ node_mapping[node['children'][1]['error']].name }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 6783802..09f5a67 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1100,26 +1100,29 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       <div class="tab-content">
+         <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
+           <i class="fa fa-tty"></i>
+-        </div>
+-
+-        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">          
+-          <span data-bind="text: $root.workflow_properties.capture_output.label"></span>
+-          <input type="checkbox" data-bind="checked: properties.capture_output" />
++          <span data-bind="text: $root.workflow_properties.host.label"></span>
++          <input type="text" data-bind="value: properties.host" />
+           <br/>
+-          <span data-bind="text: $root.workflow_properties.env_var.label"></span>
+-          <ul data-bind="foreach: properties.env_var">
++          <span data-bind="text: $root.workflow_properties.ssh_command.label"></span>
++          <input type="text" data-bind="value: properties.ssh_command" />
++          <br/>
++          <span data-bind="text: $root.workflow_properties.arguments.label"></span>
++          <ul data-bind="foreach: properties.arguments">
+             <li>
+               <input data-bind="value: value"/>
+-              <a href="#" data-bind="click: function(){ $parent.properties.env_var.remove(this); }">
++              <a href="#" data-bind="click: function(){ $parent.properties.arguments.remove(this); }">
+                 <i class="fa fa-minus"></i>
+               </a>
+             </li>
+           </ul>
+-          <button data-bind="click: function(){ properties.env_var.push({'value': ''}); }">
++          <button data-bind="click: function(){ properties.arguments.push({'value': ''}); }">
+             <i class="fa fa-plus"></i>
+           </button>           
+-          <br/>
+-          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">          
++          <span data-bind="text: $root.workflow_properties.capture_output.label"></span>
++          <input type="checkbox" data-bind="checked: properties.capture_output" />
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
+-- 
+1.7.9.5
+

@@ -1,0 +1,30 @@
+From 97768846156255d699257cb8614a9e4f2eda7724 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 10:55:42 -0800
+Subject: [PATCH 0649/1173] [spark] Remove an unused servlet
+
+---
+ .../com/cloudera/hue/livy/repl/WebServer.scala     |   10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+index 1daa958..057f0ee 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+@@ -70,13 +70,3 @@ class ScalatraBootstrap extends LifeCycle {
+     //system.shutdown()
+   }
+ }
+-
+-class WebApp extends ScalatraServlet {
+-  get("/") {
+-    "hello world"
+-  }
+-
+-  get("/hello") {
+-    "hello world2"
+-  }
+-}
+-- 
+1.7.9.5
+

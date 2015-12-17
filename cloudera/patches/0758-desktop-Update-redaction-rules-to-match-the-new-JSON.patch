@@ -1,0 +1,527 @@
+From 296ad5788c90f90be48f9de606a34084927d23af Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 5 Feb 2015 11:54:17 -0800
+Subject: [PATCH 0758/1173] [desktop] Update redaction rules to match the new
+ JSON scheme
+
+---
+ desktop/conf.dist/hue.ini                       |   48 +++++++---
+ desktop/conf/pseudo-distributed.ini.tmpl        |   49 +++++++---
+ desktop/core/src/desktop/conf.py                |   20 +---
+ desktop/core/src/desktop/redaction/__init__.py  |    7 +-
+ desktop/core/src/desktop/redaction/engine.py    |  116 ++++++++++++++---------
+ desktop/core/src/desktop/redaction/logfilter.py |    2 +-
+ desktop/core/src/desktop/redaction/tests.py     |   44 +++++----
+ desktop/core/src/desktop/settings.py            |    2 +-
+ 8 files changed, 181 insertions(+), 107 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 427b29a..44fee99 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -104,10 +104,26 @@
+   # Size in KB/MB/GB for audit log to rollover.
+   ## audit_log_max_file_size=100MB
+ 
+-  # A file containing a list of log redaction rules for cleaning sensitive data
+-  # from log files. Each rule is defined as:
++  # A json file containing a list of log redaction rules for cleaning sensitive data
++  # from log files. It is defined as:
+   #
+-  #     `[TRIGGER]::[REGEX]::[REDACTION_MASK]`.
++  # {
++  #   "version": 1,
++  #   "rules": [
++  #     {
++  #       "description": "This is the first rule",
++  #       "trigger": "triggerstring 1",
++  #       "search": "regex 1",
++  #       "replace": "replace 1"
++  #     },
++  #     {
++  #       "description": "This is the second rule",
++  #       "trigger": "triggerstring 2",
++  #       "search": "regex 2",
++  #       "replace": "replace 2"
++  #     }
++  #   ]
++  # }
+   #
+   # Redaction works by searching a string for the [TRIGGER] string. If found,
+   # the [REGEX] is used to replace sensitive information with the
+@@ -116,15 +132,25 @@
+   # `log_redaction_file` rules.
+   #
+   # For example, here is a file that would redact passwords and social security numbers:
+-  #
+-  #     password=::password=".*"::password="???"
+-  #     ::\d{3}-\d{2}\{4}::XXX-XXX-XXXX
+-  ## log_redaction_file=
+ 
+-  # A string containing a list of redaction rules. It uses the same rules as
+-  # described in `log_redaction_file`, but each rule is separated by `||`
+-  # instead of newlines.
+-  ## log_redaction_string=
++  # {
++  #   "version": 1,
++  #   "rules": [
++  #     {
++  #       "description": "Redact passwords",
++  #       "trigger": "password",
++  #       "search": "password=\".*\"",
++  #       "replace": "password=\"???\""
++  #     },
++  #     {
++  #       "description": "Redact social security numbers",
++  #       "trigger": "",
++  #       "search": "\d{3}-\d{2}-\d{4}",
++  #       "replace": "XXX-XX-XXXX"
++  #     }
++  #   ]
++  # }
++  ## log_redaction_file=
+ 
+   # Administrators
+   # ----------------
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 8facf02..f438294 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -113,10 +113,26 @@
+   # Size in KB/MB/GB for audit log to rollover.
+   ## audit_log_max_file_size=100MB
+ 
+-  # A file containing a list of log redaction rules for cleaning sensitive data
+-  # from log files. Each rule is defined as:
++  # A json file containing a list of log redaction rules for cleaning sensitive data
++  # from log files. It is defined as:
+   #
+-  #     `[TRIGGER]::[REGEX]::[REDACTION_MASK]`.
++  # {
++  #   "version": 1,
++  #   "rules": [
++  #     {
++  #       "description": "This is the first rule",
++  #       "trigger": "triggerstring 1",
++  #       "search": "regex 1",
++  #       "replace": "replace 1"
++  #     },
++  #     {
++  #       "description": "This is the second rule",
++  #       "trigger": "triggerstring 2",
++  #       "search": "regex 2",
++  #       "replace": "replace 2"
++  #     }
++  #   ]
++  # }
+   #
+   # Redaction works by searching a string for the [TRIGGER] string. If found,
+   # the [REGEX] is used to replace sensitive information with the
+@@ -125,15 +141,24 @@
+   # `log_redaction_file` rules.
+   #
+   # For example, here is a file that would redact passwords and social security numbers:
+-  #
+-  #     password=::password=".*"::password="???"
+-  #     ::\d{3}-\d{2}\{4}::XXX-XXX-XXXX
+-  ## log_redaction_file=
+-
+-  # A string containing a list of redaction rules. It uses the same rules as
+-  # described in `log_redaction_file`, but each rule is separated by `||`
+-  # instead of newlines.
+-  ## log_redaction_string=
++
++  # {
++  #   "version": 1,
++  #   "rules": [
++  #     {
++  #       "description": "Redact passwords",
++  #       "trigger": "password",
++  #       "search": "password=\".*\"",
++  #       "replace": "password=\"???\""
++  #     },
++  #     {
++  #       "description": "Redact social security numbers",
++  #       "trigger": "",
++  #       "search": "\d{3}-\d{2}-\d{4}",
++  #       "replace": "XXX-XX-XXXX"
++  #     }
++  #   ]
++  # }
+ 
+ #poll_enabled=false
+ 
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 30835c5..7f408f7 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -22,8 +22,7 @@ import logging
+ 
+ from django.utils.translation import ugettext_lazy as _
+ 
+-from desktop.redaction.engine import parse_redaction_rules_from_file, \
+-                                     parse_redaction_rules_from_string
++from desktop.redaction.engine import parse_redaction_policy_from_file
+ from desktop.lib.conf import Config, ConfigSection, UnspecifiedConfigSection,\
+                              coerce_bool, coerce_csv, coerce_json_dict,\
+                              validate_path, list_of_compiled_res, coerce_str_lowercase
+@@ -174,13 +173,7 @@ DEMO_ENABLED = Config( # Internal and Temporary
+ LOG_REDACTION_FILE = Config(
+   key="log_redaction_file",
+   help=_("Use this file to parse and redact log message."),
+-  type=parse_redaction_rules_from_file,
+-  default=None)
+-
+-LOG_REDACTION_STRING = Config(
+-  key="log_redaction_string",
+-  help=_("Use this string to parse and redact log message."),
+-  type=parse_redaction_rules_from_string,
++  type=parse_redaction_policy_from_file,
+   default=None)
+ 
+ def is_https_enabled():
+@@ -885,12 +878,9 @@ def config_validator(user):
+ 
+   return res
+ 
+-def get_redaction_rules():
++def get_redaction_policy():
+   """
+-  Return a list of redaction rules.
++  Return the configured redaction policy.
+   """
+ 
+-  file_rules = LOG_REDACTION_FILE.get() or []
+-  string_rules = LOG_REDACTION_STRING.get() or []
+-
+-  return file_rules + string_rules
++  return LOG_REDACTION_FILE.get()
+diff --git a/desktop/core/src/desktop/redaction/__init__.py b/desktop/core/src/desktop/redaction/__init__.py
+index a5a611c..449f4fd 100644
+--- a/desktop/core/src/desktop/redaction/__init__.py
++++ b/desktop/core/src/desktop/redaction/__init__.py
+@@ -30,12 +30,13 @@ def redact(string):
+   return global_redaction_engine.redact(string)
+ 
+ 
+-def register_log_filtering(rules):
++def register_log_filtering(policy):
+   """
+   `add_redaction_filter` injects the redaction filter into all of the `logger`
+   handlers. This must be called after all of the handlers have been added to
+   `logger`, otherwise those handlers may expose unredacted strings.
+   """
+ 
+-  global_redaction_engine.add_rules(rules)
+-  logfilter.add_log_redaction_filter_to_logger(global_redaction_engine, logging.root)
++  if policy:
++    global_redaction_engine.add_policy(policy)
++    logfilter.add_log_redaction_filter_to_logger(global_redaction_engine, logging.root)
+diff --git a/desktop/core/src/desktop/redaction/engine.py b/desktop/core/src/desktop/redaction/engine.py
+index 0e55c9b..efe5324 100644
+--- a/desktop/core/src/desktop/redaction/engine.py
++++ b/desktop/core/src/desktop/redaction/engine.py
+@@ -15,6 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import json
+ import re
+ 
+ 
+@@ -23,23 +24,17 @@ class RedactionEngine(object):
+   `RedactionEngine` applies a list of `RedactionRule`s to redact a string.
+   """
+ 
+-  def __init__(self, rules=None):
+-    if rules is None:
+-      rules = []
++  def __init__(self, policies=None):
++    if policies is None:
++      policies = []
+ 
+-    self.rules = rules
+-
+-  def add_rule(self, rule):
+-    self.rules.append(rule)
++    self.policies = policies
+ 
+-  def add_rules(self, rules):
+-    self.rules.extend(rules)
++  def add_policy(self, policy):
++    self.policies.append(policy)
+ 
+-  def add_rules_from_string(self, string):
+-    self.rules.extend(parse_redaction_rules_from_string(string))
+-
+-  def add_rules_from_file(self, filename):
+-    self.rules.extend(parse_redaction_rules_from_filename(filename))
++  def add_policy_from_file(self, filename):
++    self.policies.append(parse_redaction_policy_from_filename(filename))
+ 
+   def redact(self, message):
+     """
+@@ -47,8 +42,8 @@ class RedactionEngine(object):
+     it will return the original string unmodified.
+     """
+ 
+-    for rule in self.rules:
+-      message = rule.redact(message)
++    for policy in self.policies:
++      message = policy.redact(message)
+ 
+     return message
+ 
+@@ -56,20 +51,31 @@ class RedactionEngine(object):
+     """
+     Return if the redaction engine contains any redaction rules.
+     """
+-    return bool(self.rules)
++    return bool(self.policies)
+ 
+   def __repr__(self):
+-    return 'RedactionEngine(%r)' % self.rules
++    return 'RedactionEngine(%r)' % self.policies
+ 
+   def __eq__(self, other):
+     return \
+         isinstance(other, self.__class__) and \
+-        self.rules == other.rules
++        self.policies == other.policies
+ 
+   def __ne__(self, other):
+     return not self == other
+ 
+ 
++class RedactionPolicy(object):
++  def __init__(self, rules):
++    self.rules = rules
++
++  def redact(self, message):
++    for rule in self.rules:
++      message = rule.redact(message)
++
++    return message
++
++
+ class RedactionRule(object):
+   """
+   `RedactionRule` implements the logic to parse a log message and redact out
+@@ -78,10 +84,10 @@ class RedactionRule(object):
+   for the sensitive information and replace it with the `redaction_mask`.
+   """
+ 
+-  def __init__(self, trigger, regex, redaction_mask):
++  def __init__(self, trigger, search, replace):
+     self.trigger = trigger
+-    self.regex = re.compile(regex)
+-    self.redaction_mask = redaction_mask
++    self.regex = re.compile(search)
++    self.replace = replace
+ 
+   def redact(self, message):
+     """
+@@ -89,8 +95,8 @@ class RedactionRule(object):
+     `trigger` string then it will return the original string unmodified.
+     """
+ 
+-    if self.trigger in message:
+-      return self.regex.sub(self.redaction_mask, message)
++    if not self.trigger or self.trigger in message:
++      return self.regex.sub(self.replace, message)
+     else:
+       return message
+ 
+@@ -98,47 +104,71 @@ class RedactionRule(object):
+     return 'RedactionRule(%r, %r, %r)' % (
+         self.trigger,
+         self.regex.pattern,
+-        self.redaction_mask)
++        self.replace)
+ 
+   def __eq__(self, other):
+     return \
+         isinstance(other, self.__class__) and \
+         self.trigger == other.trigger and \
+         self.regex == other.regex and \
+-        self.redaction_mask == other.redaction_mask
++        self.replace == other.replace
+ 
+   def __ne__(self, other):
+     return not self == other
+ 
+ 
+-def parse_redaction_rules_from_string(string):
++def parse_redaction_policy_from_file(filename):
+   """
+-  Parse a string into a `RedactionFilter`, where each rule is separated by
+-  `||`, and each rule uses the format specified in `parse_one_rule_from_string`.
++  Parse a file into a `RedactionPolicy`, where each line comprises a redaction
++  rule string as described in `parse_rules_from_string`.
+   """
+ 
+-  return [parse_one_rule_from_string(line.rstrip()) for line in string.split('||')]
++  with open(filename) as f:
++    scheme = json.load(f)
+ 
++    try:
++      version = scheme['version']
++    except KeyError:
++      raise ValueError('Redaction policy is missing `version` field')
+ 
+-def parse_redaction_rules_from_file(filename):
+-  """
+-  Parse a file into a `RedactionFilter`, where each line comprises a redaction
+-  rule string as described in `parse_rules_from_string`.
+-  """
++    if version != 1:
++      raise ValueError('unknown version %s' % version)
+ 
+-  with open(filename) as f:
+-    return [parse_one_rule_from_string(line.rstrip()) for line in f]
++    try:
++      rules = scheme['rules']
++    except KeyError:
++      raise ValueError('Redaction policy is missing `rules` field')
++
++    rules = [parse_one_rule_from_dict(rule) for rule in rules]
++
++    return RedactionPolicy(rules)
+ 
+ 
+-def parse_one_rule_from_string(string):
++def parse_one_rule_from_dict(rule):
+   """
+-  `parse_one_rule_from_string` parses a `Rule` from a string comprised of:
++  `parse_one_rule_from_dict` parses a `RedactionRule` from a dictionary like:
+ 
+-    [TRIGGER]::[REGEX]::[REDACTION_MASK]
++    {
++      "description": "This is the first rule",
++      "trigger": "triggerstring 1",
++      "search": "regex 1",
++      "replace": "replace 1"
++    }
+ 
+-  Where the `TRIGGER` and `REDACTION_MASK` are strings, and `REGEX` is a python
++  Where the `trigger` and `replace` are strings, and `search` is a python
+   regular expression.
+   """
+ 
+-  trigger, regex, redaction_mask = string.split('::', 3)
+-  return RedactionRule(trigger, regex, redaction_mask)
++  trigger = rule.get('trigger')
++
++  try:
++    search = rule['search']
++  except KeyError:
++    raise ValueError('Redaction rule is missing `search` field')
++
++  try:
++    replace = rule['replace']
++  except KeyError:
++    raise ValueError('Redaction rule is missing `replace` field')
++
++  return RedactionRule(trigger, search, replace)
+diff --git a/desktop/core/src/desktop/redaction/logfilter.py b/desktop/core/src/desktop/redaction/logfilter.py
+index cfdb652..7112e7b 100644
+--- a/desktop/core/src/desktop/redaction/logfilter.py
++++ b/desktop/core/src/desktop/redaction/logfilter.py
+@@ -56,7 +56,7 @@ def add_log_redaction_filter_to_logger(engine, logger):
+   `logger`, otherwise those handlers may expose unredacted strings.
+   """
+ 
+-  if engine.rules:
++  if engine.policies:
+     redaction_filter = RedactionFilter(engine)
+ 
+     for handler in logger.handlers:
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+index ad38e1a..fb5646b 100644
+--- a/desktop/core/src/desktop/redaction/tests.py
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -15,13 +15,13 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import json
+ import logging
+ import tempfile
+ 
+ from desktop.redaction.engine import RedactionEngine, \
+                                      RedactionRule, \
+-                                     parse_redaction_rules_from_string, \
+-                                     parse_redaction_rules_from_file
++                                     parse_redaction_policy_from_file
+ from desktop.redaction.logfilter import add_log_redaction_filter_to_logger
+ from nose.tools import assert_true, assert_equal, assert_not_equal
+ 
+@@ -66,31 +66,33 @@ class TestRedactionRule(object):
+     assert_equal(rule1, rule2)
+     assert_not_equal(rule1, rule3)
+ 
+-  def test_parse_redaction_rules_from_string(self):
+-    string = \
+-        r'password=::password=".*"::password="???"' \
+-        r'||' \
+-        r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
+ 
+-    rules = parse_redaction_rules_from_string(string)
+-
+-    assert_equal(rules, [
+-      RedactionRule('password=', 'password=".*"', 'password="???"'),
+-      RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
+-    ])
+-
+-  def test_parse_redaction_rules_from_file(self):
++  def test_parse_redaction_policy_from_file(self):
+     with tempfile.NamedTemporaryFile() as f:
+-      print >> f, r'password=::password=".*"::password="???"'
+-      print >> f, r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
++      json.dump({
++          'version': 1,
++          'rules': [
++            {
++              'description': 'redact passwords',
++              'trigger': 'password=',
++              'search': 'password=".*"',
++              'replace': 'password="???"',
++            },
++            {
++              'description': 'redact social security numbers',
++              'search': '\d{3}-\d{2}-\d{4}',
++              'replace': 'XXX-XX-XXXX',
++            },
++          ]
++      }, f)
+ 
+       f.flush()
+ 
+-      rules = parse_redaction_rules_from_file(f.name)
++      policy = parse_redaction_policy_from_file(f.name)
+ 
+-      assert_equal(rules, [
+-        RedactionRule('password=', 'password=".*"', 'password="???"'),
+-        RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++      assert_equal(policy.rules, [
++        RedactionRule(u'password=', u'password=".*"', u'password="???"'),
++        RedactionRule(None, u'\d{3}-\d{2}-\d{4}', u'XXX-XX-XXXX'),
+       ])
+ 
+ 
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 205b503..912f261 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -222,7 +222,7 @@ _desktop_conf_modules = [dict(module=desktop.conf, config_key=None)]
+ conf.initialize(_desktop_conf_modules, _config_dir)
+ 
+ # Register the redaction filters into the root logger as soon as possible.
+-desktop.redaction.register_log_filtering(desktop.conf.get_redaction_rules())
++desktop.redaction.register_log_filtering(desktop.conf.get_redaction_policy())
+ 
+ 
+ # Activate l10n
+-- 
+1.7.9.5
+

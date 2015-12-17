@@ -1,0 +1,104 @@
+From ca56d1387af378a379f73bf013ad7f5e99145f28 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 18 Feb 2015 14:57:27 +0100
+Subject: [PATCH 0852/1173] [oozie] Preparation for the workflow running
+ dashboard
+
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |    5 +++-
+ apps/oozie/static/css/workflow-editor.css          |   28 ++++++++++++++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |    5 ++++
+ 3 files changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 9258a78..522a933 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -329,7 +329,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ </script>
+ 
+ <script type="text/html" id="widget-template">
+-  <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass() + (ooziePropertiesExpanded()?' expanded-widget':''),
++  <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass() + (ooziePropertiesExpanded()?' expanded-widget':'') + ($root.isRunning() && status() == ''?' widget-running':''),
+       draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.setCurrentlyDraggedWidget($data, event.toElement); $root.isDragging(true); }, 'stop': function(event, ui){ $root.enableSideDrop($data); $root.isDragging(false); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.currentTarget).find('h2').text());_title.appendTo(_par);_par.css('minHeight', '10px');_par.width(120);return _par;}}}">
+     <h2 class="card-heading simple" data-bind="visible: widgetType() != 'start-widget' && widgetType() != 'end-widget' &&
+         id() != '17c9c895-5a16-7443-bb81-f34b30b21548' && (['fork-widget', 'join-widget', 'decision-widget'].indexOf(widgetType()) == -1 || $root.isEditing())">
+@@ -429,6 +429,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       </div>
+       <!-- /ko -->
+       <div data-bind="template: { name: function() { return widgetType(); }}" class="widget-main-section"></div>
++      <div data-bind="css: {'widget-statusbar': true, 'widget-statusbar-running': status() == 'running', 'widget-statusbar-failed': status() == 'failed', 'widget-statusbar-success': status() == 'success'}, style: {'width': progress() + '%'}"></div>
+     </div>
+   </div>
+ </script>
+@@ -2155,6 +2156,8 @@ ${ dashboard.import_bindings() }
+     $(".custom-popover").popover();
+   });
+ 
++  }
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index dcb4bb1..aa272ec 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -528,3 +528,31 @@ canvas {
+ ul.unstyled li {
+   white-space: nowrap;
+ }
++
++.widget-statusbar {
++  height: 2px;
++  border-radius: 3px;
++  border-top-right-radius: 0;
++  border-top-left-radius: 0;
++  width: 0;
++  -webkit-transition: width .6s ease;
++  -moz-transition: width .6s ease;
++  -o-transition: width .6s ease;
++  transition: width .6s ease;
++}
++
++.widget-statusbar-running {
++  background-color: #fbb450;
++}
++
++.widget-statusbar-failed {
++  background-color: #c13e2c;
++}
++
++.widget-statusbar-success {
++  background-color: #2f973f;
++}
++
++.widget-running {
++  opacity: .5;
++}
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index d9df951..a58bada 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -497,6 +497,8 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     self.isEditing(! self.isEditing());
+   };
+ 
++  self.isRunning = ko.observable(false);
++
+   self.newAction = ko.observable();
+ 
+   self.columns = ko.observableArray([]);
+@@ -1210,5 +1212,8 @@ var ExtendedWidget = function (params) {
+ 
+   self.oozieExpanded = ko.observable(false);
+   self.ooziePropertiesExpanded = ko.observable(false);
++  self.status = ko.observable("");
++  self.progress = ko.observable(0);
++  self.logs = ko.observable("");
+   return self;
+ }
+-- 
+1.7.9.5
+

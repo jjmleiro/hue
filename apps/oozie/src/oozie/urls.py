@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
 
 
 IS_URL_NAMESPACED = True
@@ -68,6 +68,45 @@ urlpatterns = patterns(
 
 
 urlpatterns += patterns(
+  'oozie.views.editor2',
+
+  url(r'^editor/workflow/list/$', 'list_editor_workflows', name='list_editor_workflows'),
+  url(r'^editor/workflow/edit/$', 'edit_workflow', name='edit_workflow'),
+  url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),  
+  url(r'^editor/workflow/delete/$', 'delete_job', name='delete_editor_workflow'),
+  url(r'^editor/workflow/copy/$', 'copy_workflow', name='copy_workflow'),
+  url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
+  url(r'^editor/workflow/submit/(?P<doc_id>\d+)$', 'submit_workflow', name='editor_submit_workflow'),
+  url(r'^editor/workflow/new_node/$', 'new_node', name='new_node'),
+  url(r'^editor/workflow/add_node/$', 'add_node', name='add_node'),
+  url(r'^editor/workflow/parameters/$', 'workflow_parameters', name='workflow_parameters'),
+  url(r'^editor/workflow/action/parameters/$', 'action_parameters', name='action_parameters'),
+  url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'),
+  url(r'^editor/workflow/open_v1/$', 'open_old_workflow', name='open_old_workflow'),
+  
+  url(r'^editor/coordinator/list/$', 'list_editor_coordinators', name='list_editor_coordinators'),
+  url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
+  url(r'^editor/coordinator/new/$', 'new_coordinator', name='new_coordinator'),
+  url(r'^editor/coordinator/delete/$', 'delete_job', name='delete_editor_coordinator'),
+  url(r'^editor/coordinator/copy/$', 'copy_coordinator', name='copy_coordinator'),
+  url(r'^editor/coordinator/save/$', 'save_coordinator', name='save_coordinator'),
+  url(r'^editor/coordinator/submit/(?P<doc_id>\d+)$', 'submit_coordinator', name='editor_submit_coordinator'),
+  url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'),
+  url(r'^editor/coordinator/open_v1/$', 'open_old_coordinator', name='open_old_coordinator'),
+  url(r'^editor/coordinator/parameters/$', 'coordinator_parameters', name='coordinator_parameters'),
+  
+  url(r'^editor/bundle/list/$', 'list_editor_bundles', name='list_editor_bundles'),
+  url(r'^editor/bundle/edit/$', 'edit_bundle', name='edit_bundle'),
+  url(r'^editor/bundle/new/$', 'new_bundle', name='new_bundle'),
+  url(r'^editor/bundle/delete/$', 'delete_job', name='delete_editor_bundle'),
+  url(r'^editor/bundle/copy/$', 'copy_bundle', name='copy_bundle'),
+  url(r'^editor/bundle/save/$', 'save_bundle', name='save_bundle'),
+  url(r'^editor/bundle/submit/(?P<doc_id>\d+)$', 'submit_bundle', name='editor_submit_bundle'),
+  url(r'^editor/bundle/open_v1/$', 'open_old_bundle', name='open_old_bundle'),
+)
+
+
+urlpatterns += patterns(
   'oozie.views.api',
 
   url(r'^workflows$', 'workflows', name='workflows'),
@@ -95,7 +134,7 @@ urlpatterns += patterns(
   url(r'^rerun_oozie_job/(?P<job_id>[-\w]+)/(?P<app_path>.+?)$', 'rerun_oozie_job', name='rerun_oozie_job'),
   url(r'^rerun_oozie_coord/(?P<job_id>[-\w]+)/(?P<app_path>.+?)$', 'rerun_oozie_coordinator', name='rerun_oozie_coord'),
   url(r'^rerun_oozie_bundle/(?P<job_id>[-\w]+)/(?P<app_path>.+?)$', 'rerun_oozie_bundle', name='rerun_oozie_bundle'),
-  url(r'^manage_oozie_jobs/(?P<job_id>[-\w]+)/(?P<action>(start|suspend|resume|kill|rerun))$', 'manage_oozie_jobs', name='manage_oozie_jobs'),
+  url(r'^manage_oozie_jobs/(?P<job_id>[-\w]+)/(?P<action>(start|suspend|resume|kill|rerun|change))$', 'manage_oozie_jobs', name='manage_oozie_jobs'),
   url(r'^bulk_manage_oozie_jobs/$', 'bulk_manage_oozie_jobs', name='bulk_manage_oozie_jobs'),
 
   url(r'^submit_external_job/(?P<application_path>.+?)$', 'submit_external_job', name='submit_external_job'),

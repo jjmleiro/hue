@@ -1,0 +1,164 @@
+From b53ab79e1bed58e89af2951aa87999323d61a78e Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 23 Dec 2014 15:22:40 -0800
+Subject: [PATCH 0358/1173] [oozie] Generate a valid XML Oozie name for jobs
+
+---
+ apps/oozie/src/oozie/models2.py                    |   37 +++++++++++++++++++-
+ .../oozie/templates/editor/gen2/bundle.xml.mako    |    2 +-
+ .../templates/editor/gen2/coordinator.xml.mako     |    2 +-
+ .../oozie/templates/editor/gen2/workflow.xml.mako  |    2 +-
+ apps/oozie/src/oozie/tests2.py                     |    9 ++++-
+ 5 files changed, 47 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index f07bccf..63a7c45 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -57,6 +57,25 @@ class Job(object):
+   def get_workspace(cls, user):
+     return REMOTE_SAMPLE_DIR.get().replace('$USER', user.username).replace('$TIME', str(time.time()))
+ 
++  @property
++  def validated_name(self):
++    good_name = []
++
++    for c in self.name[:40]:
++      if not good_name:
++        if not re.match('[a-zA-Z_]', c):
++          c = '_'
++      else:
++        if not re.match('[\-_a-zA-Z0-9]', c):        
++          c = '_'
++      good_name.append(c)
++      
++    return ''.join(good_name) + '--'
++
++  
++#([a-zA-Z_]([\-_a-zA-Z0-9])*){1,39}
++#
++#([a-zA-Z][\-_a-zA-Z0-0]*){1,19}    
+ 
+ class Workflow(Job):
+   XML_FILE_NAME = 'workflow.xml'
+@@ -156,13 +175,19 @@ class Workflow(Job):
+     workflow_mapping = dict([(workflow.uuid, Workflow(document=workflow)) for workflow in Document2.objects.filter(uuid__in=sub_wfs_ids)])
+ 
+     xml = re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {
++              'wf': self,
+               'workflow': data['workflow'],
+               'nodes': nodes,
+               'mapping': mapping,
+               'node_mapping': node_mapping,
+               'workflow_mapping': workflow_mapping
+           }))
+-    return force_unicode(xml)  
++    return force_unicode(xml)
++
++  @property
++  def name(self):
++    _data = self.get_data()
++    return _data['workflow']['name']
+ 
+   @property      
+   def deployment_dir(self):
+@@ -1091,6 +1116,7 @@ def find_dollar_variables(text):
+   return re.findall('[^\n\\\\]\$([^\{ \'\"\-;\(\)]+)', text, re.MULTILINE)  
+ 
+ 
++
+ def import_workflows_from_hue_3_7():
+   return import_workflow_from_hue_3_7(OldWorflows.objects.filter(managed=True).filter(is_trashed=False)[12].get_full_node())
+ 
+@@ -1309,6 +1335,10 @@ class Coordinator(Job):
+ 
+     return self._data
+   
++  @property
++  def name(self):
++    return self.data['name']
++
+   @property      
+   def deployment_dir(self):
+     if not self.data['properties'].get('deployment_dir'):
+@@ -1529,6 +1559,11 @@ class Bundle(Job):
+                 'mapping': mapping
+            })))
+   
++  
++  @property      
++  def name(self):
++    return self.data['name']
++  
+   @property      
+   def parameters(self):
+     return self.data['properties']['parameters']  
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+index 3c1bba6..bf39569 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+@@ -20,7 +20,7 @@
+   from oozie.models import BundledCoordinator
+ %>
+ 
+-<bundle-app name="${ bundle.data['name'] }"
++<bundle-app name="${ bundle.validated_name }"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xmlns="${ bundle.data['properties']['schema_version'] }">
+   % if bundle.data['properties']['parameters']:
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index 5048b5a..aa7dbfc 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -51,7 +51,7 @@
+ </%def>
+ 
+ 
+-<coordinator-app name="${ coord.data['name'] | x }"
++<coordinator-app name="${ coord.validated_name | x }"
+   % if ENABLE_CRON_SCHEDULING.get():
+   frequency="${ coord.cron_frequency }"
+   % else:
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+index 3e3a324..4383e6b 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow.xml.mako
+@@ -18,7 +18,7 @@
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+ 
+-<workflow-app name="${ workflow['name'] | x }" xmlns="${ 'uri:oozie:workflow:0.5' if workflow['properties']['sla_workflow_enabled'] else workflow['properties']['schema_version'] | n,unicode }"${ ' xmlns:sla="uri:oozie:sla:0.2"' if workflow['properties']['sla_workflow_enabled'] else '' | n,unicode }>
++<workflow-app name="${ wf.validated_name }" xmlns="${ 'uri:oozie:workflow:0.5' if workflow['properties']['sla_workflow_enabled'] else workflow['properties']['schema_version'] | n,unicode }"${ ' xmlns:sla="uri:oozie:sla:0.2"' if workflow['properties']['sla_workflow_enabled'] else '' | n,unicode }>
+   % if workflow['properties']['job_xml'] or workflow['properties']['properties']:
+   <global>
+     % if workflow['properties']['job_xml']:
+diff --git a/apps/oozie/src/oozie/tests2.py b/apps/oozie/src/oozie/tests2.py
+index 1bb40e3..24a70b1 100644
+--- a/apps/oozie/src/oozie/tests2.py
++++ b/apps/oozie/src/oozie/tests2.py
+@@ -27,7 +27,7 @@ from desktop.lib.django_test_util import make_logged_in_client
+ from desktop.lib.test_utils import grant_access, add_permission, add_to_group, reformat_json, reformat_xml
+ 
+ 
+-from oozie.models2 import Workflow, find_dollar_variables
++from oozie.models2 import Job, Workflow, find_dollar_variables
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -62,6 +62,13 @@ LIMIT $limit"""))
+         self.wf.to_xml({'output': '/path'}).split()
+     )
+ 
++  def test_job_validate_xml_name(self):
++    assert_equal('a', Job.validate_name('a'))
++    assert_equal('aa', Job.validate_name('aa'))
++    assert_equal('_a', Job.validate_name('%a'))
++    assert_equal(len('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), len(Job.validate_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaz')))
++    assert_equal('My_______1st_Workflow__With___Bad__letter_', Job.validate_name('My <...> 1st Workflow [With] (Bad) letter$'))
++
+ 
+ #  def test_workflow_name(self):
+ #    try:
+-- 
+1.7.9.5
+

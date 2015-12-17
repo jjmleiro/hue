@@ -1,0 +1,101 @@
+From 5513be683202d318ace5949a84f5114a9e82a466 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 22 Jan 2015 13:16:18 -0800
+Subject: [PATCH 0496/1173] [oozie] Modify coordinator start and end date
+ parameters directly
+
+---
+ .../templates/dashboard/list_oozie_workflows.mako  |    1 +
+ .../oozie/templates/editor/coordinator_editor.mako |    4 ++-
+ apps/oozie/static/js/coordinator-editor.ko.js      |   30 +++++++++++++++-----
+ 3 files changed, 27 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 714b10c..a1b84c2 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -433,6 +433,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+   });
+ 
+ </script>
++
+ ${ utils.bulk_dashboard_functions() }
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 56bbca9..819f6e6 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -76,6 +76,8 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+ 
+   <form class="form-search">
++    <span data-bind="visible: coordinator.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++
+     <div class="inline object-name">
+       <span data-bind="editable: $root.coordinator.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+     </div>
+@@ -123,7 +125,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+             <label class="control-label">${ _('Crontab') }</label>
+             <div class="controls">
+               <input id="coord-frequency" type="text" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency"/>
+-              <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" target="_blank">
++              <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.2.0/org/quartz/CronExpression.html" target="_blank">
+                 <i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i></a>
+               </span>
+             </div>
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 2db3be1..a65fad8 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -29,10 +29,26 @@ var Coordinator = function (vm, coordinator) {
+   self.showAdvancedFrequencyUI = ko.observable(typeof coordinator.showAdvancedFrequencyUI != "undefined" && coordinator.showAdvancedFrequencyUI != null ? coordinator.showAdvancedFrequencyUI : false);
+   self.workflowParameters = ko.mapping.fromJS(typeof coordinator.workflowParameters != "undefined" && coordinator.workflowParameters != null ? coordinator.workflowParameters : []);
+ 
+-  self.properties.startDateUI = ko.observable(typeof coordinator.properties.start != "undefined" && coordinator.properties.start.indexOf("T") > -1 ? coordinator.properties.start.split("T")[0]:"");
+-  self.properties.startTimeUI = ko.observable(typeof coordinator.properties.start != "undefined" && coordinator.properties.start.indexOf("T") > -1 ? coordinator.properties.start.split("T")[1]:"");
+-  self.properties.endDateUI = ko.observable(typeof coordinator.properties.end != "undefined" && coordinator.properties.end.indexOf("T") > -1 ? coordinator.properties.end.split("T")[0]:"");
+-  self.properties.endTimeUI = ko.observable(typeof coordinator.properties.end != "undefined" && coordinator.properties.end.indexOf("T") > -1 ? coordinator.properties.end.split("T")[1]:"");
++  
++  self._get_parameter = function(name) {
++    var _param = $.grep(self.properties.parameters(), function(param) {
++      return param.name() == name;
++    });
++
++    if (_param) {
++      return _param[0];
++    } else {
++      return null;
++    }
++  }
++  
++  self.start_date = self._get_parameter('start_date');
++  self.end_date = self._get_parameter('end_date');
++  
++  self.properties.startDateUI = ko.observable(typeof self.start_date.value() != "undefined" && self.start_date.value().indexOf("T") > -1 ? self.start_date.value().split("T")[0] : "");
++  self.properties.startTimeUI = ko.observable(typeof self.start_date.value() != "undefined" && self.start_date.value().indexOf("T") > -1 ? self.start_date.value().split("T")[1] : "");
++  self.properties.endDateUI = ko.observable(typeof self.end_date.value() != "undefined" && self.end_date.value().indexOf("T") > -1 ? self.end_date.value().split("T")[0] : "");
++  self.properties.endTimeUI = ko.observable(typeof self.end_date.value() != "undefined" && self.end_date.value().indexOf("T") > -1 ? self.end_date.value().split("T")[1] : "");
+ 
+   self.properties.startDateUI.subscribe(function(newVal){
+     self.setStartDate();
+@@ -47,13 +63,13 @@ var Coordinator = function (vm, coordinator) {
+     self.setEndDate();
+   });
+ 
+-
+   self.setStartDate = function() {
+-    self.properties.start(self.properties.startDateUI() + "T" + self.properties.startTimeUI());
++    self.start_date.value(self.properties.startDateUI() + "T" + self.properties.startTimeUI());
+   }
+   self.setEndDate = function() {
+-    self.properties.end(self.properties.endDateUI() + "T" + self.properties.endTimeUI());
++    self.end_date.value(self.properties.endDateUI() + "T" + self.properties.endTimeUI());
+   }
++  
+ 
+   self.properties.workflow.subscribe(function(newVal) {
+     if (newVal) {
+-- 
+1.7.9.5
+

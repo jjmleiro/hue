@@ -1,0 +1,125 @@
+From e997b175712cc5503b8cd95afbec6ffbbd9a5af4 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 6 Feb 2015 15:55:32 -0800
+Subject: [PATCH 0774/1173] [oozie] Support edit and non edit mode in Bundle
+ editor
+
+---
+ .../src/oozie/templates/editor2/bundle_editor.mako |   24 ++++++++++++--------
+ .../templates/editor2/coordinator_editor.mako      |    7 +++---
+ apps/oozie/static/js/bundle-editor.ko.js           |    2 +-
+ 3 files changed, 18 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index d96ee16..f15132a 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -88,26 +88,31 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('Which schedules to bundle?') }</h1>
+ 
+         <div class="card-body">
+-
+-          <a class="pointer" data-bind="click: function() { showChooseCoordinator(); }">
++          <a class="pointer" data-bind="visible: ! isEditing(), click: function() { showChooseCoordinator(); }, visible: $root.isEditing">
+             <i class="fa fa-plus"></i> ${ _('Add a coordinator') }
+           </a>
+         </div>
+       </div>
+-
+           
+       <div data-bind="foreach: bundle.coordinators">
+         <div class="card card-home" style="margin-top: 20px; padding-bottom: 10px">
+           <h1 class="card-heading simple">
+-          <a class="pointer" data-bind="click: function() { showChooseCoordinator(this); }, text: $root.getCoordinatorById(coordinator()).name"></a>
+-          <a data-bind="attr: { href: '${ url('oozie:edit_coordinator') }?coordinator=' + $root.getCoordinatorById(coordinator()).id() }" target="_blank" title="${ _('Open') }"><i class="fa fa-external-link-square"></i></a>
+-          <a class="pointer pull-right" data-bind="click: function() { $root.bundle.coordinators.remove(this); }"><i class="fa fa-times"></i></a>
++            <a class="pointer" data-bind="click: function() { showChooseCoordinator(this); }, text: $root.getCoordinatorById(coordinator()).name"></a>
++            <a data-bind="attr: { href: '${ url('oozie:edit_coordinator') }?coordinator=' + $root.getCoordinatorById(coordinator()).id() }" target="_blank" title="${ _('Open') }">
++              <i class="fa fa-external-link-square"></i>
++            </a>
++            <a class="pointer pull-right" data-bind="click: function() { $root.bundle.coordinators.remove(this); }, visible: $root.isEditing">
++              <i class="fa fa-times"></i>
++            </a>
+           </h1>
+ 
+           <div class="card-body">
+-
+             <ul data-bind="foreach: properties" class="unstyled">
+-              <li>
++              <li data-bind="visible: ! $root.isEditing()">
++                <span data-bind="text: name"></span>
++                <span data-bind="text: value"></span>
++              </li>
++              <li data-bind="visible: $root.isEditing">              
+                 <input data-bind="value: name"/>
+                 <input data-bind="value: value"/>
+                 <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
+@@ -116,13 +121,12 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+               </li>
+             </ul>
+ 
+-            <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }">
++            <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }, visible: $root.isEditing">
+               <i class="fa fa-plus"></i> ${ _('Add a parameter') }
+             </a>
+           </div>
+         </div>
+       </div>
+-   
+ 
+     </div>
+   </div>
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 1a631b8..8dfb388 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -271,7 +271,6 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   <span data-bind="visible: dataset_variable().length > 0">
+                     ${ _('Will convert to') }
+                     <a data-bind="text: convertVariables(dataset_variable()), attr: {'href': '/filebrowser/view' + convertVariables(dataset_variable())}"></a>
+-                    ## use start_date as the date
+                   </span>
+                   </a>
+                 </span>
+@@ -281,7 +280,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                     <div class="control-group">
+                       <label class="control-label">${ _('Done flag') }</label>
+                       <div class="controls">
+-                        <input type="checkbox" data-bind="checked: use_done_flag, style: {'margin-top': !use_done_flag()?'9px':'-1px'}" />
++                        <input type="checkbox" data-bind="checked: use_done_flag, style: {'margin-top': !use_done_flag() ? '9px' : '-1px'}" />
+                         <input type="text" data-bind="value: done_flag, visible: use_done_flag"/>
+                       </div>
+                     </div>
+@@ -308,14 +307,14 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                     <div class="control-group">
+                       <label class="control-label">${ _('Same start') }</label>
+                       <div class="controls">
+-                        <input type="checkbox" data-bind="checked: same_start, style: {'margin-top': same_start()?'9px':'-1px'}" />
++                        <input type="checkbox" data-bind="checked: same_start, style: {'margin-top': same_start() ? '9px' : '-1px'}" />
+                         <input type="text" data-bind="value: start, visible: ! same_start()"/>
+                       </div>
+                     </div>                  
+                     <div class="control-group">
+                       <label class="control-label">${ _('Same timezone') }</label>
+                       <div class="controls">
+-                        <input type="checkbox" data-bind="checked: same_timezone, style: {'margin-top': same_timezone()?'5px':'0'}" />
++                        <input type="checkbox" data-bind="checked: same_timezone, style: {'margin-top': same_timezone() ? '5px' : '0'}" />
+                         <select data-bind="options: $root.availableTimezones, select2: { placeholder: '${ _("Select a Timezone") }', update: timezone}, visible: ! same_timezone()" style="width: 180px"></select>
+                       </div>
+                     </div>
+diff --git a/apps/oozie/static/js/bundle-editor.ko.js b/apps/oozie/static/js/bundle-editor.ko.js
+index 17b2448..bf3935a 100644
+--- a/apps/oozie/static/js/bundle-editor.ko.js
++++ b/apps/oozie/static/js/bundle-editor.ko.js
+@@ -41,7 +41,7 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+   var self = this;
+ 
+   self.canEdit = ko.mapping.fromJS(can_edit_json);
+-  self.isEditing = ko.observable(true && self.canEdit());
++  self.isEditing = ko.observable(bundle_json.id == null);
+   self.isEditing.subscribe(function(newVal){
+     $(document).trigger("editingToggled");
+   });
+-- 
+1.7.9.5
+

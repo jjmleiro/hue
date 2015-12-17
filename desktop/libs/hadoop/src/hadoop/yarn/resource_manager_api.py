@@ -48,14 +48,19 @@ def get_resource_manager():
         yarn_cluster = cluster.get_cluster_conf_for_job_submission()
         if yarn_cluster is None:
           raise PopupException(_('No Resource Manager are available.'))
-        _api_cache = ResourceManagerApi(yarn_cluster.RESOURCE_MANAGER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get())
+        _api_cache = ResourceManagerApi(yarn_cluster.RESOURCE_MANAGER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get(), yarn_cluster.SSL_CERT_CA_VERIFY.get())
     finally:
       _api_cache_lock.release()
   return _api_cache
 
 
+class YarnFailoverOccurred(Exception):
+  pass
+
+
 class ResourceManagerApi(object):
-  def __init__(self, oozie_url, security_enabled=False):
+
+  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
     self._url = posixpath.join(oozie_url, 'ws', _API_VERSION)
     self._client = HttpClient(self._url, logger=LOG)
     self._root = Resource(self._client)
@@ -63,6 +68,8 @@ class ResourceManagerApi(object):
 
     if self._security_enabled:
       self._client.set_kerberos_auth()
+
+    self._client.set_verify(ssl_cert_ca_verify)
 
   def __str__(self):
     return "ResourceManagerApi at %s" % (self._url,)
@@ -77,12 +84,26 @@ class ResourceManagerApi(object):
 
   def cluster(self, **kwargs):
     return self._root.get('cluster', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+    return self._execute(self._root.get, 'cluster', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
 
   def apps(self, **kwargs):
     return self._root.get('cluster/apps', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+    return self._execute(self._root.get, 'cluster/apps', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
 
   def app(self, app_id):
     return self._root.get('cluster/apps/%(app_id)s' % {'app_id': app_id}, headers={'Accept': _JSON_CONTENT_TYPE})
+    return self._execute(self._root.get, 'cluster/apps/%(app_id)s' % {'app_id': app_id}, headers={'Accept': _JSON_CONTENT_TYPE})
 
   def kill(self, app_id):
     return self._root.put('cluster/apps/%(app_id)s/state' % {'app_id': app_id}, data=json.dumps({'state': 'KILLED'}), contenttype=_JSON_CONTENT_TYPE)
+    return self._execute(self._root.put, 'cluster/apps/%(app_id)s/state' % {'app_id': app_id}, data=json.dumps({'state': 'KILLED'}), contenttype=_JSON_CONTENT_TYPE)
+
+  def _execute(self, function, *args, **kwargs):
+    response = function(*args, **kwargs)
+
+    # YARN-2605: Yarn does not use proper HTTP redirects when the standby RM has
+    # failed back to the master RM.
+    if isinstance(response, str) and response.startswith('This is standby RM. Redirecting to the current active RM'):
+      raise YarnFailoverOccurred(response)
+
+    return response

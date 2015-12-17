@@ -1,0 +1,116 @@
+From c991598ef224849585e682a3e894263e0f2d393b Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Tue, 11 Nov 2014 11:45:52 -0600
+Subject: [PATCH 0106/1173] HUE-2460 [impala] Update syntax highlighting to
+ include 2.0 analytic functions
+
+Updated editor to syntax hightlight Impala analytic functions
+---
+ desktop/core/static/ext/css/codemirror.css     |    4 +++-
+ desktop/core/static/js/codemirror-hql.js       |   11 ++++++++---
+ desktop/core/static/js/codemirror-isql-hint.js |   18 ++++++++++++------
+ 3 files changed, 23 insertions(+), 10 deletions(-)
+
+diff --git a/desktop/core/static/ext/css/codemirror.css b/desktop/core/static/ext/css/codemirror.css
+index 4e12615..c961ed7 100644
+--- a/desktop/core/static/ext/css/codemirror.css
++++ b/desktop/core/static/ext/css/codemirror.css
+@@ -60,7 +60,9 @@
+ 
+ /* DEFAULT THEME */
+ 
+-.cm-s-default .cm-keyword {color: #708;}
++.cm-s-default .cm-keyword,
++.cm-s-default .cm-functions,
++.cm-s-default .cm-analytics {color: #708;}
+ .cm-s-default .cm-atom {color: #219;}
+ .cm-s-default .cm-number {color: #164;}
+ .cm-s-default .cm-def {color: #00f;}
+diff --git a/desktop/core/static/js/codemirror-hql.js b/desktop/core/static/js/codemirror-hql.js
+index ce9acf4..8d81a5e 100644
+--- a/desktop/core/static/js/codemirror-hql.js
++++ b/desktop/core/static/js/codemirror-hql.js
+@@ -24,7 +24,9 @@ CodeMirror.defineMode("sql", function (config, parserConfig) {
+       operatorChars = parserConfig.operatorChars || /^[*+\-%<>!=&|~^]/,
+       support = parserConfig.support || {},
+       hooks = parserConfig.hooks || {},
+-      dateSQL = parserConfig.dateSQL || {"date": true, "time": true, "timestamp": true};
++      dateSQL = parserConfig.dateSQL || {"date": true, "time": true, "timestamp": true},
++      functions = parserConfig.functions || {},
++      analytics = parserConfig.analytics || {};
+ 
+   function tokenBase(stream, state) {
+     var ch = stream.next();
+@@ -92,6 +94,8 @@ CodeMirror.defineMode("sql", function (config, parserConfig) {
+       if (builtin.hasOwnProperty(word)) return "builtin";
+       if (keywords.hasOwnProperty(word)) return "keyword";
+       if (client.hasOwnProperty(word)) return "string-2";
++      if (functions.hasOwnProperty(word)) return "functions";
++      if (analytics.hasOwnProperty(word)) return "analytics";
+       return null;
+     }
+   }
+@@ -296,11 +300,12 @@ CodeMirror.defineMode("sql", function (config, parserConfig) {
+ 
+   CodeMirror.defineMIME("text/x-impalaql", {
+     name: "sql",
+-    keywords: set("all and as by case comment create database databases delimited describe distinct drop exists explain external fields format from group having if insert into join like limit lines location not or order overwrite partitioned refresh row schema schemas select show stored table tables terminated union use when where invalidate metadata compute stats"),
++    keywords: set("add aggregate all and api_version as avro binary by cached case change char class close_fn column columns comment compute create cross data database databases decimal delimited describe distinct div drop else end escaped exists explain external false fields fileformat finalize_fn first format formatted from full function functions group having if init_fn inner inpath insert integer intermediate interval into invalidate join last left like limit lines load location merge_fn metadata not null nulls offset or order outer overwrite parquet partition partitioned partitions prepare_fn produced real refresh regexp rename replace returns right rlike row schema schemas select semi serdeproperties serialize_fn show stats stored straight_join symbol table tables tblproperties terminated then to true uncached union update_fn use using view when where with"),
+     builtin: set("tinyint smallint int bigint boolean float double string timestamp parquetfile sequencefile textfile rcfile"),
+     functions: set("abs acos ascii asin atan avg bin cast ceil ceiling coalesce concat concat_ws count conv cos date_add date_sub datediff day dayname dayofmonth dayofweek degrees e exp find_in_set floor fnv_hash from_unixtime from_utc_timestamp greatest group_concat hex hour if initcap instr isnull lcase least length ln locate log log10 log2 lower lpad ltrim max min minute month ndv negative now nvl parse_url pi pmod positive pow power quotient radians rand regexp_extract repeat reverse round rpad rtrim second sign sin space sqrt substr substring sum tan to_date to_utc_timestamp translate trim ucase unhex unix_timestamp upper user weekofyear year"),
++    analytics: set("dense_rank first_value lag last_value lead over rank row_number window"),
+     atoms: set("false true null"),
+     operatorChars: /^[*+\-%<>!=~&|^]/,
+-    dateSQL: set("timestamp")
++    dateSQL: set("date datetime timestamp")
+   });
+ }());
+diff --git a/desktop/core/static/js/codemirror-isql-hint.js b/desktop/core/static/js/codemirror-isql-hint.js
+index 9b845c4..e1b7860 100644
+--- a/desktop/core/static/js/codemirror-isql-hint.js
++++ b/desktop/core/static/js/codemirror-isql-hint.js
+@@ -68,22 +68,26 @@
+     });
+   };
+ 
+-  var impalaSQLKeywords = "ALL AND AS BY CASE COMMENT CREATE DATABASE DATABASES DELIMITED DESCRIBE DISTINCT DROP EXISTS EXPLAIN EXTERNAL FIELDS FORMAT FROM GROUP HAVING IF INSERT INTO JOIN LIKE LIMIT LINES LOCATION NOT OR ORDER OVERWRITE PARTITIONED REFRESH ROW SCHEMA SCHEMAS SELECT SHOW STORED TABLE TABLES TERMINATED UNION USE WHEN WHERE INVALIDATE METADATA COMPUTE STATS";
+-  var impalaSQLKeywordsU = impalaSQLKeywords.split(" ");
++  var impalaSQLKeywords = "add aggregate all and api_version as avro binary by cached case change char class close_fn column columns comment compute create cross data database databases decimal delimited describe distinct div drop else end escaped exists explain external false fields fileformat finalize_fn first format formatted from full function functions group having if init_fn inner inpath insert integer intermediate interval into invalidate join last left like limit lines load location merge_fn metadata not null nulls offset or order outer overwrite parquet partition partitioned partitions prepare_fn produced real refresh regexp rename replace returns right rlike row schema schemas select semi serdeproperties serialize_fn show stats stored straight_join symbol table tables tblproperties terminated then to true uncached union update_fn use using view when where with";
++  var impalaSQLKeywordsU = impalaSQLKeywords.toUpperCase().split(" ");
+   var impalaSQLKeywordsL = impalaSQLKeywords.toLowerCase().split(" ");
+ 
+   var impalaSQLKeywordsAfterTables = "JOIN ON WHERE ORDER BY ASC DESC LIMIT";
+-  var impalaSQLKeywordsAfterTablesU = impalaSQLKeywordsAfterTables.split(" ");
++  var impalaSQLKeywordsAfterTablesU = impalaSQLKeywordsAfterTables.toUpperCase().split(" ");
+   var impalaSQLKeywordsAfterTablesL = impalaSQLKeywordsAfterTables.toLowerCase().split(" ");
+ 
+-  var impalaSQLTypes = "TINYINT SMALLINT INT BIGINT BOOLEAN FLOAT DOUBLE STRING TIMESTAMP PARQUETFILE SEQUENCEFILE TEXTFILE RCFILE";
+-  var impalaSQLTypesU = impalaSQLTypes.split(" ");
++  var impalaSQLTypes = "DATE DATETIME TINYINT SMALLINT INT BIGINT BOOLEAN FLOAT DOUBLE STRING TIMESTAMP PARQUETFILE SEQUENCEFILE TEXTFILE RCFILE";
++  var impalaSQLTypesU = impalaSQLTypes.toUpperCase().split(" ");
+   var impalaSQLTypesL = impalaSQLTypes.toLowerCase().split(" ");
+ 
+   var impalaSQLBuiltins = "ABS ACOS ASCII ASIN ATAN AVG BIN CAST CEIL CEILING COALESCE CONCAT CONCAT_WS COUNT CONV COS DATE_ADD DATE_SUB DATEDIFF DAY DAYNAME DAYOFMONTH DAYOFWEEK DEGREES E EXP FIND_IN_SET FLOOR FNV_HASH FROM_UNIXTIME FROM_UTC_TIMESTAMP GREATEST GROUP_CONCAT HEX HOUR IF INITCAP INSTR ISNULL LCASE LEAST LENGTH LN LOCATE LOG LOG10 LOG2 LOWER LPAD LTRIM MAX MIN MINUTE MONTH NDV NEGATIVE NOW NVL PARSE_URL PI PMOD POSITIVE POW POWER QUOTIENT RADIANS RAND REGEXP_EXTRACT REPEAT REVERSE ROUND RPAD RTRIM SECOND SIGN SIN SPACE SQRT SUBSTR SUBSTRING SUM TAN TO_DATE TO_UTC_TIMESTAMP TRANSLATE TRIM UCASE UNHEX UNIX_TIMESTAMP UPPER USER WEEKOFYEAR YEAR";
+-  var impalaSQLBuiltinsU = impalaSQLBuiltins.split(" ").join("() ").split(" ");
++  var impalaSQLBuiltinsU = impalaSQLBuiltins.toUpperCase().split(" ").join("() ").split(" ");
+   var impalaSQLBuiltinsL = impalaSQLBuiltins.toLowerCase().split(" ").join("() ").split(" ");
+ 
++  var impalaSQLAnalytics = "dense_rank first_value lag last_value lead over rank row_number window";
++  var impalaSQLAnalyticsU = impalaSQLAnalytics.toUpperCase().split(" ").join("() ").split(" ");
++  var impalaSQLAnalyticsL = impalaSQLAnalytics.toLowerCase().split(" ").join("() ").split(" ");
++
+   function getCompletions(token, context) {
+     var catalogTablesL = CodeMirror.catalogTables.toLowerCase().split(" ");
+     var catalogFieldsL = CodeMirror.catalogFields.toLowerCase().split(" ");
+@@ -124,6 +128,8 @@
+           forEach(impalaSQLTypesL, maybeAdd);
+           forEach(impalaSQLKeywordsU, maybeAdd);
+           forEach(impalaSQLKeywordsL, maybeAdd);
++          forEach(impalaSQLAnalyticsU, maybeAdd);
++          forEach(impalaSQLAnalyticsL, maybeAdd);
+         }
+         else {
+           forEach(catalogTablesL, maybeAddToExtra);
+-- 
+1.7.9.5
+

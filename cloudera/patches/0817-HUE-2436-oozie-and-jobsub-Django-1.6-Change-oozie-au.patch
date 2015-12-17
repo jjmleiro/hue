@@ -1,0 +1,55 @@
+From ae8c6a23a788b863f404e7258fd274d16fb44af6 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 16 Jan 2015 17:26:45 -0800
+Subject: [PATCH 0817/1173] HUE-2436 [oozie and jobsub] Django-1.6: Change
+ oozie autocomplete to return a dict
+
+---
+ apps/jobsub/src/jobsub/templates/designs.mako      |    4 ++--
+ .../src/oozie/templates/editor/edit_workflow.mako  |    4 ++--
+ apps/oozie/src/oozie/views/api.py                  |    2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/apps/jobsub/src/jobsub/templates/designs.mako b/apps/jobsub/src/jobsub/templates/designs.mako
+index c248fa3..5756b7b 100644
+--- a/apps/jobsub/src/jobsub/templates/designs.mako
++++ b/apps/jobsub/src/jobsub/templates/designs.mako
+@@ -947,8 +947,8 @@ $(document).ready(function(e) {
+ 
+   // load the autocomplete properties
+   var AUTOCOMPLETE_PROPERTIES;
+-  $.getJSON("${ url('oozie:autocomplete_properties') }", function (properties) {
+-    AUTOCOMPLETE_PROPERTIES = properties;
++  $.getJSON("${ url('oozie:autocomplete_properties') }", function (data) {
++    AUTOCOMPLETE_PROPERTIES = data.properties;
+   });
+ });
+ </script>
+diff --git a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+index 06a17f7..7be82af 100644
+--- a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+@@ -1119,8 +1119,8 @@ $(document).ready(function () {
+   }
+ 
+   // load the autocomplete properties
+-  $.getJSON("${ url('oozie:autocomplete_properties') }", function (properties) {
+-    AUTOCOMPLETE_PROPERTIES = properties;
++  $.getJSON("${ url('oozie:autocomplete_properties') }", function (data) {
++    AUTOCOMPLETE_PROPERTIES = data.properties;
+   });
+ });
+ 
+diff --git a/apps/oozie/src/oozie/views/api.py b/apps/oozie/src/oozie/views/api.py
+index f3d6875..669995f 100644
+--- a/apps/oozie/src/oozie/views/api.py
++++ b/apps/oozie/src/oozie/views/api.py
+@@ -416,4 +416,4 @@ def workflows(request):
+ 
+ 
+ def autocomplete_properties(request):
+-  return JsonResponse(_STD_PROPERTIES)
++  return JsonResponse({ 'properties': _STD_PROPERTIES })
+-- 
+1.7.9.5
+

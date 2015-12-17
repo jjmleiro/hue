@@ -1,0 +1,28 @@
+From a0d474f02247a12e0f04ac3b3744d881ebf71081 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 16 Mar 2015 15:32:57 -0500
+Subject: [PATCH 1096/1173] [hbase] Do not close transport when flushing as it
+ resets the headers
+
+---
+ .../core/src/desktop/lib/thrift_/http_client.py    |    4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/thrift_/http_client.py b/desktop/core/src/desktop/lib/thrift_/http_client.py
+index a10b4d5..c71fb65 100644
+--- a/desktop/core/src/desktop/lib/thrift_/http_client.py
++++ b/desktop/core/src/desktop/lib/thrift_/http_client.py
+@@ -76,10 +76,6 @@ class THttpClient(TTransportBase):
+     self._wbuf.write(buf)
+ 
+   def flush(self):
+-    if self.isOpen():
+-      self.close()
+-    self.open()
+-
+     data = self._wbuf.getvalue()
+     self._wbuf = StringIO()
+ 
+-- 
+1.7.9.5
+

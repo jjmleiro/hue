@@ -1,0 +1,64 @@
+From 0331ea728bda1e3ef39830345eb2c17bf34ebc67 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 8 Dec 2014 20:17:57 +0100
+Subject: [PATCH 0569/1173] [spark] Redraw table headers on results change
+
+---
+ apps/spark/src/spark/templates/editor.mako |   21 ++++++++++++++++++---
+ 1 file changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 1a2d588..8a8172e 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -100,7 +100,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+-    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: true, css: {'btn': true}">
++    <a title="${ _('Execute all') }" rel="tooltip" data-placement="bottom" data-bind="click: true, css: {'btn': true}">
+       <i class="fa fa-play"></i>
+     </a>
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+@@ -816,10 +816,13 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       var wrapperElement = $(editor.getWrapperElement());
+ 
+       editor.on("change", function () {
+-        if (editor.lineCount() > 7 && editor.lineCount() < 21) {
++        if (editor.lineCount() <= 7) {
++          editor.setSize("100%", "100px");
++        }
++        else if (editor.lineCount() > 7 && editor.lineCount() < 21) {
+           editor.setSize("100%", "auto");
+         }
+-        if (editor.lineCount() >= 21) {
++        else {
+           editor.setSize("100%", "270px");
+         }
+ 
+@@ -1040,10 +1043,22 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             _dt = _el.dataTable();
+           }
+           _dt.fnAddData(options.data);
++          redrawFixedHeaders();
+         }, 100);
+       }
+     });
+ 
++    function redrawFixedHeaders() {
++      viewModel.notebooks().forEach(function(notebook) {
++        notebook.snippets().forEach(function (snippet) {
++          $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
++            fixedHeader: true,
++            includeNavigator: false
++          });
++        });
++      });
++    }
++
+     $(document).on("progress", function (e, options) {
+       if (options.data == 100) {
+         window.setTimeout(function () {
+-- 
+1.7.9.5
+

@@ -16,7 +16,6 @@
 # limitations under the License.
 
 import os
-import subprocess
 from urlparse import urlparse
 
 from django.utils.translation import ugettext_lazy as _t
@@ -28,11 +27,13 @@ def solrctl():
   """
   solrctl path
   """
-  try:
-    proc = subprocess.Popen(['which', 'solrctl'], stdout=subprocess.PIPE)
-    return proc.stdout.read().strip()
-  except subprocess.CalledProcessError:
-    return '/usr/bin/solrctl'
+  for dirname in os.environ.get('PATH', '').split(os.path.pathsep):
+    path = os.path.join(dirname, 'solrctl')
+
+    if os.path.exists(path):
+      return path
+
+  return None
 
 
 def zkensemble():
@@ -77,12 +78,6 @@ SOLRCTL_PATH = Config(
   help=_t("Location of the solrctl binary."),
   type=str,
   dynamic_default=solrctl)
-
-SOLR_HOME = Config(
-  key="solr_home",
-  help=_t("Location of the solr home."),
-  type=str,
-  default="/usr/lib/solr")
 
 SOLR_ZK_ENSEMBLE  = Config(
   key="solr_zk_ensemble",

@@ -1,0 +1,369 @@
+From 3e519919a0af2c48115b38bea99f2f89a477a897 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 27 Jan 2015 08:37:56 +0800
+Subject: [PATCH 0681/1173] [spark] Adding new style to the notebook list page
+
+---
+ apps/spark/src/spark/api.py                   |    3 +-
+ apps/spark/src/spark/templates/editor.mako    |    3 +
+ apps/spark/src/spark/templates/notebooks.mako |  247 +++++++++++++++++++++++--
+ apps/spark/src/spark/views.py                 |    5 +-
+ apps/spark/static/js/spark.ko.js              |    2 +-
+ desktop/core/src/desktop/models.py            |    2 +-
+ 6 files changed, 246 insertions(+), 16 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index caeb4cb..ac5af9b 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -23,7 +23,7 @@ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+-from desktop.models import Document2
++from desktop.models import Document2, Document
+ 
+ from spark.models import get_api, Notebook
+ from spark.decorators import api_error_handler
+@@ -137,6 +137,7 @@ def save_notebook(request):
+     notebook_doc = Document2.objects.get(id=notebook['id'])
+   else:      
+     notebook_doc = Document2.objects.create(name=notebook['name'], type='notebook', owner=request.user)
++    Document.objects.link(notebook_doc, owner=notebook_doc.owner, name=notebook_doc.name, description=notebook_doc.description, extra='notebook')
+ 
+   notebook_doc.update_data(notebook)
+   notebook_doc.name = notebook['name']
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index dac20ff..32364de 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -313,6 +313,9 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             <a href="javascript:void(0)" title="${ _('CTRL + ENTER') }" data-bind="click: execute, visible: status() != 'running' && status() != 'loading'" class="btn codeMirror-overlaybtn">
+               ${ _('Go!') }
+             </a>
++            <span title="${ _('Creating the session') }" data-bind="visible: status() == 'loading'" class="codeMirror-overlaybtn">
++              <i class="fa fa-spinner fa-spin fa-2x"></i>
++            </span>            
+             <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
+             <div class="progress" data-bind="css: {'progress-neutral': progress() == 0, 'progress-warning': progress() > 0 && progress() < 100, 'progress-success': progress() == 100}" style="height: 1px">
+               <div class="bar" data-bind="style: {'width': progress() + '%'}"></div>
+diff --git a/apps/spark/src/spark/templates/notebooks.mako b/apps/spark/src/spark/templates/notebooks.mako
+index 3da29a9..cc68e35 100644
+--- a/apps/spark/src/spark/templates/notebooks.mako
++++ b/apps/spark/src/spark/templates/notebooks.mako
+@@ -15,25 +15,250 @@
+ ## limitations under the License.
+ 
+ <%!
+-  from desktop.views import commonheader, commonfooter
++  from desktop.views import commonheader, commonfooter, commonshare
+   from django.utils.translation import ugettext as _
+ %>
+ 
+-${ commonheader(_("Notebooks"), "spark", user) | n,unicode }
++${ commonheader(_("Notebooks"), "oozie", user) | n,unicode }
++
++<div id="editor">
+ 
+ <div class="container-fluid">
+   <div class="card card-small">
+-  <h1 class="card-heading simple">${ _('Notebooks') }</h1>
++  <h1 class="card-heading simple">${ _('Spark Editor') }</h1>
+ 
+-  % for notebook in notebooks:
+-    <div>
+-      <a href="${ url('spark:editor') }?notebook=${ notebook.id }">
+-        ${ notebook.name }
+-      </a>
+-    </div>
+-  % endfor
++
++<div class="actionbar-actions">
++                
++      <input id="filterInput" type="text" class="input-xlarge search-query" placeholder="${_('Search for name, description, etc...')}">
++    
++       &nbsp;&nbsp;&nbsp;&nbsp;
++                
++      <div class="btn-toolbar" style="display: inline; vertical-align: middle">
++        <a data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': ! oneSelected()}">
++          <i class="fa fa-play"></i> ${ _('Submit') }
++        </a>
++
++        <span style="padding-right:40px"></span>
++
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++          attr: {'data-original-title': '${ _("Share") } ' + name},
++          css: {'disabled': ! oneSelected(), 'btn': true}">
++          <i class="fa fa-users"></i> ${ _('Share') }
++        </a>
++
++        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
++          <i class="fa fa-files-o"></i> ${ _('Copy') }
++        </a>
++
++        <a data-bind="click: function() { $('#deleteWf').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
++          <i class="fa fa-times"></i> ${ _('Delete') }
++        </a>
++
++      </div>
++    
++      <a href="${ url('spark:new') }" class="btn"><i class="fa fa-plus-circle"></i> ${ _('Create') }</a>
++</div>
++       
++  <table id="notebookTable" class="table datatables">
++    <thead>
++      <tr>
++        <th width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
++        <th>${ _('Name') }</th>
++        <th>${ _('Description') }</th>
++        <th>${ _('Owner') }</th>
++        <th>${ _('Last Modified') }</th>
++      </tr>
++    </thead>
++    <tbody data-bind="foreach: { data: jobs }">
++      <tr>
++        <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
++          <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>          
++          <a data-bind="attr: { 'href': '${ url('spark:editor') }?notebook=' + id() }" data-row-selector="true"></a>
++        </td>
++        <td data-bind="text: name"></td>
++        <td data-bind="text: description"></td>
++        <td data-bind="text: owner"></td>
++        <td data-bind="text: last_modified, attr: { 'data-sort-value': last_modified_ts }" data-type="date"></td>
++      </tr>
++    </tbody>
++  </table>
+ 
+   </div>
+ </div>
+ 
+-${ commonfooter(messages) | n,unicode }
++
++<div class="hueOverlay" data-bind="visible: isLoading">
++  <!--[if lte IE 9]>
++    <img src="/static/art/spinner-big.gif" />
++  <![endif]-->
++  <!--[if !IE]> -->
++    <i class="fa fa-spinner fa-spin"></i>
++  <!-- <![endif]-->
++</div>
++
++<div id="submit-wf-modal" class="modal hide"></div>
++
++<div id="deleteWf" class="modal hide fade">
++  <form id="deleteWfForm" method="POST" data-bind="submit: delete2">
++    ${ csrf_token(request) | n,unicode }
++    <div class="modal-header">
++      <a href="#" class="close" data-dismiss="modal">&times;</a>
++      <h3 id="deleteWfMessage">${ _('Delete the selected notebook(s)?') }</h3>
++    </div>
++    <div class="modal-footer">
++      <a href="#" class="btn" data-dismiss="modal">${ _('No') }</a>
++      <input type="submit" class="btn btn-danger" value="${ _('Yes') }"/>
++    </div>
++  </form>
++</div>
++
++
++</div>
++
++
++${ commonshare() | n,unicode }
++
++
++<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/share.vm.js"></script>
++
++
++<script type="text/javascript" charset="utf-8">
++  var Editor = function () {
++    var self = this;
++
++    self.jobs = ko.mapping.fromJS(${ notebooks_json | n });
++    self.selectedJobs = ko.computed(function() {
++      return $.grep(self.jobs(), function(job) { return job.isSelected(); });
++    });
++    self.isLoading = ko.observable(false);
++
++    self.oneSelected = ko.computed(function() {
++      return self.selectedJobs().length == 1;
++    });
++    self.atLeastOneSelected = ko.computed(function() {
++      return self.selectedJobs().length >= 1;
++    });
++    self.allSelected = ko.observable(false);
++
++    self.handleSelect = function(wf) {
++      wf.isSelected(! wf.isSelected());
++    }
++
++    self.selectAll = function() {
++      self.allSelected(! self.allSelected());
++      ko.utils.arrayForEach(self.jobs(), function (job) {
++        job.isSelected(self.allSelected());
++      });
++    }
++
++    self.datatable = null;
++
++    self.showSubmitPopup = function () {
++      $.get("/oozie/editor/workflow/submit/" + self.selectedJobs()[0].id(), {
++      }, function (data) {
++        $(document).trigger("showSubmitPopup", data);
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    };
++
++    self.delete2 = function() {
++      $.post("${ url('oozie:delete_editor_workflow') }", {
++        "selection": ko.mapping.toJSON(self.selectedJobs)
++      }, function() {
++        window.location.reload();
++        $('#deleteWf').modal('hide');
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    };
++
++    self.copy = function() {
++      $.post("${ url('oozie:copy_workflow') }", {
++        "selection": ko.mapping.toJSON(self.selectedJobs)
++      }, function(data) {
++        window.location.reload();
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });
++    };
++
++    self.prepareShareModal = function() {
++     shareViewModel.setDocId(self.selectedJobs()[0].doc1_id());
++      openShareModal();
++    };
++  }
++
++  var viewModel;
++  var shareViewModel;
++
++  $(document).ready(function () {
++    viewModel = new Editor();
++    ko.applyBindings(viewModel, $("#editor")[0]);
++
++    shareViewModel = initSharing("#documentShareModal");
++    shareViewModel.setDocId(-1);
++
++    $(document).on("showSubmitPopup", function(event, data){
++      $('#submit-wf-modal').html(data);
++      $('#submit-wf-modal').modal('show');
++    });
++
++    var oTable = $("#notebookTable").dataTable({
++      "sPaginationType":"bootstrap",
++      'iDisplayLength':50,
++      "bLengthChange":false,
++      "sDom": "<'row'r>t<'row-fluid'<'dt-pages'p><'dt-records'i>>",
++      "aoColumns":[
++        { "bSortable":false },
++        null,
++        null,
++        null,
++        { "sSortDataType":"dom-sort-value", "sType":"numeric" }
++      ],
++      "aaSorting":[
++        [4, 'desc'],
++        [1, 'asc' ]
++      ],
++      "oLanguage":{
++        "sEmptyTable":"${_('No data available')}",
++        "sInfo":"${_('Showing _START_ to _END_ of _TOTAL_ entries')}",
++        "sInfoEmpty":"${_('Showing 0 to 0 of 0 entries')}",
++        "sInfoFiltered":"${_('(filtered from _MAX_ total entries)')}",
++        "sZeroRecords":"${_('No matching records')}",
++        "oPaginate":{
++          "sFirst":"${_('First')}",
++          "sLast":"${_('Last')}",
++          "sNext":"${_('Next')}",
++          "sPrevious":"${_('Previous')}"
++        },
++        "bDestroy": true
++      },
++      "fnDrawCallback":function (oSettings) {
++        $("a[data-row-selector='true']").jHueRowSelector();
++      }
++    });
++
++    viewModel.datatable = oTable;
++
++    $("#filterInput").keydown(function (e) {
++      if (e.which == 13) {
++        e.preventDefault();
++        return false;
++      }
++    });
++
++    $("#filterInput").keyup(function () {
++      oTable.fnFilter($(this).val());
++    });
++
++    $("a[data-row-selector='true']").jHueRowSelector();
++  });
++</script>
++
++
++${commonfooter(messages) | n,unicode}
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index e339bbc..4a6017e 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -19,6 +19,7 @@ import json
+ import logging
+ 
+ from desktop.lib.django_util import render
++from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.models import Document2
+ 
+ from spark.conf import LANGUAGES
+@@ -46,10 +47,10 @@ def new(request):
+   
+ 
+ def notebooks(request):
+-  notebooks = Document2.objects.filter(type='notebook', owner=request.user)
++  notebooks = [d.to_dict() for d in Document2.objects.filter(type='notebook', owner=request.user)]
+ 
+   return render('notebooks.mako', request, {
+-      'notebooks': notebooks
++      'notebooks_json': json.dumps(notebooks, cls=JSONEncoderForHTML)
+   })
+ 
+ 
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 496f42a..0d82ec2 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -427,7 +427,7 @@ var Snippet = function (notebook, snippet) {
+  	      self.result.logs(data.logs); // Way to append?
+  	      self.progress(data.progress);
+  	    } else {
+- 	    	self._ajax_error(data);
++ 	      self._ajax_error(data);
+  	    }
+  	}).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 07bc6c1..8af28eb 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -671,7 +671,7 @@ class Document2(models.Model):
+       'description': self.description,
+       'uuid': self.uuid,
+       'id': self.id,
+-      'doc1_id': self.doc.get().id,
++      'doc1_id': self.doc.get().id if self.doc.exists() else -1,
+       'type': self.type,
+       'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
+       'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+-- 
+1.7.9.5
+

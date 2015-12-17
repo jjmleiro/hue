@@ -1,0 +1,66 @@
+From a0cd9d054f75ca3ae4162bd2033e228f28df0757 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 8 Dec 2014 19:26:06 +0100
+Subject: [PATCH 0566/1173] [spark] Editors autoexpand to maximum 20 lines
+
+---
+ apps/spark/src/spark/templates/editor.mako |   16 ++++++++++++++--
+ apps/spark/static/css/spark.css            |    1 +
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index ec6cf4a..7d0fc47 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -270,7 +270,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                 <input type="text" data-bind="value: value" />
+               </div>
+             </div>
+-            <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
++            <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'viewportMargin': Infinity, 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+             <a href="javascript:void(0)" data-bind="click: execute, visible: status() != 'running'" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+             <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
+             <div class="progress" data-bind="css:{'progress-neutral': progress() == 0, 'progress-warning': progress() > 0 && progress() < 100, 'progress-success': progress() == 100}" style="height: 1px">
+@@ -484,7 +484,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ 
+   ko.bindingHandlers.codemirror = {
+-    init: function (element, valueAccessor, allBindingsAccessor, vm) {
++    init: function (element, valueAccessor, allBindingsAccessor, snippet) {
+ 
+       $(document).on("error.autocomplete", function () {
+         $(".CodeMirror-spinner").remove();
+@@ -800,6 +800,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       var wrapperElement = $(editor.getWrapperElement());
+ 
+       editor.on("change", function () {
++        if (editor.lineCount() > 7 && editor.lineCount() < 21) {
++          editor.setSize("100%", "auto");
++        }
++        if (editor.lineCount() >= 21) {
++          editor.setSize("100%", "270px");
++        }
++
++        $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
++          fixedHeader: true,
++          includeNavigator: false
++        });
++
+         allBindingsAccessor().value(editor.getValue());
+       });
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 5e7517a..b8d69b5 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -34,6 +34,7 @@
+   border: 1px solid #DDD;
+   border-top: none;
+   border-bottom: none;
++  height: auto;
+ }
+ 
+ .codeMirror-overlaybtn {
+-- 
+1.7.9.5
+

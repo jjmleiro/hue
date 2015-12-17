@@ -1,0 +1,291 @@
+From 6cb9f65ebc60e75dbb372dac182b37bdcca22897 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 23 Oct 2014 17:55:46 -0700
+Subject: [PATCH 0212/1173] [oozie] Add custom action properties
+
+---
+ apps/oozie/src/oozie/models2.py                    |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |   84 +++++++++++++++++---
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   22 +++++
+ apps/oozie/static/js/workflow-editor.ko.js         |   44 ++++++----
+ 5 files changed, 125 insertions(+), 28 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index cf9f9cd..9e0dbf2 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -167,12 +167,12 @@ class Workflow():
+ 
+   def check_workspace(self, fs):
+     create_directories(fs, [REMOTE_SAMPLE_DIR.get()])
+-    create_directories(fs)
+       
+     perms = 0711
+     # if shared, perms = 0755
+ 
+     Submission(self.document.owner, self, fs, None, {})._create_dir(self.deployment_dir, perms=perms)
++    Submission(self.document.owner, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
+ 
+ 
+ class Node():
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 123c336..66b11b5 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -68,15 +68,18 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
+       <i class="fa fa-play"></i>
+     </a>
+-    &nbsp;&nbsp;&nbsp;&nbsp;
++    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
++      <i class="fa fa-pencil"></i>
++    </a>    
++    &nbsp;&nbsp;&nbsp;
+     % if user.is_superuser:
+-      <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+-        <i class="fa fa-pencil"></i>
+-      </a>
+-      &nbsp;
++      <button type="button" title="${ _('Workspace') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsDemiModal" data-bind="css: {'btn': true}">
++        <i class="fa fa-folder-open"></i>
++      </button>      
+       <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsDemiModal" data-bind="css: {'btn': true}">
+         <i class="fa fa-cog"></i>
+       </button>
++      &nbsp;&nbsp;&nbsp;
+       <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
+         <i class="fa fa-save"></i>
+       </button>
+@@ -191,15 +194,55 @@ ${ dashboard.layout_skeleton() }
+           <input type="text" data-bind="value: properties.script_path" />
+           
+ 	      ${ _('Parameters') }   
+-	      <ul data-bind="foreach: $root.workflow.properties.parameters">
++	      <ul data-bind="foreach: properties.parameters">
+ 	        <li>
+ 	          <input data-bind="value: name"/>
+ 	          <input data-bind="value: value"/>
+-	          <a href="#" data-bind="click: function(){ $root.workflow.properties.parameters.remove(this); }">
++	          <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); }">
+ 	            <i class="fa fa-minus"></i>
+ 	          </a>
+ 	        </li>
+-	      </ul>          
++	      </ul>
++          <button data-bind="click: function(){ properties.parameters.push({'name': '', 'value': ''}); }">
++            <i class="fa fa-plus"></i>
++          </button>	      
++        </div>
++        <div class="tab-pane" id="files">
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="java-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Java') }</a></li>
++        <li><a href="#files" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <input type="text" data-bind="value: properties.jar_path" />
+         </div>
+         <div class="tab-pane" id="files">
+         </div>
+@@ -222,8 +265,12 @@ ${ dashboard.layout_skeleton() }
+   <div class="modal-body">
+     <a href="javascript: void(0)" data-dismiss="modal" data-bind="click: addActionDemiModalFieldCancel" class="pull-right"><i class="fa fa-times"></i></a>
+     
+-    Script path
+-    <input type="text" data-bind="value: $root.addActionScriptPath"/>
++    <ul data-bind="foreach: addActionProperties">
++      <li>        
++        <span data-bind="text: label"></span>
++        <input data-bind="value: value"/>
++      </li>
++    </ul>
+     
+     <br/>
+     <a data-bind="click: addActionDemiModalFieldPreview">
+@@ -293,6 +340,22 @@ ${ dashboard.import_bindings() }
+     widgetDraggedAdditionalHandler(widget);
+   }
+   function widgetDraggedAdditionalHandler(widget) {
++    viewModel.addActionProperties.removeAll();
++
++    if (widget.widgetType() == 'java-widget') {
++      viewModel.addActionProperties.push({
++        'name': 'jar_path',
++        'label': '${ _("Jar Path") }',
++        'value': ''
++      });
++    } else {
++      viewModel.addActionProperties.push({
++        'name': 'script_path',
++        'label': '${ _("Script Path") }',
++        'value': ''
++      });
++    }
++    
+     showAddActionDemiModal(widget);
+   }
+ 
+@@ -312,7 +375,6 @@ ${ dashboard.import_bindings() }
+ 
+   function addActionDemiModalFieldPreview(field) {    
+     if (newAction != null) {
+-      newAction.properties()['script_path'] = viewModel.addActionScriptPath();
+       viewModel.workflow.addNode(newAction);
+       $("#addActionDemiModal").modal("hide");
+     }
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 9780930..188e43d 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -75,6 +75,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/new/$', 'new_workflow', name='new_workflow'),
+   url(r'^editor/workflow/save/$', 'save_workflow', name='save_workflow'),
+   url(r'^editor/workflow/submit/(?P<doc_id>\d+)$', 'submit_workflow', name='editor_submit_workflow'),
++  url(r'^editor/workflow/add_node/$', 'add_node', name='add_node'),
+   
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+ )
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index cfaff13..01d94eb 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -97,6 +97,28 @@ def save_workflow(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def add_node(request):
++  response = {'status': -1}
++
++  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  node = json.loads(request.POST.get('node', '{}'))
++  properties = json.loads(request.POST.get('properties', '{}'))
++
++  print node
++  print properties
++  
++  properties = response['properties'] = dict([(property['name'], property['value']) for property in properties])
++  properties.update({
++      'parameters': []
++  })
++
++  response['status'] = 0
++  response['properties'] = properties 
++  response['message'] = _('Page saved !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
+ def gen_xml_workflow(request):
+   response = {'status': -1}
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index b650ba3..1443190 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -83,19 +83,32 @@ var Workflow = function (vm, workflow) {
+     self.nodes(nodes)
+   }
+   
+-
+   self.addNode = function(widget) {
+     // Todo get parent cell, link nodes... when we have the new layout
+-    
+-    var node = new Node(ko.mapping.toJS(widget));
+-    node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
+-    var end = self.nodes.pop()  
+-    self.nodes.push(node);
+-    self.nodes.push(end);
+-
+-    self.nodes()[0].children.removeAll();
+-    self.nodes()[0].children().push({'to': node.id()});
+-  }
++    $.post("/oozie/editor/workflow/add_node/", {        
++        "workflow": ko.mapping.toJSON(workflow),
++        "node": ko.mapping.toJSON(widget),
++        "properties": ko.mapping.toJSON(viewModel.addActionProperties()),        
++      }, function (data) {
++      if (data.status == 0) {
++    	  widget.properties = data.properties;
++          var node = new Node(ko.mapping.toJS(widget));
++          node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}) // Link to child
++
++          // Add to list of nodes
++          var end = self.nodes.pop()
++          self.nodes.push(node);
++          self.nodes.push(end);
++
++          self.nodes()[0].children.removeAll(); // Parent link to new node
++          self.nodes()[0].children().push({'to': node.id()});
++      } else {
++        $(document).trigger("error", data.message);
++       }
++     }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++     });
++  };
+   
+   self.getNodeById = function (node_id) {
+     var _node = null;
+@@ -107,7 +120,6 @@ var Workflow = function (vm, workflow) {
+     });
+     return _node;
+   }
+-
+ }
+ 
+ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+@@ -128,8 +140,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+     self.workflow.loadNodes(workflow_json);
+   }
+ 
+-  self.addActionScriptPath = ko.observable("");
+-  
++  self.addActionProperties = ko.observableArray([]);
++
++
+   self.getWidgetById = function (widget_id) {
+     var _widget = null;
+     $.each(self.columns(), function (i, col) {
+@@ -181,9 +194,8 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+     });
+   };
+ 
+-
+   self.showSubmitPopup = function () {
+-	// if self.workflow.id() == null, need to save wf for now
++    // if self.workflow.id() == null, need to save wf for now
+ 
+     $.get("/oozie/editor/workflow/submit/" + self.workflow.id(), {
+       }, function (data) {
+-- 
+1.7.9.5
+

@@ -22,7 +22,7 @@
 ${ commonheader(_('Task Attempt: %(attemptId)s') % dict(attemptId=attempt.attemptId_short), "jobbrowser", user) | n,unicode }
 ${ comps.menubar() }
 
-<link href="/jobbrowser/static/css/jobbrowser.css" rel="stylesheet">
+<link href="${ static('jobbrowser/css/jobbrowser.css') }" rel="stylesheet">
 
 <div class="container-fluid">
   <div class="row-fluid">
@@ -132,6 +132,26 @@ ${ comps.menubar() }
                   <td>${_('Output Size')}</td>
                   <td>${attempt.outputSize}</td>
                 </tr>
+                % if not attempt.is_mr2:
+                <tr>
+                  <td>${_('Shuffle Finish')}</td>
+                  <td>${attempt.shuffleFinishTimeFormatted}</td>
+                </tr>
+                <tr>
+                  <td>${_('Sort Finish')}</td>
+                  <td>${attempt.sortFinishTimeFormatted}</td>
+                </tr>
+                <tr>
+                  <td>${_('Map Finish')}</td>
+                  <td>${attempt.mapFinishTimeFormatted}</td>
+                </tr>
+                % endif
+                % if attempt.is_mr2:
+                  <tr>
+                    <td>${_('Node Address')}</td>
+                    <td>${attempt.nodeHttpAddress}</td>
+                  </tr>
+                % endif
                 </tbody>
               </table>
             </div>
@@ -151,7 +171,7 @@ ${ comps.menubar() }
   </div>
 </div>
 
-<script src="/jobbrowser/static/js/utils.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('jobbrowser/js/utils.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {
@@ -188,7 +208,7 @@ ${ comps.menubar() }
     });
 
     if (window.location.hash != null && window.location.hash.length > 1) {
-      $('#tabs a[href="#' + window.location.hash.substring(2) + '"]').tab('show');
+      $('#tabs a[href="#' + window.location.hash.substring(2).replace(/(<([^>]+)>)/ig, "") + '"]').tab('show');
     }
 
     hellipsify();

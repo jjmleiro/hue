@@ -1,0 +1,469 @@
+From e3d17f1cdb5c5312fe85d6fe9df737dfa18615c2 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 21:11:10 +0100
+Subject: [PATCH 0442/1173] HUE-2535 [oozie] Running jobs filter does not show
+ jobs in dashboard
+
+Fixed the filters for workflows, dashboards and bundles
+---
+ .../templates/dashboard/list_oozie_bundle.mako     |    2 +-
+ .../templates/dashboard/list_oozie_bundles.mako    |   39 ++--------
+ .../dashboard/list_oozie_coordinator.mako          |    2 +-
+ .../dashboard/list_oozie_coordinators.mako         |   38 ++--------
+ .../oozie/templates/dashboard/list_oozie_sla.mako  |    2 +-
+ .../templates/dashboard/list_oozie_workflow.mako   |    2 +-
+ .../templates/dashboard/list_oozie_workflows.mako  |   39 ++--------
+ apps/oozie/static/js/bundles.utils.js              |   45 -----------
+ apps/oozie/static/js/dashboard-utils.js            |   80 ++++++++++++++++++++
+ 9 files changed, 108 insertions(+), 141 deletions(-)
+ delete mode 100644 apps/oozie/static/js/bundles.utils.js
+ create mode 100644 apps/oozie/static/js/dashboard-utils.js
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
+index 9844639..11455d8 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
+@@ -293,7 +293,7 @@ ${ layout.menubar(section='bundles', dashboard=True) }
+   </div>
+ </div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/codemirror-3.11.js"></script>
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+index 779fc14..e314938 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+@@ -132,7 +132,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+   </div>
+ </div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+ 
+ <script type="text/javascript" charset="utf-8">
+@@ -282,30 +282,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+ 
+     $.fn.dataTableExt.sErrMode = "throw";
+ 
+-    $.fn.dataTableExt.afnFiltering.push(
+-      function (oSettings, aData, iDataIndex) {
+-        var urlHashes = ""
+-
+-        var statusBtn = $("a.btn-status.active");
+-        var statusFilter = true;
+-        if (statusBtn.length > 0) {
+-          var statuses = []
+-          $.each(statusBtn, function () {
+-            statuses.push($(this).attr("data-value"));
+-          });
+-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
+-        }
+-
+-        var dateBtn = $("a.btn-date.active");
+-        var dateFilter = true;
+-        if (dateBtn.length > 0) {
+-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
+-          dateFilter = Date.parse(aData[0]) >= minAge;
+-        }
+-
+-        return statusFilter && dateFilter;
+-      }
+-    );
++    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
+ 
+     $(document).on("click", ".confirmationModal", function () {
+       var _this = $(this);
+@@ -369,8 +346,8 @@ ${layout.menubar(section='bundles', dashboard=True)}
+                 try {
+                   runningTable.fnAddData([
+                     bundle.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
+-                    '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+-                    '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
++                    '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'" data-type="date">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
++                    '<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>',
+                     bundle.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width:1%"></div></div>',
+                     bundle.user,
+@@ -385,7 +362,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+ 
+             }
+             else {
+-              runningTable.fnUpdate('<span class="' + bundle.statusClass + '">' + bundle.status + '</span>', foundRow, 2, false);
++              runningTable.fnUpdate('<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>', foundRow, 2, false);
+             }
+           });
+         }
+@@ -409,8 +386,8 @@ ${layout.menubar(section='bundles', dashboard=True)}
+           var bundle = new Bundle(item);
+           try {
+             completedTable.fnAddData([
+-              '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+-              '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
++              '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'" data-type="date">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
++              '<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>',
+               bundle.appName,
+               bundle.user,
+               '<span data-sort-value="'+ bundle.createdInMillis +'">' + emptyStringIfNull(bundle.created) + '</span>',
+@@ -437,7 +414,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+               }
+             });
+             if (foundRow != null) {
+-              runningTable.fnUpdate('<span class="' + bundle.statusClass + '">' + bundle.status + '</span>', foundRow, 2, false);
++              runningTable.fnUpdate('<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>', foundRow, 2, false);
+               if (bundle.progress == 0){
+                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
+               }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+index c264520..f13e329 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+@@ -363,7 +363,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+ 
+ <div id="rerun-coord-modal" class="modal hide"></div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/codemirror-3.11.js"></script>
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+index fd6f0b2..343a9f0 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+@@ -154,7 +154,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+   </div>
+ </div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+ 
+ 
+@@ -318,30 +318,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+ 
+     $.fn.dataTableExt.sErrMode = "throw";
+ 
+-    $.fn.dataTableExt.afnFiltering.push(
+-      function (oSettings, aData, iDataIndex) {
+-        var urlHashes = ""
+-
+-        var statusBtn = $("a.btn-status.active");
+-        var statusFilter = true;
+-        if (statusBtn.length > 0) {
+-          var statuses = []
+-          $.each(statusBtn, function () {
+-            statuses.push($(this).attr("data-value"));
+-          });
+-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
+-        }
+-
+-        var dateBtn = $("a.btn-date.active");
+-        var dateFilter = true;
+-        if (dateBtn.length > 0) {
+-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
+-          dateFilter = Date.parse(aData[0]) >= minAge;
+-        }
+-
+-        return statusFilter && dateFilter;
+-      }
+-    );
++    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
+ 
+     $(document).on("click", ".confirmationModal", function () {
+       var _this = $(this);
+@@ -416,8 +393,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+                 try {
+                   runningTable.fnAddData([
+                     coord.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
+-                    '<span data-sort-value="'+ coord.nextMaterializedTimeInMillis +'">' + emptyStringIfNull(coord.nextMaterializedTime) + '</span>',
+-                    '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
++                    '<span data-sort-value="'+ coord.nextMaterializedTimeInMillis +'" data-type="date">' + emptyStringIfNull(coord.nextMaterializedTime) + '</span>',
++                    '<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>',
+                     coord.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     coord.user,
+@@ -437,7 +414,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+               }
+             }
+             else {
+-              runningTable.fnUpdate('<span class="' + coord.statusClass + '">' + coord.status + '</span>', foundRow, 2, false);
++              runningTable.fnUpdate('<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>', foundRow, 2, false);
+             }
+           });
+         }
+@@ -460,8 +437,8 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+           var coord = new Coordinator(item);
+           try {
+             completedTable.fnAddData([
+-              '<span data-sort-value="'+ coord.endTimeInMillis +'">' + emptyStringIfNull(coord.endTime) + '</span>',
+-              '<span class="' + coord.statusClass + '">' + coord.status + '</span>',
++              '<span data-sort-value="'+ coord.endTimeInMillis +'" data-type="date">' + emptyStringIfNull(coord.endTime) + '</span>',
++              '<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>',
+               coord.appName,
+               '<span data-sort-value="'+ coord.durationInMillis +'">' + emptyStringIfNull(coord.duration) + '</span>',
+               coord.user,
+@@ -501,6 +478,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+               % endif
+             });
+             if (foundRow != null) {
++              runningTable.fnUpdate('<span class="' + coord.statusClass + '" data-type="status">' + coord.status + '</span>', foundRow, 2, false);
+               if (coord.progress == 0){
+                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
+               }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+index 97b59cb..3f03f4f 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_sla.mako
+@@ -151,7 +151,7 @@ ${ layout.menubar(section='sla', dashboard=True) }
+   </div>
+ </div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/oozie/static/js/sla.utils.js" type="text/javascript" charset="utf-8"></script>
+ 
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 12fe652..613c565 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -344,7 +344,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+   </div>
+ </div>
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <link rel="stylesheet" href="/oozie/static/css/workflow.css">
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 83cfcb7..714b10c 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -136,7 +136,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+ </div>
+ 
+ 
+-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
++<script src="/oozie/static/js/dashboard-utils.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+ 
+ <script type="text/javascript" charset="utf-8">
+@@ -284,30 +284,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+ 
+     $.fn.dataTableExt.sErrMode = "throw";
+ 
+-    $.fn.dataTableExt.afnFiltering.push(
+-      function (oSettings, aData, iDataIndex) {
+-        var urlHashes = ""
+-
+-        var statusBtn = $("a.btn-status.active");
+-        var statusFilter = true;
+-        if (statusBtn.length > 0) {
+-          var statuses = []
+-          $.each(statusBtn, function () {
+-            statuses.push($(this).attr("data-value"));
+-          });
+-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
+-        }
+-
+-        var dateBtn = $("a.btn-date.active");
+-        var dateFilter = true;
+-        if (dateBtn.length > 0) {
+-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
+-          dateFilter = Date.parse(aData[0]) >= minAge;
+-        }
+-
+-        return statusFilter && dateFilter;
+-      }
+-    );
++    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
+ 
+     $(document).on("click", ".confirmationModal", function () {
+       var _this = $(this);
+@@ -369,8 +346,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+                 try {
+                   runningTable.fnAddData([
+                     wf.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>':'',
+-                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+-                    '<span class="' + wf.statusClass + '">' + wf.status + '</span>',
++                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'" data-type="date">' + emptyStringIfNull(wf.lastModTime) + '</span>',
++                    '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>',
+                     wf.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     wf.user,
+@@ -384,7 +361,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+               }
+             }
+             else {
+-              runningTable.fnUpdate('<span class="' + wf.statusClass + '">' + wf.status + '</span>', foundRow, 2, false);
++              runningTable.fnUpdate('<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', foundRow, 2, false);
+             }
+           });
+         }
+@@ -408,8 +385,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           var wf = new Workflow(item);
+           try {
+             completedTable.fnAddData([
+-              '<span data-sort-value="'+ wf.endTimeInMillis +'">' + emptyStringIfNull(wf.endTime) + '</span>',
+-              '<span class="' + wf.statusClass + '">' + wf.status + '</span>', decodeURIComponent(wf.appName),
++              '<span data-sort-value="'+ wf.endTimeInMillis +'" data-type="date">' + emptyStringIfNull(wf.endTime) + '</span>',
++              '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', decodeURIComponent(wf.appName),
+               '<span data-sort-value="'+ wf.durationInMillis +'">' + emptyStringIfNull(wf.duration) + '</span>',
+               wf.user,
+               '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+@@ -436,7 +413,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+               }
+             });
+             if (foundRow != null) {
+-              runningTable.fnUpdate('<span class="' + wf.statusClass + '">' + wf.status + '</span>', foundRow, 2, false);
++              runningTable.fnUpdate('<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', foundRow, 2, false);
+               if (wf.progress == 0){
+                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
+               }
+diff --git a/apps/oozie/static/js/bundles.utils.js b/apps/oozie/static/js/bundles.utils.js
+deleted file mode 100644
+index 541043b..0000000
+--- a/apps/oozie/static/js/bundles.utils.js
++++ /dev/null
+@@ -1,45 +0,0 @@
+-// Licensed to Cloudera, Inc. under one
+-// or more contributor license agreements.  See the NOTICE file
+-// distributed with this work for additional information
+-// regarding copyright ownership.  Cloudera, Inc. licenses this file
+-// to you under the Apache License, Version 2.0 (the
+-// "License"); you may not use this file except in compliance
+-// with the License.  You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-function getStatusClass(status, prefix){
+-  if (prefix == null){
+-    prefix = "label-";
+-  }
+-  var klass = "";
+-  if (['SUCCEEDED', 'OK', 'DONE'].indexOf(status) > -1){
+-    klass = prefix + "success";
+-  }
+-  else if (['RUNNING', 'READY', 'PREP', 'WAITING', 'SUSPENDED', 'PREPSUSPENDED', 'PREPPAUSED', 'PAUSED',
+-            'SUBMITTED',
+-            'SUSPENDEDWITHERROR',
+-            'PAUSEDWITHERROR'].indexOf(status) > -1){
+-    klass = prefix + "warning";
+-  }
+-  else {
+-    klass = prefix + "important";
+-    if (prefix == "bar-"){
+-      klass = prefix + "danger";
+-    }
+-  }
+-  return klass;
+-}
+-
+-function emptyStringIfNull(obj){
+-  if (obj != null && obj != undefined){
+-    return obj;
+-  }
+-  return "";
+-}
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/dashboard-utils.js b/apps/oozie/static/js/dashboard-utils.js
+new file mode 100644
+index 0000000..6c09d9d
+--- /dev/null
++++ b/apps/oozie/static/js/dashboard-utils.js
+@@ -0,0 +1,80 @@
++// Licensed to Cloudera, Inc. under one
++// or more contributor license agreements.  See the NOTICE file
++// distributed with this work for additional information
++// regarding copyright ownership.  Cloudera, Inc. licenses this file
++// to you under the Apache License, Version 2.0 (the
++// "License"); you may not use this file except in compliance
++// with the License.  You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++
++function getStatusClass(status, prefix) {
++  if (prefix == null) {
++    prefix = "label-";
++  }
++  var klass = "";
++  if (['SUCCEEDED', 'OK', 'DONE'].indexOf(status) > -1) {
++    klass = prefix + "success";
++  }
++  else if (['RUNNING', 'READY', 'PREP', 'WAITING', 'SUSPENDED', 'PREPSUSPENDED', 'PREPPAUSED', 'PAUSED',
++    'SUBMITTED',
++    'SUSPENDEDWITHERROR',
++    'PAUSEDWITHERROR'].indexOf(status) > -1) {
++    klass = prefix + "warning";
++  }
++  else {
++    klass = prefix + "important";
++    if (prefix == "bar-") {
++      klass = prefix + "danger";
++    }
++  }
++  return klass;
++}
++
++function emptyStringIfNull(obj) {
++  if (obj != null && obj != undefined) {
++    return obj;
++  }
++  return "";
++}
++
++var PersistedButtonsFilters = function (oSettings, aData, iDataIndex) {
++  var urlHashes = "";
++
++  var statusBtn = $("a.btn-status.active");
++  var statusFilter = true;
++  if (statusBtn.length > 0) {
++    var statuses = [];
++    $.each(statusBtn, function () {
++      statuses.push($(this).attr("data-value"));
++    });
++    var _statusColumn = aData[2];
++    if (typeof $(_statusColumn).attr("data-type") == "undefined") {
++      _statusColumn = aData[1];
++    }
++    statusFilter = _statusColumn.match(RegExp(statuses.join('|'), "i")) != null;
++  }
++
++  var dateBtn = $("a.btn-date.active");
++  var dateFilter = true;
++  if (dateBtn.length > 0) {
++    var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
++    var _dateColumn = aData[1];
++    if (typeof $(_dateColumn).attr("data-type") == "undefined" || $(_dateColumn).attr("data-type") == "status") {
++      _dateColumn = aData[0];
++    }
++    if (typeof _dateColumn == "string") {
++      _dateColumn = $(_dateColumn).attr("data-sort-value");
++    }
++    dateFilter = _dateColumn * 1000 >= minAge;
++  }
++
++  return statusFilter && dateFilter;
++}
+\ No newline at end of file
+-- 
+1.7.9.5
+

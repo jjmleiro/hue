@@ -1,0 +1,48 @@
+From 7bb6b5c4f17b37d29527ec11184e40c5844a67b9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 13:08:38 -0800
+Subject: [PATCH 0875/1173] [livy] Process sessions should use spark-submit
+
+---
+ .../hue/livy/server/sessions/ProcessSession.scala  |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+index 57bd60e..d1f70d7 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ProcessSession.scala
+@@ -3,7 +3,7 @@ package com.cloudera.hue.livy.server.sessions
+ import java.lang.ProcessBuilder.Redirect
+ import java.net.URL
+ 
+-import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.{Utils, Logging}
+ import com.cloudera.hue.livy.server.sessions.Session.SessionFailedToStart
+ 
+ import scala.annotation.tailrec
+@@ -11,9 +11,6 @@ import scala.concurrent.Future
+ import scala.io.Source
+ 
+ object ProcessSession extends Logging {
+-  val LIVY_HOME = System.getenv("LIVY_HOME")
+-  val LIVY_REPL = LIVY_HOME + "/bin/livy-repl"
+-
+   def create(id: String, lang: String): Session = {
+     val process = startProcess(id, lang)
+     new ProcessSession(id, process)
+@@ -21,7 +18,11 @@ object ProcessSession extends Logging {
+ 
+   // Loop until we've started a process with a valid port.
+   private def startProcess(id: String, lang: String): Process = {
+-    val pb = new ProcessBuilder(LIVY_REPL, lang)
++    val pb = new ProcessBuilder(
++      "spark-submit",
++      "--class", "com.cloudera.hue.livy.repl.Main",
++      Utils.jarOfClass(getClass).head,
++      lang)
+ 
+     val callbackUrl = System.getProperty("livy.server.callback-url")
+     pb.environment().put("LIVY_CALLBACK_URL", f"$callbackUrl/sessions/$id/callback")
+-- 
+1.7.9.5
+

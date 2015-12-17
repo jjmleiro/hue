@@ -1,0 +1,218 @@
+From e81e6d8b00e0974281b69557fa65103398d3bc55 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 24 Feb 2015 15:47:45 -0800
+Subject: [PATCH 0931/1173] HUE-1353 [search] Support for Collection Aliases
+
+---
+ apps/search/src/search/search_controller.py        |    5 +++++
+ desktop/libs/indexer/src/indexer/api.py            |    6 +++++-
+ desktop/libs/indexer/src/indexer/controller.py     |   12 ++++++++++++
+ .../src/indexer/static/indexer/js/collections.js   |   12 +++++++-----
+ .../indexer/src/indexer/static/indexer/js/lib.js   |    2 ++
+ .../indexer/src/indexer/templates/collections.mako |    6 ++++--
+ desktop/libs/libsolr/src/libsolr/api.py            |   17 +++++++++++++----
+ 7 files changed, 48 insertions(+), 12 deletions(-)
+
+diff --git a/apps/search/src/search/search_controller.py b/apps/search/src/search/search_controller.py
+index 4361284..e618d2e 100644
+--- a/apps/search/src/search/search_controller.py
++++ b/apps/search/src/search/search_controller.py
+@@ -113,6 +113,11 @@ class SearchController(object):
+     except:
+       pass
+ 
++    try:
++      indexes += SolrApi(SOLR_URL.get(), self.user).aliases().keys()
++    except:
++      pass
++
+     if show_all or not indexes:
+       return indexes + SolrApi(SOLR_URL.get(), self.user).cores().keys()
+     else:
+diff --git a/desktop/libs/indexer/src/indexer/api.py b/desktop/libs/indexer/src/indexer/api.py
+index 358bfbe..979569e 100644
+--- a/desktop/libs/indexer/src/indexer/api.py
++++ b/desktop/libs/indexer/src/indexer/api.py
+@@ -93,11 +93,15 @@ def collections(request):
+   searcher = CollectionManagerController(request.user)
+   solr_collections = searcher.get_collections()
+   massaged_collections = []
++
+   for collection in solr_collections:
+     massaged_collections.append({
+       'name': collection,
+-      'isCoreOnly': solr_collections[collection]['isCoreOnly']
++      'isCoreOnly': solr_collections[collection]['isCoreOnly'],
++      'isAlias': solr_collections[collection].get('isAlias', False),
++      'collections': solr_collections[collection].get('collections', []),
+     })
++
+   response = {
+     'status': 0,
+     'collections': massaged_collections
+diff --git a/desktop/libs/indexer/src/indexer/controller.py b/desktop/libs/indexer/src/indexer/controller.py
+index 5571451..a422a21 100644
+--- a/desktop/libs/indexer/src/indexer/controller.py
++++ b/desktop/libs/indexer/src/indexer/controller.py
+@@ -77,21 +77,33 @@ class CollectionManagerController(object):
+   def get_collections(self):
+     try:
+       api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
++
+       if self.is_solr_cloud_mode():
+         solr_collections = api.collections()
+         for name in solr_collections:
+           solr_collections[name]['isCoreOnly'] = False
+       else:
+         solr_collections = {}
++
+       solr_cores = api.cores()
+       for name in solr_cores:
+         solr_cores[name]['isCoreOnly'] = True
++
++      solr_aliases = api.aliases()
++      for name in solr_aliases:
++        solr_aliases[name] = {
++            'isCoreOnly': False,
++            'isAlias': True,
++            'collections': solr_aliases[name]
++        }
+     except Exception, e:
+       LOG.warn('No Zookeeper servlet running on Solr server: %s' % e)
+       solr_collections = {}
+       solr_cores = {}
++      solr_aliases = {}
+ 
+     solr_cores.update(solr_collections)
++    solr_cores.update(solr_aliases)
+     return solr_cores
+ 
+   def get_fields(self, collection_or_core_name):
+diff --git a/desktop/libs/indexer/src/indexer/static/indexer/js/collections.js b/desktop/libs/indexer/src/indexer/static/indexer/js/collections.js
+index b261cad..0cbc532 100644
+--- a/desktop/libs/indexer/src/indexer/static/indexer/js/collections.js
++++ b/desktop/libs/indexer/src/indexer/static/indexer/js/collections.js
+@@ -421,18 +421,18 @@ var ManageCollectionsViewModel = function() {
+   });
+   self.selectedCloudCollections = ko.computed(function() {
+     return ko.utils.arrayFilter(self.selectedCollections(), function(collection) {
+-      return !ko.unwrap(collection).isCoreOnly();
++      return ! ko.unwrap(collection).isCoreOnly();
+     });
+   });
+   self.hasCloudCollections = ko.computed(function() {
+     var _arr = ko.utils.arrayFilter(self.collections(), function(collection) {
+-      return !ko.unwrap(collection).isCoreOnly();
++      return ! ko.unwrap(collection).isCoreOnly();
+     });
+     return _arr.length > 0;
+   });
+ 
+   self.toggleSelectAll = function() {
+-    var direction = !self.selectedCollections().length;
++    var direction = ! self.selectedCollections().length;
+     ko.utils.arrayForEach(self.filteredCollections(), function(collection) {
+       collection.selected(direction);
+     });
+@@ -440,8 +440,8 @@ var ManageCollectionsViewModel = function() {
+ 
+   self.toggleCollectionSelect = function(collection, e) {
+     ko.utils.arrayForEach(self.collections(), function(other_collection) {
+-      if(ko.unwrap(other_collection).name() == collection.name()) {
+-        other_collection.selected(!other_collection.selected());
++      if (ko.unwrap(other_collection).name() == collection.name()) {
++        other_collection.selected(! other_collection.selected());
+       }
+     });
+   };
+@@ -475,6 +475,8 @@ var ManageCollectionsViewModel = function() {
+           new_collection().hasHueCollection(collection.hue);
+           new_collection().hasSolrCollection(collection.solr);
+           new_collection().isCoreOnly(collection.isCoreOnly);
++          new_collection().isAlias(collection.isAlias);
++          new_collection().collections(collection.collections);
+           collections.push(new_collection);
+         });
+         self.collections(collections);
+diff --git a/desktop/libs/indexer/src/indexer/static/indexer/js/lib.js b/desktop/libs/indexer/src/indexer/static/indexer/js/lib.js
+index 49f99dc..88a35ed 100644
+--- a/desktop/libs/indexer/src/indexer/static/indexer/js/lib.js
++++ b/desktop/libs/indexer/src/indexer/static/indexer/js/lib.js
+@@ -28,6 +28,8 @@ var Collection = function(name) {
+   self.hasHueCollection = ko.observable(true).extend({'errors': null});
+   self.hasSolrCollection = ko.observable(true).extend({'errors': null});
+   self.isCoreOnly = ko.observable(false);
++  self.isAlias = ko.observable(false);
++  self.collections = ko.observable([]);
+ 
+   self.removeField = function(field) {
+     if (field.name() != self.uniqueKeyField()) {
+diff --git a/desktop/libs/indexer/src/indexer/templates/collections.mako b/desktop/libs/indexer/src/indexer/templates/collections.mako
+index a028749..88c3a2b 100644
+--- a/desktop/libs/indexer/src/indexer/templates/collections.mako
++++ b/desktop/libs/indexer/src/indexer/templates/collections.mako
+@@ -182,15 +182,17 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
+                 <th>
+                   <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(displayCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
+                 </th>
+-                <th width="100%">${_('Name')}</th>
++                <th width="60%">${_('Name')}</th>
++                <th width="40%">${_('Collections')}</th>
+               </tr>
+             </thead>
+             <tbody data-bind="foreach: displayCollections">
+               <tr data-bind="routie: 'edit/' + name()" class="pointer">
+                 <td data-bind="click: $parent.toggleCollectionSelect.bind($parent), clickBubble: false">
+-                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected()}" class="hueCheckbox fa"></span>
++                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected(), 'hueCheckbox fa': ! isAlias()}"></span>
+                 </td>
+                 <td data-bind="text: name" style="cursor: pointer"></td>
++                <td data-bind="text: collections" style="cursor: pointer"></td>
+               </tr>
+             </tbody>
+           </table>
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index b5815c6..76de7b0 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -186,7 +186,6 @@ class SolrApi(object):
+         )
+ 
+     response = self._root.get('%(collection)s/select' % solr_query, params)
+-
+     return self._get_json(response)
+ 
+ 
+@@ -197,9 +196,7 @@ class SolrApi(object):
+           ('wt', 'json'),
+       )
+       response = self._root.get('%(collection)s/suggest' % solr_query, params)
+-      if type(response) != dict:
+-        response = json.loads(response)
+-      return response
++      return self._get_json(response)
+     except RestException, e:
+       raise PopupException(e, title=_('Error while accessing Solr'))
+ 
+@@ -216,6 +213,18 @@ class SolrApi(object):
+       raise PopupException(e, title=_('Error while accessing Solr'))
+ 
+ 
++  def aliases(self):
++    try:
++      params = self._get_params() + (
++          ('detail', 'true'),
++          ('path', '/aliases.json'),
++      )
++      response = self._root.get('zookeeper', params=params)
++      return json.loads(response['znode'].get('data', '{}')).get('collection', {})
++    except RestException, e:
++      raise PopupException(e, title=_('Error while accessing Solr'))
++
++
+   def collection_or_core(self, hue_collection):
+     if hue_collection.is_core_only:
+       return self.core(hue_collection.name)
+-- 
+1.7.9.5
+

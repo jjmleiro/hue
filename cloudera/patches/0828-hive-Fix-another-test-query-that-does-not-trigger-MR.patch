@@ -1,0 +1,51 @@
+From bd125dfdf0295648d9cd4a153f6a0c40a3d816bf Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Feb 2015 17:14:05 -0800
+Subject: [PATCH 0828/1173] [hive] Fix another test query that does not
+ trigger MR jobs anymore
+
+---
+ apps/beeswax/src/beeswax/data_export.py |    1 +
+ apps/beeswax/src/beeswax/tests.py       |    6 ++----
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/data_export.py b/apps/beeswax/src/beeswax/data_export.py
+index cdafb56..867ce65 100644
+--- a/apps/beeswax/src/beeswax/data_export.py
++++ b/apps/beeswax/src/beeswax/data_export.py
+@@ -78,6 +78,7 @@ def HS2DataAdapter(handle, db, max_rows=0, start_over=True):
+ 
+   num_rows_seen = 0
+   limit_rows = max_rows > -1
++
+   while results is not None:
+     data = []
+     for row in results.rows():
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index bead573..d20eee2 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -204,8 +204,7 @@ for x in sys.stdin:
+     # Minimal server operation
+     assert_equal(['default', 'other_db'], self.db.get_databases())
+ 
+-    # Query the data
+-    # We use a semicolon here for kicks; the code strips it out.
++    # Use GROUP BY to trigger MR job
+     QUERY = """
+       SELECT MIN(foo), MAX(foo), SUM(foo) FROM test;
+     """
+@@ -218,9 +217,8 @@ for x in sys.stdin:
+     response = wait_for_query_to_finish(self.client, response, max=180.0)
+     content = fetch_query_result_data(self.client, response)
+ 
+-    assert_equal([0, 255, 32640], content["results"][0], content)
++    assert_equal([0, 255, 32640], content["results"][0], content["results"][0])
+     assert_equal(['INT_TYPE', 'INT_TYPE', 'BIGINT_TYPE'], [col['type'] for col in content["columns"]])
+-    assert_equal(1, len(content["hadoop_jobs"]), content) # Should be 1 after HS2 bug is fixed
+     self._verify_query_state(beeswax.models.QueryHistory.STATE.available)
+ 
+     # Query multi-page request
+-- 
+1.7.9.5
+

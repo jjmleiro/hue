@@ -1,0 +1,34 @@
+From 203bb51c0d7184afee29eb18e477bb5d6d401dce Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 7 Oct 2014 15:52:46 -0700
+Subject: [PATCH 0004/1173] [hbase] Fix table example setup
+
+---
+ .../src/hbase/management/commands/hbase_setup.py   |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/hbase/src/hbase/management/commands/hbase_setup.py b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+index c10749b..199e358 100644
+--- a/apps/hbase/src/hbase/management/commands/hbase_setup.py
++++ b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+@@ -49,7 +49,7 @@ class Command(NoArgsCommand):
+ 
+   def create_analytics_table(self, api, cluster_name):
+     try:
+-      api.createTable(cluster_name, 'analytics_demo', 'hour', 'day', 'total')
++      api.createTable(cluster_name, 'analytics_demo', [{'properties': {'name': 'hour'}}, {'properties': {'name': 'day'}}, {'properties': {'name': 'total'}}])
+     except AlreadyExists:
+       pass
+ 
+@@ -59,7 +59,7 @@ class Command(NoArgsCommand):
+ 
+   def create_binary_table(self, api, cluster_name):
+     try:
+-      api.createTable(cluster_name, 'document_demo', 'doc')
++      api.createTable(cluster_name, 'document_demo', [{'properties': {'name': 'doc'}}])
+     except AlreadyExists:
+       pass
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,172 @@
+From 4faac03cff251d7ec5d842af5cbfa60daac4b9b5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 11 Nov 2014 14:22:24 -0800
+Subject: [PATCH 0107/1173] HUE-2467 [fb] Sentry NameNode plugin integration
+
+Backend part, providing a 'is_sentry_managed' flag for each view
+---
+ apps/filebrowser/src/filebrowser/views.py    |    3 +-
+ desktop/conf.dist/hue.ini                    |    3 ++
+ desktop/conf/pseudo-distributed.ini.tmpl     |    3 ++
+ desktop/libs/hadoop/src/hadoop/conf.py       |    6 +++
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    7 +++
+ desktop/libs/hadoop/src/hadoop/hdfs_site.py  |   63 ++++++++++++++++++++++++++
+ 6 files changed, 84 insertions(+), 1 deletion(-)
+ create mode 100644 desktop/libs/hadoop/src/hadoop/hdfs_site.py
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index b0d4c1f..a707355 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -442,7 +442,8 @@ def listdir_paged(request, path):
+         'is_superuser': request.user.username == request.fs.superuser,
+         'groups': request.user.username == request.fs.superuser and [str(x) for x in Group.objects.values_list('name', flat=True)] or [],
+         'users': request.user.username == request.fs.superuser and [str(x) for x in User.objects.values_list('username', flat=True)] or [],
+-        'superuser': request.fs.superuser
++        'superuser': request.fs.superuser,
++        'is_sentry_managed': request.fs.is_sentry_managed(path)
+     }
+     return render('listdir.mako', request, data)
+ 
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 90ad44c..14a00a7 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -589,6 +589,9 @@
+       # Default umask for file and directory creation, specified in an octal value.
+       ## umask=022
+ 
++      # Directory of the Hadoop configuration
++      ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
++
+   # Configuration for YARN (MR2)
+   # ------------------------------------------------------------------------
+   [[yarn_clusters]]
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index cc36ed1..87ddade 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -596,6 +596,9 @@
+       # Default umask for file and directory creation, specified in an octal value.
+       ## umask=022
+ 
++      # Directory of the Hadoop configuration
++      ## hadoop_conf_dir=$HADOOP_CONF_DIR when set or '/etc/hadoop/conf'
++
+   # Configuration for YARN (MR2)
+   # ------------------------------------------------------------------------
+   [[yarn_clusters]]
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index 45d45b8..90b2e4b 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -78,6 +78,12 @@ HDFS_CLUSTERS = UnspecifiedConfigSection(
+                       default='/tmp', type=str),
+       UMASK=Config("umask", help="Default umask for file and directory creation, specified in an octal value",
+                    default='022', type=coerce_umask),
++      HADOOP_CONF_DIR = Config(
++        key="hadoop_conf_dir",
++        default=os.environ.get("HADOOP_CONF_DIR", "/etc/hadoop/conf"),
++        help=("Directory of the Hadoop configuration) Defaults to the environment variable " +
++              "HADOOP_CONF_DIR when set, or '/etc/hadoop/conf'.")
++      )
+     )
+   )
+ )
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index 4178d5f..f711016 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -34,6 +34,7 @@ from hadoop.fs.hadoopfs import Hdfs
+ from hadoop.fs.exceptions import WebHdfsException
+ from hadoop.fs.webhdfs_types import WebHdfsStat, WebHdfsContentSummary
+ from hadoop.conf import UPLOAD_CHUNK_SIZE
++from hadoop.hdfs_site import get_nn_sentry_prefixes
+ 
+ import hadoop.conf
+ import desktop.conf
+@@ -105,6 +106,12 @@ class WebHdfs(Hdfs):
+   def logical_name(self):
+     return self._logical_name
+ 
++  @classmethod
++  def is_sentry_managed(cls, path):
++    prefixes = get_nn_sentry_prefixes().split(',')
++
++    return any([path.startswith(p) for p in prefixes if p])
++
+   @property
+   def fs_defaultfs(self):
+     return self._fs_defaultfs
+diff --git a/desktop/libs/hadoop/src/hadoop/hdfs_site.py b/desktop/libs/hadoop/src/hadoop/hdfs_site.py
+new file mode 100644
+index 0000000..a0dcfec
+--- /dev/null
++++ b/desktop/libs/hadoop/src/hadoop/hdfs_site.py
+@@ -0,0 +1,63 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import errno
++import logging
++import os.path
++
++import conf
++import confparse
++
++
++LOG = logging.getLogger(__name__)
++
++_HDFS_SITE_DICT = None
++
++_CNF_NN_SENTRY_PREFIX = 'sentry.authorization-provider.hdfs-path-prefixes'
++
++def reset():
++  global _HDFS_SITE_DICT
++  _HDFS_SITE_DICT = None
++
++
++def get_conf():
++  if _HDFS_SITE_DICT is None:
++    _parse_hdfs_site()
++  return _HDFS_SITE_DICT
++
++
++def _parse_hdfs_site():
++  global _HDFS_SITE_DICT
++  hdfs_site_path = ''
++
++  try:
++    hdfs_site_path = os.path.join(conf.HDFS_CLUSTERS['default'].HADOOP_CONF_DIR.get(), 'hdfs-site.xml')
++    data = file(hdfs_site_path, 'r').read()
++  except KeyError:
++    data = ""
++  except IOError, err:
++    if err.errno != errno.ENOENT:
++      LOG.error('Cannot read from "%s": %s' % (hdfs_site_path, err))
++      return
++    # Keep going and make an empty ConfParse
++    data = ""
++
++  _HDFS_SITE_DICT = confparse.ConfParse(data)
++
++
++def get_nn_sentry_prefixes():
++  return get_conf().get(_CNF_NN_SENTRY_PREFIX, '')
+-- 
+1.7.9.5
+

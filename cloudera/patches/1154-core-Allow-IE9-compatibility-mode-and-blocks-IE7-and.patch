@@ -1,0 +1,40 @@
+From 2e722735e60db5d6644a4fe54e8ff10d187faefa Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 15 Apr 2015 13:37:24 +0200
+Subject: [PATCH 1154/1173] [core] Allow IE9 compatibility mode and blocks IE7
+ and IE8 document modes
+
+---
+ .../core/src/desktop/templates/common_header.mako  |    9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 5955203..1ab65f3 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -130,7 +130,9 @@ from django.utils.translation import ugettext as _
+ 
+   <!--[if lt IE 9]>
+   <script type="text/javascript">
+-    location.href = "${ url('desktop.views.unsupported') }";
++    if (document.documentMode && document.documentMode < 9){
++      location.href = "${ url('desktop.views.unsupported') }";
++    }
+   </script>
+   <![endif]-->
+ 
+@@ -142,6 +144,11 @@ from django.utils.translation import ugettext as _
+         location.href = "${ url('desktop.views.unsupported') }";
+       }
+     }
++
++    // check for IE document modes
++    if (document.documentMode && document.documentMode < 9){
++      location.href = "${ url('desktop.views.unsupported') }";
++    }
+   </script>
+ 
+   <script src="${ static('desktop/js/hue.utils.js') }"></script>
+-- 
+1.7.9.5
+

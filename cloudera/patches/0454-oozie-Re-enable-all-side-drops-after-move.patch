@@ -1,0 +1,69 @@
+From cfd184b3cdd358a453c8d62e39f3f55cdd79e626 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 15 Jan 2015 13:56:34 +0100
+Subject: [PATCH 0454/1173] [oozie] Re-enable all side drops after move
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 7d95785..78fe912 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -556,27 +556,36 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.enableSideDrop = function (widget) {
+     toggleSideDrop(widget, true);
++    sideDropsTouched.forEach(function(row) {
++      row.enableOozieDropOnSide(true);
++    });
++    sideDropsTouched = [];
+   }
+ 
++  var sideDropsTouched = [];
+   function toggleSideDrop(widget, enable) {
+     if (widget != null && widget.id() != "" && self.currentlyDraggedOp() == "move") {
+       var _row = self.getWidgetParentRow(widget.id());
+       if (_row) {
+         _row.enableOozieDropOnSide(enable);
++        sideDropsTouched.push(_row);
+         _row.enableOozieDropOnBefore(enable);
+ 
+         var _parentRow = self.getRowParentRow(_row.id());
+         if (_parentRow) {
+           _parentRow.enableOozieDropOnSide(enable);
++          sideDropsTouched.push(_parentRow);
+           if (_parentRow.columns().length <= 2) {
+             _parentRow.columns().forEach(function (col) {
+               col.enableOozieDropOnBefore(enable);
+               col.enableOozieDropOnAfter(enable);
+               col.rows()[0].enableOozieDropOnSide(enable);
++              sideDropsTouched.push(col.rows()[0]);
+             });
+             var _prevParentRow = self.getPrevRow(_parentRow);
+             if (_prevParentRow && _prevParentRow.widgets().length > 0 && _prevParentRow.widgets()[0].widgetType() == "fork-widget") {
+               _prevParentRow.enableOozieDropOnSide(enable);
++              sideDropsTouched.push(_prevParentRow);
+             }
+           }
+         }
+@@ -591,6 +600,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         if (_prevRow) {
+           if (_prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "start-widget") {
+             _prevRow.enableOozieDropOnSide(enable);
++            sideDropsTouched.push(_prevRow);
+             self.getRowParentColumn(_prevRow.id()).enableOozieDropOnBefore(enable);
+           }
+         }
+@@ -599,6 +609,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+           _nextRow.enableOozieDropOnBefore(enable);
+           if (_nextRow.widgets().length > 0 && _nextRow.widgets()[0].widgetType() == "end-widget") {
+             _nextRow.enableOozieDropOnSide(enable);
++            sideDropsTouched.push(_nextRow);
+             self.getRowParentColumn(_nextRow.id()).enableOozieDropOnAfter(enable);
+           }
+         }
+-- 
+1.7.9.5
+

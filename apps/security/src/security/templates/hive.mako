@@ -54,20 +54,20 @@ ${ layout.menubar(section='hive') }
     </div>
 
     <div class="inline-block" style="vertical-align: middle">
-      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('db'); }">
+      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('db'); action($root.availableActions()[0]) }">
         <i class="fa fa-fw fa-1halfx muted" data-bind="css: {'fa-circle-o': privilegeType() != 'db' , 'fa-check-circle-o': privilegeType() == 'db'}"></i>
       </a>
     </div>
     <input type="text" data-bind="hivechooser: $data.path, enable: privilegeType() == 'db'" placeholder="dbName.tableName <CTRL+SPACE>">
 
     <div class="inline-block" style="vertical-align: middle">
-      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('uri'); }">
+      <a class="pointer" style="padding-top: 4px" data-bind="click: function(){ privilegeType('uri'); action('ALL'); }">
         <i class="fa fa-fw fa-1halfx muted" data-bind="css: {'fa-circle-o': privilegeType() != 'uri' , 'fa-check-circle-o': privilegeType() == 'uri'}"></i>
       </a>
     </div>
     <input type="text" data-bind="filechooser: $data.URI, enable: privilegeType() == 'uri'" placeholder="URI">
 
-    <select data-bind="options: $root.availableActions, select2: { update: $data.action, type: 'action'}" style="width: 100px"></select>
+    <select data-bind="options: $root.availableActions, value: $data.action, enable: (privilegeType() == 'db')" style="width: 100px; margin-bottom: 0"></select>
 
     <div class="new-line-if-small">
       <label class="checkbox"><input type="checkbox" data-bind="checked: grantOption"> ${ _('With grant') }</label>
@@ -86,19 +86,20 @@ ${ layout.menubar(section='hive') }
     <!-- ko ifnot: $root.isApplyingBulk() -->
     <div class="pull-right privilege-actions" data-bind="visible: grantOption() || $root.is_sentry_admin">
       <a title="${ _('Grant this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: function(){ $root.grantToPrivilege($data); $('#grantPrivilegeModal').modal('show'); }"><i class="fa fa-send"></i></a>
-      <a title="${ _('Edit this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: function() { if (! editing()) { editing(true); }}"><i class="fa fa-pencil"></i></a>
-      <a title="${ _('Delete this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: remove"><i class="fa fa-times"></i></a>
+      <a title="${ _('Edit this privilege') }" class="pointer" style="margin-right: 4px" data-bind="visible: $root.is_sentry_admin, click: function() { if (! editing()) { editing(true); }}"><i class="fa fa-pencil"></i></a>
+      <a title="${ _('Delete this privilege') }" class="pointer" style="margin-right: 4px" data-bind="visible: $root.is_sentry_admin, click: remove"><i class="fa fa-times"></i></a>
     </div>
     <!-- /ko -->
 
-    <em class="muted" data-bind="text: moment(timestamp()).fromNow()"></em> <span class="muted" data-bind="text: privilegeScope"></span>
+    <span class="muted" data-bind="text: privilegeScope, attr: {title: moment(timestamp()).fromNow()}"></span>
     <!-- ko if: grantOption -->
       <i class="fa fa-unlock muted" title="${ _('With grant option') }"></i>
     <!-- /ko -->
     <br/>
+
     server=<span data-bind="text: serverName"></span>
 
-    <!-- ko ifnot: URI -->
+    <!-- ko if: privilegeType() == 'db' -->
       <span data-bind="visible: dbName">
         <i class="fa fa-long-arrow-right"></i> db=<a data-bind="attr: { href: '/metastore/tables/' + dbName() }" target="_blank"><span data-bind="text: dbName"></span></a>
       </span>
@@ -107,8 +108,8 @@ ${ layout.menubar(section='hive') }
       </span>
     <!-- /ko -->
 
-    <!-- ko if: URI -->
-      <i class="fa fa-long-arrow-right"></i> <a data-bind="attr: { href: '/filebrowser/view/' + URI().split('/')[3] }" target="_blank"><span data-bind="text: URI"></span></a>
+    <!-- ko if: privilegeType() == 'uri' -->
+      <i class="fa fa-long-arrow-right"></i> <i class="fa fa-file-o"></i> <i class="fa fa-long-arrow-right"></i> <a data-bind="attr: { href: '/filebrowser/view/' + URI().split('/')[3] }" target="_blank"><span data-bind="text: URI"></span></a>
     <!-- /ko -->
 
     <i class="fa fa-long-arrow-right"></i> action=<span data-bind="text: action"></span>
@@ -139,7 +140,7 @@ ${ layout.menubar(section='hive') }
 
       <div id="edit" class="mainSection card card-small">
         <h1 class="card-heading simple">
-          ${ _('Database and Tables privileges') }
+          ${ _('Database and Table privileges') }
         </h1>
 
         <div class="card-body">
@@ -290,6 +291,7 @@ ${ layout.menubar(section='hive') }
                   <span data-bind="text: name"/>
                 </td>
                 <td>
+                  <!-- ko if: $root.is_sentry_admin -->
                   <a class="pointer" data-bind="click: function() { if ($root.is_sentry_admin) { showEditGroups(true); } }">
                     <span data-bind="foreach: groups, visible: ! showEditGroups() && ! groupsChanged()">
                       <span data-bind="text: $data"></span>
@@ -298,13 +300,19 @@ ${ layout.menubar(section='hive') }
                       <i class="fa fa-plus"></i> ${ _('Add a group') }
                     </span>
                   </a>
-                  <div data-bind="visible: showEditGroups() || groupsChanged()">
-                    <select data-bind="options: $root.selectableHadoopGroups, selectedOptions: groups, select2: { update: groups, type: 'group'}" size="5" multiple="true" style="width: 400px"></select>
+                  <!-- /ko -->
+                  <!-- ko ifnot: $root.is_sentry_admin -->
+                    <span data-bind="foreach: groups">
+                      <span data-bind="text: $data"></span>
+                    </span>
+                  <!-- /ko -->
+                  <div data-bind="visible: showEditGroups() || (groupsChanged() && ! $root.isLoadingRoles())">
+                    <select data-bind="options: $root.selectableHadoopGroups, selectedOptions: groups, select2: { update: groups, type: 'group', onBlur: function(){ showEditGroups(false); } }" size="5" multiple="true" style="width: 400px"></select>
                     &nbsp;
-                    <a class="pointer" data-bind="visible: groupsChanged, click: resetGroups">
+                    <a class="pointer" data-bind="visible: groupsChanged() && ! $root.isLoadingRoles(), click: resetGroups">
                       <i class="fa fa-undo"></i>
                     </a>
-                    <a class="pointer" data-bind="visible: groupsChanged, click: saveGroups">
+                    <a class="pointer" data-bind="visible: groupsChanged && ! $root.isLoadingRoles(), click: saveGroups">
                       <i class="fa fa-save"></i>
                     </a>
                   </div>
@@ -322,7 +330,7 @@ ${ layout.menubar(section='hive') }
               <tr data-bind="visible: $data.showPrivileges">
                 <td colspan="2"></td>
                 <td colspan="4">
-                  <div class="acl-block acl-actions" data-bind="click: privilegesChanged().length == 0 ? addPrivilege : void(0)">
+                  <div class="acl-block acl-actions" data-bind="click: privilegesChanged().length == 0 ? addPrivilege : void(0), visible: $root.is_sentry_admin">
                     <span class="pointer" data-bind="click: addPrivilege, visible: $data.showPrivileges" title="${ _('Add privilege') }"><i class="fa fa-plus"></i></span>
                     <span class="pointer" data-bind="click: $root.list_sentry_privileges_by_role, visible: privilegesChanged().length > 0" title="${ _('Undo') }"> &nbsp; <i class="fa fa-undo"></i></span>
                     <span class="pointer" data-bind="click: function() { deletePrivilegeModal($data) }, visible: privilegesChanged().length > 0" title="${ _('Save') }"> &nbsp; <i class="fa fa-save"></i></span>
@@ -521,16 +529,16 @@ ${ layout.menubar(section='hive') }
 ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assist.togglePath', itemSelected='$root.assist.path() == path()', styleModifier='withPrivileges', iconModifier=treeIcons, anchorProperty='path', itemChecked='isChecked', styleModifierPullRight=withPrivilegesPullRight) }
 
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout.mapping-2.3.2.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
-<script src="/security/static/js/common.ko.js" type="text/javascript" charset="utf-8"></script>
-<script src="/security/static/js/hive.ko.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/ko.hue-bindings.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('security/js/hive.ko.js') }" type="text/javascript" charset="utf-8"></script>
 
-<script src="/static/ext/js/moment.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/jquery.hiveautocomplete.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/jquery.filechooser.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/moment-with-locales.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/jquery.hiveautocomplete.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/jquery.filechooser.js') }" type="text/javascript" charset="utf-8"></script>
 
 
 <script type="text/javascript" charset="utf-8">

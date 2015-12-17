@@ -1,0 +1,26 @@
+From 737834d52fc5675dd06a34d4d23a1bcaf7f15e60 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Feb 2015 14:25:01 -0800
+Subject: [PATCH 0889/1173] HUE-2540 [search] Pagination result number labels
+ are not always accurate
+
+---
+ apps/search/src/search/templates/search.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index adaa3bb..ae99e50 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -687,7 +687,7 @@ ${ dashboard.layout_skeleton() }
+   ${ _('Showing') }
+   <span data-bind="text: ($data.response.start + 1)"></span>
+   ${ _('to') }
+-  <span data-bind="text: ($data.response.start + $root.collection.template.rows())"></span>
++  <span data-bind="text: Math.min(($data.response.start + $root.collection.template.rows()), $data.response.numFound)"></span>
+   ${ _('of') }
+   <span data-bind="text: $data.response.numFound"></span>
+   ${ _(' results') }
+-- 
+1.7.9.5
+

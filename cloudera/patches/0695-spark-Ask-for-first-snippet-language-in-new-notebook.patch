@@ -1,0 +1,56 @@
+From 5c749e5c29bf1deff718be120687589ec871d172 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 28 Jan 2015 08:11:32 +0800
+Subject: [PATCH 0695/1173] [spark] Ask for first snippet language in new
+ notebooks
+
+---
+ apps/spark/src/spark/models.py             |    2 +-
+ apps/spark/src/spark/templates/editor.mako |   10 ++++++----
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 880e148..da28277 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -61,7 +61,7 @@ class Notebook():
+     else:    
+       self.data = json.dumps({
+           'name': 'My Notebook', 
+-          'snippets': [{'type': 'scala', 'result': {}}]
++          'snippets': []
+       })
+ 
+   def get_json(self):
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 180b49d..5d56a9a 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -229,7 +229,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+       </div>
+     </div>
+-    <div data-bind="css:{'span10': $root.isAssistVisible, 'span12 nomargin': !$root.isAssistVisible()}">
++    <div data-bind="css:{'span10': $root.isAssistVisible, 'span12 nomargin': ! $root.isAssistVisible()}">
+       <div data-bind="css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+         sortable: { template: 'snippet', data: snippets, isEnabled: $root.isEditing,
+         options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
+@@ -242,10 +242,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+       <div class="add-snippet pointer">
+         <div class="overlay pointer" data-bind="click: function(notebook, e){ if (!($(e.target).is('select'))){ newSnippet(); } }">
+-          <select data-bind="options: $root.availableSnippets, value: selectedSnippet, optionsText: 'name', optionsValue: 'type'" style="width: 115px"></select>
+-          <i class="fa fa-plus-circle fa-5x" title="${ _('Add a new snippet') }"></i>
+-        </div>
++          <select data-bind="options: $root.availableSnippets, value: selectedSnippet, optionsText: 'name', optionsValue: 'type'" style="width: 115px">
++          </select>
++          <i class="fa fa-plus-circle fa-5x" title="${ _('Add a new snippet') }"></i>          
++        </div>       
+       </div>
++      <div class="overlay" style="padding-bottom:70px"></div>
+     </div>
+   </div>
+ 
+-- 
+1.7.9.5
+

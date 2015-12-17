@@ -1,0 +1,42 @@
+From 682069e4f12b369735e18ab08f760bc7189d30d3 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 4 Dec 2014 18:46:57 +0100
+Subject: [PATCH 0132/1173] HUE-2472 [impala] Hide Show more results in
+ certain cases
+
+Useful for count operations or limited resultsets
+(cherry picked from commit 41cd7ae67748fb5a5611b10f2a39b1dc0552fe9b)
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index c1f40a7..c63420f 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -403,7 +403,9 @@ ${layout.menubar(section='query')}
+                 </tr>
+                 </thead>
+               </table>
++              % if app_name == 'impala':
+               <a class="pointer" data-bind="visible: $root.scrollNotWorking() && $root.hasMoreResults(), click: manualFetch" style="padding: 10px">${ _('Show more results...') }</a>
++              % endif
+             </div>
+ 
+             <div data-bind="css: {'hide': !$root.design.results.empty() || $root.design.results.expired()}" id="resultEmpty">
+@@ -2020,6 +2022,12 @@ function addResults(viewModel, dataTable, startRow, nextRow) {
+     firstFnDrawcallback = true;
+   }
+   dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(startRow, nextRow), startRow));
++
++  % if app_name == 'impala':
++  if (startRow == 0 && viewModel.scrollNotWorking() && viewModel.hasMoreResults()){
++    manualFetch();
++  }
++  %endif
+ }
+ 
+ function resultsTable(e, data) {
+-- 
+1.7.9.5
+

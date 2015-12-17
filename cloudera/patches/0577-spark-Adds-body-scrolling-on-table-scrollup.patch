@@ -1,0 +1,52 @@
+From 66a4fc33ca80ce80f41e14ce0c7b41e3a3fbc43c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 02:05:44 +0100
+Subject: [PATCH 0577/1173] [spark] Adds body scrolling on table scrollup
+
+---
+ apps/spark/src/spark/templates/editor.mako |   10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 1517efb..25e800e 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -1017,20 +1017,25 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       includeNavigator: false
+     });
+     $(".dataTables_filter").hide();
+-    var _scrollTimeout = -1;
+     var dataTableEl = $(el).parents(".dataTables_wrapper");
+ 
++    var _bodyScrollTimeout = -1;
+     dataTableEl.bind('mousewheel DOMMouseScroll wheel', function (e) {
+       var _e = e.originalEvent,
+           _deltaX = _e.wheelDeltaX || -_e.deltaX,
+           _deltaY = _e.wheelDeltaY || -_e.deltaY;
+       this.scrollTop += -_deltaY / 2;
+       this.scrollLeft += -_deltaX / 2;
++
++      if (this.scrollTop == 0){
++        $("body")[0].scrollTop += -_deltaY / 3;
++        $("html")[0].scrollTop += -_deltaY / 3; // for firefox
++      }
+       e.preventDefault();
+     });
+ 
++    var _scrollTimeout = -1;
+     dataTableEl.on("scroll", function () {
+-
+       var _lastScrollPosition = dataTableEl.data("scrollPosition") != null ? dataTableEl.data("scrollPosition") : 0;
+       window.clearTimeout(_scrollTimeout);
+       _scrollTimeout = window.setTimeout(function () {
+@@ -1041,6 +1046,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }
+       }, 100);
+     });
++
+     return _dt;
+   }
+ 
+-- 
+1.7.9.5
+

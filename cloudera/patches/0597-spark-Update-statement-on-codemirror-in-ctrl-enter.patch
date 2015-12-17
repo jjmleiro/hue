@@ -1,0 +1,39 @@
+From e814d6e98c10d09384b14c809f58f6e9c77456bd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 26 Jan 2015 03:42:21 +0100
+Subject: [PATCH 0597/1173] [spark] Update statement on codemirror in
+ ctrl-enter
+
+---
+ apps/spark/src/spark/templates/editor.mako |    1 +
+ apps/spark/static/js/spark.ko.js           |    2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 27ba3dc..97f28d1 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -881,6 +881,7 @@ ${_('Example: SELECT * FROM tablename, or press CTRL + space')}
+             }
+           },
+           "Ctrl-Enter": function () {
++            allBindingsAccessor().value(editor.getValue());
+             valueAccessor().enter();
+           }
+         },
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 566f8b7..18ee098 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -101,7 +101,7 @@ var Snippet = function (notebook, snippet) {
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : '');
+-  self.statement_raw.extend({ rateLimit: 150 });
++  //self.statement_raw.extend({ rateLimit: 150 });
+   self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
+   self.settings = ko.mapping.fromJS(typeof snippet.settings != "undefined" && snippet.settings != null ? snippet.settings : {});
+   self.variables = ko.observableArray([]);
+-- 
+1.7.9.5
+

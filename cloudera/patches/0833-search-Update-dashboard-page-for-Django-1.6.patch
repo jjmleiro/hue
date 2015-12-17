@@ -1,0 +1,118 @@
+From 3e8d3b7b4ebda466b6d7b470fde95fe9b39a9b97 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 11 Feb 2015 15:59:42 -0800
+Subject: [PATCH 0833/1173] [search] Update dashboard page for Django 1.6
+
+Update warning when Spark Server is not running
+---
+ apps/search/src/search/views.py        |    2 +-
+ apps/spark/src/spark/conf.py           |   12 +++++-------
+ apps/spark/src/spark/job_server_api.py |    3 +++
+ desktop/core/src/desktop/conf.py       |    2 +-
+ desktop/core/src/desktop/settings.py   |    1 -
+ 5 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index a5ab6e7..1eeacb7 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -216,7 +216,7 @@ def admin_collections(request, is_redirect=False):
+         'absoluteUrl': collection.get_absolute_url()
+       }
+       collections.append(massaged_collection)
+-    return JsonResponse(collections)
++    return JsonResponse(collections, safe=False)
+ 
+   return render('admin_collections.mako', request, {
+     'existing_hue_collections': existing_hue_collections,
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 204804f..73c5b5c 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -16,7 +16,6 @@
+ # limitations under the License.
+ 
+ import json
+-import os
+ import sys
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+@@ -31,7 +30,7 @@ def coerce_json(j):
+ 
+ JOB_SERVER_URL = Config(
+   key="server_url",
+-  help=_t("URL of the Spark Job Server."),
++  help=_t("URL of the Livy Spark Server."),
+   default="http://localhost:8998/"
+ )
+ 
+@@ -48,16 +47,15 @@ LANGUAGES = Config(
+   ]"""
+ )
+ 
++
+ def get_spark_status(user):
+   from spark.job_server_api import get_api
+   status = None
+ 
+   try:
+     if not 'test' in sys.argv: # Avoid tests hanging
+-      status = str(get_api(user).get_status())
+-  except ValueError:
+-    # No json returned
+-    status = 'OK'
++      get_api(user).get_status()
++      status = 'OK'
+   except:
+     pass
+ 
+@@ -70,6 +68,6 @@ def config_validator(user):
+   status = get_spark_status(user)
+ 
+   if status != 'OK':
+-    res.append((NICE_NAME, _("The app won't work without a running Job Server")))
++    res.append((NICE_NAME, _("The app won't work without a running Livy Spark Server")))
+ 
+   return res
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index aacd975..ccb803a 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -79,6 +79,9 @@ class JobServerApi(object):
+       self._thread_local.user = user.username
+     else:
+       self._thread_local.user = user
++  
++  def get_status(self):
++    return self._root.get('sessions')
+ 
+   def create_session(self, **kwargs):
+     return self._root.post('sessions', data=json.dumps(kwargs), contenttype='application/json')
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 7f408f7..4f72042 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -840,7 +840,7 @@ def config_validator(user):
+ 
+   res = []
+   if not SECRET_KEY.get():
+-    res.append((SECRET_KEY, unicode(_("Secret key should be configured as a random string."))))
++    res.append((SECRET_KEY, unicode(_("Secret key should be configured as a random string. All sessions will be lost on restart"))))
+ 
+   # Validate SSL setup
+   if SSL_CERTIFICATE.get():
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index f58ff44..bb30635 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -326,7 +326,6 @@ DEFAULT_FROM_EMAIL = desktop.conf.SMTP.DEFAULT_FROM.get()
+ # Used for securely creating sessions.  Should be unique and not shared with anybody.
+ SECRET_KEY = desktop.conf.SECRET_KEY.get()
+ if SECRET_KEY == "":
+-  logging.warning("secret_key is not configured. all sessions will be lost on restart")
+   import uuid
+   SECRET_KEY = str(uuid.uuid4())
+ 
+-- 
+1.7.9.5
+

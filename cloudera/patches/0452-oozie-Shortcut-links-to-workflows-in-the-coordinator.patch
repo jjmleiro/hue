@@ -1,0 +1,44 @@
+From a7d4452044baffc4b3700f82964b0dd88a9fb189 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 14 Jan 2015 18:33:00 -0800
+Subject: [PATCH 0452/1173] [oozie] Shortcut links to workflows in the
+ coordinator editor
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |   12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index f26cd44..81baca5 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -93,6 +93,10 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+           <a class="pointer" data-bind="visible: ! coordinator.properties.workflow(), click: showChooseWorkflow">${ _('Choose a workflow...') }</a>
+           <!-- ko if: coordinator.properties.workflow -->
+             <a class="pointer" data-bind="click: showChooseWorkflow, text: getWorkflowById(coordinator.properties.workflow()).name"></a>
++            
++            <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + coordinator.properties.workflow() }" target="_blank" title="${ _('Open') }">
++             <i class="fa fa-external-link-square"></i>
++            </a>            
+           <!-- /ko -->
+         </div>
+       </div>
+@@ -258,9 +262,13 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+       <ul data-bind="foreach: $root.filteredModalWorkflows().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalWorkflows().length > 0"
+           class="unstyled inline fields-chooser" style="height: 100px; overflow-y: auto">
+         <li data-bind="click: selectWorkflow">
+-          <span class="badge badge-info"><span data-bind="text: name(), attr: {'title': uuid()}"></span>
++          <span class="badge badge-info">
++            <span data-bind="text: name(), attr: {'title': uuid()}"></span>
+           </span>
+-        </li>
++          <a data-bind="attr: { href: '${ url('oozie:edit_workflow') }?workflow=' + uuid() }" target="_blank" title="${ _('Open') }">
++            <i class="fa fa-external-link-square"></i>
++          </a>
++        </li>        
+       </ul>
+       <div class="alert alert-info inline" data-bind="visible: $root.filteredModalWorkflows().length == 0" style="margin-left: 250px;margin-right: 50px; height: 42px;line-height: 42px">
+         ${_('There are no workflows matching your search term.')}
+-- 
+1.7.9.5
+

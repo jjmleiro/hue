@@ -1,0 +1,252 @@
+From 8f2a37876169834f40f85f90626ddddcef9b69bf Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 16 Mar 2015 17:10:50 -0700
+Subject: [PATCH 1099/1173] [livy] Add server thread session spec
+
+---
+ apps/spark/java/livy-repl/pom.xml                  |    1 +
+ apps/spark/java/livy-server/pom.xml                |   62 ++++++++++++++++++
+ .../hue/livy/server/sessions/Session.scala         |   11 ++++
+ .../hue/livy/server/sessions/WebSession.scala      |   16 +----
+ .../hue/livy/server/ThreadSessionSpec.scala        |   69 ++++++++++++++++++++
+ 5 files changed, 146 insertions(+), 13 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/test/scala/com/cloudera/hue/livy/server/ThreadSessionSpec.scala
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 7f03e35..0c1a5c1 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -130,6 +130,7 @@
+                     <systemProperties>
+                         <spark.master>local</spark.master>
+                         <spark.driver.allowMultipleContexts>true</spark.driver.allowMultipleContexts>
++                        <spark.ui.enabled>false</spark.ui.enabled>
+                         <settings.usejavacp.value>true</settings.usejavacp.value>
+                     </systemProperties>
+                 </configuration>
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index e8bda46..f97434c 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -33,6 +33,23 @@
+     <dependencies>
+ 
+         <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-assembly_${scala.binary.version}</artifactId>
++            <version>${spark.version}</version>
++            <scope>test</scope>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.apache.httpcomponents</groupId>
++                    <artifactId>httpclient</artifactId>
++                </exclusion>
++                <exclusion>
++                    <groupId>org.apache.httpcomponents</groupId>
++                    <artifactId>httpcore</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++
++        <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+             <artifactId>livy-core_${scala.binary.version}</artifactId>
+             <version>${project.version}</version>
+@@ -105,6 +122,51 @@
+             <scope>provided</scope>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-scalatest_${scala.binary.version}</artifactId>
++            <scope>test</scope>
++        </dependency>
++
+     </dependencies>
+ 
++    <build>
++        <plugins>
++
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <addClasspath>true</addClasspath>
++                            <classpathPrefix>lib/</classpathPrefix>
++                            <mainClass>com.cloudera.hue.livy.repl.Main</mainClass>
++                        </manifest>
++                    </archive>
++                </configuration>
++            </plugin>
++
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-surefire-plugin</artifactId>
++            </plugin>
++
++            <plugin>
++                <groupId>org.scalatest</groupId>
++                <artifactId>scalatest-maven-plugin</artifactId>
++                <version>1.0</version>
++                <configuration>
++                    <systemProperties>
++                        <spark.master>local</spark.master>
++                        <spark.driver.allowMultipleContexts>true</spark.driver.allowMultipleContexts>
++                        <spark.ui.enabled>false</spark.ui.enabled>
++                        <settings.usejavacp.value>true</settings.usejavacp.value>
++                    </systemProperties>
++                </configuration>
++            </plugin>
++
++        </plugins>
++    </build>
++
+ </project>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+index ef7ff47..a569dec 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/Session.scala
+@@ -5,6 +5,7 @@ import java.net.URL
+ import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
+ 
++import scala.annotation.tailrec
+ import scala.concurrent.Future
+ 
+ object Session {
+@@ -45,5 +46,15 @@ trait Session {
+   def interrupt(): Future[Unit]
+ 
+   def stop(): Future[Unit]
++
++  @tailrec
++  final def waitForStateChange[A](oldState: State, f: => A): A = {
++    if (state == oldState) {
++      Thread.sleep(1000)
++      waitForStateChange(oldState, f)
++    } else {
++      f
++    }
++  }
+ }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index a32483d..0172a1a 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -96,15 +96,15 @@ class WebSession(val id: String) extends Session with Logging {
+           }
+         case NotStarted() =>
+           Future {
+-            waitForStateChangeFrom(NotStarted(), { stop() })
++            waitForStateChange(NotStarted(), { stop() })
+           }
+         case Starting() =>
+           Future {
+-            waitForStateChangeFrom(Starting(), { stop() })
++            waitForStateChange(Starting(), { stop() })
+           }
+         case Busy() =>
+           Future {
+-            waitForStateChangeFrom(Busy(), { stop() })
++            waitForStateChange(Busy(), { stop() })
+           }
+         case Error() | Dead() =>
+           Future.successful(Unit)
+@@ -116,16 +116,6 @@ class WebSession(val id: String) extends Session with Logging {
+     _state = state
+   }
+ 
+-  @tailrec
+-  private def waitForStateChangeFrom[A](state: State, f: => A): A = {
+-    if (_state == state) {
+-      Thread.sleep(1000)
+-      waitForStateChangeFrom(state, f)
+-    } else {
+-      f
+-    }
+-  }
+-
+   private def touchLastActivity() = {
+     _lastActivity = System.currentTimeMillis()
+   }
+diff --git a/apps/spark/java/livy-server/src/test/scala/com/cloudera/hue/livy/server/ThreadSessionSpec.scala b/apps/spark/java/livy-server/src/test/scala/com/cloudera/hue/livy/server/ThreadSessionSpec.scala
+new file mode 100644
+index 0000000..e717db6
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/test/scala/com/cloudera/hue/livy/server/ThreadSessionSpec.scala
+@@ -0,0 +1,69 @@
++package com.cloudera.hue.livy.server
++
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import com.cloudera.hue.livy.server.sessions.{Session, ThreadSession}
++import org.json4s.{Extraction, DefaultFormats}
++import org.scalatest.matchers.ShouldMatchers
++import org.scalatest.{BeforeAndAfter, FunSpec}
++
++import scala.concurrent.Await
++import scala.concurrent.duration.Duration
++
++class ThreadSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter {
++
++  implicit val formats = DefaultFormats
++
++  var session: Session = null
++
++  before {
++    session = ThreadSession.create("0", "spark")
++  }
++
++  after {
++    session.stop()
++  }
++
++  describe("A spark session") {
++      it("should start in the starting or idle state") {
++        session.state should (equal (Session.Starting()) or equal (Session.Idle()))
++      }
++
++      it("should eventually become the idle state") {
++        session.waitForStateChange(Session.Starting(), { })
++        session.state should equal (Session.Idle())
++      }
++
++      it("should execute `1 + 2` == 3") {
++        session.waitForStateChange(Session.Starting(), { })
++        val stmt = session.executeStatement(ExecuteRequest("1 + 2"))
++        val result = Await.result(stmt.output, Duration.Inf)
++
++        val expectedResult = Extraction.decompose(Map(
++          "status" -> "ok",
++          "execution_count" -> 0,
++          "data" -> Map(
++            "text/plain" -> "res0: Int = 3"
++          )
++        ))
++
++        result should equal (expectedResult)
++      }
++
++      it("should report an error if accessing an unknown variable") {
++        session.waitForStateChange(Session.Starting(), { })
++        val stmt = session.executeStatement(ExecuteRequest("x"))
++        val result = Await.result(stmt.output, Duration.Inf)
++        val expectedResult = Extraction.decompose(Map(
++          "status" -> "error",
++          "execution_count" -> 0,
++          "ename" -> "Error",
++          "evalue" ->
++            """<console>:8: error: not found: value x
++              |              x
++              |              ^""".stripMargin
++        ))
++
++        result should equal (expectedResult)
++      }
++  }
++}
+-- 
+1.7.9.5
+

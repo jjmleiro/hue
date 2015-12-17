@@ -60,6 +60,14 @@ SERVER_CONN_TIMEOUT = Config(
   type=int,
   help=_t('Timeout in seconds for Thrift calls.'))
 
+USE_GET_LOG_API = Config( # To remove in Hue 4
+  key='use_get_log_api',
+  default=False,
+  type=coerce_bool,
+  help=_t('Choose whether to use the old GetLog() thrift call from before Hive 0.14 to retrieve the logs.'
+          'If false, use the FetchResults() thrift call from Hive 1.0 or more instead.')
+)
+
 BROWSE_PARTITIONED_TABLE_LIMIT = Config(
   key='browse_partitioned_table_limit',
   default=250,
@@ -82,22 +90,16 @@ CLOSE_QUERIES = Config(
 
 THRIFT_VERSION = Config(
   key="thrift_version",
-  help=_t("Thrift version to use when communicating with HiveServer2"),
+  help=_t("Thrift version to use when communicating with HiveServer2."),
   type=int,
   default=5
 )
+
 
 SSL = ConfigSection(
   key='ssl',
   help=_t('SSL configuration for the server.'),
   members=dict(
-    ENABLED = Config(
-      key="enabled",
-      help=_t("SSL communication enabled for this server."),
-      type=coerce_bool,
-      default=False
-    ),
-
     CACERTS = Config(
       key="cacerts",
       help=_t("Path to Certificate Authority certificates."),
@@ -107,16 +109,16 @@ SSL = ConfigSection(
 
     KEY = Config(
       key="key",
-      help=_t("Path to the private key file."),
+      help=_t("Path to the private key file, e.g. /etc/hue/key.pem"),
       type=str,
-      default="/etc/hue/key.pem"
+      default=None
     ),
 
     CERT = Config(
       key="cert",
-      help=_t("Path to the public certificate file."),
+      help=_t("Path to the public certificate file, e.g. /etc/hue/cert.pem"),
       type=str,
-      default="/etc/hue/cert.pem"
+      default=None
     ),
 
     VALIDATE = Config(

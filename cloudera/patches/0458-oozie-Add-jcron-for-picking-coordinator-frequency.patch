@@ -1,0 +1,154 @@
+From a8066bf1a959933f8d8294505bb40df01a71e6be Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 16 Jan 2015 11:56:16 -0800
+Subject: [PATCH 0458/1173] [oozie] Add jcron for picking coordinator
+ frequency
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |   54 ++++++++++++++++++--
+ apps/oozie/static/js/coordinator-editor.ko.js      |   12 +++--
+ 2 files changed, 59 insertions(+), 7 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 81baca5..dcb84d7 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -20,6 +20,7 @@ from django.utils.translation import ugettext as _
+ 
+ <%namespace name="dashboard" file="/common_dashboard.mako" />
+ <%namespace name="utils" file="../utils.inc.mako" />
++<%namespace name="coordinator_utils" file="coordinator_utils.mako" />
+ 
+ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+@@ -105,16 +106,34 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('How often?') }</h1>
+ 
+         <div class="card-body">
+-          [hourly] [daily] [weekly] [monthly]
+-          <input data-bind="value: coordinator.properties.cron_frequency" />
+           
++          <div class="controls">
++            <div class="row-fluid">
++              <div class="span9">
++                <a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" class="pull-right" target="_blank">
++                  &nbsp;<i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i>
++                </a>
++                <input data-bind="visible: coordinator.properties.cron_advanced" id="coord-frequency" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency" class="pull-right"/>
++                <span data-bind="visible: coordinator.properties.cron_advanced" class="pull-right" style="padding-right:20px">
++                  ${ _('Crontab') }
++                </span>
++              </div>
++              <div class="span3">
++              </div>
++            </div>
++          </div>          
++                    
+           <div data-bind="visible: coordinator.showAdvancedFrequencyUI" style="padding-left: 20px">
+             Start
+             <input data-bind="value: coordinator.properties.start" />
+             End
+             <input data-bind="value: coordinator.properties.end" />
+             Timezone
+-            <input data-bind="value: coordinator.properties.timezone" />  
++            <input data-bind="value: coordinator.properties.timezone" />
++              
++            <label class="checkbox" style="display: inline-block">
++               <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
++            </label>
+           </div>
+           
+           <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
+@@ -166,7 +185,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               <input data-bind="value: dataset_variable"/>
+ 
+               <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->              
+-              [hourly] [daily] [weekly] [monthly] <input data-bind="value: cron_frequency" />
++              [hourly] [daily] [weekly] [monthly]
+ 
+               <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
+                 <i class="fa fa-sliders"></i>
+@@ -330,6 +349,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ <link rel="stylesheet" href="/oozie/static/css/common-editor.css">
+ <link rel="stylesheet" href="/oozie/static/css/coordinator-editor.css">
+ 
++<link href="/static/css/jqCron.css" rel="stylesheet" type="text/css" />
++<script src="/static/js/jqCron.js" type="text/javascript"></script>
++
+ ${ dashboard.import_layout() }
+ 
+ ${ commonshare() | n,unicode }
+@@ -349,9 +371,33 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
++  ${ utils.cron_js() }
++  
++  var coordCron =
++    $('#coord-frequency')
++      .jqCron({
++        texts: {
++          i18n: cron_i18n
++        },
++        enabled_minute: false,
++        multiple_dom: true,
++        multiple_month: true,
++        multiple_mins: true,
++        multiple_dow: true,
++        multiple_time_hours: true,
++        multiple_time_minutes: false,
++        default_period: 'day',
++        default_value: ${ coordinator_json | n,unicode }.properties.cron_frequency,
++        no_reset_button: true,
++        lang: 'i18n'
++      })
++      .jqCronGetInstance();
++
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
++  viewModel.coordinator.properties.cron_advanced.valueHasMutated(); // Update jsCron enabled status
++
+   var shareViewModel = setupSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+ 
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index dd71062..822a1d2 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -40,6 +40,14 @@ var Coordinator = function (vm, coordinator) {
+ 	  });
+ 	}
+   });
++
++  self.properties.cron_advanced.subscribe(function(value) {
++    if (value) {
++      coordCron.disable();
++    } else {
++      coordCron.enable();
++    }
++  });
+   
+   self.addVariable = function() {
+     var _var = {       
+@@ -94,7 +102,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   self.workflowModalFilter = ko.observable("");
+   self.filteredModalWorkflows = ko.computed(function() {
+     var _filter = self.workflowModalFilter().toLowerCase();
+-    if (!_filter) {
++    if (! _filter) {
+       return self.workflows();
+     }
+     else {
+@@ -153,8 +161,6 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   };
+   
+   self.showSubmitPopup = function () {
+-    // If self.coordinator.id() == null, need to save wf for now
+-
+     $.get("/oozie/editor/coordinator/submit/" + self.coordinator.id(), {
+       }, function (data) {
+         $(document).trigger("showSubmitPopup", data);
+-- 
+1.7.9.5
+

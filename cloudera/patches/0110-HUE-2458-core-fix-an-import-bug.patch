@@ -1,0 +1,24 @@
+From e74ad2da53e5301a56eb186313aa54d4ab6c61d9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 12 Nov 2014 13:34:33 -0800
+Subject: [PATCH 0110/1173] HUE-2458 [core] fix an import bug
+
+---
+ desktop/libs/libsaml/src/libsaml/conf.py |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/conf.py b/desktop/libs/libsaml/src/libsaml/conf.py
+index 10a29e2..e27cb91 100644
+--- a/desktop/libs/libsaml/src/libsaml/conf.py
++++ b/desktop/libs/libsaml/src/libsaml/conf.py
+@@ -17,6 +17,7 @@
+ 
+ import json
+ import os
++import subprocess
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+ 
+-- 
+1.7.9.5
+

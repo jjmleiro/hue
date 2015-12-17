@@ -1,0 +1,184 @@
+From 1bf7f26beb5d25bcffef886f8b67d591d9d9d50e Mon Sep 17 00:00:00 2001
+From: Shuo Diao <shuodiao@amazon.com>
+Date: Thu, 20 Nov 2014 15:11:20 -0800
+Subject: [PATCH 0162/1173] HUE-2485 [core] Add strict redirection in
+ EnsureSafeRedirectURLMiddleware
+
+Hue has a security vulnerability that redirectiond to an arbitrary site
+is allowed after a successful login if the '?next=' variable is modified
+by a malicious hacker. This vulnerability can be used to mount a phishing
+attack against the cluster where Hue is running.
+
+This fix sets redirect_whitelist configuration default value to "^\/.*$",
+and limits all redirections to the same host where HUE is running by default
+to prevent phishing attacks.
+---
+ desktop/conf.dist/hue.ini                     |    2 +-
+ desktop/conf/pseudo-distributed.ini.tmpl      |    2 +-
+ desktop/core/src/desktop/conf.py              |    2 +-
+ desktop/core/src/desktop/middleware.py        |   11 ++++++--
+ desktop/core/src/desktop/templates/error.mako |    5 ++++
+ desktop/core/src/desktop/tests.py             |   34 +++++++++++++++++++++++++
+ 6 files changed, 51 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 14a00a7..6b2f9a9 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -91,7 +91,7 @@
+   # Comma-separated list of regular expressions, which match the redirect URL.
+   # For example, to restrict to your local domain and FQDN, the following value can be used:
+   # ^\/.*$,^http:\/\/www.mydomain.com\/.*$
+-  ## redirect_whitelist=
++  ## redirect_whitelist=^\/.*$
+ 
+   # Comma separated list of apps to not load at server startup.
+   # e.g.: pig,zookeeper
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 87ddade..a11fca0 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -100,7 +100,7 @@
+   # Comma-separated list of regular expressions, which match the redirect URL.
+   # For example, to restrict to your local domain and FQDN, the following value can be used:
+   # ^\/.*$,^http:\/\/www.mydomain.com\/.*$
+-  ## redirect_whitelist=
++  ## redirect_whitelist=^\/.*$
+ 
+   # Comma separated list of apps to not load at server startup.
+   # e.g.: pig,zookeeper
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 42bf02b..43cbb8c 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -147,7 +147,7 @@ REDIRECT_WHITELIST = Config(
+          "For example, to restrict to your local domain and FQDN, the following value can be used:"
+          "  ^\/.*$,^http:\/\/www.mydomain.com\/.*$"),
+   type=list_of_compiled_res(skip_empty=True),
+-  default='')
++  default='^\/.*$')
+ 
+ SECURE_PROXY_SSL_HEADER = Config(
+   key="secure_proxy_ssl_header",
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index c8634b3..226e51d 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -259,6 +259,7 @@ class AppSpecificMiddleware(object):
+         result['exception'].insert(0, mw_instance.process_exception)
+     return result
+ 
++
+ class LoginAndPermissionMiddleware(object):
+   """
+   Middleware that forces all views (except those that opt out) through authentication.
+@@ -487,6 +488,7 @@ class HtmlValidationMiddleware(object):
+         'html' in response['Content-Type'] and \
+         200 <= response.status_code < 300
+ 
++
+ class SpnegoMiddleware(object):
+   """
+   Based on the WSGI SPNEGO middlware class posted here:
+@@ -622,8 +624,12 @@ class EnsureSafeRedirectURLMiddleware(object):
+   Middleware to white list configured redirect URLs.
+   """
+   def process_response(self, request, response):
+-    if response.status_code == 302:
+-      if any([regexp.match(response['Location']) for regexp in desktop.conf.REDIRECT_WHITELIST.get()]):
++    if response.status_code in (301, 302, 303, 305, 307, 308) and response.get('Location'):
++      redirection_pattern =  desktop.conf.REDIRECT_WHITELIST.get()
++      if 'HTTP_HOST' in request.META.keys():
++        redirection_pattern.append(re.compile(r"^http:\/\/" + request.META.get('HTTP_HOST') + ".*$"))
++
++      if any([regexp.match(response['Location']) for regexp in redirection_pattern]):
+         return response
+ 
+       response = render("error.mako", request, dict(error=_('Redirect to %s is not allowed.') % response['Location']))
+@@ -631,3 +637,4 @@ class EnsureSafeRedirectURLMiddleware(object):
+       return response
+     else:
+       return response
++
+diff --git a/desktop/core/src/desktop/templates/error.mako b/desktop/core/src/desktop/templates/error.mako
+index d9c9ef3..0332531 100644
+--- a/desktop/core/src/desktop/templates/error.mako
++++ b/desktop/core/src/desktop/templates/error.mako
+@@ -17,6 +17,7 @@
+ from desktop.views import commonheader, commonfooter
+ from desktop.lib.i18n import smart_unicode
+ from django.utils.translation import ugettext as _
++from desktop import conf
+ %>
+ 
+ ${ commonheader(_('Error'), app_name, user, "40px") | n,unicode }
+@@ -37,6 +38,10 @@ ${ commonheader(_('Error'), app_name, user, "40px") | n,unicode }
+               %endif
+ 
+               <a class="btn" onclick="history.back()">${ _('Back') }</a>
++
++              %if conf.REDIRECT_WHITELIST.get():
++                <a class="btn btn-primary" href="/">${ _('Home') }</a>
++              % endif
+             </p>
+           </div>
+         </div>
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index 4b0d8ef..b647d2e 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -425,6 +425,8 @@ def test_desktop_permissions():
+   USERNAME = 'test_core_permissions'
+   GROUPNAME = 'default'
+ 
++  desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
++
+   c = make_logged_in_client(USERNAME, groupname=GROUPNAME, recreate=True, is_superuser=False)
+ 
+   # Access to the basic works
+@@ -436,6 +438,7 @@ def test_desktop_permissions():
+ def test_app_permissions():
+   USERNAME = 'test_app_permissions'
+   GROUPNAME = 'impala_only'
++  desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
+ 
+   c = make_logged_in_client(USERNAME, groupname=GROUPNAME, recreate=True, is_superuser=False)
+ 
+@@ -645,3 +648,34 @@ def test_cx_Oracle():
+           "env var ORACLE_HOME or ORACLE_INSTANTCLIENT_HOME is not defined. "
+           "So ignore this test failure if your build does not need to work "
+           "with an oracle backend.")
++
++class TestStrictRedirection():
++
++  def setUp(self):
++    self.client = make_logged_in_client()
++    self.user = dict(username="test", password="test")
++    desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
++
++  def test_redirection_blocked(self):
++    # Redirection with code 301 should be handled properly
++    # Redirection with Status code 301 example reference: http://www.somacon.com/p145.php
++    self._test_redirection(redirection_url='http://www.somacon.com/color/html_css_table_border_styles.php',
++                           expected_status_code=403)
++    # Redirection with code 302 should be handled properly
++    self._test_redirection(redirection_url='http://www.google.com',
++                           expected_status_code=403)
++
++  def test_redirection_allowed(self):
++    # Redirection to the host where Hue is running should be OK.
++    self._test_redirection(redirection_url='/', expected_status_code=302)
++    self._test_redirection(redirection_url='/pig', expected_status_code=302)
++    self._test_redirection(redirection_url='http://testserver/', expected_status_code=302)
++
++  def _test_redirection(self, redirection_url, expected_status_code):
++    self.client.get('/accounts/logout')
++    response = self.client.post('/accounts/login/?next=' + redirection_url, self.user)
++    assert_equal(expected_status_code, response.status_code)
++    if expected_status_code == 403:
++        error_msg = 'Redirect to ' + redirection_url + ' is not allowed.'
++        assert_true(error_msg in response.content, response.content)
++
+-- 
+1.7.9.5
+

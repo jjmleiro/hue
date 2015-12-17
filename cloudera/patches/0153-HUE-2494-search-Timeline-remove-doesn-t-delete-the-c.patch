@@ -1,0 +1,34 @@
+From 0d655e07c75fd072a8c950808410be9d8c0f7257 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 16 Dec 2014 10:34:44 +0100
+Subject: [PATCH 0153/1173] HUE-2494 [search] Timeline remove doesn't delete
+ the chart
+
+Checked for a non null object on KO
+---
+ apps/search/src/search/templates/search.mako |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 52fab42..cb1dbfc 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -731,13 +731,14 @@ ${ dashboard.layout_skeleton() }
+       <span class="facet-field-label" data-bind="visible: $root.query.multiqs().length > 1">${ _('Group by') }</span>
+       <select class="input-medium" data-bind="visible: $root.query.multiqs().length > 1, options: $root.query.multiqs, optionsValue: 'id', optionsText: 'label', value: $root.query.selectedMultiq"></select>
+     </div>
+-
++    <!-- ko if: $root.collection.getFacetById($parent.id()) -->
+     <div data-bind="timelineChart: {datum: {counts: counts, extraSeries: (typeof extraSeries != 'undefined' ? extraSeries : []), widget_id: $parent.id(), label: label}, stacked: $root.collection.getFacetById($parent.id()).properties.stacked(), field: field, label: label, transformer: timelineChartDataTransformer,
+       fqs: $root.query.fqs,
+       onSelectRange: function(from, to){ viewModel.collection.selectTimelineFacet({from: from, to: to, cat: field, widget_id: $parent.id()}) },
+       onStateChange: function(state){ $root.collection.getFacetById($parent.id()).properties.stacked(state.stacked); },
+       onClick: function(d){ viewModel.query.selectRangeFacet({count: d.obj.value, widget_id: $parent.id(), from: d.obj.from, to: d.obj.to, cat: d.obj.field}) },
+       onComplete: function(){ viewModel.getWidgetById(id).isLoading(false) }}" />
++    <!-- /ko -->
+   </div>
+   <!-- /ko -->
+ </script>
+-- 
+1.7.9.5
+

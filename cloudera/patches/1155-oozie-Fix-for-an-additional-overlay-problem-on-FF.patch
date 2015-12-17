@@ -1,0 +1,50 @@
+From ce0267d0754ee4ab13cd93eab2c9ffdce766daeb Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 21 Apr 2015 17:15:15 +0300
+Subject: [PATCH 1155/1173] [oozie] Fix for an additional overlay problem on
+ FF
+
+Conflicts:
+
+	apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |    3 +--
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    1 +
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index a9eb5b2..a24165c 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -358,8 +358,6 @@ ${ workflow.render() }
+ 
+ </div>
+ 
+-<div id="exposeOverlay"></div>
+-
+ <link rel="stylesheet" href="${ static('desktop/ext/css/hue-filetypes.css') }">
+ <link rel="stylesheet" href="${ static('desktop/ext/css/hue-charts.css') }">
+ <link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
+@@ -385,6 +383,7 @@ ${ dashboard.import_bindings() }
+ <script src="${ static('desktop/ext/js/jquery/plugins/jquery.curvedarrow.js') }" type="text/javascript" charset="utf-8"></script>
+ <script src="${ static('oozie/js/editor2-utils.js') }" type="text/javascript" charset="utf-8"></script>
+ 
++<div id="exposeOverlay"></div>
+ 
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index 29e5c37..c4669ad 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -1225,6 +1225,7 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+       $("#chooseFile").modal("show");
+       $("#chooseFile").on("hidden", function(){
+         $("html").removeClass("modal-open");
++        $(".modal-backdrop").remove();
+       });
+     }
+ 
+-- 
+1.7.9.5
+

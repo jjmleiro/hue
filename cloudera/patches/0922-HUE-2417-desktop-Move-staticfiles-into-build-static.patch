@@ -1,0 +1,26 @@
+From f77110a59c18335e4e090c7417336e20b3e94a5c Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 25 Feb 2015 11:27:11 -0800
+Subject: [PATCH 0922/1173] HUE-2417 [desktop] Move staticfiles into
+ build/static
+
+---
+ desktop/core/src/desktop/settings.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index e73b961..150c976 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -110,7 +110,7 @@ STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStora
+ # For Django admin interface
+ STATIC_URL = '/static/'
+ 
+-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
++STATIC_ROOT = os.path.join(BASE_DIR, 'build', 'static')
+ 
+ # List of callables that know how to import templates from various sources.
+ TEMPLATE_LOADERS = (
+-- 
+1.7.9.5
+

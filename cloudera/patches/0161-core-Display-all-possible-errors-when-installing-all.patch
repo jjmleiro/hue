@@ -1,0 +1,30 @@
+From fd9deebac23103d56ea6a6fe653ebbbf1521aee4 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 16 Dec 2014 18:13:17 -0800
+Subject: [PATCH 0161/1173] [core] Display all possible errors when installing
+ all the examples
+
+---
+ apps/about/src/about/templates/admin_wizard.mako |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/about/src/about/templates/admin_wizard.mako b/apps/about/src/about/templates/admin_wizard.mako
+index 9f168b5..29ba92a 100644
+--- a/apps/about/src/about/templates/admin_wizard.mako
++++ b/apps/about/src/about/templates/admin_wizard.mako
+@@ -321,7 +321,11 @@ $(document).ready(function(){
+     var button = $(this);
+     $(button).button('loading');
+     var calls = jQuery.map($("[data-sample-url]"), function(app) {
+-      return $.post($(app).data("sample-url"));
++      return $.post($(app).data("sample-url"), function(data) {
++        if (data.status != 0) {
++          $(document).trigger('error', data.message);
++        }
++      });
+     });
+     $.when.apply(this, calls)
+       .then(function() {
+-- 
+1.7.9.5
+

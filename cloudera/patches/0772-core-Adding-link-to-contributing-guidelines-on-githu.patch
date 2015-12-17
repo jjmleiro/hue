@@ -1,0 +1,21 @@
+From 25722687d3069d940cc4eda95a0eb48e077f7326 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 6 Feb 2015 11:25:26 -0800
+Subject: [PATCH 0772/1173] [core] Adding link to contributing guidelines on
+ github
+
+---
+ CONTRIBUTING.md |    1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 CONTRIBUTING.md
+
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+new file mode 100644
+index 0000000..c790872
+--- /dev/null
++++ b/CONTRIBUTING.md
+@@ -0,0 +1 @@
++To get started, [sign the Contributor License Agreement](http://www.clahub.com/agreements/cloudera/hue).
+-- 
+1.7.9.5
+

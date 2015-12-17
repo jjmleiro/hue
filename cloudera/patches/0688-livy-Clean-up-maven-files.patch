@@ -1,0 +1,130 @@
+From de6d90766fa571a9576b71aaa4bc01d2b6eb6d3b Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 26 Jan 2015 18:24:45 +0800
+Subject: [PATCH 0688/1173] [livy] Clean up maven files
+
+---
+ apps/spark/java/livy-core/pom.xml   |    2 +-
+ apps/spark/java/livy-repl/pom.xml   |    4 ++--
+ apps/spark/java/livy-server/pom.xml |   14 ++++----------
+ apps/spark/java/livy-yarn/pom.xml   |    2 +-
+ apps/spark/java/pom.xml             |    5 ++++-
+ 5 files changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index d9cc3c4..20f585f 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -48,7 +48,7 @@
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>3.2.11</version>
++            <version>${json4s.version}</version>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 7d6a54e..c6b8391 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -29,7 +29,7 @@
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>3.2.11</version>
++            <version>${json4s.version}</version>
+         </dependency>
+ 
+         <dependency>
+@@ -69,7 +69,7 @@
+         <dependency>
+             <groupId>ch.qos.logback</groupId>
+             <artifactId>logback-access</artifactId>
+-            <version>1.1.2</version>
++            <version>${logback.version}</version>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index 26fd96f..b1f42fd 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -35,13 +35,13 @@
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s_2.10</artifactId>
+-            <version>3.2.11</version>
++            <version>${json4s.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+             <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>3.2.11</version>
++            <version>${json4s.version}</version>
+         </dependency>
+ 
+         <dependency>
+@@ -71,21 +71,15 @@
+         </dependency>
+ 
+         <dependency>
+-            <groupId>com.google.guava</groupId>
+-            <artifactId>guava</artifactId>
+-            <version>11.0.2</version>
+-        </dependency>
+-
+-        <dependency>
+             <groupId>net.databinder.dispatch</groupId>
+             <artifactId>dispatch-core_2.10</artifactId>
+-            <version>0.11.2</version>
++            <version>${dispatch.version}</version>
+         </dependency>
+ 
+         <dependency>
+             <groupId>net.databinder.dispatch</groupId>
+             <artifactId>dispatch-json4s-jackson_2.10</artifactId>
+-            <version>0.11.2</version>
++            <version>${dispatch.version}</version>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 4ecc2b9..9460946 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -95,7 +95,7 @@
+         <dependency>
+             <groupId>ch.qos.logback</groupId>
+             <artifactId>logback-classic</artifactId>
+-            <version>1.1.2</version>
++            <version>${logback.version}</version>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index d9f4a35..b1d9b60 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -50,13 +50,16 @@
+     <properties>
+         <javaVersion>1.7</javaVersion>
+         <hadoop.version>2.5.0</hadoop.version>
++        <guava.version>11.0.2</guava.version>
++        <jetty.version>8.1.16.v20140903</jetty.version>
++        <json4s.version>3.2.11</json4s.version>
+         <logback.version>1.1.2</logback.version>
+-        <jetty.version>8.1.14.v20131031</jetty.version>
+         <scala.binary.version>2.10.3</scala.binary.version>
+         <scala.macros.version>2.0.1</scala.macros.version>
+         <scala.version>2.10.3</scala.version>
+         <scalatra.version>2.2.1</scalatra.version>
+         <spark.version>1.1.0</spark.version>
++        <dispatch.version>0.11.2</dispatch.version>
+     </properties>
+ 
+     <modules>
+-- 
+1.7.9.5
+

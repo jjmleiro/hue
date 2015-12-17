@@ -1,0 +1,41 @@
+From 4a9a2477f507fffd1edbfe161b5bd1c123cec0eb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 30 Jan 2015 08:13:22 +0800
+Subject: [PATCH 0507/1173] [beeswax] Support NaN and Infinity values from
+ HiveServer2 API
+
+Will print:
+  Infinity
+  -Infinity
+  NaN
+---
+ apps/beeswax/src/beeswax/views.py |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/views.py b/apps/beeswax/src/beeswax/views.py
+index f5aee91..a49d629 100644
+--- a/apps/beeswax/src/beeswax/views.py
++++ b/apps/beeswax/src/beeswax/views.py
+@@ -17,6 +17,7 @@
+ 
+ import json
+ import logging
++import math
+ import re
+ import sys
+ import time
+@@ -474,7 +475,10 @@ def view_results(request, id, first_row=0):
+         escaped_row = []
+         for field in row:
+           if isinstance(field, (int, long, float, complex, bool)):
+-            escaped_field = field
++            if math.isnan(field) or math.isinf(field):
++              escaped_field = json.dumps(field)
++            else:
++              escaped_field = field
+           elif field is None:
+             escaped_field = 'NULL'
+           else:
+-- 
+1.7.9.5
+

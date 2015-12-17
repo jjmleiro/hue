@@ -1,0 +1,26 @@
+From 08e1c70b668fcaa0687af8e6767fcaf544f78374 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 24 Jan 2015 19:35:31 -0800
+Subject: [PATCH 0667/1173] [livy] Fix parsing lines with no trailing '\n'
+
+This can happen with calling functions with a `void` type.
+---
+ .../com/cloudera/hue/livy/repl/Interpreter.scala   |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+index cd2eac0..126dfd9 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+@@ -154,7 +154,7 @@ private class ILoop(inQueue: BlockingQueue[ILoop.Request], outString: StringWrit
+               var output = outString.getBuffer.toString
+ 
+               // Strip the trailing '\n'
+-              output = output.substring(0, output.length - 1)
++              output = output.stripSuffix("\n")
+ 
+               outString.getBuffer.setLength(0)
+ 
+-- 
+1.7.9.5
+

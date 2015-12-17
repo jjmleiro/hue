@@ -1,0 +1,182 @@
+From 5113e66dbce1ddf0457f940eabc701c8df153f0a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 19 Dec 2014 11:01:15 -0800
+Subject: [PATCH 0355/1173] [oozie] Link Document2 to Document for 3.x
+ compatibility
+
+---
+ apps/oozie/src/oozie/models2.py                    |    9 +++++++++
+ .../oozie/templates/editor/workflow_editor.mako    |   20 +++++++++++---------
+ apps/oozie/src/oozie/views/editor2.py              |    4 +++-
+ ...ield_userpreferences_key__chg_field_userpref.py |    4 ++--
+ desktop/core/src/desktop/models.py                 |   10 +++++++++-
+ 5 files changed, 34 insertions(+), 13 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 8dcde34..2c817c5 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -200,6 +200,15 @@ class Workflow(Job):
+ 
+     return dict([(param, '') for param in list(params)])
+ 
++  def create_workspace(self, fs, user):
++    perms = 0711
++    # if shared, perms = 0755
++    Submission(user, self, fs, None, {})._create_dir(self.deployment_dir, perms=perms)
++    Submission(user, self, fs, None, {})._create_dir(Hdfs.join(self.deployment_dir, 'lib'))
++
++  def create_workspace2(self, fs, user):
++    pass
++
+   def check_workspace(self, fs):
+     create_directories(fs, [REMOTE_SAMPLE_DIR.get()])
+       
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 4e4daa4..f708145 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -193,15 +193,15 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+ 
+ 
+- <div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && columns().length == 0">
++<div id="emptyDashboard" data-bind="fadeVisible: !isEditing() && columns().length == 0">
+   <div style="float:left; padding-top: 90px; margin-right: 20px; text-align: center; width: 260px">${ _('Click on the pencil to get started with your dashboard!') }</div>
+-    <img src="/static/art/hint_arrow.png" />
+-  </div>
++  <img src="/static/art/hint_arrow.png" />
++</div>
+ 
+-  <div id="emptyDashboardEditing" data-bind="fadeVisible: isEditing() && columns().length == 0 && previewColumns() == ''">
+-    <div style="float:right; padding-top: 90px; margin-left: 20px; text-align: center; width: 260px">${ _('Pick an index and Click on a layout to start your dashboard!') }</div>
+-    <img src="/static/art/hint_arrow_horiz_flipped.png" />
+-  </div>
++<div id="emptyDashboardEditing" data-bind="fadeVisible: isEditing() && columns().length == 0 && previewColumns() == ''">
++  <div style="float:right; padding-top: 90px; margin-left: 20px; text-align: center; width: 260px">${ _('Pick an index and Click on a layout to start your dashboard!') }</div>
++  <img src="/static/art/hint_arrow_horiz_flipped.png" />
++</div>
+ 
+ 
+ <div data-bind="css: {'dashboard': true, 'readonly': ! isEditing()}">
+@@ -228,7 +228,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && rows().length > 0">
+       <div class="row-fluid">
+         <div data-bind="visible: enableOozieDropOnAfter, css: {'span4 offset4': true, 'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }">
+-          <span data-bind="visible: oozieRows().length == 0">${ _('Drop your action here.') }</span>
++          <span data-bind="visible: oozieRows().length == 0">${ _('Drop your action here') }</span>
+         </div>
+         <div data-bind="visible: ! enableOozieDropOnAfter(), css: {'drop-target drop-target-disabled': true, 'is-editing': $root.isEditing}"></div>
+       </div>
+@@ -1445,8 +1445,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <h3 id="myModalLabel">${ _('Workflow Settings') }</h3>
+   </div>
+   <div class="modal-body">
+-      <h4>${ _('Submission Parameters') }</h4>
++      <h4>${ _('Variables') }</h4>
+       <ul data-bind="foreach: $root.workflow.properties.parameters" class="unstyled">
++        <!-- ko if: name() != 'oozie.use.system.libpath' -->
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+@@ -1454,6 +1455,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+             <i class="fa fa-minus"></i>
+           </a>
+         </li>
++        <!-- /ko -->
+       </ul>
+       <a class="pointer" data-bind="click: function(){ $root.workflow.properties.parameters.push({'name': '', 'value': ''}); }">
+         <i class="fa fa-plus"></i> ${ _('Add parameter') }
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index e7ab1d0..105966b 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -28,7 +28,7 @@ from desktop.lib.django_util import render
+ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import smart_str
+ from desktop.lib.rest.http_client import RestException
+-from desktop.models import Document2
++from desktop.models import Document, Document2
+ 
+ from liboozie.credentials import Credentials
+ from liboozie.oozie_api import get_oozie
+@@ -58,6 +58,7 @@ def edit_workflow(request):
+     workflow = Workflow(document=Document2.objects.get(type='oozie-workflow2', id=workflow_id)) # Todo perms
+   else:
+     workflow = Workflow()
++    workflow.create_workspace(request.fs, request.user)
+   
+   workflow_data = workflow.get_data()
+ 
+@@ -91,6 +92,7 @@ def save_workflow(request):
+     workflow_doc = Document2.objects.get(id=workflow['id'])
+   else:      
+     workflow_doc = Document2.objects.create(name=workflow['name'], uuid=workflow['uuid'], type='oozie-workflow2', owner=request.user)
++    Document.objects.link(workflow_doc, owner=workflow_doc.owner, name=workflow_doc.name, description=workflow_doc.description, extra='workflow2')
+ 
+   subworkflows = [node['properties']['subworkflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
+   if subworkflows:
+diff --git a/desktop/core/src/desktop/migrations/0010_auto__add_document2__chg_field_userpreferences_key__chg_field_userpref.py b/desktop/core/src/desktop/migrations/0010_auto__add_document2__chg_field_userpreferences_key__chg_field_userpref.py
+index 83ea498..82f1974 100644
+--- a/desktop/core/src/desktop/migrations/0010_auto__add_document2__chg_field_userpreferences_key__chg_field_userpref.py
++++ b/desktop/core/src/desktop/migrations/0010_auto__add_document2__chg_field_userpreferences_key__chg_field_userpref.py
+@@ -17,7 +17,7 @@ class Migration(SchemaMigration):
+             ('uuid', self.gf('django.db.models.fields.CharField')(default='', max_length=32, db_index=True)),
+             ('type', self.gf('django.db.models.fields.CharField')(default='', max_length=32, db_index=True)),
+             ('data', self.gf('django.db.models.fields.TextField')(default='{}')),
+-            ('extra', self.gf('django.db.models.fields.TextField')(default='{}')),
++            ('extra', self.gf('django.db.models.fields.TextField')(default='')),
+             ('last_modified', self.gf('django.db.models.fields.DateTimeField')(auto_now=True, db_index=True, blank=True)),
+             ('version', self.gf('django.db.models.fields.SmallIntegerField')(default=1, db_index=True)),
+             ('is_history', self.gf('django.db.models.fields.BooleanField')(default=False, db_index=True)),
+@@ -151,7 +151,7 @@ class Migration(SchemaMigration):
+             'data': ('django.db.models.fields.TextField', [], {'default': "'{}'"}),
+             'dependencies': ('django.db.models.fields.related.ManyToManyField', [], {'related_name': "'dependencies_rel_+'", 'db_index': 'True', 'to': "orm['desktop.Document2']"}),
+             'description': ('django.db.models.fields.TextField', [], {'default': "''"}),
+-            'extra': ('django.db.models.fields.TextField', [], {'default': "'{}'"}),
++            'extra': ('django.db.models.fields.TextField', [], {'default': "''"}),
+             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
+             'is_history': ('django.db.models.fields.BooleanField', [], {'default': 'False', 'db_index': 'True'}),
+             'last_modified': ('django.db.models.fields.DateTimeField', [], {'auto_now': 'True', 'db_index': 'True', 'blank': 'True'}),
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index fbb2577..41d77ab 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -23,6 +23,7 @@ from itertools import chain
+ 
+ from django.db import models
+ from django.db.models import Q
++from django.core.urlresolvers import reverse
+ from django.contrib.auth import models as auth_models
+ from django.contrib.contenttypes.models import ContentType
+ from django.contrib.contenttypes import generic
+@@ -605,7 +606,7 @@ class Document2(models.Model):
+   type = models.CharField(default='', max_length=32, db_index=True, help_text=_t('Type of document, e.g. Hive query, Oozie workflow, Search Dashboard...'))
+ 
+   data = models.TextField(default='{}')
+-  extra = models.TextField(default='{}')
++  extra = models.TextField(default='')
+ 
+   last_modified = models.DateTimeField(auto_now=True, db_index=True, verbose_name=_t('Time last modified'))
+   version = models.SmallIntegerField(default=1, verbose_name=_t('Document version'), db_index=True) 
+@@ -613,6 +614,7 @@ class Document2(models.Model):
+ 
+   tags = models.ManyToManyField('self', db_index=True)
+   dependencies = models.ManyToManyField('self', db_index=True)
++  doc = generic.GenericRelation(Document, related_name='doc_doc') # Compatibility with Hue 3
+   
+   objects = Document2Manager()
+   unique_together = ('uuid', 'version', 'is_history')
+@@ -634,3 +636,9 @@ class Document2(models.Model):
+     data_dict.update(post_data)
+ 
+     self.data = json.dumps(data_dict)
++
++  def get_absolute_url(self):
++    if self.type == 'oozie-workflow2':
++      return reverse('oozie:edit_workflow') + '?workflow=' + str(self.id)
++    else:
++      return reverse('oozie:edit_workflow') + '?workflow=' + str(self.id)
+-- 
+1.7.9.5
+

@@ -1,0 +1,30 @@
+From b373312da5843debd3aaaefa65a74a3477105d51 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 18 Mar 2015 17:49:16 -0700
+Subject: [PATCH 1121/1173] [desktop] Protect against get_default_mrcluster()
+ returning None
+
+---
+ desktop/libs/hadoop/src/hadoop/cluster.py |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/cluster.py b/desktop/libs/hadoop/src/hadoop/cluster.py
+index c88dc5d..3a98daa 100644
+--- a/desktop/libs/hadoop/src/hadoop/cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/cluster.py
+@@ -117,7 +117,11 @@ def get_next_ha_mrcluster():
+   candidates = all_mrclusters()
+   has_ha = sum([conf.MR_CLUSTERS[name].SUBMIT_TO.get() for name in conf.MR_CLUSTERS.keys()]) >= 2
+ 
+-  current_user = get_default_mrcluster().user
++  mrcluster = get_default_mrcluster()
++  if mrcluster is None:
++    return None
++
++  current_user = mrcluster.user
+ 
+   for name in conf.MR_CLUSTERS.keys():
+     config = conf.MR_CLUSTERS[name]
+-- 
+1.7.9.5
+

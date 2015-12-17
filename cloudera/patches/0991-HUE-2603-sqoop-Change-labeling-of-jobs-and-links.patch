@@ -1,0 +1,48 @@
+From 0a137ac19e4e718b33be5bee7fc6befd7c0634a2 Mon Sep 17 00:00:00 2001
+From: Abraham Elmahrek <abe@apache.org>
+Date: Tue, 3 Mar 2015 13:01:28 -0800
+Subject: [PATCH 0991/1173] HUE-2603 [sqoop] Change labeling of jobs and links
+
+---
+ apps/sqoop/src/sqoop/templates/app.mako |   12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/apps/sqoop/src/sqoop/templates/app.mako b/apps/sqoop/src/sqoop/templates/app.mako
+index 3ca38d9..278b651 100644
+--- a/apps/sqoop/src/sqoop/templates/app.mako
++++ b/apps/sqoop/src/sqoop/templates/app.mako
+@@ -322,19 +322,31 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+ <h4 style="display: inline-block">
+   <i class="fa fa-cog"></i>&nbsp;
+   <span data-bind="text: name" class="muted"></span>
++
++  <!-- ko if: type() && hostAndPort() -->
+   &nbsp;&nbsp;
+   <span data-bind="text: type"></span>
+   <span>${_("server at ")}</span>
+   <span data-bind="text: hostAndPort"></span>
++  <!-- /ko -->
+ </h4>
+ </script>
+ 
+ <script type="text/html" id="job-list-item">
+ <h4 style="display: inline-block">
+   <i class="fa fa-download"></i>&nbsp;
++
++  <!-- ko if: fromLabel() && toLabel() -->
+   <span data-bind="text: fromLabel"></span>
+   <span>${_(' to ')}</span>
+   <span data-bind="text: toLabel"></span>
++  <!-- /ko -->
++
++  <!-- ko if: (!fromLabel() || !toLabel()) && (fromLink() && toLink()) -->
++  <span data-bind="text: fromLink().name()"></span>
++  <span>${_(' to ')}</span>
++  <span data-bind="text: toLink().name()"></span>
++  <!-- /ko -->
+ </h4>
+ </script>
+ 
+-- 
+1.7.9.5
+

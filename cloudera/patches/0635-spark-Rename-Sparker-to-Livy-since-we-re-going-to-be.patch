@@ -1,0 +1,5177 @@
+From 64c9b2d84c412a70b930238133631f7807aca680 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 19 Dec 2014 17:01:09 -0800
+Subject: [PATCH 0635/1173] [spark] Rename Sparker to Livy since we're going
+ to be more than Spark
+
+---
+ apps/spark/java/livy-repl/pom.xml                  |  194 +++++++++
+ .../java/livy-repl/src/main/assembly/dist.xml      |   37 ++
+ .../java/livy-repl/src/main/scala/Scalatra.scala   |   20 +
+ .../com/cloudera/hue/livy/repl/Interpreter.scala   |  153 +++++++
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |   29 ++
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |   58 +++
+ apps/spark/java/livy-server/pom.xml                |  175 ++++++++
+ .../java/com/cloudera/hue/livy/server/LivyApp.java |   40 ++
+ .../hue/livy/server/LivyConfiguration.java         |    6 +
+ .../server/resources/ExecuteStatementRequest.java  |   15 +
+ .../hue/livy/server/resources/SessionResource.java |  134 +++++++
+ .../livy/server/resources/StatementResource.java   |   47 +++
+ .../server/sessions/ClosedSessionException.java    |    4 +
+ .../cloudera/hue/livy/server/sessions/Session.java |   60 +++
+ .../hue/livy/server/sessions/SessionManager.java   |  171 ++++++++
+ .../hue/livy/server/sessions/SparkSession.java     |  191 +++++++++
+ .../hue/livy/server/sessions/Statement.java        |   70 ++++
+ apps/spark/java/livy-yarn/pom.xml                  |  162 ++++++++
+ .../java/livy-yarn/src/main/assembly/dist.xml      |   40 ++
+ apps/spark/java/livy-yarn/src/main/bash/run-am.sh  |   21 +
+ .../java/livy-yarn/src/main/bash/run-class.sh      |   36 ++
+ apps/spark/java/livy-yarn/src/main/bash/run-job.sh |   19 +
+ .../livy-yarn/src/main/resources/log4j.properties  |   30 ++
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |   52 +++
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |  413 +++++++++++++++++++
+ .../scala/com/cloudera/hue/livy/yarn/Logging.scala |   28 ++
+ .../scala/com/cloudera/hue/livy/yarn/YarnJob.scala |    9 +
+ apps/spark/java/pom.xml                            |   48 ++-
+ apps/spark/java/sparker-repl/pom.xml               |  194 ---------
+ .../java/sparker-repl/src/main/assembly/dist.xml   |   37 --
+ .../sparker-repl/src/main/scala/Scalatra.scala     |   21 -
+ .../cloudera/hue/sparker/repl/Interpreter.scala    |  153 -------
+ .../scala/com/cloudera/hue/sparker/repl/Main.scala |   29 --
+ .../com/cloudera/hue/sparker/repl/WebApp.scala     |   58 ---
+ apps/spark/java/sparker-server/pom.xml             |  175 --------
+ .../cloudera/hue/sparker/server/SparkerApp.java    |   40 --
+ .../hue/sparker/server/SparkerConfiguration.java   |    6 -
+ .../server/resources/ExecuteStatementRequest.java  |   15 -
+ .../sparker/server/resources/SessionResource.java  |  134 -------
+ .../server/resources/StatementResource.java        |   47 ---
+ .../server/sessions/ClosedSessionException.java    |    4 -
+ .../hue/sparker/server/sessions/Session.java       |   60 ---
+ .../sparker/server/sessions/SessionManager.java    |  171 --------
+ .../hue/sparker/server/sessions/SparkSession.java  |  191 ---------
+ .../hue/sparker/server/sessions/Statement.java     |   70 ----
+ .../java/sparker-yarn/src/main/assembly/dist.xml   |   51 ---
+ .../java/sparker-yarn/src/main/bash/run-am.sh      |   21 -
+ .../java/sparker-yarn/src/main/bash/run-class.sh   |   36 --
+ .../java/sparker-yarn/src/main/bash/run-job.sh     |   19 -
+ .../src/main/resources/log4j.properties            |   30 --
+ .../com/cloudera/hue/sparker/yarn/AppMaster.scala  |   49 ---
+ .../com/cloudera/hue/sparker/yarn/Client.scala     |  424 --------------------
+ .../com/cloudera/hue/sparker/yarn/Logging.scala    |   28 --
+ .../com/cloudera/hue/sparker/yarn/YarnJob.scala    |    9 -
+ apps/spark/java/src/main/assembly/dist.xml         |   65 ---
+ apps/spark/java/src/main/assembly/dist3.xml        |   65 +++
+ apps/spark/spark_server.sh                         |   81 ----
+ apps/spark/sparker-client.py                       |   93 -----
+ apps/spark/sparker-shell                           |    8 -
+ 59 files changed, 2311 insertions(+), 2335 deletions(-)
+ create mode 100644 apps/spark/java/livy-repl/pom.xml
+ create mode 100644 apps/spark/java/livy-repl/src/main/assembly/dist.xml
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+ create mode 100644 apps/spark/java/livy-server/pom.xml
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
+ create mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
+ create mode 100644 apps/spark/java/livy-yarn/pom.xml
+ create mode 100644 apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+ create mode 100755 apps/spark/java/livy-yarn/src/main/bash/run-am.sh
+ create mode 100755 apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+ create mode 100755 apps/spark/java/livy-yarn/src/main/bash/run-job.sh
+ create mode 100644 apps/spark/java/livy-yarn/src/main/resources/log4j.properties
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
+ delete mode 100644 apps/spark/java/sparker-repl/pom.xml
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/assembly/dist.xml
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+ delete mode 100644 apps/spark/java/sparker-server/pom.xml
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerConfiguration.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/ClosedSessionException.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+ delete mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
+ delete mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
+ delete mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
+ delete mode 100755 apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
+ delete mode 100644 apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
+ delete mode 100644 apps/spark/java/src/main/assembly/dist.xml
+ create mode 100644 apps/spark/java/src/main/assembly/dist3.xml
+ delete mode 100755 apps/spark/spark_server.sh
+ delete mode 100755 apps/spark/sparker-client.py
+ delete mode 100755 apps/spark/sparker-shell
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+new file mode 100644
+index 0000000..2915364
+--- /dev/null
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -0,0 +1,194 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.livy</groupId>
++        <artifactId>livy-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>livy-repl</artifactId>
++    <packaging>jar</packaging>
++
++    <properties>
++        <hadoop.version>2.5.0</hadoop.version>
++        <scala.binary.version>2.10</scala.binary.version>
++        <scala.macros.version>2.0.1</scala.macros.version>
++        <scala.version>2.10.3</scala.version>
++        <scalatra.version>2.2.1</scalatra.version>
++        <spark.version>1.1.0</spark.version>
++        <PermGen>64m</PermGen>
++        <MaxPermGen>512m</MaxPermGen>
++    </properties>
++
++    <dependencies>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-repl_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s-jackson_2.10</artifactId>
++            <version>3.2.11</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-json_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-client</artifactId>
++            <version>${hadoop.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-api</artifactId>
++            <version>${hadoop.version}</version>
++        </dependency>
++
++    </dependencies>
++
++    <build>
++        <plugins>
++
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <version>2.15.2</version>
++                <executions>
++                    <execution>
++                        <goals>
++                            <goal>compile</goal>
++                            <goal>testCompile</goal>
++                        </goals>
++                    </execution>
++                </executions>
++                <configuration>
++                    <!-- The following plugin is required to use quasiquotes in Scala 2.10 and is used
++                         by Spark SQL for code generation. -->
++                    <compilerPlugins>
++                        <compilerPlugin>
++                            <groupId>org.scalamacros</groupId>
++                            <artifactId>paradise_${scala.version}</artifactId>
++                            <version>${scala.macros.version}</version>
++                        </compilerPlugin>
++                    </compilerPlugins>
++                </configuration>
++            </plugin>
++
++            <!--
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-dependency-plugin</artifactId>
++                <version>2.9</version>
++                <executions>
++                    <execution>
++                        <id>copy-dependencies</id>
++                        <phase>prepare-package</phase>
++                        <goals>
++                            <goal>copy-dependencies</goal>
++                        </goals>
++                        <configuration>
++                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
++                            <overWriteReleases>false</overWriteReleases>
++                            <overWriteSnapshots>false</overWriteSnapshots>
++                            <overWriteIfNewer>true</overWriteIfNewer>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <version>2.5</version>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <addClasspath>true</addClasspath>
++                            <classpathPrefix>lib/</classpathPrefix>
++                            <mainClass>com.cloudera.hue.livy.repl.Main</mainClass>
++                        </manifest>
++                    </archive>
++                </configuration>
++            </plugin>
++            -->
++
++            <plugin>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
++                <configuration>
++                    <descriptor>src/main/assembly/dist.xml</descriptor>
++                </configuration>
++            </plugin>
++
++            <!--
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>1.6</version>
++                <configuration>
++                    <createDependencyReducedPom>true</createDependencyReducedPom>
++                    <filters>
++                        <filter>
++                            <artifact>*:*</artifact>
++                            <excludes>
++                                <exclude>META-INF/*.SF</exclude>
++                                <exclude>META-INF/*.DSA</exclude>
++                                <exclude>META-INF/*.RSA</exclude>
++                            </excludes>
++                        </filter>
++                    </filters>
++                </configuration>
++                <executions>
++                    <execution>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>shade</goal>
++                        </goals>
++                        <configuration>
++                            <transformers>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <mainClass>com.cloudera.hue.livy.server.LivyApp</mainClass>
++                                </transformer>
++                            </transformers>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            -->
++
++        </plugins>
++    </build>
++
++    <reporting>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration>
++            </plugin>
++        </plugins>
++    </reporting>
++
++</project>
+diff --git a/apps/spark/java/livy-repl/src/main/assembly/dist.xml b/apps/spark/java/livy-repl/src/main/assembly/dist.xml
+new file mode 100644
+index 0000000..d5801f5
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/assembly/dist.xml
+@@ -0,0 +1,37 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++        </dependencySet>
++    </dependencySets>
++
++    <fileSets>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala b/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+new file mode 100644
+index 0000000..ccffb4b
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+@@ -0,0 +1,20 @@
++import javax.servlet.ServletContext
++
++import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
++import com.cloudera.hue.livy.repl.webapp.LivyApp
++import org.scalatra.LifeCycle
++
++class ScalatraBootstrap extends LifeCycle {
++
++  //val system = ActorSystem()
++  val sparkInterpreter = new SparkInterpreter
++
++  override def init(context: ServletContext): Unit = {
++    context.mount(new LivyApp(sparkInterpreter), "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++    sparkInterpreter.close()
++    //system.shutdown()
++  }
++}
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+new file mode 100644
+index 0000000..3bae01c
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+@@ -0,0 +1,153 @@
++package com.cloudera.hue.livy.repl.interpreter
++
++import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
++import java.util.concurrent.{BlockingQueue, SynchronousQueue}
++
++import org.apache.spark.repl.SparkILoop
++
++import scala.concurrent._
++import scala.tools.nsc.SparkHelper
++import scala.tools.nsc.interpreter.{Formatting, _}
++import scala.tools.nsc.util.ClassPath
++
++class SparkInterpreter {
++  private implicit def executor: ExecutionContext = ExecutionContext.global
++
++  private var running = false;
++  private val inQueue = new SynchronousQueue[Request]
++  private val inWriter = new PipedWriter()
++
++  org.apache.spark.repl.Main.interp = new ILoop(
++    this,
++    inQueue,
++    new BufferedReader(new PipedReader(inWriter)),
++    new StringWriter)
++
++  // Launch the real interpreter thread.
++  private val thread = new Thread {
++    override def run(): Unit = {
++      val args = Array("-usejavacp")
++      org.apache.spark.repl.Main.interp.process(args)
++    }
++  }
++  thread.start()
++
++  def statements = {
++    org.apache.spark.repl.Main.interp.history.asStrings
++  }
++
++  def execute(statement: String): Future[Map[String, String]] = {
++    val promise = Promise[Map[String, String]]()
++    inQueue.put(ExecuteRequest(statement, promise))
++    promise.future
++  }
++
++  def close(): Unit = {
++    inQueue.put(ShutdownRequest())
++    thread.join()
++  }
++}
++
++private class ILoop(parent: SparkInterpreter, inQueue: BlockingQueue[Request], in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
++
++  class ILoopInterpreter extends SparkILoopInterpreter {
++    outer =>
++
++    override lazy val formatting = new Formatting {
++      def prompt = ILoop.this.prompt
++    }
++    override protected def parentClassLoader = SparkHelper.explicitParentLoader(settings).getOrElse(classOf[SparkILoop].getClassLoader)
++  }
++
++  /** Create a new interpreter. */
++  override def createInterpreter() {
++    require(settings != null)
++
++    if (addedClasspath != "") settings.classpath.append(addedClasspath)
++    // work around for Scala bug
++    val totalClassPath = SparkILoop.getAddedJars.foldLeft(
++      settings.classpath.value)((l, r) => ClassPath.join(l, r))
++    this.settings.classpath.value = totalClassPath
++
++    intp = new ILoopInterpreter
++  }
++
++  private val replayQuestionMessage =
++    """|That entry seems to have slain the compiler.  Shall I replay
++      |your session? I can re-run each line except the last one.
++      |[y/n]
++    """.trim.stripMargin
++
++  private def crashRecovery(ex: Throwable): Boolean = {
++    echo(ex.toString)
++    ex match {
++      case _: NoSuchMethodError | _: NoClassDefFoundError =>
++        echo("\nUnrecoverable error.")
++        throw ex
++      case _  =>
++        def fn(): Boolean =
++          try in.readYesOrNo(replayQuestionMessage, { echo("\nYou must enter y or n.") ; fn() })
++          catch { case _: RuntimeException => false }
++
++        if (fn()) replay()
++        else echo("\nAbandoning crashed session.")
++    }
++    true
++  }
++
++  override def prompt = ""
++
++  override def loop(): Unit = {
++    def readOneLine() = {
++      inQueue.take()
++    }
++    // return false if repl should exit
++    def processLine(request: Request): Boolean = {
++      if (isAsync) {
++        if (!awaitInitialized()) return false
++        runThunks()
++      }
++
++      request match {
++        case ExecuteRequest(statement, promise) => {
++          command(statement) match {
++            case Result(false, _) => false
++            case Result(true, finalLine) => {
++              finalLine match {
++                case Some(line) => addReplay(line)
++                case _ =>
++              }
++
++              var output: String = outString.getBuffer.toString
++              output = output.substring(0, output.length - 1)
++              outString.getBuffer.setLength(0)
++
++              promise.success(Map("type" -> "stdout", "stdout" -> output))
++
++              true
++            }
++          }
++        }
++        case ShutdownRequest() => false
++      }
++    }
++    def innerLoop() {
++      outString.getBuffer.setLength(0)
++
++      val shouldContinue = try {
++        processLine(readOneLine())
++      } catch {
++        case t: Throwable => crashRecovery(t)
++      }
++
++      if (shouldContinue) {
++        innerLoop()
++      }
++    }
++    innerLoop()
++  }
++}
++
++sealed trait Request
++case class ExecuteRequest(statement: String, promise: Promise[Map[String, String]]) extends Request
++case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+new file mode 100644
+index 0000000..9b3e05c
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -0,0 +1,29 @@
++package com.cloudera.hue.livy.repl
++
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.{ServletHolder, DefaultServlet}
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
++
++import scala.concurrent.ExecutionContext
++
++object Main {
++  def main(args: Array[String]): Unit = {
++    val port = sys.env.getOrElse("PORT", "8999").toInt
++    val server = new Server(port)
++    val context = new WebAppContext()
++
++    context.setContextPath("/")
++    context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
++    context.addEventListener(new ScalatraListener)
++
++    context.addServlet(classOf[DefaultServlet], "/")
++
++    context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
++
++    server.setHandler(context)
++
++    server.start()
++    server.join()
++  }
++}
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+new file mode 100644
+index 0000000..80bf9a7
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -0,0 +1,58 @@
++package com.cloudera.hue.livy.repl.webapp
++
++import akka.util.Timeout
++import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
++import org.json4s.{DefaultFormats, Formats}
++import org.scalatra.json._
++import org.scalatra.{Accepted, AsyncResult, FutureSupport, ScalatraServlet}
++
++import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutor}
++
++class LivyApp(interpreter: SparkInterpreter) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
++
++  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++  protected implicit def defaultTimeout: Timeout = Timeout(10)
++  protected implicit val jsonFormats: Formats = DefaultFormats
++
++  sealed trait State
++  case class Starting() extends State
++  case class Running() extends State
++  case class ShuttingDown() extends State
++
++  var state: State = Starting()
++
++  before() {
++    contentType = formats("json")
++
++    state match {
++      case ShuttingDown() => halt(500, "Shutting down")
++      case _ => {}
++    }
++  }
++
++  get("/") {
++    Map("state" -> state)
++  }
++
++  get("/statements") {
++    interpreter.statements
++  }
++
++  post("/statements") {
++    val req = parsedBody.extract[ExecuteRequest]
++    val statement = req.statement
++    new AsyncResult { val is = interpreter.execute(statement) }
++  }
++
++  delete("/") {
++    Future {
++      state = ShuttingDown()
++      interpreter.close()
++      Thread.sleep(1000)
++      System.exit(0)
++    }
++    Accepted()
++  }
++}
++
++case class ExecuteRequest(statement: String)
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+new file mode 100644
+index 0000000..e74cdc8
+--- /dev/null
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -0,0 +1,175 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++  Licensed to the Apache Software Foundation (ASF) under one
++  or more contributor license agreements.  See the NOTICE file
++  distributed with this work for additional information
++  regarding copyright ownership.  The ASF licenses this file
++  to you under the Apache License, Version 2.0 (the
++  "License"); you may not use this file except in compliance
++  with the License.  You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++  Unless required by applicable law or agreed to in writing, software
++  distributed under the License is distributed on an "AS IS" BASIS,
++  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  See the License for the specific language governing permissions and
++  limitations under the License.
++-->
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.livy</groupId>
++        <artifactId>livy-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>livy-server</artifactId>
++    <packaging>jar</packaging>
++
++    <properties>
++        <dropwizard.version>0.7.0</dropwizard.version>
++        <jetty.version>9.1.0.v20131115</jetty.version>
++        <jersey.version>2.7</jersey.version>
++    </properties>
++
++    <dependencies>
++        <dependency>
++            <groupId>io.dropwizard</groupId>
++            <artifactId>dropwizard-core</artifactId>
++            <version>${dropwizard.version}</version>
++        </dependency>
++
++        <!--
++        <dependency>
++            <groupId>com.fasterxml.jackson.core</groupId>
++            <artifactId>jackson-databind</artifactId>
++            <version>2.3.1</version>
++        </dependency>
++        -->
++
++        <!--
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-server</artifactId>
++            <version>${jetty.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-servlet</artifactId>
++            <version>${jetty.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.core</groupId>
++            <artifactId>jersey-server</artifactId>
++            <version>${jersey.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.containers</groupId>
++            <artifactId>jersey-container-servlet-core</artifactId>
++            <version>${jersey.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.containers</groupId>
++            <artifactId>jersey-container-jetty-http</artifactId>
++            <version>${jersey.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.glassfish.jersey.media</groupId>
++            <artifactId>jersey-media-moxy</artifactId>
++            <version>${jersey.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>org.codehaus.jackson</groupId>
++            <artifactId>jackson-mapper-asl</artifactId>
++            <version>1.9.3</version>
++        </dependency>
++        <dependency>
++            <groupId>com.google.guava</groupId>
++            <artifactId>guava</artifactId>
++            <version>14.0.1</version>
++        </dependency>
++        -->
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>1.6</version>
++                <configuration>
++                    <createDependencyReducedPom>true</createDependencyReducedPom>
++                    <filters>
++                        <filter>
++                            <artifact>*:*</artifact>
++                            <excludes>
++                                <exclude>META-INF/*.SF</exclude>
++                                <exclude>META-INF/*.DSA</exclude>
++                                <exclude>META-INF/*.RSA</exclude>
++                            </excludes>
++                        </filter>
++                    </filters>
++                </configuration>
++                <executions>
++                    <execution>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>shade</goal>
++                        </goals>
++                        <configuration>
++                            <transformers>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <mainClass>com.cloudera.hue.livy.server.LivyApp</mainClass>
++                                </transformer>
++                            </transformers>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++
++
++            <!--
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-dependency-plugin</artifactId>
++                <executions>
++                    <execution>
++                        <id>copy-dependencies</id>
++                        <phase>prepare-package</phase>
++                        <goals>
++                            <goal>copy-dependencies</goal>
++                        </goals>
++                        <configuration>
++                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
++                            <overWriteReleases>false</overWriteReleases>
++                            <overWriteSnapshots>false</overWriteSnapshots>
++                            <overWriteIfNewer>true</overWriteIfNewer>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <addClasspath>true</addClasspath>
++                            <classpathPrefix>lib/</classpathPrefix>
++                            <mainClass>com.cloudera.hue.livy.server.LivyMain</mainClass>
++                        </manifest>
++                    </archive>
++                </configuration>
++            </plugin>
++            -->
++
++        </plugins>
++
++    </build>
++
++</project>
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
+new file mode 100644
+index 0000000..132cf34
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
+@@ -0,0 +1,40 @@
++package com.cloudera.hue.livy.server;
++
++import com.cloudera.hue.livy.server.sessions.SessionManager;
++import com.cloudera.hue.livy.server.resources.StatementResource;
++import com.cloudera.hue.livy.server.resources.SessionResource;
++import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
++import io.dropwizard.Application;
++import io.dropwizard.setup.Bootstrap;
++import io.dropwizard.setup.Environment;
++
++import javax.ws.rs.core.Response;
++import javax.ws.rs.ext.ExceptionMapper;
++
++public class LivyApp extends Application<LivyConfiguration> {
++
++    public static void main(String[] args) throws Exception {
++        new LivyApp().run(args);
++    }
++
++    @Override
++    public void initialize(Bootstrap<LivyConfiguration> bootstrap) {
++
++    }
++
++    @Override
++    public void run(LivyConfiguration livyConfiguration, Environment environment) throws Exception {
++        final SessionManager sessionManager = new SessionManager();
++        environment.jersey().register(new SessionResource(sessionManager));
++        environment.jersey().register(new StatementResource(sessionManager));
++        environment.jersey().register(new SessionManagerExceptionMapper());
++    }
++
++    private class SessionManagerExceptionMapper implements ExceptionMapper<SessionManager.SessionNotFound> {
++
++        @Override
++        public Response toResponse(SessionManager.SessionNotFound sessionNotFound) {
++            return new ResponseBuilderImpl().status(404).entity("session not found").build();
++        }
++    }
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
+new file mode 100644
+index 0000000..6510c85
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
+@@ -0,0 +1,6 @@
++package com.cloudera.hue.livy.server;
++
++import io.dropwizard.Configuration;
++
++public class LivyConfiguration extends Configuration {
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
+new file mode 100644
+index 0000000..37681af
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
+@@ -0,0 +1,15 @@
++package com.cloudera.hue.livy.server.resources;
++
++import org.hibernate.validator.constraints.NotEmpty;
++
++/**
++ * Created by erickt on 11/25/14.
++ */
++public class ExecuteStatementRequest {
++    @NotEmpty
++    private String statement;
++
++    public String getStatement() {
++        return statement;
++    }
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
+new file mode 100644
+index 0000000..c059a36
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
+@@ -0,0 +1,134 @@
++package com.cloudera.hue.livy.server.resources;
++
++import com.cloudera.hue.livy.server.sessions.ClosedSessionException;
++import com.cloudera.hue.livy.server.sessions.Session;
++import com.cloudera.hue.livy.server.sessions.SessionManager;
++import com.cloudera.hue.livy.server.sessions.Statement;
++import com.codahale.metrics.annotation.Timed;
++import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
++
++import javax.servlet.http.HttpServletRequest;
++import javax.validation.Valid;
++import javax.ws.rs.DELETE;
++import javax.ws.rs.GET;
++import javax.ws.rs.POST;
++import javax.ws.rs.Path;
++import javax.ws.rs.PathParam;
++import javax.ws.rs.Produces;
++import javax.ws.rs.QueryParam;
++import javax.ws.rs.WebApplicationException;
++import javax.ws.rs.core.Context;
++import javax.ws.rs.core.MediaType;
++import javax.ws.rs.core.Response;
++import java.io.IOException;
++import java.net.URI;
++import java.net.URISyntaxException;
++import java.util.Collections;
++import java.util.List;
++import java.util.concurrent.TimeoutException;
++
++@Path("/sessions")
++@Produces(MediaType.APPLICATION_JSON)
++public class SessionResource {
++
++    private static final String SCALA = "scala";
++    private static final String PYTHON = "python";
++
++    private final SessionManager sessionManager;
++
++    public SessionResource(SessionManager sessionManager) {
++        this.sessionManager = sessionManager;
++    }
++
++    @GET
++    @Timed
++    public List<String> getSessions() {
++        return Collections.list(sessionManager.getSessionIds());
++    }
++
++    @POST
++    @Timed
++    public Response createSession(@QueryParam("lang") String language,
++                                  @Context HttpServletRequest request) throws IOException, InterruptedException, URISyntaxException {
++        SessionManager.SessionType sessionType;
++
++        if (language == null) {
++            Response resp = new ResponseBuilderImpl().status(400).entity("missing language").build();
++            throw new WebApplicationException(resp);
++        }
++
++        if (language.equals(SCALA)) {
++            sessionType = SessionManager.SessionType.SCALA;
++        } else if (language.equals(PYTHON)) {
++            sessionType = SessionManager.SessionType.PYTHON;
++        } else {
++            Response resp = new ResponseBuilderImpl().status(400).entity("invalid language").build();
++            throw new WebApplicationException(resp);
++        }
++
++        Session session = sessionManager.create(sessionType);
++
++        URI location = new URI("/" + session.getId());
++        return Response.created(location).build();
++    }
++
++    @Path("/{id}")
++    @GET
++    @Timed
++    public List<Statement> getSession(@PathParam("id") String id,
++                                 @QueryParam("from") Integer fromCell,
++                                 @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
++        Session session = sessionManager.get(id);
++        List<Statement> statements = session.getStatements();
++
++        if (fromCell != null || limit != null) {
++            if (fromCell == null) {
++                fromCell = 0;
++            }
++
++            if (limit == null) {
++                limit = statements.size();
++            }
++
++            statements = statements.subList(fromCell, fromCell + limit);
++        }
++
++        return statements;
++    }
++
++    @Path("/{id}")
++    @POST
++    @Timed
++    public Response executeStatement(@PathParam("id") String id,
++                                     @Valid ExecuteStatementRequest body,
++                                     @Context HttpServletRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
++        Session session = sessionManager.get(id);
++
++        // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
++        Statement statement = session.executeStatement(body.getStatement());
++
++        URI location = new URI("/cells/" + statement.getId());
++        return Response.created(location).build();
++    }
++
++    @Path("/{id}")
++    @DELETE
++    @Timed
++    public Response closeSession(@PathParam("id") String id) throws InterruptedException, TimeoutException, IOException, SessionManager.SessionNotFound {
++        sessionManager.close(id);
++        return Response.noContent().build();
++    }
++
++
++    @Path("/{id}/interrupt")
++    @POST
++    @Timed
++    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound, Exception, ClosedSessionException {
++        Session session = sessionManager.get(id);
++
++        // FIXME: don't actually do anything for now as it doesn't work yet.
++        //  session.interrupt();
++
++        return Response.ok().build();
++    }
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
+new file mode 100644
+index 0000000..be81bbb
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
+@@ -0,0 +1,47 @@
++package com.cloudera.hue.livy.server.resources;
++
++import com.cloudera.hue.livy.server.sessions.Session;
++import com.cloudera.hue.livy.server.sessions.SessionManager;
++import com.cloudera.hue.livy.server.sessions.Statement;
++import com.codahale.metrics.annotation.Timed;
++
++import javax.ws.rs.*;
++import javax.ws.rs.core.MediaType;
++import java.util.List;
++
++@Path("/sessions/{sessionId}/statements")
++@Produces(MediaType.APPLICATION_JSON)
++public class StatementResource {
++
++    private final SessionManager sessionManager;
++
++    public StatementResource(SessionManager sessionManager) {
++        this.sessionManager = sessionManager;
++    }
++
++    @GET
++    @Timed
++    public List<Statement> getStatements(@PathParam("sessionId") String sessionId,
++                                         @QueryParam("from") Integer fromStatement,
++                                         @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
++        Session session = sessionManager.get(sessionId);
++        List<Statement> statements;
++
++        if (fromStatement == null && limit == null) {
++            statements = session.getStatements();
++        } else {
++            statements = session.getStatementRange(fromStatement, fromStatement + limit);
++        }
++
++        return statements;
++    }
++
++    @Path("/{statementId}")
++    @GET
++    @Timed
++    public Statement getStatement(@PathParam("sessionId") String sessionId, @PathParam("statementId") int statementId) throws SessionManager.SessionNotFound, Session.StatementNotFound {
++        Session session = sessionManager.get(sessionId);
++        return session.getStatement(statementId);
++    }
++
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
+new file mode 100644
+index 0000000..13e8e62
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
+@@ -0,0 +1,4 @@
++package com.cloudera.hue.livy.server.sessions;
++
++public class ClosedSessionException extends Throwable {
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
+new file mode 100644
+index 0000000..e10ca49
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
+@@ -0,0 +1,60 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.livy.server.sessions;
++
++import com.fasterxml.jackson.annotation.JsonProperty;
++
++import java.io.IOException;
++import java.util.List;
++import java.util.concurrent.TimeoutException;
++
++public interface Session {
++
++    public enum State {
++        EXECUTING_STATEMENT,
++        READY
++    }
++
++    @JsonProperty
++    String getId();
++
++    @JsonProperty
++    State getState();
++
++    @JsonProperty
++    List<Statement> getStatements();
++
++    List<Statement> getStatementRange(Integer fromIndex, Integer toIndex);
++
++    Statement getStatement(int statementId) throws StatementNotFound;
++
++    @JsonProperty
++    public long getLastActivity();
++
++    public Statement executeStatement(String statement) throws Exception, ClosedSessionException;
++
++    public void close() throws IOException, InterruptedException, TimeoutException;
++
++    void interrupt() throws Exception, ClosedSessionException;
++
++    public static class StatementNotFound extends Throwable {
++
++    }
++}
++
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
+new file mode 100644
+index 0000000..a851dda
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
+@@ -0,0 +1,171 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.livy.server.sessions;
++
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.io.IOException;
++import java.util.Enumeration;
++import java.util.UUID;
++import java.util.concurrent.*;
++
++public class SessionManager {
++
++    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
++
++    public enum SessionType {
++        SCALA,
++        PYTHON,
++    }
++
++    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
++    private BlockingQueue<Session> freshScalaSessions = new LinkedBlockingQueue<Session>(5);
++
++    SessionManagerGarbageCollector gcThread = new SessionManagerGarbageCollector();
++    SessionCreator creatorThread = new SessionCreator(SessionType.SCALA);
++
++    public SessionManager() {
++        gcThread.setDaemon(true);
++        gcThread.start();
++
++        creatorThread.setDaemon(true);
++        creatorThread.start();
++    }
++
++    public Session get(String id) throws SessionNotFound {
++        Session session = sessions.get(id);
++        if (session == null) {
++            throw new SessionNotFound(id);
++        }
++        return session;
++    }
++
++    public Session create(SessionType type) throws IllegalArgumentException, IOException, InterruptedException {
++        Session session;
++        switch (type) {
++            case SCALA: session = freshScalaSessions.take(); break;
++            //case PYTHON: session = new PySparkSession(id); break;
++            default: throw new IllegalArgumentException("Invalid language specified for shell session");
++        }
++        sessions.put(session.getId(), session);
++        return session;
++    }
++
++    public void close() throws InterruptedException, IOException, TimeoutException {
++        for (Session session : sessions.values()) {
++            sessions.remove(session.getId());
++            session.close();
++        }
++
++        gcThread.interrupt();
++        gcThread.join();
++        creatorThread.interrupt();
++        creatorThread.join();
++
++        Session session;
++        while ((session = freshScalaSessions.poll(500, TimeUnit.MILLISECONDS)) != null) {
++            session.close();
++        }
++    }
++
++    public void close(String id) throws InterruptedException, TimeoutException, IOException, SessionNotFound {
++        Session session = this.get(id);
++        sessions.remove(id);
++        session.close();
++
++    }
++
++    public Enumeration<String> getSessionIds() {
++        return sessions.keys();
++    }
++
++    public void garbageCollect() throws InterruptedException, IOException, TimeoutException {
++        long timeout = 60000; // Time in milliseconds; TODO: make configurable
++        for (Session session : sessions.values()) {
++            long now = System.currentTimeMillis();
++            if ((now - session.getLastActivity()) > timeout) {
++                try {
++                    this.close(session.getId());
++                } catch (SessionNotFound sessionNotFound) {
++                    // Ignore
++                }
++            }
++        }
++    }
++
++    private class SessionManagerGarbageCollector extends Thread {
++
++        protected long period = 1000 * 60 * 60; // Time in milliseconds; TODO: make configurable
++
++        public SessionManagerGarbageCollector() {
++            super();
++        }
++
++        public void run() {
++            try {
++                while(true) {
++                    garbageCollect();
++                    sleep(period);
++                }
++            } catch (InterruptedException e) {
++                e.printStackTrace();
++            } catch (TimeoutException e) {
++                e.printStackTrace();
++            } catch (IOException e) {
++                e.printStackTrace();
++            }
++        }
++    }
++
++    public class SessionNotFound extends Throwable {
++        public SessionNotFound(String id) {
++            super(id);
++        }
++    }
++
++    private class SessionCreator extends Thread {
++        SessionType type;
++
++        public SessionCreator(SessionType type) {
++            this.type = type;
++        }
++
++        public void run() {
++            try {
++                while(true) {
++                    String id = UUID.randomUUID().toString();
++
++                    Session session;
++                    switch (type) {
++                        case SCALA: session = new SparkSession(id); break;
++                        //case PYTHON: session = new PythonSession(id); break;
++                        default: throw new IllegalArgumentException("Invalid language specified for shell session");
++                    }
++
++                    freshScalaSessions.put(session);
++                }
++            } catch (InterruptedException e) {
++                e.printStackTrace();
++            } catch (IOException e) {
++                e.printStackTrace();
++            }
++        }
++    }
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
+new file mode 100644
+index 0000000..3870fef
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
+@@ -0,0 +1,191 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.hue.livy.server.sessions;
++
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import com.fasterxml.jackson.databind.node.ObjectNode;
++import com.google.common.collect.Lists;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.io.*;
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * The SparkSession works by spawning off a worker process and communicating with it over a simple IPC json protocol.
++ *
++ * The request is a json dictionary with the following fields:
++ *
++ * - id: the cell id.
++ * - type: the kind of command.
++ * - stdin: the command to execute.
++ *
++ * The response is a json dictionary with the following fields:
++ *
++ * - id: the cell this message corresponds to.
++ * - state: what state the interpreter is in. One of [ready, incomplete, running, complete]
++ * - stdout: the STDOUT lines.
++ * - stderr: the STDERR lines.
++ *
++ * The way it works is that we spawn a worker thread th
++ */
++public class SparkSession implements Session {
++
++    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
++
++    private static final String SPARKER_HOME = System.getenv("SPARKER_HOME");
++    private static final String SPARKER_SHELL = SPARKER_HOME + "/sparker-shell";
++
++    private final String id;
++    private State state = State.READY;
++    private final Process process;
++    private final Writer writer;
++    private final BufferedReader reader;
++    private final List<Statement> statements = new ArrayList<Statement>();
++    private final ObjectMapper objectMapper = new ObjectMapper();
++
++    private boolean isClosed = false;
++
++    protected long lastActivity = Long.MAX_VALUE;
++
++    public SparkSession(final String id) throws IOException, InterruptedException {
++        LOG.info("[" + id + "]: creating spark session");
++
++        touchLastActivity();
++
++        this.id = id;
++
++        ProcessBuilder pb = new ProcessBuilder(Lists.newArrayList(SPARKER_SHELL))
++                .redirectInput(ProcessBuilder.Redirect.PIPE)
++                .redirectOutput(ProcessBuilder.Redirect.PIPE);
++
++        this.process = pb.start();
++
++        writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
++        reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++    }
++
++    @Override
++    public String getId() {
++        return id;
++    }
++
++    @Override
++    public State getState() {
++        return state;
++    }
++
++    @Override
++    public long getLastActivity() {
++        return this.lastActivity;
++    }
++
++    @Override
++    synchronized public List<Statement> getStatements() {
++        return Lists.newArrayList(statements);
++    }
++
++    @Override
++    synchronized public List<Statement> getStatementRange(Integer fromIndex, Integer toIndex) {
++        return statements.subList(fromIndex, toIndex);
++    }
++
++    @Override
++    synchronized public Statement getStatement(int index) {
++        return statements.get(index);
++    }
++
++    @Override
++    synchronized public Statement executeStatement(String statementStr) throws IOException, ClosedSessionException, InterruptedException {
++        if (isClosed) {
++            throw new ClosedSessionException();
++        }
++
++        touchLastActivity();
++
++        Statement statement = new Statement(statements.size());
++        statements.add(statement);
++
++        statement.addInput(statementStr);
++
++        ObjectNode request = objectMapper.createObjectNode();
++        request.put("type", "stdin");
++        request.put("statement", statementStr);
++
++        state = State.EXECUTING_STATEMENT;
++
++        JsonNode response;
++        try {
++            response = doRequest(request);
++        } finally {
++            state = State.READY;
++        }
++
++        if (response.has("stdout")) {
++            statement.addOutput(response.get("stdout").asText());
++        }
++
++        if (response.has("stderr")) {
++            statement.addOutput(response.get("stderr").asText());
++        }
++
++        return statement;
++    }
++
++    @Override
++    synchronized public void close() {
++        isClosed = true;
++        process.destroy();
++    }
++
++    @Override
++    public void interrupt() throws Exception, ClosedSessionException {
++        // FIXME: is there a better way to do this?
++        if (this.state == State.EXECUTING_STATEMENT) {
++            ObjectNode request = objectMapper.createObjectNode();
++            request.put("type", "interrupt");
++
++            JsonNode response = doRequest(request);
++        }
++    }
++
++    private void touchLastActivity() {
++        this.lastActivity = System.currentTimeMillis();
++    }
++
++    private JsonNode doRequest(ObjectNode request) throws IOException, InterruptedException, ClosedSessionException {
++        writer.write(request.toString());
++        writer.write("\n");
++        writer.flush();
++
++        String line = reader.readLine();
++
++        if (line == null) {
++            // The process must have shutdown on us!
++            process.waitFor();
++            throw new ClosedSessionException();
++        }
++
++        LOG.info("[" + id + "] spark stdout: " + line);
++
++        return objectMapper.readTree(line);
++    }
++}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
+new file mode 100644
+index 0000000..5a30025
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
+@@ -0,0 +1,70 @@
++package com.cloudera.hue.livy.server.sessions;
++
++import com.fasterxml.jackson.annotation.JsonProperty;
++
++import java.util.ArrayList;
++import java.util.List;
++
++public class Statement {
++
++    public enum State {
++        NOT_READY,
++        READY,
++        INCOMPLETE,
++        RUNNING,
++        COMPLETE,
++    }
++
++    int id;
++    State state;
++    final List<String> input = new ArrayList<String>();
++    final List<String> output = new ArrayList<String>();
++
++    final List<String> error = new ArrayList<String>();
++
++    public Statement(int id) {
++        this.id = id;
++        this.state = State.COMPLETE;
++    }
++
++    @JsonProperty
++    public int getId() {
++        return id;
++    }
++
++    @JsonProperty("state")
++    public State getState() {
++        return state;
++    }
++
++    public void setState(State state) {
++        this.state = state;
++    }
++
++    @JsonProperty("input")
++    public List<String> getInput() {
++        return input;
++    }
++
++    public void addInput(String input) {
++        this.input.add(input);
++    }
++
++    @JsonProperty("output")
++    public List<String> getOutput() {
++        return output;
++    }
++
++    public void addOutput(String output) {
++        this.output.add(output);
++    }
++
++    @JsonProperty("error")
++    public List<String> getError() {
++        return error;
++    }
++
++    public void addError(String error) {
++        this.error.add(error);
++    }
++}
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+new file mode 100644
+index 0000000..bbbf53a
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -0,0 +1,162 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.sparker</groupId>
++        <artifactId>sparker-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>sparker-yarn</artifactId>
++    <packaging>jar</packaging>
++
++    <properties>
++        <hadoop.version>2.5.0</hadoop.version>
++        <scala.binary.version>2.10</scala.binary.version>
++        <scala.macros.version>2.0.1</scala.macros.version>
++        <scala.version>2.10.3</scala.version>
++        <PermGen>64m</PermGen>
++        <MaxPermGen>512m</MaxPermGen>
++    </properties>
++
++    <dependencies>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-common</artifactId>
++            <version>${hadoop.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-client</artifactId>
++            <version>${hadoop.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-yarn-api</artifactId>
++            <version>${hadoop.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scala-lang</groupId>
++            <artifactId>scala-library</artifactId>
++            <version>${scala.version}</version>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <version>2.15.2</version>
++                <executions>
++                    <execution>
++                        <goals>
++                            <goal>compile</goal>
++                            <goal>testCompile</goal>
++                        </goals>
++                    </execution>
++                </executions>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration
++            <plugin>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
++                <configuration>
++                    <descriptor>src/main/assembly/dist.xml</descriptor>
++                </configuration>
++            </plugin>
++
++						<!--
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>1.6</version>
++                <configuration>
++                    <createDependencyReducedPom>true</createDependencyReducedPom>
++                    <filters>
++                        <filter>
++                            <artifact>*:*</artifact>
++                            <excludes>
++                                <exclude>META-INF/*.SF</exclude>
++                                <exclude>META-INF/*.DSA</exclude>
++                                <exclude>META-INF/*.RSA</exclude>
++                            </excludes>
++                        </filter>
++                    </filters>
++                </configuration>
++                <executions>
++                    <execution>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>shade</goal>
++                        </goals>
++                        <configuration>
++                            <transformers>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <mainClass>com.cloudera.hue.sparker.yarn.Client</mainClass>
++                                </transformer>
++                            </transformers>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++-->
++
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-dependency-plugin</artifactId>
++                <executions>
++                    <execution>
++                        <id>copy-dependencies</id>
++                        <phase>prepare-package</phase>
++                        <goals>
++                            <goal>copy-dependencies</goal>
++                        </goals>
++                        <configuration>
++                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
++                            <overWriteReleases>false</overWriteReleases>
++                            <overWriteSnapshots>false</overWriteSnapshots>
++                            <overWriteIfNewer>true</overWriteIfNewer>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <addClasspath>true</addClasspath>
++                            <classpathPrefix>lib/</classpathPrefix>
++                            <maisparkerss>com.cloudera.hue.livy.yarn.Client</mainClass>
++                        </manifest>
++                    </archive>
++                </configuratio>>
++            </plugin>
++
++        </plugins>
++    </build>
++
++    <reporting>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration>
++            </plugin>
++        </plugins>
++    </reporting>
++
++</project>
+diff --git a/apps/spark/java/livy-yarn/src/main/assembly/dist.xml b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+new file mode 100644
+index 0000000..733baa4
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+@@ -0,0 +1,40 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++        </dependencySet>
++    </dependencySets>
++
++    <fileSets>
++        <fileSet>
++            <directory>${basedir}/src/main/bash</directory>
++            <outputDirectory>/bin</outputDirectory>
++            <fileMode>0744</fileMode>
++            <includes>
++                <include>*</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-am.sh b/apps/spark/java/livy-yarn/src/main/bash/run-am.sh
+new file mode 100755
+index 0000000..a598fa3
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-am.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#   http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++
++[[ $JAVA_OPTS != *-server* ]] && export JAVA_OPTS="$JAVA_OPTS -server"
++
++exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.AppMaster $@
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+new file mode 100755
+index 0000000..d59e9f2
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+@@ -0,0 +1,36 @@
++#!/bin/bash
++
++home_dir=`pwd`
++base_dir=$(dirname $0)/..
++cd $base_dir
++base_dir=`pwd`
++cd $home_dir
++
++HADOOP_YARN_HOME="${HADOOP_YARN_HOME:-$HOME/.sparker}"
++HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-$HADOOP_YARN_HOME/conf}"
++CLASSPATH=$HADOOP_CONF_DIR
++
++for file in $base_dir/lib/*.[jw]ar;
++do
++  CLASSPATH=$CLASSPATH:$file
++done
++
++if [ -z "$JAVA_HOME" ]; then
++  JAVA="java"
++else
++  JAVA="$JAVA_HOME/bin/java"
++fi
++
++# Try and use 64-bit mode if available in JVM_OPTS
++function check_and_enable_64_bit_mode {
++  `$JAVA -d64 -version`
++  if [ $? -eq 0 ] ; then
++    JAVA_OPTS="$JAVA_OPTS -d64"
++  fi
++}
++
++# Check if 64 bit is set. If not - try and set it if it's supported
++[[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
++
++echo $JAVA $JAVA_OPTS -cp $CLASSPATH $@
++exec $JAVA $JAVA_OPTS -cp $CLASSPATH $@
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-job.sh b/apps/spark/java/livy-yarn/src/main/bash/run-job.sh
+new file mode 100755
+index 0000000..bd3a98d
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-job.sh
+@@ -0,0 +1,19 @@
++#!/bin/bash
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#   http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++
++exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.Client $@
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-yarn/src/main/resources/log4j.properties b/apps/spark/java/livy-yarn/src/main/resources/log4j.properties
+new file mode 100644
+index 0000000..6efb3c5
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/resources/log4j.properties
+@@ -0,0 +1,30 @@
++#
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++
++log4j.appender.stdout=org.apache.log4j.ConsoleAppender
++log4j.appender.stdout.Target=System.err
++log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
++log4j.appender.stdout.layout.ConversionPattern=%d{ISO8601} %-5p %c{1} - %m%n
++
++log4j.rootLogger=INFO, stdout
++
++# Switching off most of Apache DS logqing which is QUITE verbose
++log4j.logger.org.apache.directory=OFF
++log4j.logger.org.apache.directory.server.kerberos=INFO, stdout
++log4j.additivity.org.apache.directory=false
++log4j.logger.net.sf.ehcache=INFO, stdout
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+new file mode 100644
+index 0000000..aa9e5c9
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -0,0 +1,52 @@
++package com.cloudera.hue.livy.yarn
++
++import org.apache.hadoop.net.NetUtils
++import org.apache.hadoop.yarn.api.ApplicationConstants
++import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
++import org.apache.hadoop.yarn.client.api.AMRMClient
++import org.apache.hadoop.yarn.conf.YarnConfiguration
++import org.apache.hadoop.yarn.util.ConverterUtils
++
++object AppMaster extends Logging {
++
++  def main(args: Array[String]): Unit = {
++    val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
++    info("got container id: %s" format containerIdString)
++    val containerId = ConverterUtils.toContainerId(containerIdString)
++
++    val appAttemptId = containerId.getApplicationAttemptId
++    info("got app attempt id: %s" format containerIdString)
++
++    val nodeHostString = System.getenv(ApplicationConstants.Environment.NM_HOST.toString)
++    info("got node manager host: %s" format nodeHostString)
++
++    val nodePortString = System.getenv(ApplicationConstants.Environment.NM_PORT.toString)
++    info("got node manager port: %s" format nodeHostString)
++
++    val yarnConfig = new YarnConfiguration
++    val amRMClient = AMRMClient.createAMRMClient()
++    amRMClient.init(yarnConfig)
++    amRMClient.start()
++
++    try {
++      val appMasterHostname = NetUtils.getHostname
++      val appMasterRpcPort = -1
++      val appMasterTrackingUrl = ""
++
++      val response = amRMClient.registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl)
++
++      val maxMem = response.getMaximumResourceCapability.getMemory
++      info("max mem capacity on this cluster: %s" format maxMem)
++
++      val maxVCores = response.getMaximumResourceCapability.getVirtualCores
++      info("max vcore capacity on this cluster: %s" format maxMem)
++    } finally {
++      val appStatus = FinalApplicationStatus.SUCCEEDED
++      val appMessage = "wee"
++
++      amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
++      amRMClient.stop()
++    }
++  }
++
++}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+new file mode 100644
+index 0000000..dc125e2
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -0,0 +1,413 @@
++package com.cloudera.hue.livy.yarn
++
++import org.apache.hadoop.fs.{FileSystem, Path}
++import org.apache.hadoop.yarn.api.ApplicationConstants
++import org.apache.hadoop.yarn.api.ApplicationConstants.Environment
++import org.apache.hadoop.yarn.api.records._
++import org.apache.hadoop.yarn.client.api.YarnClient
++import org.apache.hadoop.yarn.conf.YarnConfiguration
++import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
++import org.slf4j.LoggerFactory
++
++import scala.collection.JavaConversions._
++
++object Client extends Logging {
++
++  def main(args: Array[String]): Unit = {
++    println(args.length)
++    args.foreach(println(_))
++
++    val packagePath = new Path(args(1))
++
++    val yarnConf = new YarnConfiguration()
++    val client = new Client(yarnConf)
++
++    try {
++      val job = client.submitApplication(
++        packagePath,
++        List(
++          "__package/bin/run-am.sh 1>%s/stdout 2>%s/stderr" format (
++            ApplicationConstants.LOG_DIR_EXPANSION_VAR,
++            ApplicationConstants.LOG_DIR_EXPANSION_VAR
++          )
++        )
++      )
++
++      info("waiting for job to start")
++
++      job.waitForStatus(Running(), 500) match {
++        case Some(Running()) => {
++          info("job started successfully")
++        }
++        case Some(appStatus) => {
++          warn("unable to start job successfully. job has status %s" format appStatus)
++        }
++        case None => {
++          warn("timed out waiting for job to start")
++        }
++      }
++
++      job.waitForFinish(100000) match {
++        case Some(SuccessfulFinish()) => {
++          info("job finished successfully")
++        }
++        case Some(appStatus) => {
++          info("job finished unsuccessfully %s" format appStatus)
++        }
++        case None => {
++          info("timed out")
++        }
++      }
++
++    } finally {
++      client.close()
++    }
++  }
++}
++
++class Client(yarnConf: YarnConfiguration) {
++
++  import Client._
++
++  val yarnClient = YarnClient.createYarnClient()
++  yarnClient.init(yarnConf)
++  yarnClient.start()
++
++  def submitApplication(packagePath: Path, cmds: List[String]): Job = {
++    val app = yarnClient.createApplication()
++    val newAppResponse = app.getNewApplicationResponse
++
++    val appId = newAppResponse.getApplicationId
++
++    info("preparing to submit %s" format appId)
++
++    val appContext = app.getApplicationSubmissionContext
++    appContext.setApplicationName(appId.toString)
++
++    val containerCtx = Records.newRecord(classOf[ContainerLaunchContext])
++    val resource = Records.newRecord(classOf[Resource])
++
++    info("Copy app master jar from local filesystem and add to the local environment")
++    /*
++    val localResources = Map(
++      "app" => uploadLocalResource()
++    )
++    Map
++
++
++    addToLocalResources(fs, appMasterJar, appMasterJarPath, appId, localResources, null)
++    */
++
++    val packageResource = Records.newRecord(classOf[LocalResource])
++
++    val packageUrl = ConverterUtils.getYarnUrlFromPath(packagePath)
++    val fileStatus = packagePath.getFileSystem(yarnConf).getFileStatus(packagePath)
++
++    packageResource.setResource(packageUrl)
++    info("set package url to %s for %s" format (packageUrl, appId))
++    packageResource.setSize(fileStatus.getLen)
++    info("set package size to %s for %s" format (fileStatus.getLen, appId))
++    packageResource.setTimestamp(fileStatus.getModificationTime)
++    packageResource.setType(LocalResourceType.ARCHIVE)
++    packageResource.setVisibility(LocalResourceVisibility.APPLICATION)
++
++    resource.setMemory(256)
++    resource.setVirtualCores(1)
++    appContext.setResource(resource)
++
++    containerCtx.setCommands(cmds)
++    containerCtx.setLocalResources(Map("__package" -> packageResource))
++
++    appContext.setApplicationId(appId)
++    appContext.setAMContainerSpec(containerCtx)
++    appContext.setApplicationType("livy")
++
++    info("submitting application request for %s" format appId)
++
++    yarnClient.submitApplication(appContext)
++
++    new Job(yarnClient, appId)
++  }
++
++  def close(): Unit = {
++    yarnClient.close()
++  }
++
++  private def addToLocalResources(fs: FileSystem, fileSrcPath: String, fileDstPath: String, appId: String): LocalResource = {
++    val appName = "livy"
++    val suffix = appName + "/" + appId + "/" + fileDstPath
++
++    val dst = new Path(fs.getHomeDirectory, suffix)
++
++    fs.copyFromLocalFile(new Path(fileSrcPath), dst)
++
++    val srcFileStatus = fs.getFileStatus(dst)
++    LocalResource.newInstance(
++      ConverterUtils.getYarnUrlFromURI(dst.toUri),
++      LocalResourceType.FILE,
++      LocalResourceVisibility.APPLICATION,
++      srcFileStatus.getLen,
++      srcFileStatus.getModificationTime
++    )
++  }
++}
++
++class Job(client: YarnClient, appId: ApplicationId) {
++
++  def waitForFinish(timeoutMs: Long): Option[ApplicationStatus] = {
++    val startTimeMs = System.currentTimeMillis()
++
++    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
++      val status = getStatus()
++      status match {
++        case SuccessfulFinish() | UnsuccessfulFinish() => {
++          return Some(status)
++        }
++        case _ =>
++      }
++
++      Thread.sleep(1000)
++    }
++
++    None
++  }
++
++  def waitForStatus(status: ApplicationStatus, timeoutMs: Long): Option[ApplicationStatus] = {
++    val startTimeMs = System.currentTimeMillis()
++
++    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
++      if (getStatus() == status) {
++        return Some(status)
++      }
++
++      Thread.sleep(1000)
++    }
++
++    None
++  }
++
++  private def getStatus(): ApplicationStatus = {
++    val statusResponse = client.getApplicationReport(appId)
++    convertState(statusResponse.getYarnApplicationState, statusResponse.getFinalApplicationStatus)
++  }
++
++  private def convertState(state: YarnApplicationState, status: FinalApplicationStatus): ApplicationStatus = {
++    (state, status) match {
++      case (YarnApplicationState.FINISHED, FinalApplicationStatus.SUCCEEDED) => SuccessfulFinish()
++      case (YarnApplicationState.KILLED, _) | (YarnApplicationState.FAILED, _) => UnsuccessfulFinish()
++      case (YarnApplicationState.NEW, _) | (YarnApplicationState.SUBMITTED, _) => New()
++      case _ => Running()
++    }
++  }
++}
++
++trait ApplicationStatus
++case class New() extends ApplicationStatus
++case class Running() extends ApplicationStatus
++case class SuccessfulFinish() extends ApplicationStatus
++case class UnsuccessfulFinish() extends ApplicationStatus
++
++
++
++
++/*
++object Client {
++
++  def main(args: Array[String]) = {
++    val jarPath = new Path(args(1))
++
++    val yarnConf = new YarnConfiguration()
++    val yarnClient = YarnClient.createYarnClient()
++
++    yarnClient.init(yarnConf)
++    yarnClient.start()
++
++    try {
++      val app = yarnClient.createApplication()
++      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
++      amContainer.setCommands(
++        Collections.singletonList(
++          "$JAVA_HOME/bin/java" +
++            " com.cloudera.hue.sparker.repl.yarn.ApplicationMaster" +
++            " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
++            " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"))
++
++      val appMasterJar: LocalResource = Records.newRecord(Class[LocalResource])
++      setupAppMasterJar(jarPath, appMasterJar)
++      amContainer.setLocalResources(
++        Collections.singletonMap("foo.jar", appMasterJar)
++      )
++
++      val appMasterEnv: Map[String, String] = Map()
++      setupAppMasterEnv(appMasterEnv)
++      amContainer.setEnvironment(appMasterEnv)
++
++      val capability: Resource = Records.newRecord(Class[Resource])
++      capability.setMemory(256)
++      capability.setVirtualCores(1)
++
++      val appContext = app.getApplicationSubmissionContext
++      appContext.setApplicationName("foo")
++      appContext.setAMContainerSpec(amContainer)
++      appContext.setResource(capability)
++      appContext.setQueue("default")
++
++      val appId = appContext.getApplicationId
++      yarnClient.submitApplication(appContext)
++
++      var appReport = yarnClient.getApplicationReport(appId)
++      var appState = appReport.getYarnApplicationState()
++
++      while (
++        appState != YarnApplicationState.FINISHED &&
++        appState != YarnApplicationState.KILLED &&
++        appState != YarnApplicationState.FAILED
++      ) {
++        Thread.sleep(100)
++        appReport = yarnClient.getApplicationReport(appId)
++        appState = appReport.getYarnApplicationState
++      }
++
++    } finally {
++      yarnClient.close()
++    }
++  }
++
++  private def setupAppMasterJar(value: Path, resource: LocalResource) = {
++
++  }
++
++  private def setupAppMasterEnv(conf: YarnConfiguration, appMasterEnv: Map[String, String]) = {
++    var classpaths = conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH)
++
++    if (classpaths == null) {
++      classpaths = YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH
++    }
++
++    classpaths.foreach {
++      c => {
++        Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(), c.trim())
++      }
++    }
++
++    Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(),
++      Environment.PWD.$() + File.separator + "*"
++    )
++  }
++
++
++    /*
++
++    try {
++      val appContext = yarnClient.createApplication.getApplicationSubmissionContext
++      val appId = appContext.getApplicationId
++
++      val appName = "sparker-repl"
++      val amPriority = 0
++      val amQueue = "default"
++
++      appContext.setApplicationName(appName)
++
++      val priority: Priority = Records.newRecord(Class[Priority])
++      priority.setPriority(amPriority)
++      appContext.setPriority(priority)
++
++      appContext.setQueue(amQueue)
++
++      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
++      appContext.setAMContainerSpec(amContainer)
++
++      appContext.setUnmanagedAM(true)
++
++      yarnClient.submitApplication(appContext)
++
++      var appReport = monitorApplication(
++        appId,
++        util.EnumSet.of(
++          YarnApplicationState.ACCEPTED,
++          YarnApplicationState.KILLED,
++          YarnApplicationState.FAILED,
++          YarnApplicationState.FINISHED
++        ))
++
++      if (appReport.getYarnApplicationState == YarnApplicationState.ACCEPTED) {
++        val attemptReport = monitorCurrentAppAttempt(appId, YarnApplicationAttemptState.LAUNCHED)
++        val attemptId = attemptReport.getApplicationAttemptId
++
++        launchAM(yarnClient, attemptId)
++
++        appReport = monitorApplication(
++          appId,
++          util.EnumSet.of(
++            YarnApplicationState.KILLED,
++            YarnApplicationState.FAILED,
++            YarnApplicationState.FINISHED
++          )
++        )
++      }
++
++      val appState = appReport.getYarnApplicationState
++      val appStatus = appReport.getFinalApplicationStatus
++
++      if (YarnApplicationState.FINISHED == appState && FinalApplicationStatus.SUCCEEDED == appStatus) {
++        0
++      } else {
++        1
++      }
++    } finally {
++      yarnClient.close()
++    }
++  }
++    */
++
++  /*
++  private def launchAM(rmClient: YarnClient, attemptId: ApplicationAttemptId): Unit = {
++    val credentials = new Credentials();
++    val token = rmClient.getAMRMToken(attemptId.getApplicationId)
++    credentials.addToken(token.getService, token)
++    val tokenFile = File.createTempFile("unmanagedAMRMToken", "", new File(System.getProperty("user.dir")));
++    //try {
++      FileUtil.chmod(tokenFile.getAbsolutePath, "600")
++    //}
++
++    tokenFile.deleteOnExit()
++    val os = new DataOutputStream(new FileOutputStream(tokenFile, true))
++    credentials.writeTokenStorageToStream(os)
++    os.close()
++
++    val envAMList = List()
++    var setClasspath = false
++    val classpath = null
++
++    sys.env.foreach {
++      case(key, value) => {
++      var value: String = value
++        if (key == "CLASSPATH") {
++          setClasspath = true
++          if (classpath != null) {
++            value = value + File.pathSeparator + classpath
++          }
++        }
++        envAMList +: (key + "=" + value)
++      }
++    }
++
++    if (!setClasspath && classpath != null) {
++      envAMList +: ("CLASSPATH=" + classpath)
++    }
++
++
++  }
++
++  private def monitorApplication(appId: ApplicationId, attemptState: util.EnumSet[YarnApplicationState]): ApplicationReport = {
++    null
++  }
++
++  private def monitorCurrentAppAttempt(appId: ApplicationId, attemptState: YarnApplicationAttemptState): ApplicationAttemptReport = {
++    null
++  }
++  */
++
++
++}
++*/
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
+new file mode 100644
+index 0000000..03e4783
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
+@@ -0,0 +1,28 @@
++package com.cloudera.hue.livy.yarn
++
++import org.slf4j.LoggerFactory
++
++trait Logging {
++  val loggerName = this.getClass.getName
++  lazy val logger = LoggerFactory.getLogger(loggerName)
++
++  def debug(message: => Any) = {
++    if (logger.isDebugEnabled) {
++      logger.debug(message.toString)
++    }
++  }
++
++  def info(message: => Any) = {
++    if (logger.isInfoEnabled) {
++      logger.info(message.toString)
++    }
++  }
++
++  def warn(message: => Any) = {
++    logger.warn(message.toString)
++  }
++
++  def error(message: => Any) = {
++    logger.error(message.toString)
++  }
++}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
+new file mode 100644
+index 0000000..583d40d
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/YarnJob.scala
+@@ -0,0 +1,9 @@
++package com.cloudera.hue.livy.yarn
++
++import org.apache.hadoop.conf.Configuration
++
++class YarnJob(config: Configuration) {
++
++  //val client = new Client
++
++}
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 2550584..f810d0f 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -27,13 +27,13 @@
+         <version>3.7.0-SNAPSHOT</version>
+     </parent>
+ 
+-    <groupId>com.cloudera.hue.sparker</groupId>
+-    <artifactId>sparker-main</artifactId>
++    <groupId>com.cloudera.hue.livy</groupId>
++    <artifactId>livy-main</artifactId>
+     <packaging>pom</packaging>
+     <version>3.7.0-SNAPSHOT</version>
+ 
+-    <name>sparker-main</name>
+-    <description>sparker-main</description>
++    <name>livy-main</name>
++    <description>livy-main</description>
+ 
+     <licenses>
+         <license>
+@@ -52,9 +52,12 @@
+     </properties>
+ 
+     <modules>
+-        <module>sparker-repl</module>
+-        <module>sparker-server</module>
+-        <module>sparker-yarn</module>
++        <!--
++        <module>livy-assembly</module>
++        <module>livy-repl</module>
++        <module>livy-server</module>
++        -->
++        <module>livy-yarn</module>
+     </modules>
+ 
+     <repositories>
+@@ -213,14 +216,6 @@
+                 </configuration>
+             </plugin>
+ 
+-            <plugin>
+-                <artifactId>maven-assembly-plugin</artifactId>
+-                <version>2.4</version>
+-                <configuration>
+-                    <descriptor>src/main/assembly/dist.xml</descriptor>
+-                </configuration>
+-            </plugin>
+-
+             <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+@@ -228,7 +223,7 @@
+                 <configuration>
+                     <archive>
+                         <manifest>
+-                            <mainClass>com.cloudera.sparker.SparkerMain</mainClass>
++                            <mainClass>com.cloudera.livy.LivyMain</mainClass>
+                         </manifest>
+                     </archive>
+                 </configuration>
+@@ -244,6 +239,27 @@
+             </plugin>
+             -->
+ 
++            <!--
++            <plugin>
++                <artifactId>maven-assembly-plugin</artifactId>
++                <version>2.4</version>
++                <executions>
++                    <execution>
++                        <id>make-bundles</id>
++                        <goals>
++                            <goal>single</goal>
++                        </goals>
++                        <phase>package</phase>
++                        <configuration>
++                            <descriptors>
++                                <descriptor>livy-yarn/src/main/assembly/dist.xml</descriptor>
++                            </descriptors>
++                        </configuration>
++                    </execution>
++                </executions>
++            </plugin>
++            -->
++
+         </plugins>
+ 
+     </build>
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+deleted file mode 100644
+index 2f452f6..0000000
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ /dev/null
+@@ -1,194 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<project xmlns="http://maven.apache.org/POM/4.0.0"
+-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+-    <modelVersion>4.0.0</modelVersion>
+-    <parent>
+-        <groupId>com.cloudera.hue.sparker</groupId>
+-        <artifactId>sparker-main</artifactId>
+-        <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
+-    </parent>
+-
+-    <artifactId>sparker-repl</artifactId>
+-    <packaging>jar</packaging>
+-
+-    <properties>
+-        <hadoop.version>2.5.0</hadoop.version>
+-        <scala.binary.version>2.10</scala.binary.version>
+-        <scala.macros.version>2.0.1</scala.macros.version>
+-        <scala.version>2.10.3</scala.version>
+-        <scalatra.version>2.2.1</scalatra.version>
+-        <spark.version>1.1.0</spark.version>
+-        <PermGen>64m</PermGen>
+-        <MaxPermGen>512m</MaxPermGen>
+-    </properties>
+-
+-    <dependencies>
+-
+-        <dependency>
+-            <groupId>org.apache.spark</groupId>
+-            <artifactId>spark-repl_2.10</artifactId>
+-            <version>${spark.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.json4s</groupId>
+-            <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>3.2.11</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-json_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.hadoop</groupId>
+-            <artifactId>hadoop-yarn-client</artifactId>
+-            <version>${hadoop.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.apache.hadoop</groupId>
+-            <artifactId>hadoop-yarn-api</artifactId>
+-            <version>${hadoop.version}</version>
+-        </dependency>
+-
+-    </dependencies>
+-
+-    <build>
+-        <plugins>
+-
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <version>2.15.2</version>
+-                <executions>
+-                    <execution>
+-                        <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
+-                        </goals>
+-                    </execution>
+-                </executions>
+-                <configuration>
+-                    <!-- The following plugin is required to use quasiquotes in Scala 2.10 and is used
+-                         by Spark SQL for code generation. -->
+-                    <compilerPlugins>
+-                        <compilerPlugin>
+-                            <groupId>org.scalamacros</groupId>
+-                            <artifactId>paradise_${scala.version}</artifactId>
+-                            <version>${scala.macros.version}</version>
+-                        </compilerPlugin>
+-                    </compilerPlugins>
+-                </configuration>
+-            </plugin>
+-
+-            <!--
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-dependency-plugin</artifactId>
+-                <version>2.9</version>
+-                <executions>
+-                    <execution>
+-                        <id>copy-dependencies</id>
+-                        <phase>prepare-package</phase>
+-                        <goals>
+-                            <goal>copy-dependencies</goal>
+-                        </goals>
+-                        <configuration>
+-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+-                            <overWriteReleases>false</overWriteReleases>
+-                            <overWriteSnapshots>false</overWriteSnapshots>
+-                            <overWriteIfNewer>true</overWriteIfNewer>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-jar-plugin</artifactId>
+-                <version>2.5</version>
+-                <configuration>
+-                    <archive>
+-                        <manifest>
+-                            <addClasspath>true</addClasspath>
+-                            <classpathPrefix>lib/</classpathPrefix>
+-                            <mainClass>com.cloudera.hue.sparker.repl.Main</mainClass>
+-                        </manifest>
+-                    </archive>
+-                </configuration>
+-            </plugin>
+-            -->
+-
+-            <plugin>
+-                <artifactId>maven-assembly-plugin</artifactId>
+-                <version>2.4</version>
+-                <configuration>
+-                    <descriptor>src/main/assembly/dist.xml</descriptor>
+-                </configuration>
+-            </plugin>
+-
+-            <!--
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
+-                <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
+-                </configuration>
+-                <executions>
+-                    <execution>
+-                        <phase>package</phase>
+-                        <goals>
+-                            <goal>shade</goal>
+-                        </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.sparker.server.SparkerApp</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-            -->
+-
+-        </plugins>
+-    </build>
+-
+-    <reporting>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </reporting>
+-
+-</project>
+diff --git a/apps/spark/java/sparker-repl/src/main/assembly/dist.xml b/apps/spark/java/sparker-repl/src/main/assembly/dist.xml
+deleted file mode 100644
+index d5801f5..0000000
+--- a/apps/spark/java/sparker-repl/src/main/assembly/dist.xml
++++ /dev/null
+@@ -1,37 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
+-  license agreements. See the NOTICE file distributed with this work for additional
+-  information regarding copyright ownership. The ASF licenses this file to
+-  you under the Apache License, Version 2.0 (the "License"); you may not use
+-  this file except in compliance with the License. You may obtain a copy of
+-  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
+-  by applicable law or agreed to in writing, software distributed under the
+-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+-  OF ANY KIND, either express or implied. See the License for the specific
+-  language governing permissions and limitations under the License. -->
+-<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+-    <id>dist</id>
+-    <formats>
+-        <format>tar.gz</format>
+-    </formats>
+-    <includeBaseDirectory>false</includeBaseDirectory>
+-
+-    <dependencySets>
+-        <dependencySet>
+-            <outputDirectory>lib</outputDirectory>
+-            <useProjectArtifact>false</useProjectArtifact>
+-        </dependencySet>
+-    </dependencySets>
+-
+-    <fileSets>
+-        <fileSet>
+-            <directory>${project.build.directory}</directory>
+-            <outputDirectory>/lib</outputDirectory>
+-            <includes>
+-                <include>*.jar</include>
+-            </includes>
+-        </fileSet>
+-    </fileSets>
+-</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+deleted file mode 100644
+index fa97682..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
++++ /dev/null
+@@ -1,21 +0,0 @@
+-import javax.servlet.ServletContext
+-
+-import _root_.akka.actor.ActorSystem
+-import com.cloudera.hue.sparker.repl.interpreter.SparkerInterpreter
+-import com.cloudera.hue.sparker.repl.webapp.SparkerApp
+-import org.scalatra.LifeCycle
+-
+-class ScalatraBootstrap extends LifeCycle {
+-
+-  //val system = ActorSystem()
+-  val sparkerInterpreter = new SparkerInterpreter
+-
+-  override def init(context: ServletContext): Unit = {
+-    context.mount(new SparkerApp(sparkerInterpreter), "/*")
+-  }
+-
+-  override def destroy(context: ServletContext): Unit = {
+-    sparkerInterpreter.close()
+-    //system.shutdown()
+-  }
+-}
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+deleted file mode 100644
+index cb028c5..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
++++ /dev/null
+@@ -1,153 +0,0 @@
+-package com.cloudera.hue.sparker.repl.interpreter
+-
+-import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
+-import java.util.concurrent.{BlockingQueue, SynchronousQueue}
+-
+-import org.apache.spark.repl.SparkILoop
+-
+-import scala.concurrent._
+-import scala.tools.nsc.SparkHelper
+-import scala.tools.nsc.interpreter.{Formatting, _}
+-import scala.tools.nsc.util.ClassPath
+-
+-class SparkerInterpreter {
+-  private implicit def executor: ExecutionContext = ExecutionContext.global
+-
+-  private var running = false;
+-  private val inQueue = new SynchronousQueue[Request]
+-  private val inWriter = new PipedWriter()
+-
+-  org.apache.spark.repl.Main.interp = new SparkerILoop(
+-    this,
+-    inQueue,
+-    new BufferedReader(new PipedReader(inWriter)),
+-    new StringWriter)
+-
+-  // Launch the real interpreter thread.
+-  private val thread = new Thread {
+-    override def run(): Unit = {
+-      val args = Array("-usejavacp")
+-      org.apache.spark.repl.Main.interp.process(args)
+-    }
+-  }
+-  thread.start()
+-
+-  def statements = {
+-    org.apache.spark.repl.Main.interp.history.asStrings
+-  }
+-
+-  def execute(statement: String): Future[Map[String, String]] = {
+-    val promise = Promise[Map[String, String]]()
+-    inQueue.put(ExecuteRequest(statement, promise))
+-    promise.future
+-  }
+-
+-  def close(): Unit = {
+-    inQueue.put(ShutdownRequest())
+-    thread.join()
+-  }
+-}
+-
+-class SparkerILoop(parent: SparkerInterpreter, inQueue: BlockingQueue[Request], in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
+-
+-  class SparkerILoopInterpreter extends SparkILoopInterpreter {
+-    outer =>
+-
+-    override lazy val formatting = new Formatting {
+-      def prompt = SparkerILoop.this.prompt
+-    }
+-    override protected def parentClassLoader = SparkHelper.explicitParentLoader(settings).getOrElse(classOf[SparkILoop].getClassLoader)
+-  }
+-
+-  /** Create a new interpreter. */
+-  override def createInterpreter() {
+-    require(settings != null)
+-
+-    if (addedClasspath != "") settings.classpath.append(addedClasspath)
+-    // work around for Scala bug
+-    val totalClassPath = SparkILoop.getAddedJars.foldLeft(
+-      settings.classpath.value)((l, r) => ClassPath.join(l, r))
+-    this.settings.classpath.value = totalClassPath
+-
+-    intp = new SparkerILoopInterpreter
+-  }
+-
+-  private val replayQuestionMessage =
+-    """|That entry seems to have slain the compiler.  Shall I replay
+-      |your session? I can re-run each line except the last one.
+-      |[y/n]
+-    """.trim.stripMargin
+-
+-  private def crashRecovery(ex: Throwable): Boolean = {
+-    echo(ex.toString)
+-    ex match {
+-      case _: NoSuchMethodError | _: NoClassDefFoundError =>
+-        echo("\nUnrecoverable error.")
+-        throw ex
+-      case _  =>
+-        def fn(): Boolean =
+-          try in.readYesOrNo(replayQuestionMessage, { echo("\nYou must enter y or n.") ; fn() })
+-          catch { case _: RuntimeException => false }
+-
+-        if (fn()) replay()
+-        else echo("\nAbandoning crashed session.")
+-    }
+-    true
+-  }
+-
+-  override def prompt = ""
+-
+-  override def loop(): Unit = {
+-    def readOneLine() = {
+-      inQueue.take()
+-    }
+-    // return false if repl should exit
+-    def processLine(request: Request): Boolean = {
+-      if (isAsync) {
+-        if (!awaitInitialized()) return false
+-        runThunks()
+-      }
+-
+-      request match {
+-        case ExecuteRequest(statement, promise) => {
+-          command(statement) match {
+-            case Result(false, _) => false
+-            case Result(true, finalLine) => {
+-              finalLine match {
+-                case Some(line) => addReplay(line)
+-                case _ =>
+-              }
+-
+-              var output: String = outString.getBuffer.toString
+-              output = output.substring(0, output.length - 1)
+-              outString.getBuffer.setLength(0)
+-
+-              promise.success(Map("type" -> "stdout", "stdout" -> output))
+-
+-              true
+-            }
+-          }
+-        }
+-        case ShutdownRequest() => false
+-      }
+-    }
+-    def innerLoop() {
+-      outString.getBuffer.setLength(0)
+-
+-      val shouldContinue = try {
+-        processLine(readOneLine())
+-      } catch {
+-        case t: Throwable => crashRecovery(t)
+-      }
+-
+-      if (shouldContinue) {
+-        innerLoop()
+-      }
+-    }
+-    innerLoop()
+-  }
+-}
+-
+-sealed trait Request
+-case class ExecuteRequest(statement: String, promise: Promise[Map[String, String]]) extends Request
+-case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+deleted file mode 100644
+index ed0377f..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
++++ /dev/null
+@@ -1,29 +0,0 @@
+-package com.cloudera.hue.sparker.repl
+-
+-import org.eclipse.jetty.server.Server
+-import org.eclipse.jetty.servlet.{ServletHolder, DefaultServlet}
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
+-
+-import scala.concurrent.ExecutionContext
+-
+-object Main {
+-  def main(args: Array[String]): Unit = {
+-    val port = sys.env.getOrElse("PORT", "8999").toInt
+-    val server = new Server(port)
+-    val context = new WebAppContext()
+-
+-    context.setContextPath("/")
+-    context.setResourceBase("src/main/com/cloudera/hue/sparker/repl")
+-    context.addEventListener(new ScalatraListener)
+-
+-    context.addServlet(classOf[DefaultServlet], "/")
+-
+-    context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+-
+-    server.setHandler(context)
+-
+-    server.start()
+-    server.join()
+-  }
+-}
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+deleted file mode 100644
+index d0d6391..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
++++ /dev/null
+@@ -1,58 +0,0 @@
+-package com.cloudera.hue.sparker.repl.webapp
+-
+-import akka.util.Timeout
+-import com.cloudera.hue.sparker.repl.interpreter.SparkerInterpreter
+-import org.json4s.{DefaultFormats, Formats}
+-import org.scalatra.json._
+-import org.scalatra.{Accepted, AsyncResult, FutureSupport, ScalatraServlet}
+-
+-import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutor}
+-
+-class SparkerApp(interpreter: SparkerInterpreter) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
+-
+-  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+-  protected implicit def defaultTimeout: Timeout = Timeout(10)
+-  protected implicit val jsonFormats: Formats = DefaultFormats
+-
+-  sealed trait State
+-  case class Starting() extends State
+-  case class Running() extends State
+-  case class ShuttingDown() extends State
+-
+-  var state: State = Starting()
+-
+-  before() {
+-    contentType = formats("json")
+-
+-    state match {
+-      case ShuttingDown() => halt(500, "Shutting down")
+-      case _ => {}
+-    }
+-  }
+-
+-  get("/") {
+-    Map("state" -> state)
+-  }
+-
+-  get("/statements") {
+-    interpreter.statements
+-  }
+-
+-  post("/statements") {
+-    val req = parsedBody.extract[ExecuteRequest]
+-    val statement = req.statement
+-    new AsyncResult { val is = interpreter.execute(statement) }
+-  }
+-
+-  delete("/") {
+-    Future {
+-      state = ShuttingDown()
+-      interpreter.close()
+-      Thread.sleep(1000)
+-      System.exit(0)
+-    }
+-    Accepted()
+-  }
+-}
+-
+-case class ExecuteRequest(statement: String)
+diff --git a/apps/spark/java/sparker-server/pom.xml b/apps/spark/java/sparker-server/pom.xml
+deleted file mode 100644
+index e4a47bd..0000000
+--- a/apps/spark/java/sparker-server/pom.xml
++++ /dev/null
+@@ -1,175 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!--
+-  Licensed to the Apache Software Foundation (ASF) under one
+-  or more contributor license agreements.  See the NOTICE file
+-  distributed with this work for additional information
+-  regarding copyright ownership.  The ASF licenses this file
+-  to you under the Apache License, Version 2.0 (the
+-  "License"); you may not use this file except in compliance
+-  with the License.  You may obtain a copy of the License at
+-
+-       http://www.apache.org/licenses/LICENSE-2.0
+-
+-  Unless required by applicable law or agreed to in writing, software
+-  distributed under the License is distributed on an "AS IS" BASIS,
+-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-  See the License for the specific language governing permissions and
+-  limitations under the License.
+--->
+-<project xmlns="http://maven.apache.org/POM/4.0.0"
+-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+-    <modelVersion>4.0.0</modelVersion>
+-    <parent>
+-        <groupId>com.cloudera.hue.sparker</groupId>
+-        <artifactId>sparker-main</artifactId>
+-        <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-SNAPSHOT</version>
+-    </parent>
+-
+-    <artifactId>sparker-server</artifactId>
+-    <packaging>jar</packaging>
+-
+-    <properties>
+-        <dropwizard.version>0.7.0</dropwizard.version>
+-        <jetty.version>9.1.0.v20131115</jetty.version>
+-        <jersey.version>2.7</jersey.version>
+-    </properties>
+-
+-    <dependencies>
+-        <dependency>
+-            <groupId>io.dropwizard</groupId>
+-            <artifactId>dropwizard-core</artifactId>
+-            <version>${dropwizard.version}</version>
+-        </dependency>
+-
+-        <!--
+-        <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-databind</artifactId>
+-            <version>2.3.1</version>
+-        </dependency>
+-        -->
+-
+-        <!--
+-        <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-server</artifactId>
+-            <version>${jetty.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-servlet</artifactId>
+-            <version>${jetty.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.glassfish.jersey.core</groupId>
+-            <artifactId>jersey-server</artifactId>
+-            <version>${jersey.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.glassfish.jersey.containers</groupId>
+-            <artifactId>jersey-container-servlet-core</artifactId>
+-            <version>${jersey.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.glassfish.jersey.containers</groupId>
+-            <artifactId>jersey-container-jetty-http</artifactId>
+-            <version>${jersey.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.glassfish.jersey.media</groupId>
+-            <artifactId>jersey-media-moxy</artifactId>
+-            <version>${jersey.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.codehaus.jackson</groupId>
+-            <artifactId>jackson-mapper-asl</artifactId>
+-            <version>1.9.3</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>com.google.guava</groupId>
+-            <artifactId>guava</artifactId>
+-            <version>14.0.1</version>
+-        </dependency>
+-        -->
+-    </dependencies>
+-
+-    <build>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
+-                <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
+-                </configuration>
+-                <executions>
+-                    <execution>
+-                        <phase>package</phase>
+-                        <goals>
+-                            <goal>shade</goal>
+-                        </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.sparker.server.SparkerApp</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-
+-
+-            <!--
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-dependency-plugin</artifactId>
+-                <executions>
+-                    <execution>
+-                        <id>copy-dependencies</id>
+-                        <phase>prepare-package</phase>
+-                        <goals>
+-                            <goal>copy-dependencies</goal>
+-                        </goals>
+-                        <configuration>
+-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+-                            <overWriteReleases>false</overWriteReleases>
+-                            <overWriteSnapshots>false</overWriteSnapshots>
+-                            <overWriteIfNewer>true</overWriteIfNewer>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-jar-plugin</artifactId>
+-                <configuration>
+-                    <archive>
+-                        <manifest>
+-                            <addClasspath>true</addClasspath>
+-                            <classpathPrefix>lib/</classpathPrefix>
+-                            <mainClass>com.cloudera.hue.sparker.server.SparkerMain</mainClass>
+-                        </manifest>
+-                    </archive>
+-                </configuration>
+-            </plugin>
+-            -->
+-
+-        </plugins>
+-
+-    </build>
+-
+-</project>
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+deleted file mode 100644
+index c015a85..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
++++ /dev/null
+@@ -1,40 +0,0 @@
+-package com.cloudera.hue.sparker.server;
+-
+-import com.cloudera.hue.sparker.server.resources.StatementResource;
+-import com.cloudera.hue.sparker.server.resources.SessionResource;
+-import com.cloudera.hue.sparker.server.sessions.SessionManager;
+-import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+-import io.dropwizard.Application;
+-import io.dropwizard.setup.Bootstrap;
+-import io.dropwizard.setup.Environment;
+-
+-import javax.ws.rs.core.Response;
+-import javax.ws.rs.ext.ExceptionMapper;
+-
+-public class SparkerApp extends Application<SparkerConfiguration> {
+-
+-    public static void main(String[] args) throws Exception {
+-        new SparkerApp().run(args);
+-    }
+-
+-    @Override
+-    public void initialize(Bootstrap<SparkerConfiguration> bootstrap) {
+-
+-    }
+-
+-    @Override
+-    public void run(SparkerConfiguration sparkerConfiguration, Environment environment) throws Exception {
+-        final SessionManager sessionManager = new SessionManager();
+-        environment.jersey().register(new SessionResource(sessionManager));
+-        environment.jersey().register(new StatementResource(sessionManager));
+-        environment.jersey().register(new SessionManagerExceptionMapper());
+-    }
+-
+-    private class SessionManagerExceptionMapper implements ExceptionMapper<SessionManager.SessionNotFound> {
+-
+-        @Override
+-        public Response toResponse(SessionManager.SessionNotFound sessionNotFound) {
+-            return new ResponseBuilderImpl().status(404).entity("session not found").build();
+-        }
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerConfiguration.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerConfiguration.java
+deleted file mode 100644
+index 25ba722..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerConfiguration.java
++++ /dev/null
+@@ -1,6 +0,0 @@
+-package com.cloudera.hue.sparker.server;
+-
+-import io.dropwizard.Configuration;
+-
+-public class SparkerConfiguration extends Configuration {
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
+deleted file mode 100644
+index 6cf91a0..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/ExecuteStatementRequest.java
++++ /dev/null
+@@ -1,15 +0,0 @@
+-package com.cloudera.hue.sparker.server.resources;
+-
+-import org.hibernate.validator.constraints.NotEmpty;
+-
+-/**
+- * Created by erickt on 11/25/14.
+- */
+-public class ExecuteStatementRequest {
+-    @NotEmpty
+-    private String statement;
+-
+-    public String getStatement() {
+-        return statement;
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+deleted file mode 100644
+index 8ebf490..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ /dev/null
+@@ -1,134 +0,0 @@
+-package com.cloudera.hue.sparker.server.resources;
+-
+-import com.cloudera.hue.sparker.server.sessions.Statement;
+-import com.cloudera.hue.sparker.server.sessions.ClosedSessionException;
+-import com.cloudera.hue.sparker.server.sessions.Session;
+-import com.cloudera.hue.sparker.server.sessions.SessionManager;
+-import com.codahale.metrics.annotation.Timed;
+-import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+-
+-import javax.servlet.http.HttpServletRequest;
+-import javax.validation.Valid;
+-import javax.ws.rs.DELETE;
+-import javax.ws.rs.GET;
+-import javax.ws.rs.POST;
+-import javax.ws.rs.Path;
+-import javax.ws.rs.PathParam;
+-import javax.ws.rs.Produces;
+-import javax.ws.rs.QueryParam;
+-import javax.ws.rs.WebApplicationException;
+-import javax.ws.rs.core.Context;
+-import javax.ws.rs.core.MediaType;
+-import javax.ws.rs.core.Response;
+-import java.io.IOException;
+-import java.net.URI;
+-import java.net.URISyntaxException;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.concurrent.TimeoutException;
+-
+-@Path("/sessions")
+-@Produces(MediaType.APPLICATION_JSON)
+-public class SessionResource {
+-
+-    private static final String SCALA = "scala";
+-    private static final String PYTHON = "python";
+-
+-    private final SessionManager sessionManager;
+-
+-    public SessionResource(SessionManager sessionManager) {
+-        this.sessionManager = sessionManager;
+-    }
+-
+-    @GET
+-    @Timed
+-    public List<String> getSessions() {
+-        return Collections.list(sessionManager.getSessionIds());
+-    }
+-
+-    @POST
+-    @Timed
+-    public Response createSession(@QueryParam("lang") String language,
+-                                  @Context HttpServletRequest request) throws IOException, InterruptedException, URISyntaxException {
+-        SessionManager.SessionType sessionType;
+-
+-        if (language == null) {
+-            Response resp = new ResponseBuilderImpl().status(400).entity("missing language").build();
+-            throw new WebApplicationException(resp);
+-        }
+-
+-        if (language.equals(SCALA)) {
+-            sessionType = SessionManager.SessionType.SCALA;
+-        } else if (language.equals(PYTHON)) {
+-            sessionType = SessionManager.SessionType.PYTHON;
+-        } else {
+-            Response resp = new ResponseBuilderImpl().status(400).entity("invalid language").build();
+-            throw new WebApplicationException(resp);
+-        }
+-
+-        Session session = sessionManager.create(sessionType);
+-
+-        URI location = new URI("/" + session.getId());
+-        return Response.created(location).build();
+-    }
+-
+-    @Path("/{id}")
+-    @GET
+-    @Timed
+-    public List<Statement> getSession(@PathParam("id") String id,
+-                                 @QueryParam("from") Integer fromCell,
+-                                 @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(id);
+-        List<Statement> statements = session.getStatements();
+-
+-        if (fromCell != null || limit != null) {
+-            if (fromCell == null) {
+-                fromCell = 0;
+-            }
+-
+-            if (limit == null) {
+-                limit = statements.size();
+-            }
+-
+-            statements = statements.subList(fromCell, fromCell + limit);
+-        }
+-
+-        return statements;
+-    }
+-
+-    @Path("/{id}")
+-    @POST
+-    @Timed
+-    public Response executeStatement(@PathParam("id") String id,
+-                                     @Valid ExecuteStatementRequest body,
+-                                     @Context HttpServletRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(id);
+-
+-        // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
+-        Statement statement = session.executeStatement(body.getStatement());
+-
+-        URI location = new URI("/cells/" + statement.getId());
+-        return Response.created(location).build();
+-    }
+-
+-    @Path("/{id}")
+-    @DELETE
+-    @Timed
+-    public Response closeSession(@PathParam("id") String id) throws InterruptedException, TimeoutException, IOException, SessionManager.SessionNotFound {
+-        sessionManager.close(id);
+-        return Response.noContent().build();
+-    }
+-
+-
+-    @Path("/{id}/interrupt")
+-    @POST
+-    @Timed
+-    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound, Exception, ClosedSessionException {
+-        Session session = sessionManager.get(id);
+-
+-        // FIXME: don't actually do anything for now as it doesn't work yet.
+-        //  session.interrupt();
+-
+-        return Response.ok().build();
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
+deleted file mode 100644
+index 16969a2..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/StatementResource.java
++++ /dev/null
+@@ -1,47 +0,0 @@
+-package com.cloudera.hue.sparker.server.resources;
+-
+-import com.cloudera.hue.sparker.server.sessions.Session;
+-import com.cloudera.hue.sparker.server.sessions.SessionManager;
+-import com.cloudera.hue.sparker.server.sessions.Statement;
+-import com.codahale.metrics.annotation.Timed;
+-
+-import javax.ws.rs.*;
+-import javax.ws.rs.core.MediaType;
+-import java.util.List;
+-
+-@Path("/sessions/{sessionId}/statements")
+-@Produces(MediaType.APPLICATION_JSON)
+-public class StatementResource {
+-
+-    private final SessionManager sessionManager;
+-
+-    public StatementResource(SessionManager sessionManager) {
+-        this.sessionManager = sessionManager;
+-    }
+-
+-    @GET
+-    @Timed
+-    public List<Statement> getStatements(@PathParam("sessionId") String sessionId,
+-                                         @QueryParam("from") Integer fromStatement,
+-                                         @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        List<Statement> statements;
+-
+-        if (fromStatement == null && limit == null) {
+-            statements = session.getStatements();
+-        } else {
+-            statements = session.getStatementRange(fromStatement, fromStatement + limit);
+-        }
+-
+-        return statements;
+-    }
+-
+-    @Path("/{statementId}")
+-    @GET
+-    @Timed
+-    public Statement getStatement(@PathParam("sessionId") String sessionId, @PathParam("statementId") int statementId) throws SessionManager.SessionNotFound, Session.StatementNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        return session.getStatement(statementId);
+-    }
+-
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/ClosedSessionException.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/ClosedSessionException.java
+deleted file mode 100644
+index 961776a..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/ClosedSessionException.java
++++ /dev/null
+@@ -1,4 +0,0 @@
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-public class ClosedSessionException extends Throwable {
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+deleted file mode 100644
+index 895e4ff..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
++++ /dev/null
+@@ -1,60 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-import com.fasterxml.jackson.annotation.JsonProperty;
+-
+-import java.io.IOException;
+-import java.util.List;
+-import java.util.concurrent.TimeoutException;
+-
+-public interface Session {
+-
+-    public enum State {
+-        EXECUTING_STATEMENT,
+-        READY
+-    }
+-
+-    @JsonProperty
+-    String getId();
+-
+-    @JsonProperty
+-    State getState();
+-
+-    @JsonProperty
+-    List<Statement> getStatements();
+-
+-    List<Statement> getStatementRange(Integer fromIndex, Integer toIndex);
+-
+-    Statement getStatement(int statementId) throws StatementNotFound;
+-
+-    @JsonProperty
+-    public long getLastActivity();
+-
+-    public Statement executeStatement(String statement) throws Exception, ClosedSessionException;
+-
+-    public void close() throws IOException, InterruptedException, TimeoutException;
+-
+-    void interrupt() throws Exception, ClosedSessionException;
+-
+-    public static class StatementNotFound extends Throwable {
+-
+-    }
+-}
+-
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+deleted file mode 100644
+index ee20708..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
++++ /dev/null
+@@ -1,171 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-import java.io.IOException;
+-import java.util.Enumeration;
+-import java.util.UUID;
+-import java.util.concurrent.*;
+-
+-public class SessionManager {
+-
+-    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
+-
+-    public enum SessionType {
+-        SCALA,
+-        PYTHON,
+-    }
+-
+-    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+-    private BlockingQueue<Session> freshScalaSessions = new LinkedBlockingQueue<Session>(5);
+-
+-    SessionManagerGarbageCollector gcThread = new SessionManagerGarbageCollector();
+-    SessionCreator creatorThread = new SessionCreator(SessionType.SCALA);
+-
+-    public SessionManager() {
+-        gcThread.setDaemon(true);
+-        gcThread.start();
+-
+-        creatorThread.setDaemon(true);
+-        creatorThread.start();
+-    }
+-
+-    public Session get(String id) throws SessionNotFound {
+-        Session session = sessions.get(id);
+-        if (session == null) {
+-            throw new SessionNotFound(id);
+-        }
+-        return session;
+-    }
+-
+-    public Session create(SessionType type) throws IllegalArgumentException, IOException, InterruptedException {
+-        Session session;
+-        switch (type) {
+-            case SCALA: session = freshScalaSessions.take(); break;
+-            //case PYTHON: session = new PySparkSession(id); break;
+-            default: throw new IllegalArgumentException("Invalid language specified for shell session");
+-        }
+-        sessions.put(session.getId(), session);
+-        return session;
+-    }
+-
+-    public void close() throws InterruptedException, IOException, TimeoutException {
+-        for (Session session : sessions.values()) {
+-            sessions.remove(session.getId());
+-            session.close();
+-        }
+-
+-        gcThread.interrupt();
+-        gcThread.join();
+-        creatorThread.interrupt();
+-        creatorThread.join();
+-
+-        Session session;
+-        while ((session = freshScalaSessions.poll(500, TimeUnit.MILLISECONDS)) != null) {
+-            session.close();
+-        }
+-    }
+-
+-    public void close(String id) throws InterruptedException, TimeoutException, IOException, SessionNotFound {
+-        Session session = this.get(id);
+-        sessions.remove(id);
+-        session.close();
+-
+-    }
+-
+-    public Enumeration<String> getSessionIds() {
+-        return sessions.keys();
+-    }
+-
+-    public void garbageCollect() throws InterruptedException, IOException, TimeoutException {
+-        long timeout = 60000; // Time in milliseconds; TODO: make configurable
+-        for (Session session : sessions.values()) {
+-            long now = System.currentTimeMillis();
+-            if ((now - session.getLastActivity()) > timeout) {
+-                try {
+-                    this.close(session.getId());
+-                } catch (SessionNotFound sessionNotFound) {
+-                    // Ignore
+-                }
+-            }
+-        }
+-    }
+-
+-    private class SessionManagerGarbageCollector extends Thread {
+-
+-        protected long period = 1000 * 60 * 60; // Time in milliseconds; TODO: make configurable
+-
+-        public SessionManagerGarbageCollector() {
+-            super();
+-        }
+-
+-        public void run() {
+-            try {
+-                while(true) {
+-                    garbageCollect();
+-                    sleep(period);
+-                }
+-            } catch (InterruptedException e) {
+-                e.printStackTrace();
+-            } catch (TimeoutException e) {
+-                e.printStackTrace();
+-            } catch (IOException e) {
+-                e.printStackTrace();
+-            }
+-        }
+-    }
+-
+-    public class SessionNotFound extends Throwable {
+-        public SessionNotFound(String id) {
+-            super(id);
+-        }
+-    }
+-
+-    private class SessionCreator extends Thread {
+-        SessionType type;
+-
+-        public SessionCreator(SessionType type) {
+-            this.type = type;
+-        }
+-
+-        public void run() {
+-            try {
+-                while(true) {
+-                    String id = UUID.randomUUID().toString();
+-
+-                    Session session;
+-                    switch (type) {
+-                        case SCALA: session = new SparkSession(id); break;
+-                        //case PYTHON: session = new PythonSession(id); break;
+-                        default: throw new IllegalArgumentException("Invalid language specified for shell session");
+-                    }
+-
+-                    freshScalaSessions.put(session);
+-                }
+-            } catch (InterruptedException e) {
+-                e.printStackTrace();
+-            } catch (IOException e) {
+-                e.printStackTrace();
+-            }
+-        }
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+deleted file mode 100644
+index 5785cbd..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
++++ /dev/null
+@@ -1,191 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-import com.fasterxml.jackson.databind.JsonNode;
+-import com.fasterxml.jackson.databind.ObjectMapper;
+-import com.fasterxml.jackson.databind.node.ObjectNode;
+-import com.google.common.collect.Lists;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-import java.io.*;
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-/**
+- * The SparkSession works by spawning off a worker process and communicating with it over a simple IPC json protocol.
+- *
+- * The request is a json dictionary with the following fields:
+- *
+- * - id: the cell id.
+- * - type: the kind of command.
+- * - stdin: the command to execute.
+- *
+- * The response is a json dictionary with the following fields:
+- *
+- * - id: the cell this message corresponds to.
+- * - state: what state the interpreter is in. One of [ready, incomplete, running, complete]
+- * - stdout: the STDOUT lines.
+- * - stderr: the STDERR lines.
+- *
+- * The way it works is that we spawn a worker thread th
+- */
+-public class SparkSession implements Session {
+-
+-    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
+-
+-    private static final String SPARKER_HOME = System.getenv("SPARKER_HOME");
+-    private static final String SPARKER_SHELL = SPARKER_HOME + "/sparker-shell";
+-
+-    private final String id;
+-    private State state = State.READY;
+-    private final Process process;
+-    private final Writer writer;
+-    private final BufferedReader reader;
+-    private final List<Statement> statements = new ArrayList<Statement>();
+-    private final ObjectMapper objectMapper = new ObjectMapper();
+-
+-    private boolean isClosed = false;
+-
+-    protected long lastActivity = Long.MAX_VALUE;
+-
+-    public SparkSession(final String id) throws IOException, InterruptedException {
+-        LOG.info("[" + id + "]: creating spark session");
+-
+-        touchLastActivity();
+-
+-        this.id = id;
+-
+-        ProcessBuilder pb = new ProcessBuilder(Lists.newArrayList(SPARKER_SHELL))
+-                .redirectInput(ProcessBuilder.Redirect.PIPE)
+-                .redirectOutput(ProcessBuilder.Redirect.PIPE);
+-
+-        this.process = pb.start();
+-
+-        writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+-        reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+-    }
+-
+-    @Override
+-    public String getId() {
+-        return id;
+-    }
+-
+-    @Override
+-    public State getState() {
+-        return state;
+-    }
+-
+-    @Override
+-    public long getLastActivity() {
+-        return this.lastActivity;
+-    }
+-
+-    @Override
+-    synchronized public List<Statement> getStatements() {
+-        return Lists.newArrayList(statements);
+-    }
+-
+-    @Override
+-    synchronized public List<Statement> getStatementRange(Integer fromIndex, Integer toIndex) {
+-        return statements.subList(fromIndex, toIndex);
+-    }
+-
+-    @Override
+-    synchronized public Statement getStatement(int index) {
+-        return statements.get(index);
+-    }
+-
+-    @Override
+-    synchronized public Statement executeStatement(String statementStr) throws IOException, ClosedSessionException, InterruptedException {
+-        if (isClosed) {
+-            throw new ClosedSessionException();
+-        }
+-
+-        touchLastActivity();
+-
+-        Statement statement = new Statement(statements.size());
+-        statements.add(statement);
+-
+-        statement.addInput(statementStr);
+-
+-        ObjectNode request = objectMapper.createObjectNode();
+-        request.put("type", "stdin");
+-        request.put("statement", statementStr);
+-
+-        state = State.EXECUTING_STATEMENT;
+-
+-        JsonNode response;
+-        try {
+-            response = doRequest(request);
+-        } finally {
+-            state = State.READY;
+-        }
+-
+-        if (response.has("stdout")) {
+-            statement.addOutput(response.get("stdout").asText());
+-        }
+-
+-        if (response.has("stderr")) {
+-            statement.addOutput(response.get("stderr").asText());
+-        }
+-
+-        return statement;
+-    }
+-
+-    @Override
+-    synchronized public void close() {
+-        isClosed = true;
+-        process.destroy();
+-    }
+-
+-    @Override
+-    public void interrupt() throws Exception, ClosedSessionException {
+-        // FIXME: is there a better way to do this?
+-        if (this.state == State.EXECUTING_STATEMENT) {
+-            ObjectNode request = objectMapper.createObjectNode();
+-            request.put("type", "interrupt");
+-
+-            JsonNode response = doRequest(request);
+-        }
+-    }
+-
+-    private void touchLastActivity() {
+-        this.lastActivity = System.currentTimeMillis();
+-    }
+-
+-    private JsonNode doRequest(ObjectNode request) throws IOException, InterruptedException, ClosedSessionException {
+-        writer.write(request.toString());
+-        writer.write("\n");
+-        writer.flush();
+-
+-        String line = reader.readLine();
+-
+-        if (line == null) {
+-            // The process must have shutdown on us!
+-            process.waitFor();
+-            throw new ClosedSessionException();
+-        }
+-
+-        LOG.info("[" + id + "] spark stdout: " + line);
+-
+-        return objectMapper.readTree(line);
+-    }
+-}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
+deleted file mode 100644
+index a44e811..0000000
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Statement.java
++++ /dev/null
+@@ -1,70 +0,0 @@
+-package com.cloudera.hue.sparker.server.sessions;
+-
+-import com.fasterxml.jackson.annotation.JsonProperty;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-public class Statement {
+-
+-    public enum State {
+-        NOT_READY,
+-        READY,
+-        INCOMPLETE,
+-        RUNNING,
+-        COMPLETE,
+-    }
+-
+-    int id;
+-    State state;
+-    final List<String> input = new ArrayList<String>();
+-    final List<String> output = new ArrayList<String>();
+-
+-    final List<String> error = new ArrayList<String>();
+-
+-    public Statement(int id) {
+-        this.id = id;
+-        this.state = State.COMPLETE;
+-    }
+-
+-    @JsonProperty
+-    public int getId() {
+-        return id;
+-    }
+-
+-    @JsonProperty("state")
+-    public State getState() {
+-        return state;
+-    }
+-
+-    public void setState(State state) {
+-        this.state = state;
+-    }
+-
+-    @JsonProperty("input")
+-    public List<String> getInput() {
+-        return input;
+-    }
+-
+-    public void addInput(String input) {
+-        this.input.add(input);
+-    }
+-
+-    @JsonProperty("output")
+-    public List<String> getOutput() {
+-        return output;
+-    }
+-
+-    public void addOutput(String output) {
+-        this.output.add(output);
+-    }
+-
+-    @JsonProperty("error")
+-    public List<String> getError() {
+-        return error;
+-    }
+-
+-    public void addError(String error) {
+-        this.error.add(error);
+-    }
+-}
+diff --git a/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml b/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
+deleted file mode 100644
+index 0150506..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/assembly/dist.xml
++++ /dev/null
+@@ -1,51 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
+-  license agreements. See the NOTICE file distributed with this work for additional
+-  information regarding copyright ownership. The ASF licenses this file to
+-  you under the Apache License, Version 2.0 (the "License"); you may not use
+-  this file except in compliance with the License. You may obtain a copy of
+-  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
+-  by applicable law or agreed to in writing, software distributed under the
+-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+-  OF ANY KIND, either express or implied. See the License for the specific
+-  language governing permissions and limitations under the License. -->
+-<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+-    <id>dist</id>
+-    <formats>
+-        <format>tar.gz</format>
+-    </formats>
+-    <includeBaseDirectory>false</includeBaseDirectory>
+-
+-    <dependencySets>
+-        <dependencySet>
+-            <outputDirectory>lib</outputDirectory>
+-            <useProjectArtifact>false</useProjectArtifact>
+-            <!--
+-            <excludes>
+-                <exclude>commons-lang:commons-lang</exclude>
+-                <exclude>log4j:log4j</exclude>
+-            </excludes>
+-            -->
+-        </dependencySet>
+-    </dependencySets>
+-
+-    <fileSets>
+-        <fileSet>
+-            <directory>${basedir}/src/main/bash</directory>
+-            <outputDirectory>/bin</outputDirectory>
+-            <fileMode>0744</fileMode>
+-            <includes>
+-                <include>*</include>
+-            </includes>
+-        </fileSet>
+-        <fileSet>
+-            <directory>${project.build.directory}</directory>
+-            <outputDirectory>/lib</outputDirectory>
+-            <includes>
+-                <include>*.jar</include>
+-            </includes>
+-        </fileSet>
+-    </fileSets>
+-</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
+deleted file mode 100755
+index a598fa3..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/bash/run-am.sh
++++ /dev/null
+@@ -1,21 +0,0 @@
+-#!/bin/bash
+-# Licensed to the Apache Software Foundation (ASF) under one
+-# or more contributor license agreements.  See the NOTICE file
+-# distributed with this work for additional information
+-# regarding copyright ownership.  The ASF licenses this file
+-# to you under the Apache License, Version 2.0 (the
+-# "License"); you may not use this file except in compliance
+-# with the License.  You may obtain a copy of the License at
+-#
+-#   http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing,
+-# software distributed under the License is distributed on an
+-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+-# KIND, either express or implied.  See the License for the
+-# specific language governing permissions and limitations
+-# under the License.
+-
+-[[ $JAVA_OPTS != *-server* ]] && export JAVA_OPTS="$JAVA_OPTS -server"
+-
+-exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.AppMaster $@
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
+deleted file mode 100755
+index d59e9f2..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/bash/run-class.sh
++++ /dev/null
+@@ -1,36 +0,0 @@
+-#!/bin/bash
+-
+-home_dir=`pwd`
+-base_dir=$(dirname $0)/..
+-cd $base_dir
+-base_dir=`pwd`
+-cd $home_dir
+-
+-HADOOP_YARN_HOME="${HADOOP_YARN_HOME:-$HOME/.sparker}"
+-HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-$HADOOP_YARN_HOME/conf}"
+-CLASSPATH=$HADOOP_CONF_DIR
+-
+-for file in $base_dir/lib/*.[jw]ar;
+-do
+-  CLASSPATH=$CLASSPATH:$file
+-done
+-
+-if [ -z "$JAVA_HOME" ]; then
+-  JAVA="java"
+-else
+-  JAVA="$JAVA_HOME/bin/java"
+-fi
+-
+-# Try and use 64-bit mode if available in JVM_OPTS
+-function check_and_enable_64_bit_mode {
+-  `$JAVA -d64 -version`
+-  if [ $? -eq 0 ] ; then
+-    JAVA_OPTS="$JAVA_OPTS -d64"
+-  fi
+-}
+-
+-# Check if 64 bit is set. If not - try and set it if it's supported
+-[[ $JAVA_OPTS != *-d64* ]] && check_and_enable_64_bit_mode
+-
+-echo $JAVA $JAVA_OPTS -cp $CLASSPATH $@
+-exec $JAVA $JAVA_OPTS -cp $CLASSPATH $@
+diff --git a/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh b/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
+deleted file mode 100755
+index bd3a98d..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/bash/run-job.sh
++++ /dev/null
+@@ -1,19 +0,0 @@
+-#!/bin/bash
+-# Licensed to the Apache Software Foundation (ASF) under one
+-# or more contributor license agreements.  See the NOTICE file
+-# distributed with this work for additional information
+-# regarding copyright ownership.  The ASF licenses this file
+-# to you under the Apache License, Version 2.0 (the
+-# "License"); you may not use this file except in compliance
+-# with the License.  You may obtain a copy of the License at
+-#
+-#   http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing,
+-# software distributed under the License is distributed on an
+-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+-# KIND, either express or implied.  See the License for the
+-# specific language governing permissions and limitations
+-# under the License.
+-
+-exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.Client $@
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties b/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
+deleted file mode 100644
+index 6efb3c5..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/resources/log4j.properties
++++ /dev/null
+@@ -1,30 +0,0 @@
+-#
+-# Licensed to the Apache Software Foundation (ASF) under one
+-# or more contributor license agreements.  See the NOTICE file
+-# distributed with this work for additional information
+-# regarding copyright ownership.  The ASF licenses this file
+-# to you under the Apache License, Version 2.0 (the
+-# "License"); you may not use this file except in compliance
+-# with the License.  You may obtain a copy of the License at
+-#
+-#      http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-#
+-
+-log4j.appender.stdout=org.apache.log4j.ConsoleAppender
+-log4j.appender.stdout.Target=System.err
+-log4j.appender.stdout.layout=org.apache.log4j.PatternLayout
+-log4j.appender.stdout.layout.ConversionPattern=%d{ISO8601} %-5p %c{1} - %m%n
+-
+-log4j.rootLogger=INFO, stdout
+-
+-# Switching off most of Apache DS logqing which is QUITE verbose
+-log4j.logger.org.apache.directory=OFF
+-log4j.logger.org.apache.directory.server.kerberos=INFO, stdout
+-log4j.additivity.org.apache.directory=false
+-log4j.logger.net.sf.ehcache=INFO, stdout
+\ No newline at end of file
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
+deleted file mode 100644
+index b0966f0..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/AppMaster.scala
++++ /dev/null
+@@ -1,49 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import org.apache.hadoop.net.NetUtils
+-import org.apache.hadoop.yarn.api.ApplicationConstants
+-import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+-import org.apache.hadoop.yarn.client.api.AMRMClient
+-import org.apache.hadoop.yarn.conf.YarnConfiguration
+-import org.apache.hadoop.yarn.util.ConverterUtils
+-
+-object AppMaster extends Logging {
+-
+-  def main(args: Array[String]): Unit = {
+-    val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
+-    info("got container id: %s" format containerIdString)
+-    val containerId = ConverterUtils.toContainerId(containerIdString)
+-
+-    val appAttemptId = containerId.getApplicationAttemptId
+-    info("got app attempt id: %s" format containerIdString)
+-
+-    val nodeHostString = System.getenv(ApplicationConstants.Environment.NM_HOST.toString)
+-    info("got node manager host: %s" format nodeHostString)
+-
+-    val nodePortString = System.getenv(ApplicationConstants.Environment.NM_PORT.toString)
+-    info("got node manager port: %s" format nodeHostString)
+-
+-    val yarnConfig = new YarnConfiguration
+-    val amRMClient = AMRMClient.createAMRMClient()
+-    amRMClient.init(yarnConfig)
+-    amRMClient.start()
+-
+-    val appMasterHostname = NetUtils.getHostname
+-    val appMasterRpcPort = -1
+-    val appMasterTrackingUrl = ""
+-
+-    val response = amRMClient.registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl)
+-
+-    val maxMem = response.getMaximumResourceCapability.getMemory
+-    info("max mem capacity on this cluster: %s" format maxMem)
+-
+-    val maxVCores = response.getMaximumResourceCapability.getVirtualCores
+-    info("max vcore capacity on this cluster: %s" format maxMem)
+-
+-    val appStatus = FinalApplicationStatus.SUCCEEDED
+-    val appMessage = "wee"
+-    amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
+-    amRMClient.stop()
+-  }
+-
+-}
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
+deleted file mode 100644
+index d00dee0..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Client.scala
++++ /dev/null
+@@ -1,424 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import org.apache.hadoop.fs.{FileSystem, Path}
+-import org.apache.hadoop.yarn.api.ApplicationConstants
+-import org.apache.hadoop.yarn.api.ApplicationConstants.Environment
+-import org.apache.hadoop.yarn.api.records._
+-import org.apache.hadoop.yarn.client.api.YarnClient
+-import org.apache.hadoop.yarn.conf.YarnConfiguration
+-import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
+-import org.slf4j.LoggerFactory
+-
+-import scala.collection.JavaConversions._
+-
+-object Client extends Logging {
+-
+-  def main(args: Array[String]): Unit = {
+-    println(args.length)
+-    args.foreach(println(_))
+-
+-    val packagePath = new Path(args(1))
+-
+-    val yarnConf = new YarnConfiguration()
+-    val client = new Client(yarnConf)
+-
+-    try {
+-      val job = client.submitApplication(
+-        packagePath,
+-        List(
+-          "__package/bin/run-am.sh 1>%s/stdout 2>%s/stderr" format (
+-            ApplicationConstants.LOG_DIR_EXPANSION_VAR,
+-            ApplicationConstants.LOG_DIR_EXPANSION_VAR
+-          )
+-        /*
+-          "/bin/pwd " +
+-            " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
+-            " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr;",
+-          "/bin/ls " +
+-            " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
+-            " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr;",
+-          "/bin/echo hi" +
+-          " 1>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
+-          " 2>>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
+-          */
+-        )
+-      )
+-
+-      info("waiting for job to start")
+-
+-      job.waitForStatus(Running(), 500) match {
+-        case Some(Running()) => {
+-          info("job started successfully")
+-        }
+-        case Some(appStatus) => {
+-          warn("unable to start job successfully. job has status %s" format appStatus)
+-        }
+-        case None => {
+-          warn("timed out waiting for job to start")
+-        }
+-      }
+-
+-      job.waitForFinish(100000) match {
+-        case Some(SuccessfulFinish()) => {
+-          info("job finished successfully")
+-        }
+-        case Some(appStatus) => {
+-          info("job finished unsuccessfully %s" format appStatus)
+-        }
+-        case None => {
+-          info("timed out")
+-        }
+-      }
+-
+-    } finally {
+-      client.close()
+-    }
+-  }
+-}
+-
+-class Client(yarnConf: YarnConfiguration) {
+-
+-  import Client._
+-
+-  val yarnClient = YarnClient.createYarnClient()
+-  yarnClient.init(yarnConf)
+-  yarnClient.start()
+-
+-  def submitApplication(packagePath: Path, cmds: List[String]): Job = {
+-    val app = yarnClient.createApplication()
+-    val newAppResponse = app.getNewApplicationResponse
+-
+-    val appId = newAppResponse.getApplicationId
+-
+-    info("preparing to submit %s" format appId)
+-
+-    val appContext = app.getApplicationSubmissionContext
+-    appContext.setApplicationName(appId.toString)
+-
+-    val containerCtx = Records.newRecord(classOf[ContainerLaunchContext])
+-    val resource = Records.newRecord(classOf[Resource])
+-
+-    info("Copy app master jar from local filesystem and add to the local environment")
+-    /*
+-    val localResources = Map(
+-      "app" => uploadLocalResource()
+-    )
+-    Map
+-
+-
+-    addToLocalResources(fs, appMasterJar, appMasterJarPath, appId, localResources, null)
+-    */
+-
+-    val packageResource = Records.newRecord(classOf[LocalResource])
+-
+-    val packageUrl = ConverterUtils.getYarnUrlFromPath(packagePath)
+-    val fileStatus = packagePath.getFileSystem(yarnConf).getFileStatus(packagePath)
+-
+-    packageResource.setResource(packageUrl)
+-    info("set package url to %s for %s" format (packageUrl, appId))
+-    packageResource.setSize(fileStatus.getLen)
+-    info("set package size to %s for %s" format (fileStatus.getLen, appId))
+-    packageResource.setTimestamp(fileStatus.getModificationTime)
+-    packageResource.setType(LocalResourceType.ARCHIVE)
+-    packageResource.setVisibility(LocalResourceVisibility.APPLICATION)
+-
+-    resource.setMemory(256)
+-    resource.setVirtualCores(1)
+-    appContext.setResource(resource)
+-
+-    containerCtx.setCommands(cmds)
+-    containerCtx.setLocalResources(Map("__package" -> packageResource))
+-
+-    appContext.setApplicationId(appId)
+-    appContext.setAMContainerSpec(containerCtx)
+-    appContext.setApplicationType("sparker")
+-
+-    info("submitting application request for %s" format appId)
+-
+-    yarnClient.submitApplication(appContext)
+-
+-    new Job(yarnClient, appId)
+-  }
+-
+-  def close(): Unit = {
+-    yarnClient.close()
+-  }
+-
+-  private def addToLocalResources(fs: FileSystem, fileSrcPath: String, fileDstPath: String, appId: String): LocalResource = {
+-    val appName = "sparker"
+-    val suffix = appName + "/" + appId + "/" + fileDstPath
+-
+-    val dst = new Path(fs.getHomeDirectory, suffix)
+-
+-    fs.copyFromLocalFile(new Path(fileSrcPath), dst)
+-
+-    val srcFileStatus = fs.getFileStatus(dst)
+-    LocalResource.newInstance(
+-      ConverterUtils.getYarnUrlFromURI(dst.toUri),
+-      LocalResourceType.FILE,
+-      LocalResourceVisibility.APPLICATION,
+-      srcFileStatus.getLen,
+-      srcFileStatus.getModificationTime
+-    )
+-  }
+-}
+-
+-class Job(client: YarnClient, appId: ApplicationId) {
+-
+-  def waitForFinish(timeoutMs: Long): Option[ApplicationStatus] = {
+-    val startTimeMs = System.currentTimeMillis()
+-
+-    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
+-      val status = getStatus()
+-      status match {
+-        case SuccessfulFinish() | UnsuccessfulFinish() => {
+-          return Some(status)
+-        }
+-        case _ =>
+-      }
+-
+-      Thread.sleep(1000)
+-    }
+-
+-    None
+-  }
+-
+-  def waitForStatus(status: ApplicationStatus, timeoutMs: Long): Option[ApplicationStatus] = {
+-    val startTimeMs = System.currentTimeMillis()
+-
+-    while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
+-      if (getStatus() == status) {
+-        return Some(status)
+-      }
+-
+-      Thread.sleep(1000)
+-    }
+-
+-    None
+-  }
+-
+-  private def getStatus(): ApplicationStatus = {
+-    val statusResponse = client.getApplicationReport(appId)
+-    convertState(statusResponse.getYarnApplicationState, statusResponse.getFinalApplicationStatus)
+-  }
+-
+-  private def convertState(state: YarnApplicationState, status: FinalApplicationStatus): ApplicationStatus = {
+-    (state, status) match {
+-      case (YarnApplicationState.FINISHED, FinalApplicationStatus.SUCCEEDED) => SuccessfulFinish()
+-      case (YarnApplicationState.KILLED, _) | (YarnApplicationState.FAILED, _) => UnsuccessfulFinish()
+-      case (YarnApplicationState.NEW, _) | (YarnApplicationState.SUBMITTED, _) => New()
+-      case _ => Running()
+-    }
+-  }
+-}
+-
+-trait ApplicationStatus
+-case class New() extends ApplicationStatus
+-case class Running() extends ApplicationStatus
+-case class SuccessfulFinish() extends ApplicationStatus
+-case class UnsuccessfulFinish() extends ApplicationStatus
+-
+-
+-
+-
+-/*
+-object Client {
+-
+-  def main(args: Array[String]) = {
+-    val jarPath = new Path(args(1))
+-
+-    val yarnConf = new YarnConfiguration()
+-    val yarnClient = YarnClient.createYarnClient()
+-
+-    yarnClient.init(yarnConf)
+-    yarnClient.start()
+-
+-    try {
+-      val app = yarnClient.createApplication()
+-      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
+-      amContainer.setCommands(
+-        Collections.singletonList(
+-          "$JAVA_HOME/bin/java" +
+-            " com.cloudera.hue.sparker.repl.yarn.ApplicationMaster" +
+-            " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
+-            " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout"))
+-
+-      val appMasterJar: LocalResource = Records.newRecord(Class[LocalResource])
+-      setupAppMasterJar(jarPath, appMasterJar)
+-      amContainer.setLocalResources(
+-        Collections.singletonMap("foo.jar", appMasterJar)
+-      )
+-
+-      val appMasterEnv: Map[String, String] = Map()
+-      setupAppMasterEnv(appMasterEnv)
+-      amContainer.setEnvironment(appMasterEnv)
+-
+-      val capability: Resource = Records.newRecord(Class[Resource])
+-      capability.setMemory(256)
+-      capability.setVirtualCores(1)
+-
+-      val appContext = app.getApplicationSubmissionContext
+-      appContext.setApplicationName("foo")
+-      appContext.setAMContainerSpec(amContainer)
+-      appContext.setResource(capability)
+-      appContext.setQueue("default")
+-
+-      val appId = appContext.getApplicationId
+-      yarnClient.submitApplication(appContext)
+-
+-      var appReport = yarnClient.getApplicationReport(appId)
+-      var appState = appReport.getYarnApplicationState()
+-
+-      while (
+-        appState != YarnApplicationState.FINISHED &&
+-        appState != YarnApplicationState.KILLED &&
+-        appState != YarnApplicationState.FAILED
+-      ) {
+-        Thread.sleep(100)
+-        appReport = yarnClient.getApplicationReport(appId)
+-        appState = appReport.getYarnApplicationState
+-      }
+-
+-    } finally {
+-      yarnClient.close()
+-    }
+-  }
+-
+-  private def setupAppMasterJar(value: Path, resource: LocalResource) = {
+-
+-  }
+-
+-  private def setupAppMasterEnv(conf: YarnConfiguration, appMasterEnv: Map[String, String]) = {
+-    var classpaths = conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH)
+-
+-    if (classpaths == null) {
+-      classpaths = YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH
+-    }
+-
+-    classpaths.foreach {
+-      c => {
+-        Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(), c.trim())
+-      }
+-    }
+-
+-    Apps.addToEnvironment(appMasterEnv, Environment.CLASSPATH.name(),
+-      Environment.PWD.$() + File.separator + "*"
+-    )
+-  }
+-
+-
+-    /*
+-
+-    try {
+-      val appContext = yarnClient.createApplication.getApplicationSubmissionContext
+-      val appId = appContext.getApplicationId
+-
+-      val appName = "sparker-repl"
+-      val amPriority = 0
+-      val amQueue = "default"
+-
+-      appContext.setApplicationName(appName)
+-
+-      val priority: Priority = Records.newRecord(Class[Priority])
+-      priority.setPriority(amPriority)
+-      appContext.setPriority(priority)
+-
+-      appContext.setQueue(amQueue)
+-
+-      val amContainer: ContainerLaunchContext = Records.newRecord(Class[ContainerLaunchContext])
+-      appContext.setAMContainerSpec(amContainer)
+-
+-      appContext.setUnmanagedAM(true)
+-
+-      yarnClient.submitApplication(appContext)
+-
+-      var appReport = monitorApplication(
+-        appId,
+-        util.EnumSet.of(
+-          YarnApplicationState.ACCEPTED,
+-          YarnApplicationState.KILLED,
+-          YarnApplicationState.FAILED,
+-          YarnApplicationState.FINISHED
+-        ))
+-
+-      if (appReport.getYarnApplicationState == YarnApplicationState.ACCEPTED) {
+-        val attemptReport = monitorCurrentAppAttempt(appId, YarnApplicationAttemptState.LAUNCHED)
+-        val attemptId = attemptReport.getApplicationAttemptId
+-
+-        launchAM(yarnClient, attemptId)
+-
+-        appReport = monitorApplication(
+-          appId,
+-          util.EnumSet.of(
+-            YarnApplicationState.KILLED,
+-            YarnApplicationState.FAILED,
+-            YarnApplicationState.FINISHED
+-          )
+-        )
+-      }
+-
+-      val appState = appReport.getYarnApplicationState
+-      val appStatus = appReport.getFinalApplicationStatus
+-
+-      if (YarnApplicationState.FINISHED == appState && FinalApplicationStatus.SUCCEEDED == appStatus) {
+-        0
+-      } else {
+-        1
+-      }
+-    } finally {
+-      yarnClient.close()
+-    }
+-  }
+-    */
+-
+-  /*
+-  private def launchAM(rmClient: YarnClient, attemptId: ApplicationAttemptId): Unit = {
+-    val credentials = new Credentials();
+-    val token = rmClient.getAMRMToken(attemptId.getApplicationId)
+-    credentials.addToken(token.getService, token)
+-    val tokenFile = File.createTempFile("unmanagedAMRMToken", "", new File(System.getProperty("user.dir")));
+-    //try {
+-      FileUtil.chmod(tokenFile.getAbsolutePath, "600")
+-    //}
+-
+-    tokenFile.deleteOnExit()
+-    val os = new DataOutputStream(new FileOutputStream(tokenFile, true))
+-    credentials.writeTokenStorageToStream(os)
+-    os.close()
+-
+-    val envAMList = List()
+-    var setClasspath = false
+-    val classpath = null
+-
+-    sys.env.foreach {
+-      case(key, value) => {
+-      var value: String = value
+-        if (key == "CLASSPATH") {
+-          setClasspath = true
+-          if (classpath != null) {
+-            value = value + File.pathSeparator + classpath
+-          }
+-        }
+-        envAMList +: (key + "=" + value)
+-      }
+-    }
+-
+-    if (!setClasspath && classpath != null) {
+-      envAMList +: ("CLASSPATH=" + classpath)
+-    }
+-
+-
+-  }
+-
+-  private def monitorApplication(appId: ApplicationId, attemptState: util.EnumSet[YarnApplicationState]): ApplicationReport = {
+-    null
+-  }
+-
+-  private def monitorCurrentAppAttempt(appId: ApplicationId, attemptState: YarnApplicationAttemptState): ApplicationAttemptReport = {
+-    null
+-  }
+-  */
+-
+-
+-}
+-*/
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
+deleted file mode 100644
+index 16b344b..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/Logging.scala
++++ /dev/null
+@@ -1,28 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import org.slf4j.LoggerFactory
+-
+-trait Logging {
+-  val loggerName = this.getClass.getName
+-  lazy val logger = LoggerFactory.getLogger(loggerName)
+-
+-  def debug(message: => Any) = {
+-    if (logger.isDebugEnabled) {
+-      logger.debug(message.toString)
+-    }
+-  }
+-
+-  def info(message: => Any) = {
+-    if (logger.isInfoEnabled) {
+-      logger.info(message.toString)
+-    }
+-  }
+-
+-  def warn(message: => Any) = {
+-    logger.warn(message.toString)
+-  }
+-
+-  def error(message: => Any) = {
+-    logger.error(message.toString)
+-  }
+-}
+diff --git a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala b/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
+deleted file mode 100644
+index 9c96ae6..0000000
+--- a/apps/spark/java/sparker-yarn/src/main/scala/com/cloudera/hue/sparker/yarn/YarnJob.scala
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package com.cloudera.hue.sparker.yarn
+-
+-import org.apache.hadoop.conf.Configuration
+-
+-class YarnJob(config: Configuration) {
+-
+-  //val client = new Client
+-
+-}
+diff --git a/apps/spark/java/src/main/assembly/dist.xml b/apps/spark/java/src/main/assembly/dist.xml
+deleted file mode 100644
+index 07c7464..0000000
+--- a/apps/spark/java/src/main/assembly/dist.xml
++++ /dev/null
+@@ -1,65 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
+-  license agreements. See the NOTICE file distributed with this work for additional
+-  information regarding copyright ownership. The ASF licenses this file to
+-  you under the Apache License, Version 2.0 (the "License"); you may not use
+-  this file except in compliance with the License. You may obtain a copy of
+-  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
+-  by applicable law or agreed to in writing, software distributed under the
+-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+-  OF ANY KIND, either express or implied. See the License for the specific
+-  language governing permissions and limitations under the License. -->
+-<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
+-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
+-    <id>dist</id>
+-    <formats>
+-        <format>tar.gz</format>
+-    </formats>
+-    <includeBaseDirectory>false</includeBaseDirectory>
+-
+-    <dependencySets>
+-        <dependencySet>
+-            <outputDirectory>lib</outputDirectory>
+-            <useProjectArtifact>false</useProjectArtifact>
+-            <!--
+-            <excludes>
+-                <exclude>commons-lang:commons-lang</exclude>
+-                <exclude>log4j:log4j</exclude>
+-            </excludes>
+-            -->
+-        </dependencySet>
+-    </dependencySets>
+-
+-    <moduleSets>
+-        <moduleSet>
+-            <includes>
+-                <!--
+-                <include>com.cloudera.hue.sparker:sparker-repl</include>
+-                <include>com.cloudera.hue.sparker:sparker-server</include>
+-                -->
+-                <include>com.cloudera.hue.sparker:sparker-yarn</include>
+-            </includes>
+-        </moduleSet>
+-    </moduleSets>
+-
+-    <!--
+-    <fileSets>
+-        <fileSet>
+-            <directory>${basedir}/src/main/bash</directory>
+-            <outputDirectory>/bin</outputDirectory>
+-            <fileMode>0744</fileMode>
+-            <includes>
+-                <include>*</include>
+-            </includes>
+-        </fileSet>
+-        <fileSet>
+-            <directory>${project.build.directory}</directory>
+-            <outputDirectory>/lib</outputDirectory>
+-            <includes>
+-                <include>*.jar</include>
+-            </includes>
+-        </fileSet>
+-    </fileSets>
+-    -->
+-</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/java/src/main/assembly/dist3.xml b/apps/spark/java/src/main/assembly/dist3.xml
+new file mode 100644
+index 0000000..07c7464
+--- /dev/null
++++ b/apps/spark/java/src/main/assembly/dist3.xml
+@@ -0,0 +1,65 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!-- Licensed to the Apache Software Foundation (ASF) under one or more contributor
++  license agreements. See the NOTICE file distributed with this work for additional
++  information regarding copyright ownership. The ASF licenses this file to
++  you under the Apache License, Version 2.0 (the "License"); you may not use
++  this file except in compliance with the License. You may obtain a copy of
++  the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required
++  by applicable law or agreed to in writing, software distributed under the
++  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
++  OF ANY KIND, either express or implied. See the License for the specific
++  language governing permissions and limitations under the License. -->
++<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2"
++          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
++    <id>dist</id>
++    <formats>
++        <format>tar.gz</format>
++    </formats>
++    <includeBaseDirectory>false</includeBaseDirectory>
++
++    <dependencySets>
++        <dependencySet>
++            <outputDirectory>lib</outputDirectory>
++            <useProjectArtifact>false</useProjectArtifact>
++            <!--
++            <excludes>
++                <exclude>commons-lang:commons-lang</exclude>
++                <exclude>log4j:log4j</exclude>
++            </excludes>
++            -->
++        </dependencySet>
++    </dependencySets>
++
++    <moduleSets>
++        <moduleSet>
++            <includes>
++                <!--
++                <include>com.cloudera.hue.sparker:sparker-repl</include>
++                <include>com.cloudera.hue.sparker:sparker-server</include>
++                -->
++                <include>com.cloudera.hue.sparker:sparker-yarn</include>
++            </includes>
++        </moduleSet>
++    </moduleSets>
++
++    <!--
++    <fileSets>
++        <fileSet>
++            <directory>${basedir}/src/main/bash</directory>
++            <outputDirectory>/bin</outputDirectory>
++            <fileMode>0744</fileMode>
++            <includes>
++                <include>*</include>
++            </includes>
++        </fileSet>
++        <fileSet>
++            <directory>${project.build.directory}</directory>
++            <outputDirectory>/lib</outputDirectory>
++            <includes>
++                <include>*.jar</include>
++            </includes>
++        </fileSet>
++    </fileSets>
++    -->
++</assembly>
+\ No newline at end of file
+diff --git a/apps/spark/spark_server.sh b/apps/spark/spark_server.sh
+deleted file mode 100755
+index 6869caa..0000000
+--- a/apps/spark/spark_server.sh
++++ /dev/null
+@@ -1,81 +0,0 @@
+-#!/bin/bash
+-# Licensed to Cloudera, Inc. under one
+-# or more contributor license agreements.  See the NOTICE file
+-# distributed with this work for additional information
+-# regarding copyright ownership.  Cloudera, Inc. licenses this file
+-# to you under the Apache License, Version 2.0 (the
+-# "License"); you may not use this file except in compliance
+-# with the License.  You may obtain a copy of the License at
+-#
+-#     http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-#
+-# Runs Beeswax server.
+-
+-set -o errexit
+-
+-#if [ -z "$HADOOP_CONF_DIR" ]; then
+-#  echo "\$HADOOP_CONF_DIR must be specified" 1>&2
+-#  exit 1
+-#fi
+-#echo \$HADOOP_HOME=$HADOOP_HOME
+-#
+-#if [ -z "$HADOOP_BIN" ]; then
+-#  echo "\$HADOOP_BIN must be specified" 1>&2
+-#  exit 1
+-#fi
+-#echo \$HADOOP_BIN=$HADOOP_BIN
+-#
+-#if [ -z "$HIVE_CONF_DIR" ]; then
+-#  echo "\$HIVE_CONF_DIR must be specified" 1>&2
+-#  exit 1
+-#fi
+-#
+-#echo \$HIVE_CONF_DIR=$HIVE_CONF_DIR
+-#
+-#if [ -z "$HIVE_HOME" ]; then
+-#  echo "\$HIVE_HOME not specified. Defaulting to $HIVE_CONF_DIR/.." 1>&2
+-#  export HIVE_HOME=$HIVE_CONF_DIR/..
+-#  exit 1
+-#fi
+-#
+-#echo \$HIVE_HOME=$HIVE_HOME
+-#
+-SPARK_ROOT=$(dirname $0)
+-SPARK_JAR=$SPARK_ROOT/java/sparker-server/target/sparker-server-3.7.0-SNAPSHOT.jar
+-#HIVE_LIB=$HIVE_HOME/lib
+-#
+-#export HADOOP_CLASSPATH=$(find $HADOOP_HOME -name hue-plugins*.jar | tr "\n" :):$(find $HIVE_LIB -name "*.jar" | tr "\n" :)
+-#
+-#if [ -n "$HADOOP_EXTRA_CLASSPATH_STRING" ]; then
+-#  export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:$HADOOP_EXTRA_CLASSPATH_STRING
+-#fi
+-#
+-#export HADOOP_OPTS="-Dlog4j.configuration=log4j.properties"
+-#echo \$HADOOP_CLASSPATH=$HADOOP_CLASSPATH
+-#echo \$HADOOP_OPTS=$HADOOP_OPTS
+-#
+-## Use HADOOP_CONF_DIR to preprend to classpath, to avoid fb303 conflict,
+-## and to force hive-default to correspond to the Hive version we have.
+-## Because we are abusing HADOOP_CONF_DIR, we have to emulate its default
+-## behavior here as well.
+-#if [ -f $HADOOP_CONF_DIR/hadoop-env.sh ]; then
+-#  . $HADOOP_CONF_DIR/hadoop-env.sh
+-#fi
+-#
+-#export HADOOP_CONF_DIR=$HIVE_CONF_DIR:$HADOOP_CONF_DIR
+-#echo \$HADOOP_CONF_DIR=$HADOOP_CONF_DIR
+-#echo \$HADOOP_MAPRED_HOME=$HADOOP_MAPRED_HOME
+-
+-export SPARKER_HOME=$(dirname $0)
+-
+-# Note: I've had trouble running this with just "java -jar" with the classpath
+-# determined with a seemingly appropriate find command.
+-echo CWD=$(pwd)
+-echo Executing java -jar $SPARK_JAR "$@"
+-exec java -jar $SPARK_JAR "$@"
+diff --git a/apps/spark/sparker-client.py b/apps/spark/sparker-client.py
+deleted file mode 100755
+index d04412f..0000000
+--- a/apps/spark/sparker-client.py
++++ /dev/null
+@@ -1,93 +0,0 @@
+-#! /usr/bin/env python
+-
+-import json
+-import httplib
+-import urllib
+-
+-sparker_client_default_host = 'localhost'
+-sparker_client_default_port = 8080
+-
+-class SparkerClient:
+-    # Configuration
+-    host = sparker_client_default_host
+-    port = sparker_client_default_port
+-    # State
+-    connection = None
+-    session_id = None
+-    output_cursor = 0
+-    # Constants
+-    POST = 'POST'
+-    GET = 'GET'
+-    DELETE = 'DELETE'
+-    ROOT = '/'
+-    OK = 200
+-    def __init__(self, host=sparker_client_default_host, port=sparker_client_default_port, lang=None):
+-        self.host = host
+-        self.port = port
+-        self.connection = self.create_connection()
+-        self.session_id = self.create_session(lang)
+-    def http_json(self, method, url, body=''):
+-        self.connection.request(method, url, body)
+-        response = self.connection.getresponse()
+-        if response.status != self.OK:
+-            raise Exception(str(response.status) + ' ' + response.reason)
+-        response_text = response.read()
+-        if len(response_text) != 0:
+-            return json.loads(response_text)
+-        return ''
+-    def create_connection(self):
+-        return httplib.HTTPConnection(self.host, self.port)
+-    def create_session(self, lang):
+-        return self.http_json(self.POST, self.ROOT, urllib.urlencode({'lang': lang}))
+-    def get_sessions(self):
+-        return self.http_json(self.GET, self.ROOT)
+-    def get_session(self):
+-        return self.http_json(self.GET, self.ROOT + self.session_id)
+-    def post_input(self, command):
+-        self.http_json(self.POST, self.ROOT + self.session_id, command)
+-    def get_output(self):
+-        output = self.get_session()[self.output_cursor:]
+-        self.output_cursor += len(output)
+-        return output
+-    def delete_session(self):
+-        self.http_json(self.DELETE, self.ROOT + self.session_id)
+-    def close_connection(self):
+-        self.connection.close()
+-
+-import threading
+-import time
+-import sys
+-
+-class SparkerPoller(threading.Thread):
+-    keep_polling = True
+-    def __init__(self, sparker_client):
+-        threading.Thread.__init__(self)
+-        self.sparker_client = sparker_client
+-    def stop_polling(self):
+-        self.keep_polling = False
+-    def run(self):
+-        while self.keep_polling:
+-            output = self.sparker_client.get_output()
+-            for line in output:
+-                print(line)
+-            time.sleep(1)
+-
+-if len(sys.argv) == 2:
+-    lang = sys.argv[1]
+-else:
+-    lang = 'scala'
+-
+-client = SparkerClient(lang=lang)
+-poller = SparkerPoller(client)
+-poller.start()
+-
+-try:
+-    while True:
+-        line = raw_input()
+-        client.post_input(line)
+-except:
+-    poller.stop_polling()
+-    client.delete_session()
+-    client.close_connection()
+-
+-sys.exit(0)
+diff --git a/apps/spark/sparker-shell b/apps/spark/sparker-shell
+deleted file mode 100755
+index bcde1b9..0000000
+--- a/apps/spark/sparker-shell
++++ /dev/null
+@@ -1,8 +0,0 @@
+-#!/bin/bash
+-
+-cd `dirname $0`
+-
+-exec java \
+-	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006 \
+-	-cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" \
+-	com.cloudera.hue.sparker.repl.Main -usejavacp "$@" 2>/dev/null
+-- 
+1.7.9.5
+

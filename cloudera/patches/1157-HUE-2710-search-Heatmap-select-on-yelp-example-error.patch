@@ -1,0 +1,47 @@
+From 4a27eeda14dcf4dc1dc062dd230f5b3508e8c4fb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 28 Apr 2015 17:12:59 -0700
+Subject: [PATCH 1157/1173] HUE-2710 [search] Heatmap select on yelp example
+ errors
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    1 +
+ desktop/libs/libsolr/src/libsolr/api.py            |    3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index b0b0a0b..af37ca5 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -392,6 +392,7 @@ var Workflow = function (vm, workflow) {
+       self.nodes.remove(node);
+ 
+       // If need to remove fork
++
+       if (parent.type() == 'fork-widget') {
+         var fork = parent;
+         var join = self.getNodeById(childId);
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 4d8175d..7fd30f0 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -25,6 +25,7 @@ from itertools import groupby
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.i18n import smart_str
+ from desktop.lib.rest.http_client import HttpClient, RestException
+ from desktop.lib.rest import resource
+ 
+@@ -90,7 +91,7 @@ class SolrApi(object):
+             if fields.index(field) < len(values): # Lowest common field denominator
+               value = values[fields.index(field)]
+               exclude = '-' if _filter['exclude'] else ''
+-              if value is not None and ' ' in value:
++              if value is not None and ' ' in smart_str(value):
+                 f.append('%s%s:"%s"' % (exclude, field, value))
+               else:
+                 f.append('%s{!field f=%s}%s' % (exclude, field, value))
+-- 
+1.7.9.5
+

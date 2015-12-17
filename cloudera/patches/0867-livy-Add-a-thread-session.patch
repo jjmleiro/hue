@@ -1,0 +1,194 @@
+From 1a9c5951f84780673011094bd6b1d6bbd8890470 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 11 Feb 2015 14:25:22 -0800
+Subject: [PATCH 0867/1173] [livy] Add a thread session
+
+---
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |    6 +-
+ .../cloudera/hue/livy/server/SessionFactory.scala  |   12 ++++
+ .../hue/livy/server/sessions/ThreadSession.scala   |   64 ++++++++++++++++++++
+ .../hue/livy/server/sessions/WebSession.scala      |   16 +----
+ .../src/spark/management/commands/livy_server.py   |    6 +-
+ 5 files changed, 85 insertions(+), 19 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index c5fa850..d1d13cc 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -9,20 +9,21 @@ import org.scalatra.servlet.ScalatraListener
+ object Main {
+ 
+   val SESSION_KIND = "livy-server.session.kind"
++  val THREAD_SESSION = "thread"
+   val PROCESS_SESSION = "process"
+   val YARN_SESSION = "yarn"
+ 
+   def main(args: Array[String]): Unit = {
+ 
+     if (args.length != 1) {
+-      println("Must specify either `process` or `yarn` for the session kind")
++      println("Must specify either `thread`, `process`, or `yarn` for the session kind")
+       sys.exit(1)
+     }
+ 
+     val session_kind = args(0)
+ 
+     session_kind match {
+-      case PROCESS_SESSION | YARN_SESSION =>
++      case THREAD_SESSION | PROCESS_SESSION | YARN_SESSION =>
+       case _ =>
+         println("Unknown session kind: " + session_kind)
+         sys.exit(1)
+@@ -49,6 +50,7 @@ class ScalatraBootstrap extends LifeCycle {
+ 
+   override def init(context: ServletContext): Unit = {
+     val sessionFactory = context.getInitParameter(Main.SESSION_KIND) match {
++      case Main.THREAD_SESSION => new ThreadSessionFactory
+       case Main.PROCESS_SESSION => new ProcessSessionFactory
+       case Main.YARN_SESSION => new YarnSessionFactory
+     }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index 01a3c87..dc49b80 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -14,6 +14,18 @@ trait SessionFactory {
+   def close(): Unit = {}
+ }
+ 
++class ThreadSessionFactory extends SessionFactory {
++
++  implicit def executor: ExecutionContext = ExecutionContext.global
++
++  override def createSession(lang: String): Future[Session] = {
++    Future {
++      val id = UUID.randomUUID().toString
++      ThreadSession.create(id, lang)
++    }
++  }
++}
++
+ class ProcessSessionFactory extends SessionFactory {
+ 
+   implicit def executor: ExecutionContext = ExecutionContext.global
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+new file mode 100644
+index 0000000..39f8287
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/ThreadSession.scala
+@@ -0,0 +1,64 @@
++package com.cloudera.hue.livy.server.sessions
++
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import com.cloudera.hue.livy.repl
++import com.cloudera.hue.livy.repl.python.PythonSession
++import com.cloudera.hue.livy.repl.scala.SparkSession
++import com.cloudera.hue.livy.server.Statement
++import com.cloudera.hue.livy.server.sessions.Session._
++
++import scala.collection.mutable.ArrayBuffer
++import scala.concurrent.Future
++
++object ThreadSession {
++  val LIVY_HOME = System.getenv("LIVY_HOME")
++  val LIVY_REPL = LIVY_HOME + "/bin/livy-repl"
++
++  def create(id: String, lang: String): Session = {
++    val session = lang match {
++      case "python" | "pyspark" =>
++        PythonSession.createPySpark()
++      case "scala" | "spark" =>
++        SparkSession.create()
++    }
++    new ThreadSession(id, session)
++  }
++}
++
++private class ThreadSession(val id: String, session: com.cloudera.hue.livy.repl.Session) extends Session {
++  private var executedStatements = 0
++  private var statements_ = new ArrayBuffer[Statement]
++
++  override def lastActivity: Long = 0
++
++  override def state: State = {
++    session.state match {
++      case repl.Session.Starting() => Starting()
++      case repl.Session.Idle() => Idle()
++      case repl.Session.Busy() => Busy()
++      case repl.Session.ShuttingDown() => Dead()
++      case repl.Session.ShutDown() => Dead()
++    }
++  }
++
++  override def executeStatement(content: ExecuteRequest): Statement = {
++    val statement = new Statement(executedStatements, content, session.execute(content.code))
++
++    executedStatements += 1
++    statements_ += statement
++
++    statement
++  }
++
++  override def statement(statementId: Int): Option[Statement] = statements_.lift(statementId)
++
++  override def statements(): Seq[Statement] = statements_
++
++  override def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement] = statements_.slice(fromIndex, toIndex).toSeq
++
++  override def interrupt(): Future[Unit] = {
++    stop()
++  }
++
++  override def stop(): Future[Unit] = session.close()
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index c697620..f0f08fb 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -52,21 +52,9 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+     }
+   }
+ 
+-  override def statement(statementId: Int): Option[Statement] = {
+-    ensureRunning {
+-      if (statementId < statements_.length) {
+-        Some(statements_(statementId))
+-      } else {
+-        None
+-      }
+-    }
+-  }
++  override def statement(statementId: Int): Option[Statement] = statements_.lift(statementId)
+ 
+-  override def statements(): Seq[Statement] = {
+-    ensureRunning {
+-      statements_.toSeq
+-    }
+-  }
++  override def statements(): Seq[Statement] = statements_.toSeq
+ 
+   override def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement] = {
+     ensureRunning {
+diff --git a/apps/spark/src/spark/management/commands/livy_server.py b/apps/spark/src/spark/management/commands/livy_server.py
+index f2e8b64..fb5cff8 100644
+--- a/apps/spark/src/spark/management/commands/livy_server.py
++++ b/apps/spark/src/spark/management/commands/livy_server.py
+@@ -30,12 +30,12 @@ class Command(BaseCommand):
+     Starts livy server.
+     """
+ 
+-    args = '<process(default)|yarn>'
+-    help = 'start livy server with process or yarn workers'
++    args = '<thread(default)|process|yarn>'
++    help = 'start livy server with thread, process, or yarn workers'
+ 
+     def handle(self, *args, **kwargs):
+         if not args:
+-          session_kind = 'process'
++          session_kind = 'thread'
+         else:
+           session_kind = args[0].lower()
+ 
+-- 
+1.7.9.5
+

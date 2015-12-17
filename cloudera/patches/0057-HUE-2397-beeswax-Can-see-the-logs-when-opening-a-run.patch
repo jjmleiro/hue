@@ -1,0 +1,83 @@
+From d99d3e65eec097e8c615cadb197623b824d232fd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 13 Oct 2014 14:16:09 +0200
+Subject: [PATCH 0057/1173] HUE-2397 [beeswax] Can see the logs when opening a
+ running query
+
+Added pushState to the history for refreshing the page
+Fixed a codemirror init bug
+Improved speed of result displaying
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   19 +++++++++++++------
+ apps/beeswax/static/js/beeswax.vm.js            |    3 +++
+ 2 files changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 1c5822b..6b28c13 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -1051,6 +1051,7 @@ $(document).ready(function () {
+ 
+   renderRecent = function() {
+     $("#recentLoader").show();
++    $("#recentQueries").hide();
+     recentQueries.fnClearTable();
+     $.getJSON("${ url(app_name + ':list_query_history') }?format=json", function(data) {
+       if (data && data.queries) {
+@@ -1067,7 +1068,7 @@ $(document).ready(function () {
+       }
+       $("a[data-row-selector='true']").jHueRowSelector();
+       $("#recentLoader").hide();
+-      $("#recentQueries").css("width", "100%");
++      $("#recentQueries").show().css("width", "100%");
+       reinitializeTableExtenders();
+     });
+   }
+@@ -1953,8 +1954,8 @@ function addResults(viewModel, dataTable, index, pageSize) {
+   if (viewModel.hasMoreResults() && index + pageSize > viewModel.design.results.rows().length) {
+     $(document).one('fetched.results', function () {
+       $.totalStorage(hac_getTotalStorageUserPrefix() + "${app_name}_temp_query", null);
+-      dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(index, index + pageSize), index));
+     });
++    dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(index, index + pageSize), index));
+     viewModel.fetchResults();
+   } else {
+     dataTable.fnAddData(addRowNumberToResults(viewModel.design.results.rows.slice(index, index + pageSize), index));
+@@ -2577,10 +2578,16 @@ function watchEvents() {
+ }
+ 
+ function cacheQueryTextEvents() {
+-  codeMirror.on("change", function () {
+-    $(".query").val(codeMirror.getValue());
+-    $.totalStorage(hac_getTotalStorageUserPrefix() + "${app_name}_temp_query", codeMirror.getValue());
+-  });
++  var _waitForCodemirrorInit = -1;
++  _waitForCodemirrorInit = window.setInterval(function () {
++    if (typeof codeMirror != "undefined") {
++      codeMirror.on("change", function () {
++        $(".query").val(codeMirror.getValue());
++        $.totalStorage(hac_getTotalStorageUserPrefix() + "${app_name}_temp_query", codeMirror.getValue());
++      });
++      window.clearInterval(_waitForCodemirrorInit);
++    }
++  }, 100);
+ }
+ 
+ function getDatabases(callback){
+diff --git a/apps/beeswax/static/js/beeswax.vm.js b/apps/beeswax/static/js/beeswax.vm.js
+index 7c75384..8db3b02 100644
+--- a/apps/beeswax/static/js/beeswax.vm.js
++++ b/apps/beeswax/static/js/beeswax.vm.js
+@@ -501,6 +501,9 @@ function BeeswaxViewModel(server) {
+         self.design.errors.removeAll();
+         self.design.watch.errors.removeAll();
+         if (data.status == 0) {
++          if (typeof history.pushState != 'undefined') {
++            history.pushState(null, null, '/beeswax/execute/query/' + data.id + '#query/logs');
++          }
+           self.design.results.url('/' + self.server() + '/results/' + data.id + '/0?format=json');
+           self.design.watch.url(data.watch_url);
+           self.design.statement(data.statement);
+-- 
+1.7.9.5
+

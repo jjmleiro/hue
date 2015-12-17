@@ -1,0 +1,98 @@
+From 1a61df0dec6a149888d729d683760c50cd164d75 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 4 Dec 2014 05:12:29 +0100
+Subject: [PATCH 0551/1173] [spark] Subtle progress bar
+
+---
+ apps/spark/src/spark/templates/editor.mako |   13 ++++++++++++-
+ apps/spark/static/css/spark.css            |    8 +++++++-
+ apps/spark/static/js/spark.vm.js           |    4 ++++
+ 3 files changed, 23 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b71a283..2297eb6 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -188,7 +188,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+         <div class="inline pull-right">
+           <strong class="muted" data-bind="text: status"></strong> &nbsp;
+-          <strong class="muted" data-bind="text: progress"></strong>% &nbsp;
+           <a href="javascript:void(0)" data-bind="visible: $root.isEditing, click: function(){ remove($parent, $data);}"><i class="fa fa-times"></i></a>
+         </div>
+       </h2>
+@@ -204,6 +203,9 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+           <a href="javascript:void(0)" data-bind="click: execute, visible: status() != 'running'" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+           <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
++          <div class="progress" data-bind="css:{'progress-neutral': progress() == 0, 'progress-warning': progress() > 0 && progress() < 100, 'progress-success': progress() == 100}" style="height: 1px">
++            <div class="bar" data-bind="style: {'width': progress() + '%'}"></div>
++          </div>
+         </div>
+       </div>
+ 
+@@ -213,6 +215,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <a data-bind="visible: status() != 'ready', click: function() { $data.showLogs(! $data.showLogs()); }, css: {'active': $data.showLogs}" href="javascript:void(0)" class="btn" title="${ _('Logs') }"><i class="fa fa-file-text-o"></i></a>
+       </div>
+ 
++
+       <div data-bind="visible: showLogs, css: resultsKlass">
+         <span data-bind="visible: result.logs().length == 0">${ _('Loading...') }</span>
+         <span data-bind="text: result.logs"></span>
+@@ -871,6 +874,14 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }, 10);
+       }
+     });
++
++    $(document).on("progress", function(e, options){
++      if (options.data == 100){
++        window.setTimeout(function(){
++          options.snippet.progress(0);
++        }, 2000);
++      }
++    });
+   });
+ 
+ </script>
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 897594e..033cf9a 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -33,6 +33,7 @@
+ .CodeMirror {
+   border: 1px solid #DDD;
+   border-top: none;
++  border-bottom: none;
+ }
+ 
+ .codeMirror-overlaybtn {
+@@ -129,4 +130,9 @@
+ 
+ .results table tr td {
+   white-space: nowrap;
+-}
+\ No newline at end of file
++}
++
++.progress, .progress-neutral .bar {
++  background-color: #DDD;
++}
++
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 09bf6cd..7eb5624 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -126,6 +126,10 @@ var Snippet = function (notebook, snippet) {
+   self.showChart = ko.observable(typeof snippet.showChart != "undefined" && snippet.showChart != null ? snippet.showChart : false);
+   self.showLogs = ko.observable(typeof snippet.showLogs != "undefined" && snippet.showLogs != null ? snippet.showLogs : false);
+   self.progress =  ko.observable(typeof snippet.progress != "undefined" && snippet.progress != null ? snippet.progress : 0);
++
++  self.progress.subscribe(function (val){
++    $(document).trigger("progress", {data: val, snippet: self});
++  });
+   
+   self.showGrid.subscribe(function (val){
+     if (val){
+-- 
+1.7.9.5
+

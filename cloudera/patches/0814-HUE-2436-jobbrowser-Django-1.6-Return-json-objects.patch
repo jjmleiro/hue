@@ -1,0 +1,78 @@
+From ac885e94d334274d5d030b69bd3f1f6fee5bd689 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 17:45:05 -0800
+Subject: [PATCH 0814/1173] HUE-2436 [jobbrowser] Django-1.6: Return json
+ objects
+
+---
+ apps/jobbrowser/src/jobbrowser/templates/jobs.mako |    8 ++++----
+ apps/jobbrowser/src/jobbrowser/tests.py            |    6 ++++--
+ apps/jobbrowser/src/jobbrowser/views.py            |    4 +++-
+ 3 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/jobs.mako b/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
+index a1fd1a8..617b58e 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
+@@ -166,11 +166,11 @@ ${ components.menubar() }
+     var updateableRows = {};
+ 
+     function updateRunning(data) {
+-      if (data != null && data.length > 0) {
++      if (data != null && data.jobs != null && data.jobs.length > 0) {
+         // Update finished jobs from updateableRows.
+         // jobs missing from response are finished.
+         $.each(updateableRows, function(job_id, job) {
+-          if ($.grep(data, function(new_job) {
++          if ($.grep(data.jobs, function(new_job) {
+             return new_job.shortId == job_id;
+           }).length == 0 ) {
+             callJobDetails(job, true);
+@@ -180,8 +180,8 @@ ${ components.menubar() }
+ 
+         // Find new jobs and running jobs.
+         // Update updateableRows.
+-        for(var i = 0; i < data.length; ++i) {
+-          var job = data[i];
++        for(var i = 0; i < data.jobs.length; ++i) {
++          var job = data.jobs[i];
+           if (Utils.RUNNING_ARRAY.indexOf(job.status.toUpperCase()) > -1) {
+             updateableRows[job.shortId] = job;
+ 
+diff --git a/apps/jobbrowser/src/jobbrowser/tests.py b/apps/jobbrowser/src/jobbrowser/tests.py
+index bf25390..8d9df27 100644
+--- a/apps/jobbrowser/src/jobbrowser/tests.py
++++ b/apps/jobbrowser/src/jobbrowser/tests.py
+@@ -412,10 +412,12 @@ class TestMapReduce2NoHadoop:
+ 
+   def test_jobs(self):
+     response = self.c.get('/jobbrowser/?format=json')
+-    assert_equal(len(json.loads(response.content)), 2)
++    response_content = json.loads(response.content)
++    assert_equal(len(response_content['jobs']), 2)
+ 
+     response = self.c.get('/jobbrowser/jobs/?format=json&text=W=MapReduce-copy2')
+-    assert_equal(len(json.loads(response.content)), 1)
++    response_content = json.loads(response.content)
++    assert_equal(len(response_content['jobs']), 1)
+ 
+   def test_running_job(self):
+     response = self.c.get('/jobbrowser/jobs/application_1356251510842_0054')
+diff --git a/apps/jobbrowser/src/jobbrowser/views.py b/apps/jobbrowser/src/jobbrowser/views.py
+index 421bac3..1d7f600 100644
+--- a/apps/jobbrowser/src/jobbrowser/views.py
++++ b/apps/jobbrowser/src/jobbrowser/views.py
+@@ -107,7 +107,9 @@ def jobs(request):
+         raise PopupException(_('Job Tracker cannot be contacted or might be down.'))
+       else:
+         raise ex
+-    json_jobs  = [massage_job_for_json(job, request) for job in jobs]
++    json_jobs = {
++      'jobs': [massage_job_for_json(job, request) for job in jobs],
++    }
+     return JsonResponse(json_jobs, encoder=JSONEncoderForHTML)
+ 
+   return render('jobs.mako', request, {
+-- 
+1.7.9.5
+

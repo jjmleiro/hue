@@ -1,0 +1,41 @@
+From 494373ce7149b08e61c28715827f8ab35318386b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Mar 2015 13:08:04 -0700
+Subject: [PATCH 1138/1173] [jb] Support killing Spark jobs
+
+---
+ apps/jobbrowser/src/jobbrowser/api.py         |    2 +-
+ apps/jobbrowser/src/jobbrowser/yarn_models.py |    4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index 1f2a33f..debe1fe 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -268,7 +268,7 @@ class YarnApi(JobBrowserApi):
+         return KilledYarnJob(self.resource_manager_api, job)
+ 
+       if job.get('applicationType') == 'SPARK':
+-        job = SparkJob(job)
++        job = SparkJob(job, self.resource_manager_api)
+       elif job.get('applicationType') == 'MAPREDUCE':
+         jobid = jobid.replace('application', 'job')
+ 
+diff --git a/apps/jobbrowser/src/jobbrowser/yarn_models.py b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+index 8cbb0d4..910de64 100644
+--- a/apps/jobbrowser/src/jobbrowser/yarn_models.py
++++ b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+@@ -86,8 +86,8 @@ class Application(object):
+ 
+ class SparkJob(Application):
+ 
+-  def __init__(self, job):
+-    super(SparkJob, self).__init__(job)
++  def __init__(self, job, api=None):
++    super(SparkJob, self).__init__(job, api)
+     self._scrape()
+ 
+   def _history_application_metrics(self, html_doc):
+-- 
+1.7.9.5
+

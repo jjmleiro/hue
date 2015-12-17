@@ -1,0 +1,300 @@
+From 7455152ae8a9572bb14ac7008813d3647a01e694 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 1 Dec 2014 18:53:27 +0100
+Subject: [PATCH 0528/1173] [spark] Added dashboard functionality to the
+ notebooks
+
+---
+ apps/spark/src/spark/templates/editor.mako |  104 ++++++++++++++++++++--------
+ apps/spark/static/css/spark.css            |   24 ++++++-
+ apps/spark/static/js/spark.vm.js           |   60 +++++++++++-----
+ 3 files changed, 143 insertions(+), 45 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index cee9b36..855a325 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -68,19 +68,23 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ <div class="container-fluid">
+   <div class="row-fluid">
+     <div class="span12">
+-
+         <div class="tab-content" data-bind="foreach: notebooks">
+           <div class="tab-pane" data-bind="css: { active: $parent.selectedNotebook() === $data }, template: { name: 'notebook'}">
+           </div>
+         </div>
+-
+     </div>
+   </div>
+ </div>
+ 
+ 
+ <script type="text/html" id="notebook">
+-  <span data-bind="template: { name: 'snippet', foreach: snippets }"></span>
++      <div data-bind="css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
++        sortable: { template: 'snippet', data: snippets, isEnabled: $root.isEditing,
++        options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
++            'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});},
++            'helper': function(event){lastWindowScrollPosition = $(window).scrollTop(); $('.card-body').slideUp('fast'); var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.toElement).text());_title.appendTo(_par);_par.height(80);_par.width(180);return _par;}},
++            dragged: function(widget){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}">
++  </div>
+ 
+   <div style="margin: 20px">
+     <a href="javascript: void(0)" data-bind="click: newSnippet">
+@@ -93,31 +97,71 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ 
+ <script type="text/html" id="snippet">
+-  <div class="snippet" data-bind="attr: {'id': 'snippet_' + id()}">
+-    <span class="muted" data-bind="text: id"></span>
++  <div class="row-fluid">
++    <div data-bind="css: klass, attr: {'id': 'snippet_' + id()}">
+ 
+-    <div class="pull-right">
+-      <strong class="muted" data-bind="text: type"></strong>
+-      <strong class="muted" data-bind="text: status"></strong>
+-    </div>
+-    <br/>
+-    <br/>
+-    <textarea data-bind="value: statement, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+-    <a href="javascript:void(0)" data-bind="click: execute" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+-
+-    <div data-bind="css: klass">
+-      <table class="table table-condensed">
+-        <thead>
+-          <tr data-bind="foreach: result.meta">
+-            <th data-bind="text: $data.name"></th>
+-          </tr>
+-        </thead>
+-        <tbody data-bind="foreach: result.data">
+-          <tr data-bind="foreach: $data">
+-            <td data-bind="text: $data"></td>
+-          </tr>
+-        </tbody>
+-      </table>
++      <h2 class="card-heading simple">
++
++        <span data-bind="visible: $root.isEditing">
++          <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
++          <a href="javascript:void(0)" data-bind="click: compress, visible: size() > 1"><i class="fa fa-step-backward"></i></a>
++          <a href="javascript:void(0)" data-bind="click: expand, visible: size() < 12"><i class="fa fa-step-forward"></i></a>
++          &nbsp;
++        </span>
++
++        <!-- ko if: type() == 'hive' -->
++        <img src="/beeswax/static/art/icon_beeswax_48.png" class="snippet-icon">
++        <!-- /ko -->
++
++        <!-- ko if: type() == 'impala' -->
++        <img src="/impala/static/art/icon_impala_48.png" class="snippet-icon">
++        <!-- /ko -->
++
++        <!-- ko if: type() == 'scala' -->
++        <img src="/spark/static/art/icon_spark_48.png" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">scala</sup>
++        <!-- /ko -->
++
++        <!-- ko if: type() == 'python' -->
++        <img src="/spark/static/art/icon_spark_48.png" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">python</sup>
++        <!-- /ko -->
++
++        <!-- ko if: type() == 'sql' -->
++        <img src="/spark/static/art/icon_spark_48.png" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">sql</sup>
++        <!-- /ko -->
++
++        <!-- ko if: type() == 'pig' -->
++        <img src="/pig/static/art/icon_pig_48.png" class="snippet-icon">
++        <!-- /ko -->
++
++
++        <span data-bind="editable: id, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
++        <div class="inline pull-right">
++          <strong class="muted" data-bind="text: status"></strong> &nbsp;
++          <a href="javascript:void(0)" data-bind="visible: $root.isEditing, click: function(){ remove($parent, $data);}"><i class="fa fa-times"></i></a>
++        </div>
++      </h2>
++
++      <div class="row-fluid">
++        <div data-bind="css: editorKlass">
++          <textarea data-bind="value: statement, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
++          <a href="javascript:void(0)" data-bind="click: execute" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
++        </div>
++      </div>
++
++      <div data-bind="css: resultsKlass">
++        <table class="table table-condensed">
++          <thead>
++            <tr data-bind="foreach: result.meta">
++              <th data-bind="text: $data.name"></th>
++            </tr>
++          </thead>
++          <tbody data-bind="foreach: result.data">
++            <tr data-bind="foreach: $data">
++              <td data-bind="text: $data"></td>
++            </tr>
++          </tbody>
++        </table>
++      </div>
+     </div>
+   </div>
+ </script>
+@@ -126,6 +170,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ <link rel="stylesheet" href="/static/css/common_dashboard.css">
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+ <link rel="stylesheet" href="/spark/static/css/spark.css">
++<link rel="stylesheet" href="/static/ext/css/bootstrap-editable.css">
+ 
+ <script src="/static/ext/js/codemirror-3.11.js"></script>
+ <script src="/static/js/codemirror-pig.js"></script>
+@@ -143,9 +188,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ <script src="/static/ext/js/markdown.min.js"></script>
+ 
+-
++<script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/jquery/plugins/jquery-ui-1.10.4.draggable-droppable-sortable.min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/knockout-sortable.min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/js/ko.hue-bindings.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/spark/static/js/spark.vm.js" type="text/javascript" charset="utf-8"></script>
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index fc2518d..988541e 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -30,6 +30,11 @@
+   overflow: auto;
+ }
+ 
++.CodeMirror {
++  border: 1px solid #DDD;
++  border-top: none;
++}
++
+ .codeMirror-overlaybtn {
+   position: absolute;
+   margin-top: -40px;
+@@ -47,7 +52,7 @@
+ }
+ 
+ .nav i {
+-  line-height: 20px!important;
++  line-height: 20px !important;
+ }
+ 
+ .dropdown-menu li {
+@@ -86,4 +91,21 @@
+   background-color: #FFFFFF;
+   border-left: 1px solid #dddddd;
+   border-right: 1px solid #dddddd;
++}
++
++.snippet-icon {
++  color: #338bb8;
++  height: 16px;
++  width: 16px;
++  margin-left: 3px;
++  margin-right: 3px;
++}
++
++.row-container.is-editing {
++  border: none;
++}
++
++.ui-sortable {
++  background-color: #FFF;
++  min-height: 100px;
+ }
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index fade39b..a39fa79 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -53,14 +53,52 @@ var Snippet = function (notebook, snippet) {
+   var self = this;
+   
+   self.id = ko.observable(typeof snippet.id != "undefined" && snippet.id != null ? snippet.id : UUID());
+-  self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : 'hive');
++  self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement = ko.observable(typeof snippet.statement != "undefined" && snippet.statement != null ? snippet.statement : '');
+-  self.status = ko.observable('loading');
+-  self.klass = ko.computed(function(){
+-    return 'results ' + self.type();
++  self.statement = ko.observable("");
++  self.status = ko.observable("loading");
++
++  self.size = ko.observable(typeof snippet.size != "undefined" && snippet.size != null ? snippet.size : 12).extend({ numeric: 0 });
++  self.offset = ko.observable(typeof snippet.offset != "undefined" && snippet.offset != null ? snippet.offset : 0).extend({ numeric: 0 });
++  self.isLoading = ko.computed(function(){
++    return self.status() == "loading";
+   });
+-  
++  self.klass = ko.computed(function () {
++    return "snippet card card-widget";
++  });
++
++  self.editorKlass = ko.computed(function(){
++    return "editor span" + self.size() + (self.offset() * 1 > 0 ? " offset" + self.offset() : "");
++  });
++
++  self.resultsKlass = ko.computed(function(){
++    return "results " + self.type();
++  });
++
++  self.expand = function () {
++    self.size(self.size() + 1);
++    $("#snippet_" + self.id()).trigger("resize");
++  }
++
++  self.compress = function () {
++    self.size(self.size() - 1);
++    $("#snippet_" + self.id()).trigger("resize");
++  }
++
++  self.moveLeft = function () {
++    self.offset(self.offset() - 1);
++  }
++
++  self.moveRight = function () {
++    self.offset(self.offset() + 1);
++  }
++
++  self.remove = function (notebook, snippet) {
++    notebook.snippets.remove(snippet);
++  }
++
++
+   self.result = new Result(snippet, snippet.result);
+   
+   // init()
+@@ -247,17 +285,6 @@ function EditorViewModel(notebooks) {
+   };
+ 
+ 
+-//  function bareWidgetBuilder(name, type){
+-//    return new Widget({
+-//      size: 12,
+-//      id: UUID(),
+-//      name: name,
+-//      widgetType: type
+-//    });
+-//  }
+-//
+-//  self.draggableHive = ko.observable(bareWidgetBuilder("Hive Query", "hive-widget"));
+-
+   self.init = function() {
+     $.each(notebooks, function(index, notebook) {
+       self.loadNotebook(notebook);
+@@ -279,6 +306,7 @@ function EditorViewModel(notebooks) {
+   self.saveNotebook = function() {
+     self.selectedNotebook().save();
+   };
++
+ }
+ 
+ 
+-- 
+1.7.9.5
+

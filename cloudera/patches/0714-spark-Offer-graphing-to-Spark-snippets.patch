@@ -1,0 +1,43 @@
+From 32ade44c87ecb9f8f2b080dd369d039c2f1e4dd5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 29 Jan 2015 10:42:55 +0800
+Subject: [PATCH 0714/1173] [spark] Offer graphing to Spark snippets
+
+---
+ apps/spark/src/spark/models.py             |    4 ++--
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index c2f71db..0b78f5a 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -336,10 +336,10 @@ class SparkApi():
+       try:
+         table = data['application/vnd.livy.table.v1+json']
+         data = table['data']
+-        meta = [{'name': name, 'type': 'String', 'comment': ''} for name in table['headers']]
++        meta = [{'name': name, 'type': 'INT_TYPE', 'comment': ''} for name in table['headers']]
+       except KeyError:
+         data = [[data['text/plain']]]
+-        meta = [{'name': 'Header', 'type': 'String', 'comment': ''}]
++        meta = [{'name': 'Header', 'type': 'INT_TYPE', 'comment': ''}]
+ 
+       # start_over not supported
+       if not start_over:
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index e45eac2..7e435a9 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -334,7 +334,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <button data-bind="visible: result.hasSomeResults(), click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }">
+             <i class="fa fa-th"></i>
+           </button>
+-          <div class="btn-group" data-bind="visible: type() != 'scala' && type() != 'python' && result.hasSomeResults()">
++          <div class="btn-group" data-bind="visible: result.hasSomeResults()">
+             <button class="btn" data-bind="css: {'active': $data.showChart}, click: function(){ $data.showChart(true); }">
+               <i class="hcha hcha-bar-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART"></i>
+               <i class="hcha hcha-line-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART"></i>
+-- 
+1.7.9.5
+

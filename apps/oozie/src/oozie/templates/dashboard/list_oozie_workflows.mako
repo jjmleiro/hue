@@ -37,13 +37,13 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 
     <div class="btn-toolbar" style="display: inline; vertical-align: middle; margin-left: 10px; font-size: 12px">
       <span class="loader hide"><i class="fa fa-2x fa-spinner fa-spin muted"></i></span>
-      <button class="btn bulkToolbarBtn bulk-resume" data-operation="resume" title="${ _('Resume selected') }" disabled="disabled" type="button"><i class="fa fa-play"></i> ${ _('Resume') }</button>
-      <button class="btn bulkToolbarBtn bulk-suspend" data-operation="suspend" title="${ _('Suspend selected') }" disabled="disabled" type="button"><i class="fa fa-pause"></i> ${ _('Suspend') }</button>
-      <button class="btn bulkToolbarBtn btn-danger bulk-kill disable-feedback" data-operation="kill" title="${ _('Kill selected') }" disabled="disabled" type="button"><i class="fa fa-times"></i> ${ _('Kill') }</button>
+      <button class="btn bulkToolbarBtn bulk-resume" data-operation="resume" title="${ _('Resume selected') }" disabled="disabled" type="button"><i class="fa fa-play"></i><span class="hide-small"> ${ _('Resume') }</span></button>
+      <button class="btn bulkToolbarBtn bulk-suspend" data-operation="suspend" title="${ _('Suspend selected') }" disabled="disabled" type="button"><i class="fa fa-pause"></i><span class="hide-small"> ${ _('Suspend') }</span></button>
+      <button class="btn bulkToolbarBtn btn-danger bulk-kill disable-feedback" data-operation="kill" title="${ _('Kill selected') }" disabled="disabled" type="button"><i class="fa fa-times"></i><span class="hide-small"> ${ _('Kill') }</span></button>
     </div>
 
     <span class="pull-right">
-      <span style="padding-right:10px;float:left;margin-top:3px">
+      <span style="padding-right:10px;float:left;margin-top:3px" class="hide-smaller">
       ${ _('Show only') }
       </span>
       <span class="btn-group" style="float:left">
@@ -52,11 +52,16 @@ ${ layout.menubar(section='workflows', dashboard=True) }
         <a class="btn btn-date btn-info" data-value="15">${ _('15') }</a>
         <a class="btn btn-date btn-info" data-value="30">${ _('30') }</a>
       </span>
-      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px">${ _('days with status') }</span>
+      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('days with status') }</span>
       <span class="btn-group" style="float:left;">
         <a class="btn btn-status btn-success" data-value='SUCCEEDED'>${ _('Succeeded') }</a>
         <a class="btn btn-status btn-warning" data-value='RUNNING'>${ _('Running') }</a>
         <a class="btn btn-status btn-danger disable-feedback" data-value='KILLED'>${ _('Killed') }</a>
+      </span>
+      <span style="float:left;padding-left:10px;padding-right:10px;margin-top:3px" class="hide-smaller">${ _('submitted') }</span>
+      <span class="btn-group" style="float:left;">
+        <a class="btn btn-submitted btn-info" data-value='MANUALLY'>${ _('Manually') }</a>
+        <a class="btn btn-submitted btn-info" data-value='COORDINATOR'>${ _('Coordinator') }</a>
       </span>
     </span>
  </form>
@@ -69,16 +74,18 @@ ${ layout.menubar(section='workflows', dashboard=True) }
           <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
           <th width="14%">${ _('Submission') }</th>
           <th width="5%">${ _('Status') }</th>
-          <th width="21%">${ _('Name') }</th>
+          <th width="31%">${ _('Name') }</th>
           <th width="7%">${ _('Progress') }</th>
           <th width="7%">${ _('Submitter') }</th>
-          <th width="15%">${ _('Last Modified') }</th>
-          <th width="20%">${ _('Id') }</th>
+          <th width="7%">${ _('Last Modified') }</th>
+          <th width="23%">${ _('Id') }</th>
+          <th width="5%">${ _('Parent') }</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td><i class="fa fa-2x fa-spinner fa-spin muted"></i></td>
+          <td></td>
           <td></td>
           <td></td>
           <td></td>
@@ -99,11 +106,11 @@ ${ layout.menubar(section='workflows', dashboard=True) }
         <tr>
           <th width="15%">${ _('Completion') }</th>
           <th width="7%">${ _('Status') }</th>
-          <th width="25%">${ _('Name') }</th>
+          <th width="31%">${ _('Name') }</th>
           <th width="7%">${ _('Duration') }</th>
           <th width="10%">${ _('Submitter') }</th>
-          <th width="15%">${ _('Last Modified') }</th>
           <th width="25%">${ _('Id') }</th>
+          <th width="5%">${ _('Parent') }</th>
         </tr>
       </thead>
       <tbody>
@@ -135,20 +142,38 @@ ${ layout.menubar(section='workflows', dashboard=True) }
   </div>
 </div>
 
+<style type="text/css">
+@media (max-width: 1360px) {
+  .hide-small {
+    display: none;
+  }
+}
+@media (max-width: 1240px) {
+  .hide-smaller {
+    display: none;
+  }
+  .btn-group {
+    margin-left: 10px;
+  }
+}
+</style>
 
-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('oozie/js/dashboard-utils.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   var Workflow = function (wf) {
     return {
       id: wf.id,
-      lastModTime: wf.lastModTime,
+      lastModTimeFormatted: wf.lastModTimeFormatted,
+      lastModTimeInMillis: wf.lastModTimeInMillis,
       endTime: wf.endTime,
+      endTimeInMillis: wf.endTimeInMillis,
       status: wf.status,
       statusClass: "label " + getStatusClass(wf.status),
       isRunning: wf.isRunning,
       duration: wf.duration,
+      durationInMillis: wf.durationInMillis,
       appName: wf.appName,
       progress: wf.progress,
       progressClass: "bar " + getStatusClass(wf.status, "bar-"),
@@ -159,7 +184,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       suspendUrl: wf.suspendUrl,
       resumeUrl: wf.resumeUrl,
       created: wf.created,
-      run: wf.run
+      createdInMillis: wf.createdInMillis,
+      run: wf.run,
+      parentUrl: wf.parentUrl,
     }
   }
 
@@ -173,12 +200,13 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
         { "bSortable":false },
-        { "sType":"date" },
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         null,
         null,
         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+        null,
         null
       ],
       "aaSorting":[
@@ -208,12 +236,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       "bLengthChange":false,
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
-        { "sType":"date" },
-        null,
-        null,
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+        null,
+        null,
         null
       ],
       "aaSorting":[
@@ -256,13 +284,19 @@ ${ layout.menubar(section='workflows', dashboard=True) }
       drawTable();
     });
 
+    $("a.btn-submitted").click(function () {
+      $("a.btn-submitted").not(this).removeClass("active");
+      $(this).toggleClass("active");
+      drawTable();
+    });
+
     $("a.btn-date").click(function () {
       $("a.btn-date").not(this).removeClass("active");
       $(this).toggleClass("active");
       drawTable();
     });
 
-    var hash = window.location.hash;
+    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
     if (hash != "" && hash.indexOf("=") > -1) {
       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
     }
@@ -280,30 +314,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 
     $.fn.dataTableExt.sErrMode = "throw";
 
-    $.fn.dataTableExt.afnFiltering.push(
-      function (oSettings, aData, iDataIndex) {
-        var urlHashes = ""
-
-        var statusBtn = $("a.btn-status.active");
-        var statusFilter = true;
-        if (statusBtn.length > 0) {
-          var statuses = []
-          $.each(statusBtn, function () {
-            statuses.push($(this).attr("data-value"));
-          });
-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
-        }
-
-        var dateBtn = $("a.btn-date.active");
-        var dateFilter = true;
-        if (dateBtn.length > 0) {
-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
-          dateFilter = Date.parse(aData[0]) >= minAge;
-        }
-
-        return statusFilter && dateFilter;
-      }
-    );
+    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
 
     $(document).on("click", ".confirmationModal", function () {
       var _this = $(this);
@@ -335,13 +346,13 @@ ${ layout.menubar(section='workflows', dashboard=True) }
 
     refreshRunning = function () {
       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
-        if (data) {
+        if (data.jobs) {
           var nNodes = runningTable.fnGetNodes();
 
           // check for zombie nodes
           $(nNodes).each(function (iNode, node) {
             var nodeFound = false;
-            $(data).each(function (iWf, currentItem) {
+            $(data.jobs).each(function (iWf, currentItem) {
               if ($(node).children("td").eq(7).text() == currentItem.id) {
                 nodeFound = true;
               }
@@ -352,7 +363,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
             }
           });
 
-          $(data).each(function (iWf, item) {
+          $(data.jobs).each(function (iWf, item) {
             var wf = new Workflow(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -365,13 +376,14 @@ ${ layout.menubar(section='workflows', dashboard=True) }
                 try {
                   runningTable.fnAddData([
                     wf.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>':'',
-                    emptyStringIfNull(wf.lastModTime),
-                    '<span class="' + wf.statusClass + '">' + wf.status + '</span>',
+                    '<span data-sort-value="'+ wf.createdInMillis +'" data-type="date">' + emptyStringIfNull(wf.created) + '</span>',
+                    '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>',
                     wf.appName,
                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
                     wf.user,
-                    emptyStringIfNull(wf.lastModTime),
-                    '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
+                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTimeFormatted) + '</span>',
+                    '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
+                    wf.parentUrl == '' ? '' : '<div style="text-align:center"><a href="' + wf.parentUrl + '" style="text-align:center"><img src="' + getParentImage(wf.parentUrl) + '" class="app-icon"/></a></div>'
                   ]);
                 }
                 catch (error) {
@@ -380,36 +392,53 @@ ${ layout.menubar(section='workflows', dashboard=True) }
               }
             }
             else {
-              runningTable.fnUpdate('<span class="' + wf.statusClass + '">' + wf.status + '</span>', foundRow, 2, false);
+              runningTable.fnUpdate('<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', foundRow, 2, false);
             }
           });
         }
-        if (data.length == 0) {
+        if (data.jobs.length == 0) {
           runningTable.fnClearTable();
         }
-
-        if (data.length != numRunning) {
+        if (data.jobs.length != numRunning) {
           refreshCompleted();
         }
-        numRunning = data.length;
+        numRunning = data.jobs.length;
 
         window.setTimeout(refreshRunning, 5000);
       });
     }
 
+    function getParentImage(parentUrl) {
+      var _sub = parentUrl[parentUrl.length - 2];
+      switch (_sub) {
+        case "W":
+          return "${static("oozie/art/icon_oozie_workflow_48.png")}"
+          break;
+        case "C":
+          return "${static("oozie/art/icon_oozie_coordinator_48.png")}"
+          break;
+        case "B":
+          return "${static("oozie/art/icon_oozie_bundle_48.png")}"
+          break;
+        default:
+          return "${static("oozie/art/icon_oozie_48.png")}";
+          break;
+      }
+    }
+
     function refreshCompleted() {
       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
         completedTable.fnClearTable();
-        $(data).each(function (iWf, item) {
+        $(data.jobs).each(function (iWf, item) {
           var wf = new Workflow(item);
           try {
             completedTable.fnAddData([
-              emptyStringIfNull(wf.endTime),
-              '<span class="' + wf.statusClass + '">' + wf.status + '</span>', decodeURIComponent(wf.appName),
-              emptyStringIfNull(wf.duration),
+                  '<span data-sort-value="' + wf.endTimeInMillis + '" data-type="date">' + emptyStringIfNull(wf.endTime) + '</span>',
+                  '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', decodeURIComponent(wf.appName),
+                  '<span data-sort-value="' + wf.durationInMillis + '">' + emptyStringIfNull(wf.duration) + '</span>',
               wf.user,
-              emptyStringIfNull(wf.lastModTime),
-              '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>'
+                  '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
+                  wf.parentUrl == '' ? '' : '<div style="text-align:center"><a href="' + wf.parentUrl + '" style="text-align:center"><img src="' + getParentImage(wf.parentUrl) + '" class="app-icon"/></a></div>'
             ], false);
           }
           catch (error) {
@@ -423,7 +452,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
     function refreshProgress() {
       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
         var nNodes = runningTable.fnGetNodes();
-        $(data).each(function (iWf, item) {
+        $(data.jobs).each(function (iWf, item) {
             var wf = new Workflow(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -432,7 +461,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
               }
             });
             if (foundRow != null) {
-              runningTable.fnUpdate('<span class="' + wf.statusClass + '">' + wf.status + '</span>', foundRow, 2, false);
+              runningTable.fnUpdate('<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', foundRow, 2, false);
               if (wf.progress == 0){
                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
               }
@@ -452,6 +481,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
   });
 
 </script>
+
 ${ utils.bulk_dashboard_functions() }
 
 ${ commonfooter(messages) | n,unicode }

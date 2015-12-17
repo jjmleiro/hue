@@ -24,13 +24,15 @@ from django.utils.encoding import force_unicode
 from django.utils.translation import ugettext as _
 
 from beeswax import hive_site
-from beeswax.conf import HIVE_SERVER_HOST, HIVE_SERVER_PORT,\
-  BROWSE_PARTITIONED_TABLE_LIMIT
+from beeswax.conf import HIVE_SERVER_HOST, HIVE_SERVER_PORT, BROWSE_PARTITIONED_TABLE_LIMIT
 from beeswax.design import hql_query
+from beeswax.hive_site import hiveserver2_use_ssl
 from beeswax.models import QueryHistory, QUERY_TYPES
 
 from filebrowser.views import location_to_url
 from desktop.lib.django_util import format_preserving_redirect
+from desktop.lib.i18n import smart_str
+
 
 
 LOG = logging.getLogger(__name__)
@@ -82,7 +84,14 @@ def get_query_server_config(name='beeswax', server=None):
         'server_name': 'beeswax', # Aka HiveServer2 now
         'server_host': HIVE_SERVER_HOST.get(),
         'server_port': HIVE_SERVER_PORT.get(),
-        'principal': kerberos_principal
+        'principal': kerberos_principal,
+        'http_url': '%(protocol)s://%(host)s:%(port)s/%(end_point)s' % {
+            'protocol': 'https' if hiveserver2_use_ssl() else 'http',
+            'host': HIVE_SERVER_HOST.get(),
+            'port': hive_site.hiveserver2_thrift_http_port(),
+            'end_point': hive_site.hiveserver2_thrift_http_path()
+        },
+        'transport_mode': 'http' if hive_site.hiveserver2_transport_mode() == 'HTTP' else 'socket',
     }
 
   LOG.debug("Query Server: %s" % query_server)
@@ -115,8 +124,17 @@ class HiveServer2Dbms(object):
     return self.client.get_table(database, table_name)
 
 
-  def get_tables(self, database='default', table_names='.*'):
-    return self.client.get_tables(database, table_names)
+  def get_tables(self, database='default', table_names='*'):
+      hql = "SHOW TABLES IN %s '%s'" % (database, table_names) # self.client.get_tables(database, table_names) is too slow
+      query = hql_query(hql)
+      handle = self.execute_and_wait(query, timeout_sec=15.0)
+
+      if handle:
+        result = self.fetch(handle, rows=5000)
+        self.close(handle)
+        return [name for table in result.rows() for name in table]
+      else:
+        return []
 
 
   def get_databases(self):
@@ -170,7 +188,11 @@ class HiveServer2Dbms(object):
     """No samples if it's a view (HUE-526)"""
     if not table.is_view:
       limit = min(100, BROWSE_PARTITIONED_TABLE_LIMIT.get())
-      hql = "SELECT * FROM %s.%s LIMIT %s" % (database, table.name, limit)
+      partition_query = ""
+      if table.partition_keys:
+        partitions = self.get_partitions(database, table, 1)
+        partition_query = 'WHERE ' + ' AND '.join(["%s='%s'" % (table.partition_keys[idx].name, key) for idx, key in enumerate(partitions[0].values)])
+      hql = "SELECT * FROM `%s.%s` %s LIMIT %s" % (database, table.name, partition_query, limit)
       query = hql_query(hql)
       handle = self.execute_and_wait(query, timeout_sec=5.0)
 
@@ -238,14 +260,19 @@ class HiveServer2Dbms(object):
 
 
   def invalidate_tables(self, database, tables):
+    handle = None
+
     for table in tables:
-      hql = "INVALIDATE METADATA %s.%s" % (database, table,)        
-      query = hql_query(hql, database, query_type=QUERY_TYPES[1])
-
-      handle = self.execute_and_wait(query, timeout_sec=10.0)
-
-      if handle:
-        self.close(handle)
+      try:
+        hql = "INVALIDATE METADATA %s.%s" % (database, table,)
+        query = hql_query(hql, database, query_type=QUERY_TYPES[1])
+  
+        handle = self.execute_and_wait(query, timeout_sec=10.0)
+      except Exception, e:
+        LOG.warn('Refresh tables cache out of sync: %s' % smart_str(e))
+      finally:
+        if handle:
+          self.close(handle)
 
 
   def drop_database(self, database):
@@ -263,12 +290,19 @@ class HiveServer2Dbms(object):
 
     return self.execute_query(query, design)
 
+  def _get_and_validate_select_query(self, design, query_history):
+    query = design.get_query_statement(query_history.statement_number)
+    if not query.strip().lower().startswith('select'):
+      raise Exception(_('Only SELECT statements can be saved. Provided query: %(query)s') % {'query': query})
+
+    return query
+
   def insert_query_into_directory(self, query_history, target_dir):
     design = query_history.design.get_design()
     database = design.query['database']
     self.use(database)
-
-    hql = "INSERT OVERWRITE DIRECTORY '%s' %s" % (target_dir, design.query['query'])
+    query = self._get_and_validate_select_query(design, query_history)
+    hql = "INSERT OVERWRITE DIRECTORY '%s' %s" % (target_dir, query)
     return self.execute_statement(hql)
 
 
@@ -279,8 +313,8 @@ class HiveServer2Dbms(object):
     # Case 1: Hive Server 2 backend or results straight from an existing table
     if result_meta.in_tablename:
       self.use(database)
-
-      hql = 'CREATE TABLE %s.%s AS %s' % (target_database, target_table, design.query['query'])
+      query = self._get_and_validate_select_query(design, query_history)
+      hql = 'CREATE TABLE %s.%s AS %s' % (target_database, target_table, query)
       query_history = self.execute_statement(hql)
     else:
       # Case 2: The results are in some temporary location
@@ -338,8 +372,8 @@ class HiveServer2Dbms(object):
     return self.client.use(query)
 
 
-  def get_log(self, query_handle):
-    return self.client.get_log(query_handle)
+  def get_log(self, query_handle, start_over=True):
+    return self.client.get_log(query_handle, start_over)
 
 
   def get_state(self, handle):

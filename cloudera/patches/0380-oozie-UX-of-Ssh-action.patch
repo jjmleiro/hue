@@ -1,0 +1,57 @@
+From d0e488f61fd4817ec2496535d9ebad42f22b524a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 30 Dec 2014 15:17:00 -0800
+Subject: [PATCH 0380/1173] [oozie] UX of Ssh action
+
+---
+ apps/oozie/src/oozie/models2.py                    |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |    9 +++++++--
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 5127d4f..b88b0cd 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -856,7 +856,7 @@ class SshAction(Action):
+           'label': _('User and Host'),
+           'value': 'user@host.com',
+           'help_text': _('Where the shell will be executed.'),
+-          'type': ''
++          'type': 'text'
+      },         
+      'ssh_command': { 
+           'name': 'ssh_command',
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 51aa5dc..4e9edd6 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1159,12 +1159,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
+     <div data-bind="visible: $root.isEditing">
+-      <input type="text" data-bind="value: id" />
+-      <input type="text" data-bind="value: name" />
++
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()">
+         <span data-bind="text: $root.workflow_properties.host.label"></span>
+         <input type="text" data-bind="value: properties.host" />
+         <br/>
++        
+         <span data-bind="text: $root.workflow_properties.ssh_command.label"></span>
+         <input type="text" data-bind="value: properties.ssh_command" />
+         <div class="row-fluid">
+@@ -1172,6 +1172,11 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         </div>
+       </div>
+     </div>
++    
++    <div data-bind="visible: ! $root.isEditing()">
++      <span data-bind="text: properties.host" />
++      <span data-bind="text: properties.ssh_command().slice(0, 75)" />
++    </div> 
+ 
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+-- 
+1.7.9.5
+

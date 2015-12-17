@@ -14,8 +14,6 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 <%!
-import urllib
-
 from desktop.views import commonheader, commonfooter
 from django.utils.translation import ugettext as _
 from useradmin.models import group_permissions
@@ -49,7 +47,7 @@ ${layout.menubar(section='groups')}
             <a id="addLdapGroupBtn" href="${url('useradmin.views.add_ldap_groups')}" class="btn"><i
                 class="fa fa-refresh"></i> ${_('Add/Sync LDAP group')}</a>
           % endif
-          <a href="http://gethue.tumblr.com/post/75499679342/making-hadoop-accessible-to-your-employees-with-ldap" class="btn"
+          <a href="http://gethue.com/making-hadoop-accessible-to-your-employees-with-ldap/" class="btn"
             title="${ ('Learn how to integrate Hue with your company') }" target="_blank">
             <i class="fa fa-question-circle"> LDAP</i>
           </a>
@@ -82,7 +80,7 @@ ${layout.menubar(section='groups')}
           <td>
             %if user.is_superuser:
               <strong><a title="${ _('Edit %(groupname)s') % dict(groupname=group.name) }"
-                         href="${ url('useradmin.views.edit_group', name=urllib.quote(group.name)) }"
+                         href="${ url('useradmin.views.edit_group', name=group.name) }"
                          data-row-selector="true">${group.name}</a></strong>
             %else:
               <strong>${group.name}</strong>
@@ -108,6 +106,7 @@ ${layout.menubar(section='groups')}
 
 <div id="deleteGroup" class="modal hide fade groupModal">
   <form id="deleteGroupForm" action="${ url('useradmin.views.delete_group') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="deleteGroupMessage">${_("Are you sure you want to delete the selected group(s)?")}</h3>
@@ -122,7 +121,7 @@ ${layout.menubar(section='groups')}
   </form>
 </div>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   var viewModel;
@@ -160,11 +159,11 @@ ${layout.menubar(section='groups')}
 
     $("#selectAll").click(function () {
       if ($(this).attr("checked")) {
-        $(this).removeAttr("checked");
+        $(this).removeAttr("checked").removeClass("fa-check");
         $(".groupCheck").removeClass("fa-check").removeAttr("checked");
       }
       else {
-        $(this).attr("checked", "checked");
+        $(this).attr("checked", "checked").addClass("fa-check");
         $(".groupCheck").addClass("fa-check").attr("checked", "checked");
       }
       toggleActions();

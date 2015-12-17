@@ -1,0 +1,27 @@
+From e68cc751a37fe20b069eac6322261c1af9c0127f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 17:53:17 -0800
+Subject: [PATCH 0920/1173] HUE-2417 [desktop] Switch to
+ CachedStaticFilesStorage, which appends a hash to
+ the filenames
+
+---
+ desktop/core/src/desktop/settings.py |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index e2ddc2a..e73b961 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -105,6 +105,8 @@ STATICFILES_DIRS = (
+     os.path.join(BASE_DIR, 'desktop', 'libs', 'liboauth', 'src', 'liboauth', 'static'),
+ )
+ 
++STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
++
+ # For Django admin interface
+ STATIC_URL = '/static/'
+ 
+-- 
+1.7.9.5
+

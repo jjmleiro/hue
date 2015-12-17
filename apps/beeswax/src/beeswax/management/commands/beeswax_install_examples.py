@@ -17,14 +17,18 @@
 
 import logging
 import os
-import simplejson
+import pwd
+import json
 
-from django.core.management.base import NoArgsCommand
+from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from django.utils.translation import ugettext as _
 
-from desktop.models import Document
 from hadoop import cluster
+
+from desktop.lib.exceptions_renderable import PopupException
+from useradmin.models import install_sample_user
+from desktop.models import Document
 
 import beeswax.conf
 
@@ -32,7 +36,6 @@ from beeswax.models import SavedQuery, IMPALA
 from beeswax.design import hql_query
 from beeswax.server import dbms
 from beeswax.server.dbms import get_query_server_config, QueryServerException
-from useradmin.models import install_sample_user
 
 
 LOG = logging.getLogger(__name__)
@@ -42,34 +45,49 @@ class InstallException(Exception):
   pass
 
 
-class Command(NoArgsCommand):
-  """
-  Install examples but do not overwrite them.
-  """
-  def handle_noargs(self, **options):
+class Command(BaseCommand):
+  args = '<beeswax|impala>'
+  help = 'Install examples but do not overwrite them.'
+
+  def handle(self, *args, **options):
+    if args:
+      app_name = args[0]
+      user = User.objects.get(username=pwd.getpwuid(os.getuid()).pw_name)
+    else:
+      app_name = options['app_name']
+      user = options['user']
+
+    tables = options['tables'] if 'tables' in options else 'tables.json'
+
     exception = None
 
     # Documents will belong to this user but we run the install as the current user
     try:
       sample_user = install_sample_user()
-      self._install_tables(options['user'], options['app_name'])
-    except Exception, ex:
-      exception = ex
-
-    try:
-      self._install_queries(sample_user, options['app_name'])
+      self._install_queries(sample_user, app_name)
+      self._install_tables(user, app_name, tables)
     except Exception, ex:
       exception = ex
 
     Document.objects.sync()
 
     if exception is not None:
-      raise exception
+      pretty_msg = None
+      
+      if "AlreadyExistsException" in exception.message:
+        pretty_msg = _("SQL table examples already installed.")
+      if "Permission denied" in exception.message:
+        pretty_msg = _("Permission denied. Please check with your system administrator.")
 
-  def _install_tables(self, django_user, app_name):
+      if pretty_msg is not None:
+        raise PopupException(pretty_msg)
+      else: 
+        raise exception
+
+  def _install_tables(self, django_user, app_name, tables):
     data_dir = beeswax.conf.LOCAL_EXAMPLES_DATA_DIR.get()
-    table_file = file(os.path.join(data_dir, 'tables.json'))
-    table_list = simplejson.load(table_file)
+    table_file = file(os.path.join(data_dir, tables))
+    table_list = json.load(table_file)
     table_file.close()
 
     for table_dict in table_list:
@@ -81,7 +99,7 @@ class Command(NoArgsCommand):
 
   def _install_queries(self, django_user, app_name):
     design_file = file(os.path.join(beeswax.conf.LOCAL_EXAMPLES_DATA_DIR.get(), 'designs.json'))
-    design_list = simplejson.load(design_file)
+    design_list = json.load(design_file)
     design_file.close()
 
     for design_dict in design_list:
@@ -114,8 +132,8 @@ class SampleTable(object):
       raise ValueError(msg)
 
   def install(self, django_user):
-    self.create(django_user)
-    self.load(django_user)
+    if self.create(django_user):
+      self.load(django_user)
 
   def create(self, django_user):
     """
@@ -126,9 +144,12 @@ class SampleTable(object):
 
     try:
       # Already exists?
+      if self.app_name == 'impala':
+        db.invalidate_tables('default', [self.name])
       db.get_table('default', self.name)
       msg = _('Table "%(table)s" already exists.') % {'table': self.name}
       LOG.error(msg)
+      return False
     except Exception:
       query = hql_query(self.hql)
       try:
@@ -137,6 +158,7 @@ class SampleTable(object):
           msg = _('Error creating table %(table)s: Operation timeout.') % {'table': self.name}
           LOG.error(msg)
           raise InstallException(msg)
+        return True
       except Exception, ex:
         msg = _('Error creating table %(table)s: %(error)s.') % {'table': self.name, 'error': ex}
         LOG.error(msg)
@@ -206,7 +228,7 @@ class SampleDesign(object):
       model.type = self.type
       # The data field needs to be a string. The sample file writes it
       # as json (without encoding into a string) for readability.
-      model.data = simplejson.dumps(self.data)
+      model.data = json.dumps(self.data)
       model.desc = self.desc
       model.save()
       LOG.info('Successfully installed sample design: %s' % (self.name,))

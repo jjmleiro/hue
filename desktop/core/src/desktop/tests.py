@@ -16,21 +16,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import desktop
-import desktop.urls
-import desktop.conf
-import logging
 import json
+import logging
 import os
+import sys
+import tempfile
 import time
 
+import desktop
+import desktop.conf
+import desktop.urls
 import desktop.views as views
 import proxy.conf
 
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
-from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises
-from django.conf.urls.defaults import patterns, url
+from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises, nottest
+from django.conf.urls import patterns, url
 from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
 from django.http import HttpResponse
@@ -127,36 +129,36 @@ def test_home():
   tags = json.loads(response.context['json_tags'])
   assert_equal([], tags['mine'][0]['docs'], tags)
   assert_equal([], tags['trash']['docs'], tags)
-  assert_equal([doc.id], tags['history']['docs'], tags)
+  assert_equal([], tags['history']['docs'], tags) # We currently don't fetch [doc.id]
 
 
 def test_skip_wizard():
   c = make_logged_in_client() # is_superuser
 
   response = c.get('/', follow=True)
-  assert_true(['admin_wizard.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['admin_wizard.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
   c.cookies['hueLandingPage'] = 'home'
   response = c.get('/', follow=True)
-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
   c.cookies['hueLandingPage'] = ''
   response = c.get('/', follow=True)
-  assert_true(['admin_wizard.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['admin_wizard.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
 
   c = make_logged_in_client(username="test_skip_wizard", password="test_skip_wizard", is_superuser=False)
 
   response = c.get('/', follow=True)
-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
   c.cookies['hueLandingPage'] = 'home'
   response = c.get('/', follow=True)
-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
   c.cookies['hueLandingPage'] = ''
   response = c.get('/', follow=True)
-  assert_true(['home.mako' in _template.filename for _template in response.template], [_template.filename for _template in response.template])
+  assert_true(['home.mako' in _template.filename for _template in response.templates], [_template.filename for _template in response.templates])
 
 def test_log_view():
   c = make_logged_in_client()
@@ -399,7 +401,7 @@ def test_error_handling():
     c.store_exc_info = store_exc_info
 
     response = c.get('/500_internal_error')
-    assert_true(any(["500.mako" in _template.filename for _template in response.template]))
+    assert_true(any(["500.mako" in _template.filename for _template in response.templates]))
     assert_true('Thank you for your patience' in response.content)
     assert_true(exc_msg not in response.content)
 
@@ -411,7 +413,7 @@ def test_error_handling():
 
     # PopupException
     response = c.get('/popup_exception')
-    assert_true(any(["popup_error.mako" in _template.filename for _template in response.template]))
+    assert_true(any(["popup_error.mako" in _template.filename for _template in response.templates]))
     assert_true(exc_msg in response.content)
   finally:
     # Restore the world
@@ -425,6 +427,8 @@ def test_desktop_permissions():
   USERNAME = 'test_core_permissions'
   GROUPNAME = 'default'
 
+  desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
+
   c = make_logged_in_client(USERNAME, groupname=GROUPNAME, recreate=True, is_superuser=False)
 
   # Access to the basic works
@@ -436,6 +440,7 @@ def test_desktop_permissions():
 def test_app_permissions():
   USERNAME = 'test_app_permissions'
   GROUPNAME = 'impala_only'
+  desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/testserver\/.*$')
 
   c = make_logged_in_client(USERNAME, groupname=GROUPNAME, recreate=True, is_superuser=False)
 
@@ -510,7 +515,7 @@ def test_404_handling():
   view_name = '/the-view-that-is-not-there'
   c = make_logged_in_client()
   response = c.get(view_name)
-  assert_true(any(['404.mako' in _template.filename for _template in response.template]), response.template)
+  assert_true(any(['404.mako' in _template.filename for _template in response.templates]), response.templates)
   assert_true('Not Found' in response.content)
   assert_true(view_name in response.content)
 
@@ -627,3 +632,172 @@ def test_check_config_ajax():
   c = make_logged_in_client()
   response = c.get(reverse(check_config))
   assert_true("misconfiguration" in response.content, response.content)
+
+
+def test_cx_Oracle():
+  """
+  Tests that cx_Oracle (external dependency) is built correctly.
+  """
+  if 'ORACLE_HOME' not in os.environ and 'ORACLE_INSTANTCLIENT_HOME' not in os.environ:
+    raise SkipTest
+
+  try:
+    import cx_Oracle
+    return
+  except ImportError, ex:
+    if "No module named" in ex.message:
+      assert_true(False, "cx_Oracle skipped its build. This happens if "
+          "env var ORACLE_HOME or ORACLE_INSTANTCLIENT_HOME is not defined. "
+          "So ignore this test failure if your build does not need to work "
+          "with an oracle backend.")
+
+class TestStrictRedirection():
+
+  def setUp(self):
+    self.client = make_logged_in_client()
+    self.user = dict(username="test", password="test")
+    desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\/.*$,^http:\/\/example.com\/.*$')
+
+  def test_redirection_blocked(self):
+    # Redirection with code 301 should be handled properly
+    # Redirection with Status code 301 example reference: http://www.somacon.com/p145.php
+    self._test_redirection(redirection_url='http://www.somacon.com/color/html_css_table_border_styles.php',
+                           expected_status_code=403)
+    # Redirection with code 302 should be handled properly
+    self._test_redirection(redirection_url='http://www.google.com',
+                           expected_status_code=403)
+
+  def test_redirection_allowed(self):
+    # Redirection to the host where Hue is running should be OK.
+    self._test_redirection(redirection_url='/', expected_status_code=302)
+    self._test_redirection(redirection_url='/pig', expected_status_code=302)
+    self._test_redirection(redirection_url='http://testserver/', expected_status_code=302)
+    self._test_redirection(redirection_url='https://testserver/', expected_status_code=302, **{
+      'SERVER_PORT': '443',
+      'wsgi.url_scheme': 'https',
+    })
+    self._test_redirection(redirection_url='http://example.com/', expected_status_code=302)
+
+  def _test_redirection(self, redirection_url, expected_status_code, **kwargs):
+    self.client.get('/accounts/logout', **kwargs)
+    response = self.client.post('/accounts/login/?next=' + redirection_url, self.user, **kwargs)
+    assert_equal(expected_status_code, response.status_code)
+    if expected_status_code == 403:
+        error_msg = 'Redirect to ' + redirection_url + ' is not allowed.'
+        assert_true(error_msg in response.content, response.content)
+
+
+class BaseTestPasswordConfig(object):
+
+  SCRIPT = '%s -c "print \'\\n password from script \\n\'"' % sys.executable
+
+  def get_config_password(self):
+    raise NotImplementedError
+
+  def get_config_password_script(self):
+    raise NotImplementedError
+
+  def get_password(self):
+    raise NotImplementedError
+
+  @nottest
+  def run_test_read_password_from_script(self):
+    resets = [
+      self.get_config_password().set_for_testing(None),
+      self.get_config_password_script().set_for_testing(self.SCRIPT)
+    ]
+
+    try:
+      assert_equal(self.get_password(), ' password from script ')
+    finally:
+      for reset in resets:
+        reset()
+
+  @nottest
+  def run_test_config_password_overrides_script_password(self):
+    resets = [
+      self.get_config_password().set_for_testing(' password from config '),
+      self.get_config_password_script().set_for_testing(self.SCRIPT),
+    ]
+
+    try:
+      assert_equal(self.get_password(), ' password from config ')
+    finally:
+      for reset in resets:
+        reset()
+
+
+class TestDatabasePasswordConfig(BaseTestPasswordConfig):
+
+  def get_config_password(self):
+    return desktop.conf.DATABASE.PASSWORD
+
+  def get_config_password_script(self):
+    return desktop.conf.DATABASE.PASSWORD_SCRIPT
+
+  def get_password(self):
+    return desktop.conf.get_database_password()
+
+  def test_read_password_from_script(self):
+    self.run_test_read_password_from_script()
+
+  def test_config_password_overrides_script_password(self):
+    self.run_test_config_password_overrides_script_password()
+
+
+class TestLDAPPasswordConfig(BaseTestPasswordConfig):
+
+  def get_config_password(self):
+    return desktop.conf.LDAP_PASSWORD
+
+  def get_config_password_script(self):
+    return desktop.conf.LDAP_PASSWORD_SCRIPT
+
+  def get_password(self):
+    return desktop.conf.get_ldap_password()
+
+  def test_read_password_from_script(self):
+    self.run_test_read_password_from_script()
+
+  def test_config_password_overrides_script_password(self):
+    self.run_test_config_password_overrides_script_password()
+
+class TestLDAPBindPasswordConfig(BaseTestPasswordConfig):
+
+  def setup(self):
+    self.finish = desktop.conf.LDAP.LDAP_SERVERS.set_for_testing({'test': {}})
+
+  def teardown(self):
+    self.finish()
+
+  def get_config_password(self):
+    return desktop.conf.LDAP.LDAP_SERVERS['test'].BIND_PASSWORD
+
+  def get_config_password_script(self):
+    return desktop.conf.LDAP.LDAP_SERVERS['test'].BIND_PASSWORD_SCRIPT
+
+  def get_password(self):
+    return desktop.conf.get_ldap_bind_password(desktop.conf.LDAP.LDAP_SERVERS['test'])
+
+  def test_read_password_from_script(self):
+    self.run_test_read_password_from_script()
+
+  def test_config_password_overrides_script_password(self):
+    self.run_test_config_password_overrides_script_password()
+
+class TestSMTPPasswordConfig(BaseTestPasswordConfig):
+
+  def get_config_password(self):
+    return desktop.conf.SMTP.PASSWORD
+
+  def get_config_password_script(self):
+    return desktop.conf.SMTP.PASSWORD_SCRIPT
+
+  def get_password(self):
+    return desktop.conf.get_smtp_password()
+
+  def test_read_password_from_script(self):
+    self.run_test_read_password_from_script()
+
+  def test_config_password_overrides_script_password(self):
+    self.run_test_config_password_overrides_script_password()

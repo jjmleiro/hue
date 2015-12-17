@@ -1,0 +1,51 @@
+From 8ba50ce93ebbfa0f781a6cf362e37b21f5e1f960 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 29 Jan 2015 14:20:42 +0800
+Subject: [PATCH 0718/1173] [livy] Allow multiline python cells
+
+---
+ .../livy-repl/src/main/resources/fake_shell.py     |   19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+index 641c76e..56f0f2b 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -1,10 +1,11 @@
++import ast
+ import cStringIO
++import datetime
++import decimal
+ import json
+ import logging
+ import sys
+ import traceback
+-import datetime
+-import decimal
+ 
+ logging.basicConfig()
+ logger = logging.getLogger('fake_shell')
+@@ -55,8 +56,18 @@ def execute_reply_error(exc_type, exc_value, tb):
+ 
+ def execute(code):
+     try:
+-        code = compile(code, '<stdin>', 'single')
+-        exec code in global_dict
++        code = ast.parse(code)
++        to_run_exec, to_run_single = code.body[:-1], code.body[-1:]
++
++        for node in to_run_exec:
++            mod = ast.Module([node])
++            code = compile(mod, '<stdin>', 'exec')
++            exec code in global_dict
++
++        for node in to_run_single:
++            mod = ast.Interactive([node])
++            code = compile(mod, '<stdin>', 'single')
++            exec code in global_dict
+     except:
+         return execute_reply_error(*sys.exc_info())
+ 
+-- 
+1.7.9.5
+

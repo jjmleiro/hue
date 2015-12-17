@@ -1,0 +1,54 @@
+From bfed8ea6e3aa02e183957c80a715c48268daa0f1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 12 Mar 2015 15:52:54 -0700
+Subject: [PATCH 1057/1173] [search] Do not miss out values above the rounded
+ max value of a range
+
+Same for the minimum value
+---
+ apps/search/src/search/api.py   |    2 ++
+ apps/search/src/search/tests.py |   10 ++++++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/apps/search/src/search/api.py b/apps/search/src/search/api.py
+index 8648438..0ed94a0 100644
+--- a/apps/search/src/search/api.py
++++ b/apps/search/src/search/api.py
+@@ -68,6 +68,8 @@ def _guess_range_facet(widget_type, solr_api, collection, facet_field, propertie
+         gap = int((end - start) / SLOTS)
+       if gap < 1:
+         gap = 1
++      start = min(start, stats_min)
++      end = max(end, stats_max)
+     elif re.match('\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d\d?\d?)?Z', stat_facet['min']):
+       is_date = True
+       stats_min = stat_facet['min']
+diff --git a/apps/search/src/search/tests.py b/apps/search/src/search/tests.py
+index 7a4b6d5..d1daa0e 100644
+--- a/apps/search/src/search/tests.py
++++ b/apps/search/src/search/tests.py
+@@ -27,11 +27,21 @@ from desktop.lib.django_test_util import make_logged_in_client
+ from desktop.lib.test_utils import grant_access
+ from desktop.lib.rest import resource
+ 
++from search.api import _round_number_range
+ from search.models import Collection
+ 
+ 
+ QUERY = {'qs': [{'q': ''}], 'fqs': [], 'start': 0}
+ 
++
++def test_ranges():
++  assert_equal((90.0, 100.0), _round_number_range(99))
++  assert_equal((0.0, 100.0), _round_number_range(100))
++  assert_equal((0.0, 100.0), _round_number_range(101))
++
++  assert_equal((8000000.0, 9000000.0), _round_number_range(9045352))
++
++
+ class MockResource():
+   RESPONSE = None
+ 
+-- 
+1.7.9.5
+

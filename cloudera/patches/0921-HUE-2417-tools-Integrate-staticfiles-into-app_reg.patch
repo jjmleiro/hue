@@ -1,0 +1,89 @@
+From 8e12e7c6fe365f74b231f7b40e0c750a30204305 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 25 Feb 2015 11:26:52 -0800
+Subject: [PATCH 0921/1173] HUE-2417 [tools] Integrate staticfiles into
+ app_reg
+
+---
+ tools/app_reg/app_reg.py |   18 +++++++++++++++++-
+ tools/app_reg/build.py   |   10 ++++++++++
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/tools/app_reg/app_reg.py b/tools/app_reg/app_reg.py
+index ba59877..783479f 100755
+--- a/tools/app_reg/app_reg.py
++++ b/tools/app_reg/app_reg.py
+@@ -60,6 +60,7 @@ DO_INSTALL = 'do_install'
+ DO_REMOVE = 'do_remove'
+ DO_LIST = 'do_list'
+ DO_SYNC = 'do_sync'
++DO_COLLECTSTATIC = 'do_collectstatic'
+ 
+ 
+ def usage(msg=None):
+@@ -132,7 +133,7 @@ def do_install(app_loc_list, relative_paths=False):
+       return False
+   reg.save()
+ 
+-  return do_sync(reg)
++  return do_sync(reg) and do_collectstatic()
+ 
+ 
+ def do_list():
+@@ -192,6 +193,17 @@ def do_sync(reg=None):
+     return False
+ 
+ 
++def do_collectstatic():
++  """Collects the static files. Returns True/False."""
++  try:
++    build.make_collectstatic()
++    return True
++  except (OSError, SystemError), ex:
++    LOG.error("Failed to collect the static files. Please fix any problem and run "
++              "`%s --collectstatic'\n%s" % (PROG_NAME, ex))
++    return False
++
++
+ def main():
+   action = None
+   app = None
+@@ -219,6 +231,8 @@ def main():
+       action = verify_action(action, DO_LIST)
+     elif opt in ('-s', '--sync'):
+       action = verify_action(action, DO_SYNC)
++    elif opt in ('-c', '--collectstatic'):
++      action = verify_action(action, DO_COLLECTSTATIC)
+     elif opt in ('-d', '--debug'):
+       global LOG_LEVEL
+       LOG_LEVEL = logging.DEBUG
+@@ -246,6 +260,8 @@ def main():
+     ok = do_list()
+   elif action == DO_SYNC:
+     ok = do_sync()
++  elif action == DO_COLLECTSTATIC:
++    ok = do_collectstatic()
+ 
+   if ok:
+     return 0
+diff --git a/tools/app_reg/build.py b/tools/app_reg/build.py
+index 83d2fb5..947e839 100644
+--- a/tools/app_reg/build.py
++++ b/tools/app_reg/build.py
+@@ -60,3 +60,13 @@ def make_syncdb():
+     statuses.append( runcmd([ hue_exec, 'syncdb', '--noinput' ]) )
+     statuses.append( runcmd([ hue_exec, 'migrate', '--merge' ]) )
+   return not any(statuses)
++
++def make_collectstatic():
++  """
++  make_collectstatic() -> True/False
++  """
++  statuses = []
++  hue_exec = os.path.join(common.INSTALL_ROOT, 'build', 'env', 'bin', 'hue')
++  if os.path.exists(hue_exec):
++    statuses.append( runcmd([ hue_exec, 'collectstatic', '--noinput' ]) )
++  return not any(statuses)
+-- 
+1.7.9.5
+

@@ -1,0 +1,148 @@
+From 71b3487c13a042beec855fc143ac50a2fbb21f80 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Mar 2015 10:17:19 -0700
+Subject: [PATCH 1124/1173] [livy] Automatically import the spark context as
+ "sc"
+
+---
+ .../livy/repl/scala/interpreter/Interpreter.scala  |   15 +++++++++++++++
+ .../cloudera/hue/livy/repl/PythonSessionSpec.scala |   12 ++++++++++++
+ .../cloudera/hue/livy/repl/SparkSessionSpec.scala  |   12 ++++++++++++
+ apps/spark/java/livy-server/pom.xml                |    7 ++++++-
+ apps/spark/java/pom.xml                            |    6 ++++++
+ 5 files changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+index 469b4b6..9f0427d 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+@@ -2,6 +2,7 @@ package com.cloudera.hue.livy.repl.scala.interpreter
+ 
+ import java.io._
+ 
++import org.apache.spark.{SparkConf, SparkContext}
+ import org.apache.spark.repl.SparkIMain
+ 
+ import scala.concurrent.ExecutionContext
+@@ -29,6 +30,7 @@ class Interpreter {
+   private var _state: Interpreter.State = Interpreter.NotStarted()
+   private val outputStream = new ByteArrayOutputStream()
+   private var sparkIMain: SparkIMain = _
++  private var sparkContext: SparkContext = _
+   private var executeCount = 0
+ 
+   def state = _state
+@@ -44,11 +46,24 @@ class Interpreter {
+     val settings = new Settings()
+     settings.usejavacp.value = true
+ 
++    val sparkConf = new SparkConf(true)
++      .setAppName("Livy Spark shell")
++
++    sparkContext = new SparkContext(sparkConf)
++
+     sparkIMain = createSparkIMain(classLoader, settings)
++    sparkIMain.initializeSynchronous()
++    sparkIMain.beQuietDuring {
++      sparkIMain.bind("sc", "org.apache.spark.SparkContext", sparkContext, List("""@transient"""))
++    }
+ 
+     _state = Interpreter.Idle()
+   }
+ 
++  private def getMaster(): String = {
++    sys.props.get("spark.master").getOrElse("local[*]")
++  }
++
+   private def createSparkIMain(classLoader: ClassLoader, settings: Settings) = {
+     val out = new JPrintWriter(outputStream, true)
+     val cls = classLoader.loadClass(classOf[SparkIMain].getName)
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+index b0e9af9..f505cd1 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+@@ -147,5 +147,17 @@ class PythonSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter
+ 
+       result should equal (expectedResult)
+     }
++
++    it("should access the spark context") {
++      val result = Await.result(session.execute("""sc"""), Duration.Inf)
++      val resultMap = result.extract[Map[String, JValue]]
++
++      // Manually extract the values since the line numbers in the exception could change.
++      resultMap("status").extract[String] should equal ("ok")
++      resultMap("execution_count").extract[Int] should equal (0)
++
++      val data = resultMap("data").extract[Map[String, JValue]]
++      data("text/plain").extract[String] should include ("<pyspark.context.SparkContext object at")
++    }
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+index f8e2a61..8b6eb89 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+@@ -120,5 +120,17 @@ class SparkSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter {
+       resultMap("evalue").extract[String] should include ("java.lang.Exception")
+       resultMap.get("traceback") should equal (None)
+     }
++
++    it("should access the spark context") {
++      val result = Await.result(session.execute("""sc"""), Duration.Inf)
++      val resultMap = result.extract[Map[String, JValue]]
++
++      // Manually extract the values since the line numbers in the exception could change.
++      resultMap("status").extract[String] should equal ("ok")
++      resultMap("execution_count").extract[Int] should equal (0)
++
++      val data = resultMap("data").extract[Map[String, JValue]]
++      data("text/plain").extract[String] should include ("res0: org.apache.spark.SparkContext = org.apache.spark.SparkContext")
++    }
+   }
+  }
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index f97434c..eb12f4e 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -111,6 +111,12 @@
+ 
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
++            <artifactId>hadoop-client</artifactId>
++            <scope>provided</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-client</artifactId>
+             <scope>provided</scope>
+         </dependency>
+@@ -118,7 +124,6 @@
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-api</artifactId>
+-            <version>${hadoop.version}</version>
+             <scope>provided</scope>
+         </dependency>
+ 
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index f40d0b9..63f2f9c 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -170,6 +170,12 @@
+ 
+             <dependency>
+                 <groupId>org.apache.hadoop</groupId>
++                <artifactId>hadoop-client</artifactId>
++                <version>${hadoop.version}</version>
++            </dependency>
++
++            <dependency>
++                <groupId>org.apache.hadoop</groupId>
+                 <artifactId>hadoop-yarn-client</artifactId>
+                 <version>${hadoop.version}</version>
+             </dependency>
+-- 
+1.7.9.5
+

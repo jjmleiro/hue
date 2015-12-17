@@ -1,0 +1,24 @@
+From 453be1336e8d7436312e728385ade0533b1e7327 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 19 Feb 2015 15:17:58 +0100
+Subject: [PATCH 0871/1173] [oozie] Cleaned up unused CSS
+
+---
+ .../templates/editor2/coordinator_editor.mako      |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 4078553..b17cb1f 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -556,7 +556,6 @@ ${ dashboard.import_bindings() }
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+   viewModel.coordinator.properties.cron_advanced.valueHasMutated(); // Update jsCron enabled status
+-  viewModel.isEditing(true)
+   viewModel.coordinator.tracker().markCurrentStateAsClean();
+ 
+ 
+-- 
+1.7.9.5
+

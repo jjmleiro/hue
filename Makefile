@@ -16,62 +16,6 @@
 # limitations under the License.
 #
 
-# <<<< DEV ONLY
-#
-# Hue Build Process Overview
-# =======================================
-# This build process handles different types of builds:
-#
-#   - The production release build, the main task of which is to install
-#     Desktop in the local system. The main build products are:
-#
-#     * build/env 		- The virtual environment, where Desktop core
-#     				  and various apps install into.
-#
-#   - The development build, which includes test and debugging tools. It
-#     generates the production release, which boils down to a tarball that is
-#     downloaded and installed. Additional build products include:
-#
-#     * build/release/prod 	- The production tarball.
-#     * build/docs 		- General Desktop and SDK docs.
-#
-# We achieve this by selecting the parts to be distributed, and by stripping
-# the Makefile's. Lines enclosed by the "DEV ONLY" marks are stripped for the
-# general release. Targets are split/expanded using multiple rules and
-# double-colon rules. The idea is to use almost identical build logic for the
-# different flavours.
-#
-# Logic Flow
-# ==========
-# Here we summarize the flow of the build logic. Lines represent dependency.
-#
-#                  virtual-bootstrap.py
-#                            |
-#                  virtual-env (./env)
-#                            |
-#                      +----------+
-#                      |          |
-#                      |          V
-#                      |       desktop  <--- recursive make in /desktop
-#                      |          |
-#                      |          V
-#                      |         apps   <--- recursive make in /apps
-#                      |
-#                      V
-#                 prod tarball   <-- selective copying into /build/release/...
-#
-#
-# Application Build
-# =================
-# An app typically includes $(ROOT)/Makefile.sdk, which provides the standard
-# targets and facilities. ROOT, which points to the Hue installation root, is
-# always passed in.
-#
-# The application may also choose to not use the Hue build facilities. In that
-# case, its Makefile still receives $(ROOT), and needs to provide several
-# targets as specified in Makefile.sdk.
-#
-# END DEV ONLY >>>>
 
 ###################################
 # Global variables
@@ -94,25 +38,10 @@ default:
 	@echo '  desktop     : Build desktop core only'
 	@echo '  clean       : Remove desktop build products'
 	@echo '  distclean   : Remove desktop and thirdparty build products'
-# <<<< DEV ONLY
-	@echo '  docs        : Build documentation'
-	@echo '  prod        : Generate a tar file for production distribution'
-	@echo '  locales     : Extract strings and update dictionary of each locale'
-# END DEV ONLY >>>>
 
 .PHONY: all
 all: default
 
-# <<<< DEV ONLY
-include Makefile.tarball
-
-###################################
-# Build docs
-###################################
-.PHONY: docs
-docs:
-	@$(MAKE) -C docs
-# END DEV ONLY >>>>
 
 ###################################
 # Install parent POM
@@ -140,9 +69,6 @@ $(BLD_DIR_ENV)/stamp:
 ###################################
 .PHONY: desktop
 
-# <<<< DEV ONLY
-desktop: parent-pom
-# END DEV ONLY >>>>
 desktop: virtual-env
 	@$(MAKE) -C desktop
 
@@ -211,12 +137,6 @@ install-env:
 # Internationalization
 ###################################
 
-# <<<< DEV ONLY
-.PHONY: locales
-locales:
-	@$(MAKE) -C desktop compile-locales
-	@$(MAKE) -C apps compile-locales
-# END DEV ONLY >>>>
 
 
 ###################################
@@ -228,9 +148,6 @@ clean:
 	@rm -rf $(BLD_DIR_ENV)
 	@$(MAKE) -C desktop clean
 	@$(MAKE) -C apps clean
-# <<<< DEV ONLY
-	@$(MAKE) -C docs clean
-# END DEV ONLY >>>>
 
 #
 # Note: It is important for clean targets to *ONLY* clean products of the
@@ -248,21 +165,3 @@ ext-clean:
 	@$(MAKE) -C desktop ext-clean
 	@$(MAKE) -C apps ext-clean
 
-# <<<< DEV ONLY
-###############################################
-# Misc (some used by automated test scripts)
-###############################################
-
-java-test:
-	mvn -f desktop/libs/hadoop/java/pom.xml test $(MAVEN_OPTIONS)
-
-test: java-test
-	DESKTOP_DEBUG=1 $(ENV_PYTHON) $(BLD_DIR_BIN)/hue test fast --with-xunit
-
-test-slow: java-test
-	DESKTOP_DEBUG=1 $(ENV_PYTHON) $(BLD_DIR_BIN)/hue test all --with-xunit --with-cover
-	$(BLD_DIR_BIN)/coverage xml
-
-start-dev:
-	DESKTOP_DEBUG=1 $(ENV_PYTHON) $(BLD_DIR_BIN)/hue runserver_plus
-# END DEV ONLY >>>>

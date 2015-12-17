@@ -1,0 +1,45 @@
+From d75b2077b71878fc6d714c0b3df829df1641f913 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 00:13:29 +0100
+Subject: [PATCH 0240/1173] [oozie] Delete a widget can delete forks and joins
+ too
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 2d7c3e1..93cc8c2 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -403,12 +403,26 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         }
+         else {
+           var _rows = parent.columns()[0].rows();
++          var _parentRows = self.getRowParentColumn(parent.id()).rows;
++          var _prevRowIdx = -1;
++          for (var i = 0; i < _parentRows().length; i++) {
++            if (_parentRows()[i].id() == parent.id()) {
++              break;
++            }
++            _prevRowIdx = i;
++          }
++
++          if (_prevRowIdx > -1 && _parentRows()[_prevRowIdx].widgets().length > 0 && _parentRows()[_prevRowIdx].widgets()[0].widgetType() == "fork-widget"){
++            _parentRows.remove(_parentRows()[_prevRowIdx]);
++            _parentRows.remove(_parentRows()[_prevRowIdx+1]);
++          }
++
+           for (var i=0;i<_rows.length;i++){
+             if (i==0){
+               parent.widgets(_rows[i].widgets());
+             }
+             else {
+-              self.getRowParentColumn(parent.id()).rows.push(_rows[i]);
++              _parentRows.push(_rows[i]);
+             }
+           }
+           parent.columns([]);
+-- 
+1.7.9.5
+

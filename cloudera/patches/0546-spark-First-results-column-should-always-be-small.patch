@@ -1,0 +1,26 @@
+From 5743a056463d4ae59446cb92231ddef1f095def0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 4 Dec 2014 01:27:19 +0100
+Subject: [PATCH 0546/1173] [spark] First results column should always be
+ small
+
+---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 43162dd..c3e5ace 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -226,7 +226,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             <table class="table table-condensed resultTable">
+               <thead>
+                 <tr data-bind="foreach: result.meta">
+-                  <th data-bind="html: ($index() == 0 ? '&nbsp;' : $data.name), css: { 'sort-numeric': isNumericColumn($data.type), 'sort-date': isDateTimeColumn($data.type), 'sort-string': isStringColumn($data.type)}"></th>
++                  <th data-bind="html: ($index() == 0 ? '&nbsp;' : $data.name), css: { 'sort-numeric': isNumericColumn($data.type), 'sort-date': isDateTimeColumn($data.type), 'sort-string': isStringColumn($data.type)}, attr: {'width': $index() == 0 ? '1%' : ''}"></th>
+                 </tr>
+               </thead>
+               <tbody>
+-- 
+1.7.9.5
+

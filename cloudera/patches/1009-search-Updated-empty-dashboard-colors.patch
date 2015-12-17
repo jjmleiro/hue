@@ -1,0 +1,34 @@
+From aa9ea1aa604a0180fa3dc143bda5a4b677e578f9 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 9 Mar 2015 14:48:18 +0100
+Subject: [PATCH 1009/1173] [search] Updated empty dashboard colors
+
+---
+ .../static/desktop/css/common_dashboard.css        |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+index 4cd9f56..c3dba24 100644
+--- a/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
++++ b/desktop/core/src/desktop/static/desktop/css/common_dashboard.css
+@@ -123,7 +123,7 @@
+   min-height: 400px !important;
+   margin-top: 30px;
+   text-align: center;
+-  color:#EEE;
++  color:#DDD;
+ }
+ 
+ .toolbar-label {
+@@ -173,7 +173,7 @@
+ }
+ 
+ .layout-box i {
+-  color: #666;
++  color: #999;
+   font-size: 28px;
+   line-height: 54px;
+ }
+-- 
+1.7.9.5
+

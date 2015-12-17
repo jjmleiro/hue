@@ -1,0 +1,24 @@
+From eedb0545e4f5d3d38cfa7120621d415a0ec3b245 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sun, 15 Mar 2015 16:14:08 -0500
+Subject: [PATCH 1077/1173] [oozie] Fix coordinator start and end time Z
+
+---
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index a5aade4..5542996 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -1286,6 +1286,7 @@ ko.bindingHandlers.timepicker = {
+       _el.on("change", function () {
+         if (_el.val().substr(-1) != "Z") {
+           _el.val(_el.val() + "Z");
++          _el.trigger("change");
+         }
+       });
+ 
+-- 
+1.7.9.5
+

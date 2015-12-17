@@ -1,0 +1,39 @@
+From d5197c18ddfbbf082f4271a20ec2f7064afd812c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 28 Nov 2014 20:53:05 -0600
+Subject: [PATCH 0522/1173] [oozie] Check snippet job status correctly
+
+---
+ apps/spark/src/spark/api.py      |    2 +-
+ apps/spark/static/js/spark.vm.js |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index acc9dfa..9bffaaf 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -83,7 +83,7 @@ class HS2Api():
+     snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+     handle = HiveServerQueryHandle(**snippet['result']['handle'])
+     status =  db.get_state(handle)
+-    return {'query_status': 'running' if status in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index) else 'finished'}
++    return {'status': 'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index) else 'finished'}
+ 
+   def fetch_result(self, notebook, snippet):
+     db = dbms.get(self.user)
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index ecc136b..299a249 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -91,7 +91,7 @@ var Snippet = function (notebook, snippet) {
+        snippet: ko.mapping.toJSON(self)
+ 	  }, function (data) {
+ 	    if (data.status == 0) {
+-          self.status(data.query_status);
++          self.status(data.query_status.status);
+             
+           if (self.status() == 'running') {
+             setTimeout(self.checkStatus, 1000);            	
+-- 
+1.7.9.5
+

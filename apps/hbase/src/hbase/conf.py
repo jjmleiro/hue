@@ -19,20 +19,23 @@ import os
 
 from django.utils.translation import ugettext_lazy as _t
 
-from desktop.lib.conf import Config, validate_thrift_transport
+from desktop.lib.conf import Config, validate_thrift_transport, coerce_str_lowercase, coerce_bool
 
 
 HBASE_CLUSTERS = Config(
   key="hbase_clusters",
   default="(Cluster|localhost:9090)",
-  help=_t("Comma-separated list of HBase Thrift servers for clusters in the format of '(name|host:port)'. Use full hostname with security."),
-  type=str)
+  help=_t("Comma-separated list of HBase Thrift servers for clusters in the format of '(name|host:port)'. Use full hostname with security."
+          "Prefix hostname with https:// if using SSL and http mode with impersonation."),
+  type=str
+)
 
 TRUNCATE_LIMIT = Config(
   key="truncate_limit",
   default="500",
   help=_t("Hard limit of rows or columns per row fetched before truncating."),
-  type=int)
+  type=int
+)
 
 THRIFT_TRANSPORT = Config(
   key="thrift_transport",
@@ -49,6 +52,13 @@ HBASE_CONF_DIR = Config(
   default=os.environ.get("HBASE_CONF_DIR", '/etc/hbase/conf')
 )
 
+# Hidden, just for making patching of older version of Hue easier. To remove in Hue 4.
+USE_DOAS = Config(
+  key='use_doas',
+  help=_t('Force Hue to use Http Thrift mode with doas impersonation, regarless of hbase-site.xml properties.'),
+  default=False,
+  type=coerce_bool
+)
 
 
 def config_validator(user):

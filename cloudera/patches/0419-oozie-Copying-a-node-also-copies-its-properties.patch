@@ -1,0 +1,115 @@
+From 69ad8b0fddf0567c9c3f13329d3e2a27e2699318 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 8 Jan 2015 13:11:22 -0800
+Subject: [PATCH 0419/1173] [oozie] Copying a node also copies its properties
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   11 ++++++-----
+ apps/oozie/src/oozie/views/editor2.py              |    6 +++++-
+ apps/oozie/static/js/workflow-editor.ko.js         |    7 ++++---
+ 3 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index a8786ce..1cdd7b3 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -322,9 +322,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         id() != '17c9c895-5a16-7443-bb81-f34b30b21548' && (['fork-widget', 'join-widget', 'decision-widget'].indexOf(widgetType()) == -1 || $root.isEditing())">
+ 
+       <span data-bind="visible: $root.isEditing() && oozieMovable() && ! oozieExpanded() && ! ooziePropertiesExpanded() && $root.newAction() == null">
+-        <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
++        <a href="javascript:void(0)" class="move-widget" title="${ _('Move node') }"><i class="fa fa-arrows"></i></a>
+         &nbsp;
+-        <a href="javascript:void(0)" class="move-widget clone-widget"><i class="fa fa-copy"></i></a>
++        <a href="javascript:void(0)" class="move-widget clone-widget" title="${ _('Copy node') }"><i class="fa fa-copy"></i></a>
+         &nbsp;
+       </span>
+ 
+@@ -545,7 +545,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     </h6>
+     <ul data-bind="visible: properties.archives().length > 0, foreach: properties.archives" class="unstyled">
+       <li>
+-        <input type="text" class="filechooser-input input-xlarge" data-bind="filechooser: name(), filechooserOptions: globalFilechooserOptions, value: name, attr: { placeholder: $root.workflow_properties.archives.help_text }"/>
++        <input type="text" class="filechooser-input input-xlarge" data-bind="filechooser: name(), filechooserFilter: 'zip,tar,tgz,tar.gz', filechooserOptions: globalFilechooserOptions, value: name, attr: { placeholder: $root.workflow_properties.archives.help_text }"/>
+         <span data-bind='template: { name: "common-fs-link", data: { path: name(), with_label: false} }'></span>
+         <a href="#" data-bind="click: function(){ $parent.properties.archives.remove(this); $(document).trigger('drawArrows') }">
+           <i class="fa fa-minus"></i>
+@@ -1824,8 +1824,9 @@ ${ dashboard.import_bindings() }
+       if (viewModel.currentlyDraggedOp() == "move"){
+         viewModel.workflow.moveNode(widget);
+       }
+-      else {
+-        viewModel.workflow.newNode(widget, viewModel.workflow.addNode);
++      else { // Copy
++        var _sourceNode = viewModel.workflow.getNodeById(viewModel.currentlyDraggedWidget().id());
++        viewModel.workflow.newNode(widget, viewModel.workflow.addNode, _sourceNode);
+       }
+       $(document).trigger("drawArrows");
+     }
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 922afa6..59da1f6 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -136,7 +136,7 @@ def new_node(request):
+ 
+   if node['widgetType'] == 'subworkflow-widget':
+     workflows = _get_workflows(request.user)
+-    
++
+   response['status'] = 0
+   response['properties'] = properties 
+   response['workflows'] = workflows
+@@ -160,10 +160,14 @@ def add_node(request):
+   workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
+   node = json.loads(request.POST.get('node', '{}'))
+   properties = json.loads(request.POST.get('properties', '{}'))
++  copied_properties = json.loads(request.POST.get('copiedProperties', '{}'))
+ 
+   _properties = dict(NODES[node['widgetType']].get_fields())
+   _properties.update(dict([(_property['name'], _property['value']) for _property in properties]))
+ 
++  if copied_properties:
++    _properties.update(copied_properties)
++
+   response['status'] = 0
+   response['properties'] = _properties
+   response['name'] = '%s-%s' % (node['widgetType'].split('-')[0], node['id'][:4])
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index e4a50e4..f974ffe 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -235,7 +235,7 @@ var Workflow = function (vm, workflow) {
+     self.nodes(nodes)
+   }
+ 
+-  self.newNode = function (widget, callback) {
++  self.newNode = function (widget, callback, sourceNode) {
+     $.ajax({
+       type: "POST",
+       url: "/oozie/editor/workflow/new_node/",
+@@ -255,7 +255,7 @@ var Workflow = function (vm, workflow) {
+           }
+ 
+           if (callback) {
+-            callback(widget);
++            callback(widget, sourceNode);
+           }
+         }
+       },
+@@ -263,11 +263,12 @@ var Workflow = function (vm, workflow) {
+     });
+   };
+ 
+-  self.addNode = function (widget) {
++  self.addNode = function (widget, copiedNode) {
+     $.post("/oozie/editor/workflow/add_node/", {
+       "workflow": ko.mapping.toJSON(workflow),
+       "node": ko.mapping.toJSON(widget),
+       "properties": ko.mapping.toJSON(viewModel.addActionProperties()),
++      "copiedProperties": copiedNode ? ko.mapping.toJSON(copiedNode.properties) : "{}"
+     }, function (data) {
+       if (data.status == 0) {
+         var _node = ko.mapping.toJS(widget);
+-- 
+1.7.9.5
+

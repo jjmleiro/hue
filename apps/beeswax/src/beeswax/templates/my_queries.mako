@@ -105,7 +105,7 @@ ${layout.menubar(section='my queries')}
                 ${ design.desc }
               % endif
             </td>
-            <td data-sort-value="${time.mktime(design.mtime.timetuple())}">${ timesince(design.mtime) } ${_('ago')}</td>
+            <td data-sort-value="${time.mktime(design.mtime.timetuple())}"></td>
           </tr>
         % endfor
         </tbody>
@@ -140,7 +140,7 @@ ${layout.menubar(section='my queries')}
                 % endif
                 data-row-selector-exclude="true"></div>
             </td>
-            <td width="10%" data-sort-value="${time.mktime(query.submission_date.timetuple())}">${ query.submission_date.strftime("%x %X") }</td>
+            <td width="10%" data-sort-value="${time.mktime(query.submission_date.timetuple())}" class="nowrap"></td>
             <td width="20%"><a href="${ url(app_name + ':execute_design', design_id=query.design.id) }" data-row-selector="true">${ query.design.name }</a></td>
             <td width="60%">
               % if len(query.query) > 100:
@@ -164,6 +164,7 @@ ${layout.menubar(section='my queries')}
 
 <div id="deleteQuery" class="modal hide fade">
   <form id="deleteQueryForm" action="${ url(app_name + ':delete_design') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <input type="hidden" name="skipTrash" id="skipTrash" value="false"/>
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
@@ -179,7 +180,8 @@ ${layout.menubar(section='my queries')}
   </form>
 </div>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/moment-with-locales.min.js') }"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {
@@ -191,6 +193,12 @@ ${layout.menubar(section='my queries')}
     ko.applyBindings(viewModel);
 
     updateQueryCounters();
+
+    var locale = window.navigator.userLanguage || window.navigator.language;
+    moment.locale(locale);
+    $("[data-sort-value]").each(function(){
+      $(this).text(moment($(this).attr("data-sort-value")*1000).format("L LTS"));
+    });
 
     var recentSavedQueries = $("#recentSavedQueriesTable").dataTable({
       "sDom":"<'row'r>t<'row'<'span8'i><''p>>",

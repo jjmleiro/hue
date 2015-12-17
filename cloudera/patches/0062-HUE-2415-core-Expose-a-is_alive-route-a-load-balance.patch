@@ -1,0 +1,74 @@
+From f99fd9e6f37c6d2418ab3de10b84b339303599ac Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@Erick-Tryzelaar-MBP.local>
+Date: Wed, 22 Oct 2014 09:51:10 -0700
+Subject: [PATCH 0062/1173] HUE-2415 [core] Expose a 'is_alive' route a load
+ balancer can poll
+
+This allows '/desktop/debug/is_alive' route that the load balancer can
+submit a 'HEAD' request to in order to verify the application server is
+alive.
+---
+ desktop/core/src/desktop/middleware.py |    2 ++
+ desktop/core/src/desktop/urls.py       |    1 +
+ desktop/core/src/desktop/views.py      |    6 ++++++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 9ea4422..c8634b3 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -39,6 +39,7 @@ from django.utils.encoding import iri_to_uri
+ import django.views.static
+ import django.views.generic.simple
+ 
++import desktop.views
+ import desktop.conf
+ from desktop.context_processors import get_app_name
+ from desktop.lib import apputil, i18n
+@@ -60,6 +61,7 @@ MIDDLEWARE_HEADER = "X-Hue-Middleware-Response"
+ DJANGO_VIEW_AUTH_WHITELIST = [
+   django.views.static.serve,
+   django.views.generic.simple.redirect_to,
++  desktop.views.is_alive,
+ ]
+ 
+ 
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index 1167612..32d9bd4 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -61,6 +61,7 @@ dynamic_patterns += patterns('desktop.views',
+ 
+   (r'^desktop/prefs/(?P<key>\w+)?$', 'prefs'),
+   (r'^desktop/status_bar/?$', 'status_bar'),
++  (r'^desktop/debug/is_alive$','is_alive'),
+   (r'^desktop/debug/threads$', 'threads'),
+   (r'^desktop/debug/memory$', 'memory'),
+   (r'^desktop/debug/who_am_i$', 'who_am_i'),
+diff --git a/desktop/core/src/desktop/views.py b/desktop/core/src/desktop/views.py
+index 3105e30..f8db862 100644
+--- a/desktop/core/src/desktop/views.py
++++ b/desktop/core/src/desktop/views.py
+@@ -32,6 +32,7 @@ from django.core.urlresolvers import reverse
+ from django.core.servers.basehttp import FileWrapper
+ from django.shortcuts import redirect
+ from django.utils.translation import ugettext as _
++from django.views.decorators.http import require_http_methods
+ import django.views.debug
+ 
+ import desktop.conf
+@@ -52,6 +53,11 @@ from desktop import appmanager
+ LOG = logging.getLogger(__name__)
+ 
+ 
++@require_http_methods(['HEAD'])
++def is_alive(request):
++  return HttpResponse('')
++
++
+ def home(request):
+   docs = _get_docs(request.user)
+ 
+-- 
+1.7.9.5
+

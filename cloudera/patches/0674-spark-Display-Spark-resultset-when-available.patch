@@ -1,0 +1,25 @@
+From 08a77de4f01b19e2da999762b72ae57b149732f1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 26 Jan 2015 11:23:37 +0800
+Subject: [PATCH 0674/1173] [spark] Display Spark resultset when available
+
+---
+ apps/spark/src/spark/models.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 69bb23e..fc78df4 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -268,7 +268,7 @@ class SparkApi():
+     try:
+       return {
+           'id': response['id'],
+-          'has_result_set': response['state'] != 'running',
++          'has_result_set': True,
+       }
+     except Exception, e:
+       message = force_unicode(str(e))
+-- 
+1.7.9.5
+

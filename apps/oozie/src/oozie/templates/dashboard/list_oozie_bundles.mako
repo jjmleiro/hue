@@ -132,18 +132,20 @@ ${layout.menubar(section='bundles', dashboard=True)}
   </div>
 </div>
 
-<script src="/oozie/static/js/bundles.utils.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('oozie/js/dashboard-utils.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   var Bundle = function (bundle) {
     return {
       id: bundle.id,
       endTime: bundle.endTime,
+      endTimeInMillis: bundle.endTimeInMillis,
       status: bundle.status,
       statusClass: "label " + getStatusClass(bundle.status),
       isRunning: bundle.isRunning,
       kickoffTime: bundle.kickoffTime,
+      kickoffTimeInMillis: bundle.kickoffTimeInMillis,
       timeOut: bundle.timeOut,
       appName: decodeURIComponent(bundle.appName),
       progress: bundle.progress,
@@ -154,7 +156,8 @@ ${layout.menubar(section='bundles', dashboard=True)}
       killUrl: bundle.killUrl,
       suspendUrl: bundle.suspendUrl,
       resumeUrl: bundle.resumeUrl,
-      created: bundle.created
+      created: bundle.created,
+      createdInMillis: bundle.createdInMillis
     }
   }
 
@@ -168,12 +171,12 @@ ${layout.menubar(section='bundles', dashboard=True)}
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
         { "bSortable":false },
-        { "sType":"date" },
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
-        null,
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null
       ],
       "aaSorting":[
@@ -203,11 +206,11 @@ ${layout.menubar(section='bundles', dashboard=True)}
       "bLengthChange":false,
       "sDom":"<'row'r>t<'row'<'span6'i><''p>>",
       "aoColumns":[
-        { "sType":"date" },
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null,
         null,
         null,
-        null,
+        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
         null
       ],
       "aaSorting":[
@@ -261,7 +264,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
       drawTable();
     });
 
-    var hash = window.location.hash;
+    var hash = window.location.hash.replace(/(<([^>]+)>)/ig, "");
     if (hash != "" && hash.indexOf("=") > -1) {
       $("a.btn-date[data-value='" + hash.split("=")[1] + "']").click();
     }
@@ -279,30 +282,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
 
     $.fn.dataTableExt.sErrMode = "throw";
 
-    $.fn.dataTableExt.afnFiltering.push(
-      function (oSettings, aData, iDataIndex) {
-        var urlHashes = ""
-
-        var statusBtn = $("a.btn-status.active");
-        var statusFilter = true;
-        if (statusBtn.length > 0) {
-          var statuses = []
-          $.each(statusBtn, function () {
-            statuses.push($(this).attr("data-value"));
-          });
-          statusFilter = aData[1].match(RegExp(statuses.join('|'), "i")) != null;
-        }
-
-        var dateBtn = $("a.btn-date.active");
-        var dateFilter = true;
-        if (dateBtn.length > 0) {
-          var minAge = new Date() - parseInt(dateBtn.attr("data-value")) * 1000 * 60 * 60 * 24;
-          dateFilter = Date.parse(aData[0]) >= minAge;
-        }
-
-        return statusFilter && dateFilter;
-      }
-    );
+    $.fn.dataTableExt.afnFiltering.push(PersistedButtonsFilters); // from dashboard-utils.js
 
     $(document).on("click", ".confirmationModal", function () {
       var _this = $(this);
@@ -335,13 +315,13 @@ ${layout.menubar(section='bundles', dashboard=True)}
 
     refreshRunning = function () {
       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
-        if (data) {
+        if (data.jobs) {
           var nNodes = runningTable.fnGetNodes();
 
           // check for zombie nodes
           $(nNodes).each(function (iNode, node) {
             var nodeFound = false;
-            $(data).each(function (iBundle, currentItem) {
+            $(data.jobs).each(function (iBundle, currentItem) {
               if ($(node).children("td").eq(7).text() == currentItem.id) {
                 nodeFound = true;
               }
@@ -352,7 +332,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
             }
           });
 
-          $(data).each(function (iBundle, item) {
+          $(data.jobs).each(function (iBundle, item) {
             var bundle = new Bundle(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -366,12 +346,12 @@ ${layout.menubar(section='bundles', dashboard=True)}
                 try {
                   runningTable.fnAddData([
                     bundle.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>' : '',
-                    emptyStringIfNull(bundle.kickoffTime),
-                    '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
+                    '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'" data-type="date">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+                    '<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>',
                     bundle.appName,
                     '<div class="progress"><div class="bar bar-warning" style="width:1%"></div></div>',
                     bundle.user,
-                    emptyStringIfNull(bundle.created),
+                    '<span data-sort-value="'+ bundle.createdInMillis +'">' + emptyStringIfNull(bundle.created) + '</span>',
                     '<a href="' + bundle.absoluteUrl + '" data-row-selector="true">' + bundle.id + '</a>'
                   ]);
                 }
@@ -382,18 +362,18 @@ ${layout.menubar(section='bundles', dashboard=True)}
 
             }
             else {
-              runningTable.fnUpdate('<span class="' + bundle.statusClass + '">' + bundle.status + '</span>', foundRow, 2, false);
+              runningTable.fnUpdate('<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>', foundRow, 2, false);
             }
           });
         }
-        if (data.length == 0) {
+        if (data.jobs.length == 0) {
           runningTable.fnClearTable();
         }
 
-        if (data.length != numRunning) {
+        if (data.jobs.length != numRunning) {
           refreshCompleted();
         }
-        numRunning = data.length;
+        numRunning = data.jobs.length;
 
         window.setTimeout(refreshRunning, 20000);
       });
@@ -402,15 +382,15 @@ ${layout.menubar(section='bundles', dashboard=True)}
     function refreshCompleted() {
       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
         completedTable.fnClearTable();
-        $(data).each(function (iWf, item) {
+        $(data.jobs).each(function (iWf, item) {
           var bundle = new Bundle(item);
           try {
             completedTable.fnAddData([
-              emptyStringIfNull(bundle.kickoffTime),
-              '<span class="' + bundle.statusClass + '">' + bundle.status + '</span>',
+              '<span data-sort-value="'+ bundle.kickoffTimeInMillis +'" data-type="date">' + emptyStringIfNull(bundle.kickoffTime) + '</span>',
+              '<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>',
               bundle.appName,
               bundle.user,
-              emptyStringIfNull(bundle.created),
+              '<span data-sort-value="'+ bundle.createdInMillis +'">' + emptyStringIfNull(bundle.created) + '</span>',
               '<a href="' + bundle.absoluteUrl + '" data-row-selector="true">' + bundle.id + '</a>'
             ], false);
           }
@@ -425,7 +405,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
     function refreshProgress() {
       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
         var nNodes = runningTable.fnGetNodes();
-        $(data).each(function (iWf, item) {
+        $(data.jobs).each(function (iWf, item) {
             var bundle = new Bundle(item);
             var foundRow = null;
             $(nNodes).each(function (iNode, node) {
@@ -434,7 +414,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
               }
             });
             if (foundRow != null) {
-              runningTable.fnUpdate('<span class="' + bundle.statusClass + '">' + bundle.status + '</span>', foundRow, 2, false);
+              runningTable.fnUpdate('<span class="' + bundle.statusClass + '" data-type="status">' + bundle.status + '</span>', foundRow, 2, false);
               if (bundle.progress == 0){
                 runningTable.fnUpdate('<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>', foundRow, 4, false);
               }

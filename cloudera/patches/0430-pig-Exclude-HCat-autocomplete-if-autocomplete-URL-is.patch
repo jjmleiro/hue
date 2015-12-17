@@ -1,0 +1,66 @@
+From 5df02dce1c0a7c2660b94b5d54afb7275d116812 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 9 Jan 2015 22:35:38 +0100
+Subject: [PATCH 0430/1173] [pig] Exclude HCat autocomplete if autocomplete
+ URL is empty
+
+---
+ apps/beeswax/static/js/autocomplete.utils.js |   27 +++++++++++++-------------
+ apps/pig/src/pig/templates/app.mako          |    2 +-
+ 2 files changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/apps/beeswax/static/js/autocomplete.utils.js b/apps/beeswax/static/js/autocomplete.utils.js
+index 30575a0..57dcb7d 100644
+--- a/apps/beeswax/static/js/autocomplete.utils.js
++++ b/apps/beeswax/static/js/autocomplete.utils.js
+@@ -16,20 +16,21 @@
+ 
+ function hac_jsoncalls(options) {
+   var _url = typeof options.autocompleteBaseURL != "undefined" ? options.autocompleteBaseURL : HIVE_AUTOCOMPLETE_BASE_URL;
+-    
+-  if (options.database != null) {
+-    _url += options.database
+-  }
+-  if (options.table != null) {
+-    _url += "/" + options.table
+-  }
++  if (_url != ""){
++    if (options.database != null) {
++      _url += options.database
++    }
++    if (options.table != null) {
++      _url += "/" + options.table
++    }
+ 
+-  $.ajax({
+-    type: "GET",
+-    url: _url + "?" + Math.random(),
+-    success: options.onDataReceived,
+-    async: options.sync == "undefined"
+-  });
++    $.ajax({
++      type: "GET",
++      url: _url + "?" + Math.random(),
++      success: options.onDataReceived,
++      async: options.sync == "undefined"
++    });
++  }
+ }
+ 
+ function hac_hasExpired(timestamp){
+diff --git a/apps/pig/src/pig/templates/app.mako b/apps/pig/src/pig/templates/app.mako
+index 26ae5bf..b90c9d4 100644
+--- a/apps/pig/src/pig/templates/app.mako
++++ b/apps/pig/src/pig/templates/app.mako
+@@ -933,7 +933,7 @@ ${ commonshare() | n,unicode }
+           }
+           var _showHCatHint = false;
+           if (_line.indexOf(KLASS) == -1) {
+-            if (_partial.indexOf("'") == _partial.length - 1) {
++            if (_partial.indexOf("'") == _partial.length - 1 && HIVE_AUTOCOMPLETE_BASE_URL != "") {
+               _showHCatHint = true;
+             }
+             showHdfsAutocomplete(_autocompleteUrl + "?format=json", _showHCatHint);
+-- 
+1.7.9.5
+

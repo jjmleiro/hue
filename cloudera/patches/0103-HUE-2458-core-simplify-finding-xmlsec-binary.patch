@@ -1,0 +1,44 @@
+From 83ca8be3f5c37d5276c71f1770afc82080d37b6a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 16:54:14 -0800
+Subject: [PATCH 0103/1173] HUE-2458 [core] simplify finding xmlsec binary
+
+---
+ desktop/libs/libsaml/src/libsaml/conf.py |   14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/conf.py b/desktop/libs/libsaml/src/libsaml/conf.py
+index 8ca6034..4855d8c 100644
+--- a/desktop/libs/libsaml/src/libsaml/conf.py
++++ b/desktop/libs/libsaml/src/libsaml/conf.py
+@@ -35,10 +35,14 @@ BASEDIR = os.path.dirname(os.path.abspath(__file__))
+ USERNAME_SOURCES = ('attributes', 'nameid')
+ 
+ 
+-if get_xmlsec_binary:
+-  xmlsec_path = get_xmlsec_binary(['/usr/bin', '/usr/local/bin', '/opt/local/bin'])
+-else:
+-  xmlsec_path = '/usr/local/bin/xmlsec1'
++def xmlsec():
++  """
++  xmlsec path
++  """
++  if get_xmlsec_binary:
++    return get_xmlsec_binary(['/usr/bin', '/usr/local/bin', '/opt/local/bin'])
++  else:
++    return '/usr/local/bin/xmlsec1'
+ 
+ 
+ def dict_list_map(value):
+@@ -54,7 +58,7 @@ def dict_list_map(value):
+ 
+ XMLSEC_BINARY = Config(
+   key="xmlsec_binary",
+-  default=xmlsec_path,
++  dynamic_default=xmlsec,
+   type=str,
+   help=_t("Xmlsec1 binary path. This program should be executable by the user running Hue."))
+ 
+-- 
+1.7.9.5
+

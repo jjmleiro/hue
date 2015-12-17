@@ -1,0 +1,25 @@
+From fb1a5fd0183a83e30858c91d3b6fa1331078b2df Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 13 Apr 2015 15:40:48 +0200
+Subject: [PATCH 1152/1173] [hive] Fix Moment.js import on history page
+
+---
+ .../src/beeswax/templates/list_history.mako        |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/list_history.mako b/apps/beeswax/src/beeswax/templates/list_history.mako
+index 5b63168..dff8b32 100644
+--- a/apps/beeswax/src/beeswax/templates/list_history.mako
++++ b/apps/beeswax/src/beeswax/templates/list_history.mako
+@@ -156,7 +156,7 @@ ${ layout.menubar(section='history') }
+     </div>
+ </div>
+ 
+-<script src="/static/ext/js/moment-with-locales.min.js"></script>
++<script src="${ static('desktop/ext/js/moment-with-locales.min.js') }"></script>
+ 
+ <script type="text/javascript" charset="utf-8">
+   $(document).ready(function () {
+-- 
+1.7.9.5
+

@@ -1,0 +1,62 @@
+From 41a20d68643c5492cbeea0aed18f05f61e036279 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 1 Nov 2014 13:45:23 +0100
+Subject: [PATCH 0216/1173] [oozie] Generate valid name for action node
+
+---
+ apps/oozie/src/oozie/views/editor2.py      |    3 ++-
+ apps/oozie/static/js/workflow-editor.ko.js |   22 ++++++++++++----------
+ 2 files changed, 14 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 2dbff5e..30dad36 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -179,7 +179,8 @@ def add_node(request):
+   })
+ 
+   response['status'] = 0
+-  response['properties'] = properties 
++  response['properties'] = properties
++  response['name'] = '%s-%s' % (node['widgetType'].split('-')[0], node['id'][:4])
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index ff0d977..00106cd 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -109,18 +109,20 @@ var Workflow = function (vm, workflow) {
+         "properties": ko.mapping.toJSON(viewModel.addActionProperties()),
+         "subworkflow": viewModel.selectedSubWorkflow() ? ko.mapping.toJSON(viewModel.selectedSubWorkflow()) : '{}',
+       }, function (data) {
+-      if (data.status == 0) {
+-        widget.properties = data.properties;
+-          var node = new Node(ko.mapping.toJS(widget));
+-          node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}) // Link to child
++      if (data.status == 0) {        
++        var _node = ko.mapping.toJS(widget);
++        _node.properties = data.properties;
++        _node.name = data.name;
++        var node = new Node(_node);
++        node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}) // Link to child
+ 
+-          // Add to list of nodes
+-          var end = self.nodes.pop();
+-          self.nodes.push(node);
+-          self.nodes.push(end);
++        // Add to list of nodes
++        var end = self.nodes.pop();
++        self.nodes.push(node);
++        self.nodes.push(end);
+ 
+-          self.nodes()[0].children.removeAll(); // Parent link to new node
+-          self.nodes()[0].children().push({'to': node.id()});
++        self.nodes()[0].children.removeAll(); // Parent link to new node
++        self.nodes()[0].children().push({'to': node.id()});
+       } else {
+         $(document).trigger("error", data.message);
+        }
+-- 
+1.7.9.5
+

@@ -1,0 +1,39 @@
+From d1e760f65123ca5941bd3b6cf8197f651478f38f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 18:56:10 +0100
+Subject: [PATCH 0583/1173] [spark] Fix problem with minimum height for
+ results
+
+---
+ apps/spark/static/css/spark.css                |    1 +
+ desktop/core/static/js/jquery.tablescroller.js |    2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 8d654ce..78ebbde 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -34,6 +34,7 @@
+ .add-snippet {
+   margin: 10px;
+   margin-top: 60px;
++  margin-bottom: 60px;
+   background-color: #F1F1F1;
+   cursor: default;
+ }
+diff --git a/desktop/core/static/js/jquery.tablescroller.js b/desktop/core/static/js/jquery.tablescroller.js
+index 5293e2c..cc65324 100644
+--- a/desktop/core/static/js/jquery.tablescroller.js
++++ b/desktop/core/static/js/jquery.tablescroller.js
+@@ -108,7 +108,7 @@
+             $(el).css("overflow-y", "auto").height(minHeightVal);
+           }
+           if (fixedHeight > -1){
+-            $(el).css("overflow-y", "auto").height(fixedHeight);
++            $(el).css("overflow-y", "auto").css("maxHeight", fixedHeight);
+           }
+         }
+       }
+-- 
+1.7.9.5
+

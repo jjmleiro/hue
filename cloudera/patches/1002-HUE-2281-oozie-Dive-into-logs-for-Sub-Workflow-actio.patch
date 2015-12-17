@@ -1,0 +1,97 @@
+From e11a3ec37d4887d88d761d65dc8d5b8ddcf83905 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 5 Mar 2015 15:40:38 -0800
+Subject: [PATCH 1002/1173] HUE-2281 [oozie] Dive into logs for Sub-Workflow
+ action
+
+---
+ .../dashboard/list_oozie_workflow_action.mako      |   13 ++++++++-----
+ apps/oozie/src/oozie/views/dashboard.py            |    6 +++---
+ desktop/libs/liboozie/src/liboozie/types.py        |   17 ++++++++++++++---
+ 3 files changed, 25 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+index 9820c2c..d643800 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+@@ -43,13 +43,16 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <li class="nav-header">${ _('Name') }</li>
+           <li class="white">${ action.name }</li>
+ 
+-          % if action.externalId:
+-            <li class="nav-header">${ _('External Id') }</li>
+-            <li><a href="${ url('jobbrowser.views.single_job', job=action.externalId) }">${ "_".join(action.externalId.split("_")[-2:]) }</a></li>
+-
++          <li class="nav-header">${ _('External Id') }</li>
++          % if action.get_externalId_url():
++            <li><a href="${ action.get_externalId_url() }">${ action.externalId }</a></li>
++          % else:
++            <li>${ action.externalId } </li>
++          % endif
++          %  if action.get_absolute_log_url():
+             <li class="nav-header">${ _('Logs') }</li>
+             <li>
+-              <a href="${ url('jobbrowser.views.job_single_logs', job=action.externalId) }" title="${ _('View the logs') }" rel="tooltip"><i class="fa fa-tasks"></i></a>
++              <a href="${ action.get_absolute_log_url() }" title="${ _('View the logs') }" rel="tooltip"><i class="fa fa-tasks"></i></a>
+             </li>
+           % endif
+ 
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 4c2b66d..856fae6 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -779,13 +779,13 @@ def massaged_workflow_actions_for_json(workflow_actions, oozie_coordinator, oozi
+ 
+     massaged_action = {
+       'id': action.id,
+-      'log': action.externalId and reverse('jobbrowser.views.job_single_logs', kwargs={'job': action.externalId}) or '',
++      'log': action.get_absolute_log_url(),
+       'url': action.get_absolute_url(),
+       'name': action.name,
+       'type': action.type,
+       'status': action.status,
+-      'externalIdUrl': action.externalId and reverse('jobbrowser.views.single_job', kwargs={'job': action.externalId}) or '',
+-      'externalId': action.externalId and '_'.join(action.externalId.split('_')[-2:]) or '',
++      'externalIdUrl': action.get_externalId_url(),
++      'externalId': action.externalId,
+       'startTime': format_time(action.startTime),
+       'endTime': format_time(action.endTime),
+       'retries': action.retries,
+diff --git a/desktop/libs/liboozie/src/liboozie/types.py b/desktop/libs/liboozie/src/liboozie/types.py
+index 6d0db38..617f0e6 100644
+--- a/desktop/libs/liboozie/src/liboozie/types.py
++++ b/desktop/libs/liboozie/src/liboozie/types.py
+@@ -152,9 +152,6 @@ class WorkflowAction(Action):
+     else:
+       self.conf_dict = {}
+ 
+-    if self.externalId is not None and not re.match('job_.*', self.externalId):
+-      self.externalId = None
+-
+   def get_absolute_url(self):
+     related_job_ids = []
+ 
+@@ -170,6 +167,20 @@ class WorkflowAction(Action):
+ 
+     return reverse('oozie:list_oozie_workflow_action', kwargs={'action': self.id}) + extra_params
+ 
++  def get_absolute_log_url(self):
++    url = None
++    if self.externalId and re.match('job_.*', self.externalId):
++      url = self.externalId and reverse('jobbrowser.views.job_single_logs', kwargs={'job': self.externalId}) or ''
++    return url
++
++  def get_externalId_url(self):
++    url = None
++    if self.externalId and self.externalId.endswith('W'):
++      url = reverse('oozie:list_oozie_workflow', kwargs={'job_id': self.externalId}) or ''
++    elif self.externalId and re.match('job_.*', self.externalId):
++      url = reverse('jobbrowser.views.single_job', kwargs={'job': self.externalId}) or ''
++    return url
++
+ 
+ class CoordinatorAction(Action):
+   _ATTRS = [
+-- 
+1.7.9.5
+

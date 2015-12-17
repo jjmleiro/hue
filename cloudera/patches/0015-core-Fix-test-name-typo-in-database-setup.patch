@@ -1,0 +1,27 @@
+From f1fe19c340907bb4a6075c41aa646328b3be4ac5 Mon Sep 17 00:00:00 2001
+From: Peter Slawski <petersla@amazon.com>
+Date: Tue, 7 Oct 2014 13:26:35 -0700
+Subject: [PATCH 0015/1173] [core] Fix test name typo in database setup
+
+This fixes a typo in the test name key when configuring
+the database from an environment variable.
+---
+ desktop/core/src/desktop/settings.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 063ea0d..6a06ac5 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -263,7 +263,7 @@ if os.getenv('DESKTOP_DB_CONFIG'):
+   conn_string = os.getenv('DESKTOP_DB_CONFIG')
+   logging.debug("DESKTOP_DB_CONFIG SET: %s" % (conn_string))
+   default_db = dict(zip(
+-    ["ENGINE", "NAME", "TEST__NAME", "USER", "PASSWORD", "HOST", "PORT"],
++    ["ENGINE", "NAME", "TEST_NAME", "USER", "PASSWORD", "HOST", "PORT"],
+     conn_string.split(':')))
+ else:
+   default_db = {
+-- 
+1.7.9.5
+

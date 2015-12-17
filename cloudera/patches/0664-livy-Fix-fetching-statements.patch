@@ -1,0 +1,208 @@
+From aff15af04f6328c955f5fab8f931428331c36bbc Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 23 Jan 2015 20:39:40 -0800
+Subject: [PATCH 0664/1173] [livy] Fix fetching statements
+
+---
+ .../com/cloudera/hue/livy/repl/Interpreter.scala   |   26 ++++++++++++++----
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |   13 +++++++--
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    1 +
+ apps/spark/src/spark/job_server_api.py             |    6 ++--
+ apps/spark/src/spark/models.py                     |   29 ++++++++++----------
+ 5 files changed, 50 insertions(+), 25 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+index 5ebf550..cd2eac0 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+@@ -3,10 +3,11 @@ package com.cloudera.hue.livy.repl
+ import java.io._
+ import java.util.concurrent.{BlockingQueue, SynchronousQueue}
+ 
+-import com.cloudera.hue.livy.{Complete, ExecuteResponse}
++import com.cloudera.hue.livy.ExecuteResponse
+ import org.apache.spark.repl.SparkILoop
+ 
+ import scala.annotation.tailrec
++import scala.collection.mutable
+ import scala.concurrent._
+ import scala.concurrent.duration.Duration
+ import scala.tools.nsc.SparkHelper
+@@ -17,6 +18,8 @@ class SparkInterpreter {
+   private implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+   private val inQueue = new SynchronousQueue[ILoop.Request]
++  private var executedStatements = 0
++  private var statements_ = new mutable.ArrayBuffer[ExecuteResponse]
+ 
+   org.apache.spark.repl.Main.interp = new ILoop(inQueue)
+ 
+@@ -29,17 +32,28 @@ class SparkInterpreter {
+   }
+   thread.start()
+ 
+-  def statements = {
+-    org.apache.spark.repl.Main.interp.history.asStrings
++  def statements: List[ExecuteResponse] = synchronized { statements_.toList }
++
++  def statement(id: Int): Option[ExecuteResponse] = synchronized {
++    if (id < statements_.length) {
++      Some(statements_(id))
++    } else {
++      None
++    }
+   }
+ 
+   def execute(statement: String): Future[ExecuteResponse] = {
++    executedStatements += 1
++
+     val promise = Promise[ILoop.ExecuteResponse]()
+     inQueue.put(ILoop.ExecuteRequest(statement, promise))
+ 
+-    for {
+-      rep <- promise.future
+-    } yield ExecuteResponse(0, List(statement), List(rep.output))
++    promise.future.map {
++      case rep =>
++        val executeResponse = ExecuteResponse(executedStatements - 1, List(statement), List(rep.output))
++        synchronized { statements_ += executeResponse }
++        executeResponse
++    }
+   }
+ 
+   def close(): Unit = {
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index 19a686d..c899eb9 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -1,11 +1,11 @@
+ package com.cloudera.hue.livy.repl
+ 
+-import akka.util.Timeout
++import _root_.akka.util.Timeout
+ import com.cloudera.hue.livy.ExecuteRequest
+ import com.fasterxml.jackson.core.JsonParseException
+ import org.json4s.{MappingException, DefaultFormats, Formats}
+ import org.scalatra.json._
+-import org.scalatra.{Accepted, AsyncResult, FutureSupport, ScalatraServlet}
++import org.scalatra._
+ 
+ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ 
+@@ -46,6 +46,15 @@ class WebApp(interpreter: SparkInterpreter) extends ScalatraServlet with FutureS
+     new AsyncResult { val is = interpreter.execute(statement) }
+   }
+ 
++  get("/statements/:statementId") {
++    val statementId = params("statementId").toInt
++
++    interpreter.statement(statementId) match {
++      case Some(statement) => statement
++      case None => NotFound("Statement not found")
++    }
++  }
++
+   delete("/") {
+     Future {
+       state = ShuttingDown()
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 2573ce8..e08d5b6 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -107,6 +107,7 @@ class WebApp(sessionManager: SessionManager)
+     case e: JsonParseException => halt(400, e.getMessage)
+     case e: MappingException => halt(400, e.getMessage)
+     case e: SessionFailedtoStart => halt(500, e.getMessage)
++    case e: dispatch.StatusCode => halt(e.code, e.getMessage)
+     case t => throw t
+   }
+ }
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index e62a7e6..0df01cf 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -87,9 +87,9 @@ class JobServerApi(object):
+ 
+   def submit_statement(self, uuid, statement):
+     data = {'statement': statement}
+-    return self._root.post('sessions/%s' % uuid,
++    return self._root.post('sessions/%s/statements' % uuid,
+         data=json.dumps(data),
+         contenttype=_JSON_CONTENT_TYPE)
+ 
+-  def fetch_data(self, session, cell):
+-    return self._root.get('sessions/%s/cells/%s' % (session, cell))
++  def fetch_data(self, session, statement):
++    return self._root.get('sessions/%s/statements/%s' % (session, statement))
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 21f2da5..f550f7c 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -247,25 +247,27 @@ class HS2Api():
+ # Spark
+ 
+ 
+-class SparkApi(): 
+-  
++class SparkApi():
++
+   def __init__(self, user):
+     self.user = user
+-  
++
+   def create_session(self, lang='scala'):
+     api = get_spark_api(self.user)
++    response = api.create_session(lang=lang)
+     return {
+         'type': lang,
+-        'id': api.create_session(lang=lang)
+-    } 
+-  
+-  def execute(self, notebook, snippet):    
++        'id': response['id']
++    }
++
++  def execute(self, notebook, snippet):
+     api = get_spark_api(self.user)
+     session = _get_snippet_session(notebook, snippet)
+-    
++    response = api.submit_statement(session['id'], snippet['statement'])
++
+     try:
+       return {
+-          'id': api.submit_statement(session['id'], snippet['statement']).split('cells/')[1],
++          'id': response['id'],
+           'has_result_set': True,
+       }
+     except Exception, e:
+@@ -288,8 +290,7 @@ class SparkApi():
+   def fetch_result(self, notebook, snippet, rows, start_over):
+     api = get_spark_api(self.user)
+     session = _get_snippet_session(notebook, snippet)
+-    cell = snippet['result']['handle']['id']  
+-    
++    cell = snippet['result']['handle']['id']
+ 
+     try:
+       data = api.fetch_data(session['id'], cell)
+@@ -299,7 +300,7 @@ class SparkApi():
+         raise SessionExpired(e)
+       else:
+         raise e
+-      
++
+     return {
+         'data': [data['output']] if start_over else [], # start_over not supported
+         'meta': [{'name': 'Header', 'type': 'String', 'comment': ''}]
+@@ -310,6 +311,6 @@ class SparkApi():
+ 
+   def get_log(self, snippet):
+     return 'Not available'
+-  
+-  def _progress(self, snippet, logs):  
++
++  def _progress(self, snippet, logs):
+     return 50
+-- 
+1.7.9.5
+

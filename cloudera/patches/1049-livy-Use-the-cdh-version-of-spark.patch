@@ -1,0 +1,44 @@
+From 76502b64891e53eb569b570a5f8c6d4c5e8456c2 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 11 Mar 2015 14:19:56 -0700
+Subject: [PATCH 1049/1173] [livy] Use the cdh version of spark
+
+---
+ apps/spark/java/livy-repl/pom.xml |    7 +++++++
+ apps/spark/src/spark/conf.py      |    2 +-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 5dc6f12..a73f724 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -46,6 +46,13 @@
+ 
+         <dependency>
+             <groupId>org.apache.spark</groupId>
++            <artifactId>spark-assembly_${scala.binary.version}</artifactId>
++            <version>${spark.version}</version>
++            <scope>test</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
+             <artifactId>spark-core_${scala.binary.version}</artifactId>
+             <version>${spark.version}</version>
+             <scope>provided</scope>
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 199bdf2..6e1ac27 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -46,7 +46,7 @@ LIVY_ASSEMBLY_JAR = Config(
+   key="livy_assembly_jar",
+   help=_t("Path to livy-assembly.jar"),
+   private=True,
+-  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-SNAPSHOT.jar"))
++  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-cdh5.4.0-SNAPSHOT.jar"))
+ 
+ LIVY_SERVER_HOST = Config(
+   key="livy_server_host",
+-- 
+1.7.9.5
+

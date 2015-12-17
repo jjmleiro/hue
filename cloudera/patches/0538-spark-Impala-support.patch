@@ -1,0 +1,55 @@
+From 4c0fd0bcce9c0c06be5fea2c87ca02de3e556fad Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 2 Dec 2014 15:48:21 -0600
+Subject: [PATCH 0538/1173] [spark] Impala support
+
+---
+ apps/spark/src/spark/models.py   |   10 ++++++----
+ apps/spark/static/js/spark.vm.js |    2 +-
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index a1497cc..3c699cd 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -57,9 +57,9 @@ class Notebook():
+ 
+ 
+ def get_api(user, snippet):
+-  if snippet['type'] == 'hive':
++  if snippet['type'] in ('hive', 'impala', 'spark-sql'):
+     return HS2Api(user)
+-  if snippet['type'] == 'text':
++  elif snippet['type'] == 'text':
+     return TextApi(user)  
+   else:
+     return SparkApi(user)
+@@ -130,8 +130,10 @@ class HS2Api():
+     return {
+         'status':
+           'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index)
+-          else ('failed' if QueryHistory.STATE.failed.index
+-          else 'ready')
++          else (
++             'failed' if status.index == QueryHistory.STATE.failed.index
++              else 'ready'
++          )
+     }
+ 
+   def fetch_result(self, notebook, snippet):
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 9905b47..5efd651 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -281,7 +281,7 @@ var Notebook = function (vm, notebook) {
+   self.name = ko.observable(typeof notebook.name != "undefined" && notebook.name != null ? notebook.name : 'My Notebook');
+   self.snippets = ko.observableArray();
+   self.selectedSnippet = ko.observable('scala');
+-  self.availableSnippets = ko.observableArray(['hive', 'scala', 'sql', 'python', 'text', 'pig', 'impala']); // presto, mysql, oracle, sqlite, postgres, phoenix
++  self.availableSnippets = ko.observableArray(['impala', 'hive', 'scala', 'spark sql', 'python', 'text', 'pig']); // presto, mysql, oracle, sqlite, postgres, phoenix
+   self.sessions = ko.mapping.fromJS(typeof notebook.sessions != "undefined" && notebook.sessions != null ? notebook.sessions : []); 
+ 
+   self.getSession = function(session_type) {
+-- 
+1.7.9.5
+

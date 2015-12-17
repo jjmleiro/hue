@@ -1,0 +1,32 @@
+From 29942d5602e90a5a5ff04ccb64d90d2f8ee487f0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 29 Jan 2015 02:50:44 +0100
+Subject: [PATCH 0706/1173] [spark] Fix showing spinner on Codemirror for >
+ key
+
+---
+ apps/spark/src/spark/templates/editor.mako |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 39fd903..9234b36 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -944,12 +944,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         onKeyEvent: function (cm, e) {
+           switch (valueAccessor().mode) {
+             case "text/x-hiveql":
+-              if (e.type == "keyup" && e.keyCode == 190) {
++              if (e.type == "keyup" && e.keyCode == 190 && !e.shiftKey) {
+                 hiveImpalaAutocomplete(cm, CodeMirror.hiveQLHint, true);
+               }
+               break;
+             case "text/x-impalaql":
+-              if (e.type == "keyup" && e.keyCode == 190) {
++              if (e.type == "keyup" && e.keyCode == 190 && !e.shiftKey) {
+                 hiveImpalaAutocomplete(cm, CodeMirror.impalaSQLHint, true);
+               }
+               break;
+-- 
+1.7.9.5
+

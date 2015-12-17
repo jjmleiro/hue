@@ -1,0 +1,70 @@
+From 89bbebdbca054f3f5107b8eef304b0e5dd5b9e3c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 22 Jan 2015 13:35:50 -0800
+Subject: [PATCH 0498/1173] [oozie] Hide default parameters in submission
+ popups
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |    4 +++-
+ .../oozie/templates/editor/submit_job_popup2.mako  |    8 ++++----
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ 3 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 819f6e6..a37633d 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -388,6 +388,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   <div class="modal-body">
+       <h4>${ _('Submission Parameters') }</h4>
+       <ul data-bind="foreach: coordinator.properties.parameters" class="unstyled">
++        <!-- ko if: ['oozie.use.system.libpath', 'start_date', 'end_date'].indexOf(name()) == -1 -->
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+@@ -395,8 +396,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+             <i class="fa fa-minus"></i>
+           </a>
+         </li>
++        <!-- /ko -->
+       </ul>
+-      <a class="pointer" data-bind="click: function(){ $root.coordinator.properties.parameters.push({'name': '', 'value': ''}); }">
++      <a class="pointer" data-bind="click: function(){ $root.coordinator.properties.parameters.push(ko.mapping.fromJS({'name': '', 'value': ''})); }">
+         <i class="fa fa-plus"></i> ${ _('Add parameter') }
+       </a>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+index 3d9faff..967d17b 100644
+--- a/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
++++ b/apps/oozie/src/oozie/templates/editor/submit_job_popup2.mako
+@@ -38,10 +38,10 @@
+             ${ hidden | n,unicode }
+           % endfor
+ 
+-          <div class="control-group
+-          % if form['name'].form.initial.get('name') == 'oozie.use.system.libpath':
+-                hide
+-              % endif
++          <div class="control-group"
++            % if form['name'].form.initial.get('name') == 'oozie.use.system.libpath':
++                style="display: none"
++            % endif
+           ">
+             <label class="control-label">${ form['name'].form.initial.get('name') }</label>
+             <div class="controls">
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 2f43283..6eb5a6a 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1786,7 +1786,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         </li>
+         <!-- /ko -->
+       </ul>
+-      <a class="pointer" data-bind="click: function(){ $root.workflow.properties.parameters.push({'name': '', 'value': ''}); }">
++      <a class="pointer" data-bind="click: function(){ $root.workflow.properties.parameters.push(ko.mapping.fromJS({'name': '', 'value': ''})); }">
+         <i class="fa fa-plus"></i> ${ _('Add parameter') }
+       </a>
+ 
+-- 
+1.7.9.5
+

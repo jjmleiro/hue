@@ -1,0 +1,68 @@
+From cb8abe8bbd81a08c1c07ad68121e73612ec5daa9 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 1 May 2015 11:27:16 -0700
+Subject: [PATCH 1171/1173] [sentry] Set URI scope to URI privileges instead
+ of SERVER
+
+---
+ .../src/security/static/security/js/hive.ko.js     |    6 ++++--
+ desktop/libs/libsentry/src/libsentry/api.py        |   12 ++++++------
+ 2 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/apps/security/src/security/static/security/js/hive.ko.js b/apps/security/src/security/static/security/js/hive.ko.js
+index 4f03abf..3e50034 100644
+--- a/apps/security/src/security/static/security/js/hive.ko.js
++++ b/apps/security/src/security/static/security/js/hive.ko.js
+@@ -72,7 +72,7 @@ var Privilege = function (vm, privilege) {
+   });
+ 
+   // UI
+-  self.privilegeType = ko.observable(typeof privilege.URI != "undefined" && privilege.URI != null && privilege.URI != "" ? "uri" : "db");
++  self.privilegeType = ko.observable(typeof privilege.privilegeScope != "undefined" && privilege.privilegeScope == 'URI' ? "uri" : "db");
+   self.showAdvanced = ko.observable(false);
+   self.path = ko.computed({
+     read: function () {
+@@ -95,7 +95,9 @@ var Privilege = function (vm, privilege) {
+     owner: self
+   });
+   self.privilegeScope = ko.computed(function () {
+-    if (self.tableName().length > 0) {
++    if (self.privilegeType() == 'uri') {
++      return 'URI';
++    } else if (self.tableName().length > 0) {
+       return 'TABLE';
+     } else if (self.dbName().length > 0) {
+       return 'DATABASE';
+diff --git a/desktop/libs/libsentry/src/libsentry/api.py b/desktop/libs/libsentry/src/libsentry/api.py
+index 9fc2c12..2e537a3 100644
+--- a/desktop/libs/libsentry/src/libsentry/api.py
++++ b/desktop/libs/libsentry/src/libsentry/api.py
+@@ -15,6 +15,12 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import logging
++import json
++import random
++import threading
++import time
++
+ from desktop.lib.exceptions_renderable import PopupException
+ from django.utils.translation import ugettext as _
+ 
+@@ -24,12 +30,6 @@ from libsentry.client import SentryClient
+ from libsentry.conf import HOSTNAME, PORT
+ from libsentry.sentry_site import get_sentry_server_ha_enabled, get_sentry_server_ha_has_security, get_sentry_server_ha_zookeeper_quorum, get_sentry_server_ha_zookeeper_namespace
+ 
+-import logging
+-import json
+-import random
+-import threading
+-import time
+-
+ 
+ LOG = logging.getLogger(__name__)
+ 
+-- 
+1.7.9.5
+

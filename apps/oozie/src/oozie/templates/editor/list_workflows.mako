@@ -104,7 +104,7 @@ ${ layout.menubar(section='workflows') }
           </td>
           <td>${ workflow.description }</td>
 
-          <td nowrap="nowrap" data-sort-value="${py_time.mktime(workflow.last_modified.timetuple())}">${ utils.format_date(workflow.last_modified) }</td>
+          <td nowrap="nowrap" data-sort-value="${ py_time.mktime(workflow.last_modified.timetuple()) }">${ utils.format_date(workflow.last_modified) }</td>
           <td><span class="badge badge-info">${ workflow.actions.count() }</span></td>
           <td>
             <span class="label label-info">${ workflow.status }</span>
@@ -120,7 +120,7 @@ ${ layout.menubar(section='workflows') }
 
 <div class="hueOverlay" data-bind="visible: isLoading">
   <!--[if lte IE 9]>
-    <img src="/static/art/spinner-big.gif" />
+    <img src="${ static('desktop/art/spinner-big.gif') }" />
   <![endif]-->
   <!--[if !IE]> -->
     <i class="fa fa-spinner fa-spin"></i>
@@ -131,6 +131,7 @@ ${ layout.menubar(section='workflows') }
 
 <div id="trashWf" class="modal hide fade">
   <form id="trashWfForm" action="${ url('oozie:delete_workflow') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="trashWfMessage">${ _('Move the selected workflow(s) to trash?') }</h3>
@@ -147,6 +148,7 @@ ${ layout.menubar(section='workflows') }
 
 <div id="destroyWf" class="modal hide fade">
   <form id="destroyWfForm" action="${ url('oozie:delete_workflow') }?skip_trash=true" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="destroyWfMessage">${ _('Delete the selected workflow(s)?') }</h3>
@@ -162,8 +164,8 @@ ${ layout.menubar(section='workflows') }
 </div>
 
 
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {

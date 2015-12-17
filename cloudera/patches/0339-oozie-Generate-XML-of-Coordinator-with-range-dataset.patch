@@ -1,0 +1,155 @@
+From 50db01a15f6e5afcef75c8506fafa0932aa393a7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 16 Dec 2014 18:44:05 -0800
+Subject: [PATCH 0339/1173] [oozie] Generate XML of Coordinator with range
+ datasets
+
+---
+ apps/oozie/src/oozie/models2.py                    |    8 ++--
+ .../oozie/templates/editor/coordinator_editor.mako |   45 +++++++++++++++++++-
+ .../templates/editor/gen2/coordinator.xml.mako     |   18 ++++----
+ apps/oozie/static/js/coordinator-editor.ko.js      |    8 +++-
+ 4 files changed, 64 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index e9aaaf8..8b2630f 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -22,6 +22,7 @@ import time
+ import uuid
+ 
+ from datetime import datetime, timedelta
++from dateutil.parser import parse
+ from string import Template
+ 
+ from django.utils.encoding import force_unicode
+@@ -1330,9 +1331,10 @@ class Dataset():
+       
+   @property
+   def data(self):
+-    
+-    self._data['start'] = datetime.today() # TODO
+-    self._data['name'] = self._data['workflow_variable'] # Clean-up
++    if type(self._data['start']) == unicode: 
++      self._data['start'] = parse(self._data['start'])
++
++    self._data['name'] = self._data['workflow_variable'] # Harmonize name for Oozie
+ 
+     return self._data      
+       
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 9057b97..ae77a45 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -148,8 +148,49 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+           
+           <span data-bind="visible: show_advanced">            
+             Done flag <input data-bind="value: done_flag"/>
+-            Range <input data-bind="value: instance_choice"/>
+-            ...
++            Range
++
++			<div class="control-group">
++			  <label class="control-label">${ _('Instance') }</label>
++			  <div class="controls">
++			      <div class="btn-group" data-toggle="buttons-radio">
++			          <button id="default-btn" type="button" class="btn" data-bind="click: function() { instance_choice('default'); }, css: { active: instance_choice() == 'default' }">
++			            ${ _('Default') }
++			          </button>
++			          <button id="single-btn" type="button" class="btn" data-bind="click: function() { instance_choice('single'); }, css: { active: instance_choice() == 'single' }">
++			            ${ _('Single') }
++			          </button>
++			          <button id="range-btn" type="button" class="btn" data-bind="click: function() { instance_choice('range'); }, css: { active: instance_choice() == 'range' }">
++			            ${ _('Range') }
++			          </button>
++			      </div>
++			      <span class="help-block">instance_choice.help_text</span>
++			
++			      <div data-bind="visible: $.inArray(instance_choice(), ['single', 'range']) != -1">
++			          <span class="span1">${ _('Start') }</span>
++			          <input name="instance_start" type="number" data-bind="value: start_instance, enable: ! is_advanced_start_instance()"/>
++			          <label style="display: inline">
++			              &nbsp;
++			              <input type="checkbox" data-bind="checked: is_advanced_start_instance">
++			              ${ _('(advanced)') }
++			          </label>
++			          <input type="text" data-bind="value: advanced_start_instance, visible: is_advanced_start_instance()" class="span4"/>
++			          <span class="help-block">advanced_start_instance.help_text </span>
++			      </div>
++			      <div data-bind="visible: instance_choice() == 'range'">
++			          <span class="span1">${ _('End') }</span>
++			          <input name="instance_end" type="number" data-bind="value: end_instance, enable: ! is_advanced_end_instance()" />
++			          <label style="display: inline">
++			              &nbsp;
++			              <input type="checkbox" data-bind="checked: is_advanced_end_instance">
++			              ${ _('(advanced)') }
++			          </label>
++			          <input type="text" data-bind="value: advanced_end_instance, visible: is_advanced_end_instance()" class="span4"/>
++			          <span class="help-block">advanced_end_instance.help_text</span>
++			      </div>
++			  </div>
++			</div
++
+           </span>          
+         <!-- /ko -->
+                 
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index a2d6ec3..f20b55b 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -27,24 +27,24 @@
+   % if dataset.data['instance_choice'] == 'default':
+     <instance>${ '${'}coord:current(0)}</instance>
+   % elif dataset.data['instance_choice'] == 'single':
+-    % if not dataset.is_advanced_start_instance:
+-      <instance>${ '${'}coord:current(${ dataset.start_instance })}</instance>
++    % if not dataset.data['is_advanced_start_instance']:
++      <instance>${ '${'}coord:current(${ dataset.data['start_instance'] })}</instance>
+     % else:
+-      <instance>${ dataset.advanced_start_instance }</instance>
++      <instance>${ dataset.data['advanced_start_instance'] }</instance>
+     % endif
+   % else:
+     <start-instance>
+-      % if not dataset.is_advanced_start_instance:
+-        ${ '${'}coord:current(${ dataset.start_instance })}
++      % if not dataset.data['is_advanced_start_instance']:
++        ${ '${'}coord:current(${ dataset.data['start_instance'] })}
+       % else:
+-        ${ dataset.advanced_start_instance }
++        ${ dataset.data['advanced_start_instance'] }
+       % endif
+     </start-instance>
+     <end-instance>
+-      % if not dataset.is_advanced_end_instance:
+-        ${ '${'}coord:current(${ dataset.end_instance })}
++      % if not dataset.data['is_advanced_end_instance']:
++        ${ '${'}coord:current(${ dataset.data['end_instance'] })}
+       % else:
+-        ${ dataset.advanced_end_instance }
++        ${ dataset.data['advanced_end_instance'] }
+       % endif
+     </end-instance>
+   % endif
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index ac9e309..b207977 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -68,7 +68,13 @@ var Coordinator = function (vm, coordinator) {
+        'show_advanced': false,       
+        'done_flag': '',
+        'timezone': 'America/Los_Angeles',
+-       'instance_choice': 'default', // is_advanced_start_instance, start_instance, is_advanced_end_instance, end_instance
++       'instance_choice': 'default',
++       'is_advanced_start_instance': false,
++       'start_instance': '0',
++       'advanced_start_instance': '${coord:current(0)}',
++       'is_advanced_end_instance': false,
++       'advanced_end_instance': '${coord:current(0)}',
++       'end_instance': '0',
+        'frequency_number': 1,
+        'frequency_unit': 'DAYS',
+        'start': new Date(),
+-- 
+1.7.9.5
+

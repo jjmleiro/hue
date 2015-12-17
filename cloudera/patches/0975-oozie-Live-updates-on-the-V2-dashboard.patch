@@ -1,0 +1,148 @@
+From be78f531f3cc09a77ab64acb9c92ce7047daf5b8 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 4 Mar 2015 15:22:37 +0100
+Subject: [PATCH 0975/1173] [oozie] Live updates on the V2 dashboard
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |   46 ++++++++++++++++++++
+ .../templates/dashboard/list_oozie_workflow.mako   |   25 +++++++++++
+ .../oozie/templates/editor2/common_workflow.mako   |    5 ++-
+ 3 files changed, 74 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index 53d5cc5..af4234d 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -744,6 +744,51 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     }
+   }
+ 
++  self.getWidgetById = function (widget_id) {
++    var _widget = null;
++
++    for (var i = 0; i < self.oozieColumns().length; i++) {
++      _widget = self.deeplyGetWidgetById(widget_id, self.oozieColumns()[i]);
++      if (_widget != null) {
++        break;
++      }
++    }
++
++    return _widget;
++  }
++
++  self.deeplyGetWidgetById = function (widget_id, col) {
++    var _widget = null;
++    if (col) {
++      for (var j = 0; j < col.rows().length; j++) {
++        var row = col.rows()[j];
++        if (row && row.widgets()) {
++          for (var z = 0; z < row.widgets().length; z++) {
++            var widget = row.widgets()[z];
++            if (widget.id() == widget_id) {
++              _widget = widget;
++            }
++            if (_widget != null) {
++              break;
++            }
++          }
++        }
++        if (_widget != null) {
++          break;
++        }
++        if (row && row.columns() && _widget == null) {
++          for (var i = 0; i < row.columns().length; i++) {
++            _widget = self.deeplyGetWidgetById(widget_id, row.columns()[i]);
++            if (_widget != null) {
++              break;
++            }
++          }
++        }
++      }
++    }
++    return _widget;
++  }
++
+   self.removeWidget = function (widget_json) {
+     self.workflow.removeNode(widget_json.id());
+     self.removeWidgetById(widget_json.id());
+@@ -1196,6 +1241,7 @@ var ExtendedWidget = function (params) {
+   self.ooziePropertiesExpanded = ko.observable(false);
+   self.status = ko.observable("");
+   self.progress = ko.observable(0);
++  self.actionURL = ko.observable("");
+   self.logsURL = ko.observable("");
+   return self;
+ }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 0d9a28c..65ec81c 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -531,7 +531,9 @@ ${ utils.slaGlobal() }
+     // force refresh on tab change
+     $("a[data-toggle='tab']").on("shown", function (e) {
+       if ($(e.target).attr("href") == "#graph") {
++        % if layout_json != '':
+         drawArrows();
++        %endif
+       }
+       else {
+         $("canvas").remove();
+@@ -651,6 +653,27 @@ ${ utils.slaGlobal() }
+           actionsViewModel.actions(ko.utils.arrayMap(data.actions, function (action) {
+             return new Action(action);
+           }));
++          % if layout_json != '':
++          ko.utils.arrayForEach(actionsViewModel.actions(), function(action) {
++            var _w = viewModel.getWidgetById($("[id^=wdg_" + action.id.substr(action.id.length - 4) + "]").attr("id").substr(4));
++            if (_w != null) {
++              if (['SUCCEEDED', 'OK', 'DONE'].indexOf(action.status) > -1) {
++                _w.status("success");
++                _w.progress(100);
++              }
++              else if (['RUNNING', 'READY', 'PREP', 'WAITING', 'SUSPENDED', 'PREPSUSPENDED', 'PREPPAUSED', 'PAUSED', 'SUBMITTED', 'SUSPENDEDWITHERROR', 'PAUSEDWITHERROR'].indexOf(action.status) > -1) {
++                _w.status("running");
++                _w.progress(50);
++              }
++              else {
++                _w.status("failed");
++                _w.progress(100);
++              }
++              _w.actionURL(action.url);
++              _w.logsURL(action.log);
++            }
++          });
++          %endif
+         }
+ 
+         $("#status span").attr("class", "label").addClass(getStatusClass(data.status)).text(data.status);
+@@ -693,7 +716,9 @@ ${ utils.slaGlobal() }
+       resizeTimeout = window.setTimeout(function () {
+         resizeLogs();
+         if ($("#graph").is(":visible")){
++          % if layout_json != '':
+           drawArrows();
++          %endif
+         }
+       }, 200);
+     });
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index 976ade6..cb1ccbb 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -212,10 +212,11 @@
+       <a class="widget-icon"><i class="fa fa-stop"></i></a>
+       <!-- /ko -->
+ 
+-      <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
++      <span data-bind="visible: ! $root.isViewer(), editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
++      <a class="pointer" data-bind="visible: $root.isViewer(), click: function(){ location.href = actionURL(); }, text: name"></a>
+ 
+       <!-- ko if: logsURL() != '' -->
+-        <a class="pull-right pointer" data-bind="click: function(){ location.href = logsURL(); }"><i class="fa fa-tasks"></i></a>
++        <a class="pull-right pointer" data-bind="click: function(){ location.href = logsURL(); }" style="margin-top: 34px;font-size: 20px;margin-right: 7px;"><i class="fa fa-tasks"></i></a>
+       <!-- /ko -->
+ 
+       <!-- ko if: widgetType() == 'decision-widget' -->
+-- 
+1.7.9.5
+

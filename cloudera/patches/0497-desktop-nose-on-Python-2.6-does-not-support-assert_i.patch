@@ -1,0 +1,35 @@
+From dbaee93c0710bdea16925cf4d7faf13f75052164 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 22 Jan 2015 11:47:40 -0800
+Subject: [PATCH 0497/1173] [desktop] nose on Python 2.6 does not support
+ assert_is
+
+---
+ desktop/core/src/desktop/redaction/tests.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+index a597408..bf78bab 100644
+--- a/desktop/core/src/desktop/redaction/tests.py
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -23,7 +23,7 @@ from desktop.redaction.engine import RedactionEngine, \
+                                      parse_redaction_rules_from_string, \
+                                      parse_redaction_rules_from_file
+ from desktop.redaction.logfilter import add_log_redaction_filter_to_logger
+-from nose.tools import assert_is, assert_equal, assert_not_equal
++from nose.tools import assert_true, assert_equal, assert_not_equal
+ 
+ 
+ class MockLoggingHandler(logging.Handler):
+@@ -56,7 +56,7 @@ class TestRedactionRule(object):
+     rule = RedactionRule('password=', 'password=".*"', 'password="???"')
+ 
+     message = 'message'
+-    assert_is(rule.redact(message), message)
++    assert_true(rule.redact(message) is message)
+ 
+   def test_equality(self):
+     rule1 = RedactionRule('password=', 'password=".*"', 'password="???"')
+-- 
+1.7.9.5
+

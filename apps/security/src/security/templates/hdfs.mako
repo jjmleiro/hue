@@ -84,7 +84,7 @@ ${ layout.menubar(section='hdfs') }
     <div class="span12">
       <div class="card card-small">
         <h1 class="card-heading simple">
-          ${ _('HDFS ACLs') }
+          ${ _('File ACLs') }
         </h1>
         <div class="card-body">
           <div class="row-fluid" data-bind="visible: $root.doAs() != '${ user.username }' && ! $root.assist.isDiffMode()">
@@ -289,12 +289,12 @@ ${ layout.menubar(section='hdfs') }
 ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assist.togglePath', itemSelected='$root.assist.path() == path()', iconModifier=treeIcons, styleModifier='aclBit', styleModifierPullRight=aclBitPullRight, anchorProperty='path', showMore='$root.assist.loadMore', strikedProperty='striked', itemChecked='isChecked') }
 
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout.mapping-2.3.2.js') }" type="text/javascript" charset="utf-8"></script>
 
-<script src="/security/static/js/common.ko.js" type="text/javascript" charset="utf-8"></script>
-<script src="/security/static/js/hdfs.ko.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/jquery.hdfsautocomplete.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/ko.hue-bindings.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('security/js/hdfs.ko.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/jquery.hdfsautocomplete.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript">
 
@@ -309,7 +309,7 @@ ${ tree.import_templates(itemClick='$root.assist.setPath', iconClick='$root.assi
 
     var _initialPath = "/";
     if (window.location.hash != "") {
-      _initialPath = window.location.hash.substr(1);
+      _initialPath = window.location.hash.substr(1).replace(/(<([^>]+)>)/ig, "");
     }
     viewModel.init(_initialPath);
 

@@ -1,0 +1,3345 @@
+From 89a0bc060f7d4f566ff544ab893f0efee9faec15 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Tue, 10 Feb 2015 13:19:40 -0800
+Subject: [PATCH 0784/1173] HUE-2436 [desktop] Django-1.6: Add the six library
+ for django-extensions
+
+---
+ desktop/core/ext-py/six-1.9.0/CHANGES              |  254 ++++++
+ desktop/core/ext-py/six-1.9.0/LICENSE              |   18 +
+ desktop/core/ext-py/six-1.9.0/MANIFEST.in          |    6 +
+ desktop/core/ext-py/six-1.9.0/PKG-INFO             |   32 +
+ desktop/core/ext-py/six-1.9.0/README               |   16 +
+ .../core/ext-py/six-1.9.0/documentation/Makefile   |  130 +++
+ .../core/ext-py/six-1.9.0/documentation/conf.py    |  217 +++++
+ .../core/ext-py/six-1.9.0/documentation/index.rst  |  828 +++++++++++++++++++
+ desktop/core/ext-py/six-1.9.0/setup.cfg            |    8 +
+ desktop/core/ext-py/six-1.9.0/setup.py             |   32 +
+ desktop/core/ext-py/six-1.9.0/six.py               |  838 +++++++++++++++++++
+ desktop/core/ext-py/six-1.9.0/test_six.py          |  858 ++++++++++++++++++++
+ 12 files changed, 3237 insertions(+)
+ create mode 100644 desktop/core/ext-py/six-1.9.0/CHANGES
+ create mode 100644 desktop/core/ext-py/six-1.9.0/LICENSE
+ create mode 100644 desktop/core/ext-py/six-1.9.0/MANIFEST.in
+ create mode 100644 desktop/core/ext-py/six-1.9.0/PKG-INFO
+ create mode 100644 desktop/core/ext-py/six-1.9.0/README
+ create mode 100644 desktop/core/ext-py/six-1.9.0/documentation/Makefile
+ create mode 100644 desktop/core/ext-py/six-1.9.0/documentation/conf.py
+ create mode 100644 desktop/core/ext-py/six-1.9.0/documentation/index.rst
+ create mode 100644 desktop/core/ext-py/six-1.9.0/setup.cfg
+ create mode 100644 desktop/core/ext-py/six-1.9.0/setup.py
+ create mode 100644 desktop/core/ext-py/six-1.9.0/six.py
+ create mode 100644 desktop/core/ext-py/six-1.9.0/test_six.py
+
+diff --git a/desktop/core/ext-py/six-1.9.0/CHANGES b/desktop/core/ext-py/six-1.9.0/CHANGES
+new file mode 100644
+index 0000000..4b9425f
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/CHANGES
+@@ -0,0 +1,254 @@
++Changelog for six
++=================
++
++This file lists the changes in each six version.
++
++1.9.0
++-----
++
++- Issue #106: Support the `flush` parameter to `six.print_`.
++
++- Pull request #48 and issue #15: Add the `python_2_unicode_compatible`
++  decorator.
++
++- Pull request #57 and issue #50: Add several compatibility methods for unittest
++  assertions that were renamed between Python 2 and 3.
++
++- Issue #105 and pull request #58: Ensure `six.wraps` respects the *updated* and
++  *assigned* arguments.
++
++- Issue #102: Add `raise_from` to abstract out Python 3's raise from syntax.
++
++- Issue #97: Optimize `six.iterbytes` on Python 2.
++
++- Issue #98: Fix `six.moves` race condition in multi-threaded code.
++
++- Pull request #51: Add `six.view(keys|values|itmes)`, which provide dictionary
++  views on Python 2.7+.
++
++1.8.0
++-----
++
++- Issue #90: Add `six.moves.shlex_quote`.
++
++- Issue #59: Add `six.moves.intern`.
++
++- Add `six.urllib.parse.uses_(fragment|netloc|params|query|relative)`.
++
++- Issue #88: Fix add_metaclass when the class has `__slots__` containing
++  `__weakref__` or `__dict__`.
++
++- Issue #89: Make six use absolute imports.
++
++- Issue #85: Always accept *updated* and *assigned* arguments for `wraps()`.
++
++- Issue #86: In `reraise()`, instantiate the exception if the second argument is
++  `None`.
++
++- Pull request #45: Add `six.moves.email_mime_nonmultipart`.
++
++- Issue #81: Add `six.urllib.request.splittag` mapping.
++
++- Issue #80: Add `six.urllib.request.splituser` mapping.
++
++1.7.3
++-----
++
++- Issue #77: Fix import six on Python 3.4 with a custom loader.
++
++- Issue #74: `six.moves.xmlrpc_server` should map to `SimpleXMLRPCServer` on Python
++  2 as documented not `xmlrpclib`.
++
++1.7.2
++-----
++
++- Issue #72: Fix installing on Python 2.
++
++1.7.1
++-----
++
++- Issue #71: Make the six.moves meta path importer handle reloading of the six
++  module gracefully.
++
++1.7.0
++-----
++
++- Pull request #30: Implement six.moves with a PEP 302 meta path hook.
++
++- Pull request #32: Add six.wraps, which is like functools.wraps but always sets
++  the __wrapped__ attribute.
++
++- Pull request #35: Improve add_metaclass, so that it doesn't end up inserting
++  another class into the hierarchy.
++
++- Pull request #34: Add import mappings for dummy_thread.
++
++- Pull request #33: Add import mappings for UserDict and UserList.
++
++- Pull request #31: Select the implementations of dictionary iterator routines
++  at import time for a 20% speed boost.
++
++1.6.1
++-----
++
++- Raise an AttributeError for six.moves.X when X is a module not available in
++  the current interpreter.
++
++1.6.0
++-----
++
++- Raise an AttributeError for every attribute of unimportable modules.
++
++- Issue #56: Make the fake modules six.moves puts into sys.modules appear not to
++  have a __path__ unless they are loaded.
++
++- Pull request #28: Add support for SplitResult.
++
++- Issue #55: Add move mapping for xmlrpc.server.
++
++- Pull request #29: Add move for urllib.parse.splitquery.
++
++1.5.2
++-----
++
++- Issue #53: Make the fake modules six.moves puts into sys.modules appear not to
++  have a __name__ unless they are loaded.
++
++1.5.1
++-----
++
++- Issue #51: Hack around the Django autoreloader after recent six.moves changes.
++
++1.5.0
++-----
++
++- Removed support for Python 2.4. This is because py.test no longer supports
++  2.4.
++
++- Fix various import problems including issues #19 and #41. six.moves modules
++  are now lazy wrappers over the underlying modules instead of the actual
++  modules themselves.
++
++- Issue #49: Add six.moves mapping for tkinter.ttk.
++
++- Pull request #24: Add __dir__ special method to six.moves modules.
++
++- Issue #47: Fix add_metaclass on classes with a string for the __slots__
++  variable.
++
++- Issue #44: Fix interpretation of backslashes on Python 2 in the u() function.
++
++- Pull request #21: Add import mapping for urllib's proxy_bypass function.
++
++- Issue #43: Add import mapping for the Python 2 xmlrpclib module.
++
++- Issue #39: Add import mapping for the Python 2 thread module.
++
++- Issue #40: Add import mapping for the Python 2 gdbm module.
++
++- Issue #35: On Python versions less than 2.7, print_ now encodes unicode
++  strings when outputing to standard streams. (Python 2.7 handles this
++  automatically.)
++
++1.4.1
++-----
++
++- Issue #32: urllib module wrappings don't work when six is not a toplevel file.
++
++1.4.0
++-----
++
++- Issue #31: Add six.moves mapping for UserString.
++
++- Pull request #12: Add six.add_metaclass, a decorator for adding a metaclass to
++  a class.
++
++- Add six.moves.zip_longest and six.moves.filterfalse, which correspond
++  respectively to itertools.izip_longest and itertools.ifilterfalse on Python 2
++  and itertools.zip_longest and itertools.filterfalse on Python 3.
++
++- Issue #25: Add the unichr function, which returns a string for a Unicode
++  codepoint.
++
++- Issue #26: Add byte2int function, which complements int2byte.
++
++- Add a PY2 constant with obvious semantics.
++
++- Add helpers for indexing and iterating over bytes: iterbytes and indexbytes.
++
++- Add create_bound_method() wrapper.
++
++- Issue #23: Allow multiple base classes to be passed to with_metaclass.
++
++- Issue #24: Add six.moves.range alias. This exactly the same as the current
++  xrange alias.
++
++- Pull request #5: Create six.moves.urllib, which contains abstractions for a
++  bunch of things which are in urllib in Python 3 and spread out across urllib,
++  urllib2, and urlparse in Python 2.
++
++1.3.0
++-----
++
++- Issue #21: Add methods to access the closure and globals of a function.
++
++- In six.iter(items/keys/values/lists), passed keyword arguments through to the
++  underlying method.
++
++- Add six.iterlists().
++
++- Issue #20: Fix tests if tkinter is not available.
++
++- Issue #17: Define callable to be builtin callable when it is available again
++  in Python 3.2+.
++
++- Issue #16: Rename Python 2 exec_'s arguments, so casually calling exec_ with
++  keyword arguments will raise.
++
++- Issue #14: Put the six.moves package in sys.modules based on the name six is
++  imported under.
++
++- Fix Jython detection.
++
++- Pull request #4: Add email_mime_multipart, email_mime_text, and
++  email_mime_base to six.moves.
++
++1.2.0
++-----
++
++- Issue #13: Make iterkeys/itervalues/iteritems return iterators on Python 3
++  instead of iterables.
++
++- Issue #11: Fix maxsize support on Jython.
++
++- Add six.next() as an alias for six.advance_iterator().
++
++- Use the builtin next() function for advance_iterator() where is available
++  (2.6+), not just Python 3.
++
++- Add the Iterator class for writing portable iterators.
++
++1.1.0
++-----
++
++- Add the int2byte function.
++
++- Add compatibility mappings for iterators over the keys, values, and items of a
++  dictionary.
++
++- Fix six.MAXSIZE on platforms where sizeof(long) != sizeof(Py_ssize_t).
++
++- Issue #3: Add six.moves mappings for filter, map, and zip.
++
++1.0.0
++-----
++
++- Issue #2: u() on Python 2.x now resolves unicode escapes.
++
++- Expose an API for adding mappings to six.moves.
++
++1.0 beta 1
++----------
++
++- Reworked six into one .py file.  This breaks imports.  Please tell me if you
++  are interested in an import compatibility layer.
+diff --git a/desktop/core/ext-py/six-1.9.0/LICENSE b/desktop/core/ext-py/six-1.9.0/LICENSE
+new file mode 100644
+index 0000000..e558f9d
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/LICENSE
+@@ -0,0 +1,18 @@
++Copyright (c) 2010-2015 Benjamin Peterson
++
++Permission is hereby granted, free of charge, to any person obtaining a copy of
++this software and associated documentation files (the "Software"), to deal in
++the Software without restriction, including without limitation the rights to
++use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
++the Software, and to permit persons to whom the Software is furnished to do so,
++subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
++FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+diff --git a/desktop/core/ext-py/six-1.9.0/MANIFEST.in b/desktop/core/ext-py/six-1.9.0/MANIFEST.in
+new file mode 100644
+index 0000000..b924e06
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/MANIFEST.in
+@@ -0,0 +1,6 @@
++include CHANGES
++include LICENSE
++include test_six.py
++
++recursive-include documentation *
++prune documentation/_build
+diff --git a/desktop/core/ext-py/six-1.9.0/PKG-INFO b/desktop/core/ext-py/six-1.9.0/PKG-INFO
+new file mode 100644
+index 0000000..6fddf85
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/PKG-INFO
+@@ -0,0 +1,32 @@
++Metadata-Version: 1.1
++Name: six
++Version: 1.9.0
++Summary: Python 2 and 3 compatibility utilities
++Home-page: http://pypi.python.org/pypi/six/
++Author: Benjamin Peterson
++Author-email: benjamin@python.org
++License: MIT
++Description: Six is a Python 2 and 3 compatibility library.  It provides utility functions
++        for smoothing over the differences between the Python versions with the goal of
++        writing Python code that is compatible on both Python versions.  See the
++        documentation for more information on what is provided.
++        
++        Six supports every Python version since 2.5.  It is contained in only one Python
++        file, so it can be easily copied into your project. (The copyright and license
++        notice must be retained.)
++        
++        Online documentation is at http://pythonhosted.org/six/.
++        
++        Bugs can be reported to https://bitbucket.org/gutworth/six.  The code can also
++        be found there.
++        
++        For questions about six or porting in general, email the python-porting mailing
++        list: http://mail.python.org/mailman/listinfo/python-porting
++        
++Platform: UNKNOWN
++Classifier: Programming Language :: Python :: 2
++Classifier: Programming Language :: Python :: 3
++Classifier: Intended Audience :: Developers
++Classifier: License :: OSI Approved :: MIT License
++Classifier: Topic :: Software Development :: Libraries
++Classifier: Topic :: Utilities
+diff --git a/desktop/core/ext-py/six-1.9.0/README b/desktop/core/ext-py/six-1.9.0/README
+new file mode 100644
+index 0000000..32bab7c
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/README
+@@ -0,0 +1,16 @@
++Six is a Python 2 and 3 compatibility library.  It provides utility functions
++for smoothing over the differences between the Python versions with the goal of
++writing Python code that is compatible on both Python versions.  See the
++documentation for more information on what is provided.
++
++Six supports every Python version since 2.5.  It is contained in only one Python
++file, so it can be easily copied into your project. (The copyright and license
++notice must be retained.)
++
++Online documentation is at http://pythonhosted.org/six/.
++
++Bugs can be reported to https://bitbucket.org/gutworth/six.  The code can also
++be found there.
++
++For questions about six or porting in general, email the python-porting mailing
++list: http://mail.python.org/mailman/listinfo/python-porting
+diff --git a/desktop/core/ext-py/six-1.9.0/documentation/Makefile b/desktop/core/ext-py/six-1.9.0/documentation/Makefile
+new file mode 100644
+index 0000000..eebafcd
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/documentation/Makefile
+@@ -0,0 +1,130 @@
++# Makefile for Sphinx documentation
++#
++
++# You can set these variables from the command line.
++SPHINXOPTS    =
++SPHINXBUILD   = sphinx-build
++PAPER         =
++BUILDDIR      = _build
++
++# Internal variables.
++PAPEROPT_a4     = -D latex_paper_size=a4
++PAPEROPT_letter = -D latex_paper_size=letter
++ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
++
++.PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest
++
++help:
++	@echo "Please use \`make <target>' where <target> is one of"
++	@echo "  html       to make standalone HTML files"
++	@echo "  dirhtml    to make HTML files named index.html in directories"
++	@echo "  singlehtml to make a single large HTML file"
++	@echo "  pickle     to make pickle files"
++	@echo "  json       to make JSON files"
++	@echo "  htmlhelp   to make HTML files and a HTML help project"
++	@echo "  qthelp     to make HTML files and a qthelp project"
++	@echo "  devhelp    to make HTML files and a Devhelp project"
++	@echo "  epub       to make an epub"
++	@echo "  latex      to make LaTeX files, you can set PAPER=a4 or PAPER=letter"
++	@echo "  latexpdf   to make LaTeX files and run them through pdflatex"
++	@echo "  text       to make text files"
++	@echo "  man        to make manual pages"
++	@echo "  changes    to make an overview of all changed/added/deprecated items"
++	@echo "  linkcheck  to check all external links for integrity"
++	@echo "  doctest    to run all doctests embedded in the documentation (if enabled)"
++
++clean:
++	-rm -rf $(BUILDDIR)/*
++
++html:
++	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
++	@echo
++	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
++
++dirhtml:
++	$(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(BUILDDIR)/dirhtml
++	@echo
++	@echo "Build finished. The HTML pages are in $(BUILDDIR)/dirhtml."
++
++singlehtml:
++	$(SPHINXBUILD) -b singlehtml $(ALLSPHINXOPTS) $(BUILDDIR)/singlehtml
++	@echo
++	@echo "Build finished. The HTML page is in $(BUILDDIR)/singlehtml."
++
++pickle:
++	$(SPHINXBUILD) -b pickle $(ALLSPHINXOPTS) $(BUILDDIR)/pickle
++	@echo
++	@echo "Build finished; now you can process the pickle files."
++
++json:
++	$(SPHINXBUILD) -b json $(ALLSPHINXOPTS) $(BUILDDIR)/json
++	@echo
++	@echo "Build finished; now you can process the JSON files."
++
++htmlhelp:
++	$(SPHINXBUILD) -b htmlhelp $(ALLSPHINXOPTS) $(BUILDDIR)/htmlhelp
++	@echo
++	@echo "Build finished; now you can run HTML Help Workshop with the" \
++	      ".hhp project file in $(BUILDDIR)/htmlhelp."
++
++qthelp:
++	$(SPHINXBUILD) -b qthelp $(ALLSPHINXOPTS) $(BUILDDIR)/qthelp
++	@echo
++	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
++	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
++	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/six.qhcp"
++	@echo "To view the help file:"
++	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/six.qhc"
++
++devhelp:
++	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
++	@echo
++	@echo "Build finished."
++	@echo "To view the help file:"
++	@echo "# mkdir -p $$HOME/.local/share/devhelp/six"
++	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/six"
++	@echo "# devhelp"
++
++epub:
++	$(SPHINXBUILD) -b epub $(ALLSPHINXOPTS) $(BUILDDIR)/epub
++	@echo
++	@echo "Build finished. The epub file is in $(BUILDDIR)/epub."
++
++latex:
++	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
++	@echo
++	@echo "Build finished; the LaTeX files are in $(BUILDDIR)/latex."
++	@echo "Run \`make' in that directory to run these through (pdf)latex" \
++	      "(use \`make latexpdf' here to do that automatically)."
++
++latexpdf:
++	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
++	@echo "Running LaTeX files through pdflatex..."
++	make -C $(BUILDDIR)/latex all-pdf
++	@echo "pdflatex finished; the PDF files are in $(BUILDDIR)/latex."
++
++text:
++	$(SPHINXBUILD) -b text $(ALLSPHINXOPTS) $(BUILDDIR)/text
++	@echo
++	@echo "Build finished. The text files are in $(BUILDDIR)/text."
++
++man:
++	$(SPHINXBUILD) -b man $(ALLSPHINXOPTS) $(BUILDDIR)/man
++	@echo
++	@echo "Build finished. The manual pages are in $(BUILDDIR)/man."
++
++changes:
++	$(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) $(BUILDDIR)/changes
++	@echo
++	@echo "The overview file is in $(BUILDDIR)/changes."
++
++linkcheck:
++	$(SPHINXBUILD) -b linkcheck $(ALLSPHINXOPTS) $(BUILDDIR)/linkcheck
++	@echo
++	@echo "Link check complete; look for any errors in the above output " \
++	      "or in $(BUILDDIR)/linkcheck/output.txt."
++
++doctest:
++	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDDIR)/doctest
++	@echo "Testing of doctests in the sources finished, look at the " \
++	      "results in $(BUILDDIR)/doctest/output.txt."
+diff --git a/desktop/core/ext-py/six-1.9.0/documentation/conf.py b/desktop/core/ext-py/six-1.9.0/documentation/conf.py
+new file mode 100644
+index 0000000..0215bdd
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/documentation/conf.py
+@@ -0,0 +1,217 @@
++# -*- coding: utf-8 -*-
++#
++# six documentation build configuration file
++
++import os
++import sys
++
++# If extensions (or modules to document with autodoc) are in another directory,
++# add these directories to sys.path here. If the directory is relative to the
++# documentation root, use os.path.abspath to make it absolute, like shown here.
++#sys.path.append(os.path.abspath('.'))
++
++# -- General configuration -----------------------------------------------------
++
++# If your documentation needs a minimal Sphinx version, state it here.
++needs_sphinx = "1.0"
++
++# Add any Sphinx extension module names here, as strings. They can be extensions
++# coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
++extensions = ["sphinx.ext.intersphinx"]
++
++# Add any paths that contain templates here, relative to this directory.
++templates_path = ["_templates"]
++
++# The suffix of source filenames.
++source_suffix = ".rst"
++
++# The encoding of source files.
++#source_encoding = "utf-8-sig"
++
++# The master toctree document.
++master_doc = "index"
++
++# General information about the project.
++project = u"six"
++copyright = u"2010-2015, Benjamin Peterson"
++
++sys.path.append(os.path.abspath(os.path.join(".", "..")))
++from six import __version__ as six_version
++sys.path.pop()
++
++# The version info for the project you're documenting, acts as replacement for
++# |version| and |release|, also used in various other places throughout the
++# built documents.
++#
++# The short X.Y version.
++version = six_version[:-2]
++# The full version, including alpha/beta/rc tags.
++release = six_version
++
++# The language for content autogenerated by Sphinx. Refer to documentation
++# for a list of supported languages.
++#language = None
++
++# There are two options for replacing |today|: either, you set today to some
++# non-false value, then it is used:
++#today = ''
++# Else, today_fmt is used as the format for a strftime call.
++#today_fmt = '%B %d, %Y'
++
++# List of patterns, relative to source directory, that match files and
++# directories to ignore when looking for source files.
++exclude_patterns = ["_build"]
++
++# The reST default role (used for this markup: `text`) to use for all documents.
++#default_role = None
++
++# If true, '()' will be appended to :func: etc. cross-reference text.
++#add_function_parentheses = True
++
++# If true, the current module name will be prepended to all description
++# unit titles (such as .. function::).
++#add_module_names = True
++
++# If true, sectionauthor and moduleauthor directives will be shown in the
++# output. They are ignored by default.
++#show_authors = False
++
++# The name of the Pygments (syntax highlighting) style to use.
++pygments_style = "sphinx"
++
++# A list of ignored prefixes for module index sorting.
++#modindex_common_prefix = []
++
++
++# -- Options for HTML output ---------------------------------------------------
++
++# The theme to use for HTML and HTML Help pages.  See the documentation for
++# a list of builtin themes.
++html_theme = "default"
++
++# Theme options are theme-specific and customize the look and feel of a theme
++# further.  For a list of options available for each theme, see the
++# documentation.
++#html_theme_options = {}
++
++# Add any paths that contain custom themes here, relative to this directory.
++#html_theme_path = []
++
++# The name for this set of Sphinx documents.  If None, it defaults to
++# "<project> v<release> documentation".
++#html_title = None
++
++# A shorter title for the navigation bar.  Default is the same as html_title.
++#html_short_title = None
++
++# The name of an image file (relative to this directory) to place at the top
++# of the sidebar.
++#html_logo = None
++
++# The name of an image file (within the static path) to use as favicon of the
++# docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
++# pixels large.
++#html_favicon = None
++
++# Add any paths that contain custom static files (such as style sheets) here,
++# relative to this directory. They are copied after the builtin static files,
++# so a file named "default.css" will overwrite the builtin "default.css".
++html_static_path = ["_static"]
++
++# If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
++# using the given strftime format.
++#html_last_updated_fmt = '%b %d, %Y'
++
++# If true, SmartyPants will be used to convert quotes and dashes to
++# typographically correct entities.
++#html_use_smartypants = True
++
++# Custom sidebar templates, maps document names to template names.
++#html_sidebars = {}
++
++# Additional templates that should be rendered to pages, maps page names to
++# template names.
++#html_additional_pages = {}
++
++# If false, no module index is generated.
++#html_domain_indices = True
++
++# If false, no index is generated.
++#html_use_index = True
++
++# If true, the index is split into individual pages for each letter.
++#html_split_index = False
++
++# If true, links to the reST sources are added to the pages.
++#html_show_sourcelink = True
++
++# If true, "Created using Sphinx" is shown in the HTML footer. Default is True.
++#html_show_sphinx = True
++
++# If true, "(C) Copyright ..." is shown in the HTML footer. Default is True.
++#html_show_copyright = True
++
++# If true, an OpenSearch description file will be output, and all pages will
++# contain a <link> tag referring to it.  The value of this option must be the
++# base URL from which the finished HTML is served.
++#html_use_opensearch = ''
++
++# If nonempty, this is the file name suffix for HTML files (e.g. ".xhtml").
++#html_file_suffix = ''
++
++# Output file base name for HTML help builder.
++htmlhelp_basename = 'sixdoc'
++
++
++# -- Options for LaTeX output --------------------------------------------------
++
++# The paper size ('letter' or 'a4').
++#latex_paper_size = 'letter'
++
++# The font size ('10pt', '11pt' or '12pt').
++#latex_font_size = '10pt'
++
++# Grouping the document tree into LaTeX files. List of tuples
++# (source start file, target name, title, author, documentclass [howto/manual]).
++latex_documents = [
++  ("index", "six.tex", u"six Documentation",
++   u"Benjamin Peterson", "manual"),
++]
++
++# The name of an image file (relative to this directory) to place at the top of
++# the title page.
++#latex_logo = None
++
++# For "manual" documents, if this is true, then toplevel headings are parts,
++# not chapters.
++#latex_use_parts = False
++
++# If true, show page references after internal links.
++#latex_show_pagerefs = False
++
++# If true, show URL addresses after external links.
++#latex_show_urls = False
++
++# Additional stuff for the LaTeX preamble.
++#latex_preamble = ''
++
++# Documents to append as an appendix to all manuals.
++#latex_appendices = []
++
++# If false, no module index is generated.
++#latex_domain_indices = True
++
++
++# -- Options for manual page output --------------------------------------------
++
++# One entry per manual page. List of tuples
++# (source start file, name, description, authors, manual section).
++man_pages = [
++    ("index", "six", u"six Documentation",
++     [u"Benjamin Peterson"], 1)
++]
++
++# -- Intersphinx ---------------------------------------------------------------
++
++intersphinx_mapping = {"py2" : ("https://docs.python.org/2/", None),
++                       "py3" : ("https://docs.python.org/3/", None)}
+diff --git a/desktop/core/ext-py/six-1.9.0/documentation/index.rst b/desktop/core/ext-py/six-1.9.0/documentation/index.rst
+new file mode 100644
+index 0000000..1f27400
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/documentation/index.rst
+@@ -0,0 +1,828 @@
++Six: Python 2 and 3 Compatibility Library
++=========================================
++
++.. module:: six
++   :synopsis: Python 2 and 3 compatibility
++
++.. moduleauthor:: Benjamin Peterson <benjamin@python.org>
++.. sectionauthor:: Benjamin Peterson <benjamin@python.org>
++
++
++Six provides simple utilities for wrapping over differences between Python 2 and
++Python 3.  It is intended to support codebases that work on both Python 2 and 3
++without modification.  six consists of only one Python file, so it is painless
++to copy into a project.
++
++Six can be downloaded on `PyPi <http://pypi.python.org/pypi/six/>`_.  Its bug
++tracker and code hosting is on `BitBucket <http://bitbucket.org/gutworth/six>`_.
++
++The name, "six", comes from the fact that 2*3 equals 6.  Why not addition?
++Multiplication is more powerful, and, anyway, "five" has already been snatched
++away by the (admittedly now moribund) Zope Five project.
++
++
++Indices and tables
++------------------
++
++* :ref:`genindex`
++* :ref:`search`
++
++
++Package contents
++----------------
++
++.. data:: PY2
++
++   A boolean indicating if the code is running on Python 2.
++
++.. data:: PY3
++
++   A boolean indicating if the code is running on Python 3.
++
++
++Constants
++>>>>>>>>>
++
++Six provides constants that may differ between Python versions.  Ones ending
++``_types`` are mostly useful as the second argument to ``isinstance`` or
++``issubclass``.
++
++
++.. data:: class_types
++
++   Possible class types.  In Python 2, this encompasses old-style and new-style
++   classes.  In Python 3, this is just new-styles.
++
++
++.. data:: integer_types
++
++   Possible integer types.  In Python 2, this is :func:`py2:long` and
++   :func:`py2:int`, and in Python 3, just :func:`py3:int`.
++
++
++.. data:: string_types
++
++   Possible types for text data.  This is :func:`py2:basestring` in Python 2 and
++   :func:`py3:str` in Python 3.
++
++
++.. data:: text_type
++
++   Type for representing (Unicode) textual data.  This is :func:`py2:unicode` in
++   Python 2 and :func:`py3:str` in Python 3.
++
++
++.. data:: binary_type
++
++   Type for representing binary data.  This is :func:`py2:str` in Python 2 and
++   :func:`py3:bytes` in Python 3.
++
++
++.. data:: MAXSIZE
++
++   The maximum  size of a  container like :func:`py3:list`  or :func:`py3:dict`.
++   This  is  equivalent  to  :data:`py3:sys.maxsize` in  Python  2.6  and  later
++   (including 3.x).   Note, this is temptingly  similar to, but not  the same as
++   :data:`py2:sys.maxint`  in  Python  2.   There is  no  direct  equivalent  to
++   :data:`py2:sys.maxint` in  Python 3  because its integer  type has  no limits
++   aside from memory.
++
++
++Here's example usage of the module::
++
++   import six
++
++   def dispatch_types(value):
++       if isinstance(value, six.integer_types):
++           handle_integer(value)
++       elif isinstance(value, six.class_types):
++           handle_class(value)
++       elif isinstance(value, six.string_types):
++           handle_string(value)
++
++
++Object model compatibility
++>>>>>>>>>>>>>>>>>>>>>>>>>>
++
++Python 3 renamed the attributes of several intepreter data structures.  The
++following accessors are available.  Note that the recommended way to inspect
++functions and methods is the stdlib :mod:`py3:inspect` module.
++
++
++.. function:: get_unbound_function(meth)
++
++   Get the function out of unbound method *meth*.  In Python 3, unbound methods
++   don't exist, so this function just returns *meth* unchanged.  Example
++   usage::
++
++      from six import get_unbound_function
++
++      class X(object):
++          def method(self):
++              pass
++      method_function = get_unbound_function(X.method)
++
++
++.. function:: get_method_function(meth)
++
++   Get the function out of method object *meth*.
++
++
++.. function:: get_method_self(meth)
++
++   Get the ``self`` of bound method *meth*.
++
++
++.. function:: get_function_closure(func)
++
++   Get the closure (list of cells) associated with *func*.  This is equivalent
++   to ``func.__closure__`` on Python 2.6+ and ``func.func_closure`` on Python
++   2.5.
++
++
++.. function:: get_function_code(func)
++
++   Get the code object associated with *func*.  This is equivalent to
++   ``func.__code__`` on Python 2.6+ and ``func.func_code`` on Python 2.5.
++
++
++.. function:: get_function_defaults(func)
++
++   Get the defaults tuple associated with *func*.  This is equivalent to
++   ``func.__defaults__`` on Python 2.6+ and ``func.func_defaults`` on Python
++   2.5.
++
++
++.. function:: get_function_globals(func)
++
++   Get the globals of *func*.  This is equivalent to ``func.__globals__`` on
++   Python 2.6+ and ``func.func_globals`` on Python 2.5.
++
++
++.. function:: next(it)
++              advance_iterator(it)
++
++   Get the next item of iterator *it*.  :exc:`py3:StopIteration` is raised if
++   the iterator is exhausted.  This is a replacement for calling ``it.next()``
++   in Python 2 and ``next(it)`` in Python 3.
++
++
++.. function:: callable(obj)
++
++   Check if *obj* can be called.  Note ``callable`` has returned in Python 3.2,
++   so using six's version is only necessary when supporting Python 3.0 or 3.1.
++
++
++.. function:: iterkeys(dictionary, **kwargs)
++
++   Returns an iterator over *dictionary*\'s keys. This replaces
++   ``dictionary.iterkeys()`` on Python 2 and ``dictionary.keys()`` on
++   Python 3.  *kwargs* are passed through to the underlying method.
++
++
++.. function:: itervalues(dictionary, **kwargs)
++
++   Returns an iterator over *dictionary*\'s values. This replaces
++   ``dictionary.itervalues()`` on Python 2 and ``dictionary.values()`` on
++   Python 3.  *kwargs* are passed through to the underlying method.
++
++
++.. function:: iteritems(dictionary, **kwargs)
++
++   Returns an iterator over *dictionary*\'s items. This replaces
++   ``dictionary.iteritems()`` on Python 2 and ``dictionary.items()`` on
++   Python 3.  *kwargs* are passed through to the underlying method.
++
++
++.. function:: iterlists(dictionary, **kwargs)
++
++   Calls ``dictionary.iterlists()`` on Python 2 and ``dictionary.lists()`` on
++   Python 3.  No builtin Python mapping type has such a method; this method is
++   intended for use with multi-valued dictionaries like `Werkzeug's
++   <http://werkzeug.pocoo.org/docs/datastructures/#werkzeug.datastructures.MultiDict>`_.
++   *kwargs* are passed through to the underlying method.
++
++
++.. function:: viewkeys(dictionary)
++
++   Return a view over *dictionary*\'s keys. This replaces
++   :meth:`py2:dict.viewkeys` on Python 2.7 and :meth:`py3:dict.keys` on
++   Python 3.
++
++
++.. function:: viewvalues(dictionary)
++
++   Return a view over *dictionary*\'s values. This replaces
++   :meth:`py2:dict.viewvalues` on Python 2.7 and :meth:`py3:dict.values` on
++   Python 3.
++
++
++.. function:: viewitems(dictionary)
++
++   Return a view over *dictionary*\'s items. This replaces
++   :meth:`py2:dict.viewitems` on Python 2.7 and :meth:`py3:dict.items` on
++   Python 3.
++
++
++.. function:: create_bound_method(func, obj)
++
++   Return a method object wrapping *func* and bound to *obj*.  On both Python 2
++   and 3, this will return a :func:`py3:types.MethodType` object.  The reason
++   this wrapper exists is that on Python 2, the ``MethodType`` constructor
++   requires the *obj*'s class to be passed.
++
++
++.. class:: Iterator
++
++   A class for making portable iterators. The intention is that it be subclassed
++   and subclasses provide a ``__next__`` method. In Python 2, :class:`Iterator`
++   has one method: ``next``. It simply delegates to ``__next__``. An alternate
++   way to do this would be to simply alias ``next`` to ``__next__``. However,
++   this interacts badly with subclasses that override
++   ``__next__``. :class:`Iterator` is empty on Python 3. (In fact, it is just
++   aliased to :class:`py3:object`.)
++
++
++.. decorator:: wraps(wrapped, assigned=functools.WRAPPER_ASSIGNMENTS, updated=functools.WRAPPER_UPDATES)
++
++   This is exactly the :func:`py3:functools.wraps` decorator, but it sets the
++   ``__wrapped__`` attribute on what it decorates as :func:`py3:functools.wraps`
++   does on Python versions after 3.2.
++
++
++Syntax compatibility
++>>>>>>>>>>>>>>>>>>>>
++
++These functions smooth over operations which have different syntaxes between
++Python 2 and 3.
++
++
++.. function:: exec_(code, globals=None, locals=None)
++
++   Execute *code* in the scope of *globals* and *locals*.  *code* can be a
++   string or a code object.  If *globals* or *locals* are not given, they will
++   default to the scope of the caller.  If just *globals* is given, it will also
++   be used as *locals*.
++
++   .. note::
++
++      Python 3's :func:`py3:exec` doesn't take keyword arguments, so calling
++      :func:`exec` with them should be avoided.
++
++
++.. function:: print_(*args, *, file=sys.stdout, end="\\n", sep=" ", flush=False)
++
++   Print *args* into *file*.  Each argument will be separated with *sep* and
++   *end* will be written to the file after the last argument is printed.  If
++   *flush* is true, ``file.flush()`` will be called after all data is written.
++
++   .. note::
++
++      In Python 2, this function imitates Python 3's :func:`py3:print` by not
++      having softspace support.  If you don't know what that is, you're probably
++      ok. :)
++
++
++.. function:: raise_from(exc_value, exc_value_from)
++
++   Raise an exception from a context.  On Python 3, this is equivalent to
++   ``raise exc_value from exc_value_from``.  On Python 2, which does not support
++   exception chaining, it is equivalent to ``raise exc_value``.
++
++
++.. function:: reraise(exc_type, exc_value, exc_traceback=None)
++
++   Reraise an exception, possibly with a different traceback.  In the simple
++   case, ``reraise(*sys.exc_info())`` with an active exception (in an except
++   block) reraises the current exception with the last traceback.  A different
++   traceback can be specified with the *exc_traceback* parameter.  Note that
++   since the exception reraising is done within the :func:`reraise` function,
++   Python will attach the call frame of :func:`reraise` to whatever traceback is
++   raised.
++
++
++.. function:: with_metaclass(metaclass, *bases)
++
++   Create a new class with base classes *bases* and metaclass *metaclass*.  This
++   is designed to be used in class declarations like this: ::
++
++      from six import with_metaclass
++
++      class Meta(type):
++          pass
++
++      class Base(object):
++          pass
++
++      class MyClass(with_metaclass(Meta, Base)):
++          pass
++
++   Another way to set a metaclass on a class is with the :func:`add_metaclass`
++   decorator.
++
++
++.. decorator:: add_metaclass(metaclass)
++
++   Class decorator that replaces a normally-constructed class with a
++   metaclass-constructed one.  Example usage: ::
++
++       @add_metaclass(Meta)
++       class MyClass(object):
++           pass
++
++   That code produces a class equivalent to ::
++
++       class MyClass(object, metaclass=Meta):
++           pass
++
++   on Python 3 or ::
++
++       class MyClass(object):
++           __metaclass__ = MyMeta
++
++   on Python 2.
++
++   Note that class decorators require Python 2.6. However, the effect of the
++   decorator can be emulated on Python 2.5 like so::
++
++       class MyClass(object):
++           pass
++       MyClass = add_metaclass(Meta)(MyClass)
++
++
++Binary and text data
++>>>>>>>>>>>>>>>>>>>>
++
++Python 3 enforces the distinction between byte strings and text strings far more
++rigoriously than Python 2 does; binary data cannot be automatically coerced to
++or from text data.  six provides several functions to assist in classifying
++string data in all Python versions.
++
++
++.. function:: b(data)
++
++   A "fake" bytes literal.  *data* should always be a normal string literal.  In
++   Python 2, :func:`b` returns a 8-bit string.  In Python 3, *data* is encoded
++   with the latin-1 encoding to bytes.
++
++
++   .. note::
++
++      Since all Python versions 2.6 and after support the ``b`` prefix,
++      :func:`b`, code without 2.5 support doesn't need :func:`b`.
++
++
++.. function:: u(text)
++
++   A "fake" unicode literal.  *text* should always be a normal string literal.
++   In Python 2, :func:`u` returns unicode, and in Python 3, a string.  Also, in
++   Python 2, the string is decoded with the ``unicode-escape`` codec, which
++   allows unicode escapes to be used in it.
++
++
++   .. note::
++
++      In Python 3.3, the ``u`` prefix has been reintroduced. Code that only
++      supports Python 3 versions greater than 3.3 thus does not need
++      :func:`u`.
++
++   .. note::
++
++      On Python 2, :func:`u` doesn't know what the encoding of the literal
++      is. Each byte is converted directly to the unicode codepoint of the same
++      value. Because of this, it's only safe to use :func:`u` with strings of
++      ASCII data.
++
++
++.. function:: unichr(c)
++
++   Return the (Unicode) string representing the codepoint *c*.  This is
++   equivalent to :func:`py2:unichr` on Python 2 and :func:`py3:chr` on Python 3.
++
++
++.. function:: int2byte(i)
++
++   Converts *i* to a byte.  *i* must be in ``range(0, 256)``.  This is
++   equivalent to :func:`py2:chr` in Python 2 and ``bytes((i,))`` in Python 3.
++
++
++.. function:: byte2int(bs)
++
++   Converts the first byte of *bs* to an integer.  This is equivalent to
++   ``ord(bs[0])`` on Python 2 and ``bs[0]`` on Python 3.
++
++
++.. function:: indexbytes(buf, i)
++
++   Return the byte at index *i* of *buf* as an integer.  This is equivalent to
++   indexing a bytes object in Python 3.
++
++
++.. function:: iterbytes(buf)
++
++   Return an iterator over bytes in *buf* as integers.  This is equivalent to
++   a bytes object iterator in Python 3.
++
++
++.. data:: StringIO
++
++   This is an fake file object for textual data.  It's an alias for
++   :class:`py2:StringIO.StringIO` in Python 2 and :class:`py3:io.StringIO` in
++   Python 3.
++
++
++.. data:: BytesIO
++
++   This is a fake file object for binary data.  In Python 2, it's an alias for
++   :class:`py2:StringIO.StringIO`, but in Python 3, it's an alias for
++   :class:`py3:io.BytesIO`.
++
++
++.. decorator:: python_2_unicode_compatible
++
++   A class decorator that takes a class defining a ``__str__`` method.  On
++   Python 3, the decorator does nothing.  On Python 2, it aliases the
++   ``__str__`` method to ``__unicode__`` and creates a new ``__str__`` method
++   that returns the result of ``__unicode__()`` encoded with UTF-8.
++
++
++unittest assertions
++>>>>>>>>>>>>>>>>>>>
++
++Six contains compatibility shims for unittest assertions that have been renamed.
++The parameters are the same as their aliases, but you must pass the test method
++as the first argument. For example::
++
++    import six
++    import unittest
++
++    class TestAssertCountEqual(unittest.TestCase):
++        def test(self):
++            six.assertCountEqual(self, (1, 2), [2, 1])
++
++Note these functions are only available on Python 2.7 or later.
++
++.. function:: assertCountEqual()
++
++   Alias for :meth:`~py3:unittest.TestCase.assertCountEqual` on Python 3 and
++   :meth:`~py2:unittest.TestCase.assertItemsEqual` on Python 2.
++
++
++.. function:: assertRaisesRegex()
++
++   Alias for :meth:`~py3:unittest.TestCase.assertRaisesRegex` on Python 3 and
++   :meth:`~py2:unittest.TestCase.assertRaisesRegexp` on Python 2.
++
++
++.. function:: assertRegex()
++
++   Alias for :meth:`~py3:unittest.TestCase.assertRegex` on Python 3 and
++   :meth:`~py2:unittest.TestCase.assertRegexpMatches` on Python 2.
++
++
++Renamed modules and attributes compatibility
++>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
++
++.. module:: six.moves
++   :synopsis: Renamed modules and attributes compatibility
++
++Python 3 reorganized the standard library and moved several functions to
++different modules.  Six provides a consistent interface to them through the fake
++:mod:`six.moves` module.  For example, to load the module for parsing HTML on
++Python 2 or 3, write::
++
++   from six.moves import html_parser
++
++Similarly, to get the function to reload modules, which was moved from the
++builtin module to the ``imp`` module, use::
++
++   from six.moves import reload_module
++
++For the most part, :mod:`six.moves` aliases are the names of the modules in
++Python 3.  When the new Python 3 name is a package, the components of the name
++are separated by underscores.  For example, ``html.parser`` becomes
++``html_parser``.  In some cases where several modules have been combined, the
++Python 2 name is retained.  This is so the appropiate modules can be found when
++running on Python 2.  For example, ``BaseHTTPServer`` which is in
++``http.server`` in Python 3 is aliased as ``BaseHTTPServer``.
++
++Some modules which had two implementations have been merged in Python 3.  For
++example, ``cPickle`` no longer exists in Python 3; it was merged with
++``pickle``.  In these cases, fetching the fast version will load the fast one on
++Python 2 and the merged module in Python 3.
++
++The :mod:`py2:urllib`, :mod:`py2:urllib2`, and :mod:`py2:urlparse` modules have
++been combined in the :mod:`py3:urllib` package in Python 3.  The
++:mod:`six.moves.urllib` package is a version-independent location for this
++functionality; its structure mimics the structure of the Python 3
++:mod:`py3:urllib` package.
++
++.. note::
++
++   In order to make imports of the form::
++
++     from six.moves.cPickle import loads
++
++   work, six places special proxy objects in in :data:`py3:sys.modules`. These
++   proxies lazily load the underlying module when an attribute is fetched. This
++   will fail if the underlying module is not available in the Python
++   interpreter. For example, ``sys.modules["six.moves.winreg"].LoadKey`` would
++   fail on any non-Windows platform. Unfortunately, some applications try to
++   load attributes on every module in :data:`py3:sys.modules`. six mitigates
++   this problem for some applications by pretending attributes on unimportable
++   modules don't exist. This hack doesn't work in every case, though. If you are
++   encountering problems with the lazy modules and don't use any from imports
++   directly from ``six.moves`` modules, you can workaround the issue by removing
++   the six proxy modules::
++
++     d = [name for name in sys.modules if name.startswith("six.moves.")]
++     for name in d:
++         del sys.modules[name]
++
++Supported renames:
++
+++------------------------------+-------------------------------------+-------------------------------------+
++| Name                         | Python 2 name                       | Python 3 name                       |
+++==============================+=====================================+=====================================+
++| ``builtins``                 | :mod:`py2:__builtin__`              | :mod:`py3:builtins`                 |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``configparser``             | :mod:`py2:ConfigParser`             | :mod:`py3:configparser`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``copyreg``                  | :mod:`py2:copy_reg`                 | :mod:`py3:copyreg`                  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``cPickle``                  | :mod:`py2:cPickle`                  | :mod:`py3:pickle`                   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``cStringIO``                | :func:`py2:cStringIO.StringIO`      | :class:`py3:io.StringIO`            |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``dbm_gnu``                  | :func:`py2:gdbm`                    | :class:`py3:dbm.gnu`                |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``_dummy_thread``            | :mod:`py2:dummy_thread`             | :mod:`py3:_dummy_thread`            |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``email_mime_multipart``     | :mod:`py2:email.MIMEMultipart`      | :mod:`py3:email.mime.multipart`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``email_mime_nonmultipart``  | :mod:`py2:email.MIMENonMultipart`   | :mod:`py3:email.mime.nonmultipart`  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``email_mime_text``          | :mod:`py2:email.MIMEText`           | :mod:`py3:email.mime.text`          |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``email_mime_base``          | :mod:`py2:email.MIMEBase`           | :mod:`py3:email.mime.base`          |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``filter``                   | :func:`py2:itertools.ifilter`       | :func:`py3:filter`                  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``filterfalse``              | :func:`py2:itertools.ifilterfalse`  | :func:`py3:itertools.filterfalse`   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``http_cookiejar``           | :mod:`py2:cookielib`                | :mod:`py3:http.cookiejar`           |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``http_cookies``             | :mod:`py2:Cookie`                   | :mod:`py3:http.cookies`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``html_entities``            | :mod:`py2:htmlentitydefs`           | :mod:`py3:html.entities`            |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``html_parser``              | :mod:`py2:HTMLParser`               | :mod:`py3:html.parser`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``http_client``              | :mod:`py2:httplib`                  | :mod:`py3:http.client`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``BaseHTTPServer``           | :mod:`py2:BaseHTTPServer`           | :mod:`py3:http.server`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``CGIHTTPServer``            | :mod:`py2:CGIHTTPServer`            | :mod:`py3:http.server`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``SimpleHTTPServer``         | :mod:`py2:SimpleHTTPServer`         | :mod:`py3:http.server`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``input``                    | :func:`py2:raw_input`               | :func:`py3:input`                   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``intern``                   | :func:`py2:intern`                  | :func:`py3:sys.intern`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``map``                      | :func:`py2:itertools.imap`          | :func:`py3:map`                     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``queue``                    | :mod:`py2:Queue`                    | :mod:`py3:queue`                    |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``range``                    | :func:`py2:xrange`                  | :func:`py3:range`                   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``reduce``                   | :func:`py2:reduce`                  | :func:`py3:functools.reduce`        |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``reload_module``            | :func:`py2:reload`                  | :func:`py3:imp.reload`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``reprlib``                  | :mod:`py2:repr`                     | :mod:`py3:reprlib`                  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``shlex_quote``              | :mod:`py2:pipes.quote`              | :mod:`py3:shlex.quote`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``socketserver``             | :mod:`py2:SocketServer`             | :mod:`py3:socketserver`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``_thread``                  | :mod:`py2:thread`                   | :mod:`py3:_thread`                  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter``                  | :mod:`py2:Tkinter`                  | :mod:`py3:tkinter`                  |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_dialog``           | :mod:`py2:Dialog`                   | :mod:`py3:tkinter.dialog`           |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_filedialog``       | :mod:`py2:FileDialog`               | :mod:`py3:tkinter.FileDialog`       |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_scrolledtext``     | :mod:`py2:ScrolledText`             | :mod:`py3:tkinter.scrolledtext`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_simpledialog``     | :mod:`py2:SimpleDialog`             | :mod:`py3:tkinter.simpledialog`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_ttk``              | :mod:`py2:ttk`                      | :mod:`py3:tkinter.ttk`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_tix``              | :mod:`py2:Tix`                      | :mod:`py3:tkinter.tix`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_constants``        | :mod:`py2:Tkconstants`              | :mod:`py3:tkinter.constants`        |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_dnd``              | :mod:`py2:Tkdnd`                    | :mod:`py3:tkinter.dnd`              |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_colorchooser``     | :mod:`py2:tkColorChooser`           | :mod:`py3:tkinter.colorchooser`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_commondialog``     | :mod:`py2:tkCommonDialog`           | :mod:`py3:tkinter.commondialog`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_tkfiledialog``     | :mod:`py2:tkFileDialog`             | :mod:`py3:tkinter.filedialog`       |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_font``             | :mod:`py2:tkFont`                   | :mod:`py3:tkinter.font`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_messagebox``       | :mod:`py2:tkMessageBox`             | :mod:`py3:tkinter.messagebox`       |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``tkinter_tksimpledialog``   | :mod:`py2:tkSimpleDialog`           | :mod:`py3:tkinter.simpledialog`     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib.parse``             | See :mod:`six.moves.urllib.parse`   | :mod:`py3:urllib.parse`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib.error``             | See :mod:`six.moves.urllib.error`   | :mod:`py3:urllib.error`             |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib.request``           | See :mod:`six.moves.urllib.request` | :mod:`py3:urllib.request`           |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib.response``          | See :mod:`six.moves.urllib.response`| :mod:`py3:urllib.response`          |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib.robotparser``       | :mod:`py2:robotparser`              | :mod:`py3:urllib.robotparser`       |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``urllib_robotparser``       | :mod:`py2:robotparser`              | :mod:`py3:urllib.robotparser`       |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``UserDict``                 | :class:`py2:UserDict.UserDict`      | :class:`py3:collections.UserDict`   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``UserList``                 | :class:`py2:UserList.UserList`      | :class:`py3:collections.UserList`   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``UserString``               | :class:`py2:UserString.UserString`  | :class:`py3:collections.UserString` |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``winreg``                   | :mod:`py2:_winreg`                  | :mod:`py3:winreg`                   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``xmlrpc_client``            | :mod:`py2:xmlrpclib`                | :mod:`py3:xmlrpc.client`            |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``xmlrpc_server``            | :mod:`py2:SimpleXMLRPCServer`       | :mod:`py3:xmlrpc.server`            |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``xrange``                   | :func:`py2:xrange`                  | :func:`py3:range`                   |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``zip``                      | :func:`py2:itertools.izip`          | :func:`py3:zip`                     |
+++------------------------------+-------------------------------------+-------------------------------------+
++| ``zip_longest``              | :func:`py2:itertools.izip_longest`  | :func:`py3:itertools.zip_longest`   |
+++------------------------------+-------------------------------------+-------------------------------------+
++
++urllib parse
++<<<<<<<<<<<<
++
++.. module:: six.moves.urllib.parse
++   :synopsis: Stuff from :mod:`py2:urlparse` and :mod:`py2:urllib` in Python 2 and :mod:`py3:urllib.parse` in Python 3
++
++Contains functions from Python 3's :mod:`py3:urllib.parse` and Python 2's:
++
++:mod:`py2:urlparse`:
++
++* :func:`py2:urlparse.ParseResult`
++* :func:`py2:urlparse.SplitResult`
++* :func:`py2:urlparse.urlparse`
++* :func:`py2:urlparse.urlunparse`
++* :func:`py2:urlparse.parse_qs`
++* :func:`py2:urlparse.parse_qsl`
++* :func:`py2:urlparse.urljoin`
++* :func:`py2:urlparse.urldefrag`
++* :func:`py2:urlparse.urlsplit`
++* :func:`py2:urlparse.urlunsplit`
++* :func:`py2:urlparse.splitquery`
++* :func:`py2:urlparse.uses_fragment`
++* :func:`py2:urlparse.uses_netloc`
++* :func:`py2:urlparse.uses_params`
++* :func:`py2:urlparse.uses_query`
++* :func:`py2:urlparse.uses_relative`
++
++and :mod:`py2:urllib`:
++
++* :func:`py2:urllib.quote`
++* :func:`py2:urllib.quote_plus`
++* :func:`py2:urllib.splittag`
++* :func:`py2:urllib.splituser`
++* :func:`py2:urllib.unquote`
++* :func:`py2:urllib.unquote_plus`
++* :func:`py2:urllib.urlencode`
++
++
++urllib error
++<<<<<<<<<<<<
++
++.. module:: six.moves.urllib.error
++   :synopsis: Stuff from :mod:`py2:urllib` and :mod:`py2:urllib2` in Python 2 and :mod:`py3:urllib.error` in Python 3
++
++Contains exceptions from Python 3's :mod:`py3:urllib.error` and Python 2's:
++
++:mod:`py2:urllib`:
++
++* :exc:`py2:urllib.ContentTooShortError`
++
++and :mod:`py2:urllib2`:
++
++* :exc:`py2:urllib2.URLError`
++* :exc:`py2:urllib2.HTTPError`
++
++
++urllib request
++<<<<<<<<<<<<<<
++
++.. module:: six.moves.urllib.request
++   :synopsis: Stuff from :mod:`py2:urllib` and :mod:`py2:urllib2` in Python 2 and :mod:`py3:urllib.request` in Python 3
++
++Contains items from Python 3's :mod:`py3:urllib.request` and Python 2's:
++
++:mod:`py2:urllib`:
++
++* :func:`py2:urllib.pathname2url`
++* :func:`py2:urllib.url2pathname`
++* :func:`py2:urllib.getproxies`
++* :func:`py2:urllib.urlretrieve`
++* :func:`py2:urllib.urlcleanup`
++* :class:`py2:urllib.URLopener`
++* :class:`py2:urllib.FancyURLopener`
++* :func:`py2:urllib.proxy_bypass`
++
++and :mod:`py2:urllib2`:
++
++* :func:`py2:urllib2.urlopen`
++* :func:`py2:urllib2.install_opener`
++* :func:`py2:urllib2.build_opener`
++* :class:`py2:urllib2.Request`
++* :class:`py2:urllib2.OpenerDirector`
++* :class:`py2:urllib2.HTTPDefaultErrorHandler`
++* :class:`py2:urllib2.HTTPRedirectHandler`
++* :class:`py2:urllib2.HTTPCookieProcessor`
++* :class:`py2:urllib2.ProxyHandler`
++* :class:`py2:urllib2.BaseHandler`
++* :class:`py2:urllib2.HTTPPasswordMgr`
++* :class:`py2:urllib2.HTTPPasswordMgrWithDefaultRealm`
++* :class:`py2:urllib2.AbstractBasicAuthHandler`
++* :class:`py2:urllib2.HTTPBasicAuthHandler`
++* :class:`py2:urllib2.ProxyBasicAuthHandler`
++* :class:`py2:urllib2.AbstractDigestAuthHandler`
++* :class:`py2:urllib2.HTTPDigestAuthHandler`
++* :class:`py2:urllib2.ProxyDigestAuthHandler`
++* :class:`py2:urllib2.HTTPHandler`
++* :class:`py2:urllib2.HTTPSHandler`
++* :class:`py2:urllib2.FileHandler`
++* :class:`py2:urllib2.FTPHandler`
++* :class:`py2:urllib2.CacheFTPHandler`
++* :class:`py2:urllib2.UnknownHandler`
++* :class:`py2:urllib2.HTTPErrorProcessor`
++
++
++urllib response
++<<<<<<<<<<<<<<<
++
++.. module:: six.moves.urllib.response
++   :synopsis: Stuff from :mod:`py2:urllib` in Python 2 and :mod:`py3:urllib.response` in Python 3
++
++Contains classes from Python 3's :mod:`py3:urllib.response` and Python 2's:
++
++:mod:`py2:urllib`:
++
++* :class:`py2:urllib.addbase`
++* :class:`py2:urllib.addclosehook`
++* :class:`py2:urllib.addinfo`
++* :class:`py2:urllib.addinfourl`
++
++
++Advanced - Customizing renames
++<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
++
++.. currentmodule:: six
++
++It is possible to add additional names to the :mod:`six.moves` namespace.
++
++
++.. function:: add_move(item)
++
++   Add *item* to the :mod:`six.moves` mapping.  *item* should be a
++   :class:`MovedAttribute` or :class:`MovedModule` instance.
++
++
++.. function:: remove_move(name)
++
++   Remove the :mod:`six.moves` mapping called *name*.  *name* should be a
++   string.
++
++
++Instances of the following classes can be passed to :func:`add_move`.  Neither
++have any public members.
++
++
++.. class:: MovedModule(name, old_mod, new_mod)
++
++   Create a mapping for :mod:`six.moves` called *name* that references different
++   modules in Python 2 and 3.  *old_mod* is the name of the Python 2 module.
++   *new_mod* is the name of the Python 3 module.
++
++
++.. class:: MovedAttribute(name, old_mod, new_mod, old_attr=None, new_attr=None)
++
++   Create a mapping for :mod:`six.moves` called *name* that references different
++   attributes in Python 2 and 3.  *old_mod* is the name of the Python 2 module.
++   *new_mod* is the name of the Python 3 module.  If *new_attr* is not given, it
++   defaults to *old_attr*.  If neither is given, they both default to *name*.
+diff --git a/desktop/core/ext-py/six-1.9.0/setup.cfg b/desktop/core/ext-py/six-1.9.0/setup.cfg
+new file mode 100644
+index 0000000..fbb3ca0
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/setup.cfg
+@@ -0,0 +1,8 @@
++[wheel]
++universal = 1
++
++[egg_info]
++tag_build = 
++tag_svn_revision = 0
++tag_date = 0
++
+diff --git a/desktop/core/ext-py/six-1.9.0/setup.py b/desktop/core/ext-py/six-1.9.0/setup.py
+new file mode 100644
+index 0000000..b0cca52
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/setup.py
+@@ -0,0 +1,32 @@
++from __future__ import with_statement
++
++try:
++    from setuptools import setup
++except ImportError:
++    from distutils.core import setup
++
++import six
++
++six_classifiers = [
++    "Programming Language :: Python :: 2",
++    "Programming Language :: Python :: 3",
++    "Intended Audience :: Developers",
++    "License :: OSI Approved :: MIT License",
++    "Topic :: Software Development :: Libraries",
++    "Topic :: Utilities",
++]
++
++with open("README", "r") as fp:
++    six_long_description = fp.read()
++
++setup(name="six",
++      version=six.__version__,
++      author="Benjamin Peterson",
++      author_email="benjamin@python.org",
++      url="http://pypi.python.org/pypi/six/",
++      py_modules=["six"],
++      description="Python 2 and 3 compatibility utilities",
++      long_description=six_long_description,
++      license="MIT",
++      classifiers=six_classifiers
++      )
+diff --git a/desktop/core/ext-py/six-1.9.0/six.py b/desktop/core/ext-py/six-1.9.0/six.py
+new file mode 100644
+index 0000000..ffa3fe1
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/six.py
+@@ -0,0 +1,838 @@
++"""Utilities for writing code that runs on Python 2 and 3"""
++
++# Copyright (c) 2010-2015 Benjamin Peterson
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in all
++# copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++# SOFTWARE.
++
++from __future__ import absolute_import
++
++import functools
++import itertools
++import operator
++import sys
++import types
++
++__author__ = "Benjamin Peterson <benjamin@python.org>"
++__version__ = "1.9.0"
++
++
++# Useful for very coarse version differentiation.
++PY2 = sys.version_info[0] == 2
++PY3 = sys.version_info[0] == 3
++
++if PY3:
++    string_types = str,
++    integer_types = int,
++    class_types = type,
++    text_type = str
++    binary_type = bytes
++
++    MAXSIZE = sys.maxsize
++else:
++    string_types = basestring,
++    integer_types = (int, long)
++    class_types = (type, types.ClassType)
++    text_type = unicode
++    binary_type = str
++
++    if sys.platform.startswith("java"):
++        # Jython always uses 32 bits.
++        MAXSIZE = int((1 << 31) - 1)
++    else:
++        # It's possible to have sizeof(long) != sizeof(Py_ssize_t).
++        class X(object):
++            def __len__(self):
++                return 1 << 31
++        try:
++            len(X())
++        except OverflowError:
++            # 32-bit
++            MAXSIZE = int((1 << 31) - 1)
++        else:
++            # 64-bit
++            MAXSIZE = int((1 << 63) - 1)
++        del X
++
++
++def _add_doc(func, doc):
++    """Add documentation to a function."""
++    func.__doc__ = doc
++
++
++def _import_module(name):
++    """Import module, returning the module after the last dot."""
++    __import__(name)
++    return sys.modules[name]
++
++
++class _LazyDescr(object):
++
++    def __init__(self, name):
++        self.name = name
++
++    def __get__(self, obj, tp):
++        result = self._resolve()
++        setattr(obj, self.name, result) # Invokes __set__.
++        try:
++            # This is a bit ugly, but it avoids running this again by
++            # removing this descriptor.
++            delattr(obj.__class__, self.name)
++        except AttributeError:
++            pass
++        return result
++
++
++class MovedModule(_LazyDescr):
++
++    def __init__(self, name, old, new=None):
++        super(MovedModule, self).__init__(name)
++        if PY3:
++            if new is None:
++                new = name
++            self.mod = new
++        else:
++            self.mod = old
++
++    def _resolve(self):
++        return _import_module(self.mod)
++
++    def __getattr__(self, attr):
++        _module = self._resolve()
++        value = getattr(_module, attr)
++        setattr(self, attr, value)
++        return value
++
++
++class _LazyModule(types.ModuleType):
++
++    def __init__(self, name):
++        super(_LazyModule, self).__init__(name)
++        self.__doc__ = self.__class__.__doc__
++
++    def __dir__(self):
++        attrs = ["__doc__", "__name__"]
++        attrs += [attr.name for attr in self._moved_attributes]
++        return attrs
++
++    # Subclasses should override this
++    _moved_attributes = []
++
++
++class MovedAttribute(_LazyDescr):
++
++    def __init__(self, name, old_mod, new_mod, old_attr=None, new_attr=None):
++        super(MovedAttribute, self).__init__(name)
++        if PY3:
++            if new_mod is None:
++                new_mod = name
++            self.mod = new_mod
++            if new_attr is None:
++                if old_attr is None:
++                    new_attr = name
++                else:
++                    new_attr = old_attr
++            self.attr = new_attr
++        else:
++            self.mod = old_mod
++            if old_attr is None:
++                old_attr = name
++            self.attr = old_attr
++
++    def _resolve(self):
++        module = _import_module(self.mod)
++        return getattr(module, self.attr)
++
++
++class _SixMetaPathImporter(object):
++    """
++    A meta path importer to import six.moves and its submodules.
++
++    This class implements a PEP302 finder and loader. It should be compatible
++    with Python 2.5 and all existing versions of Python3
++    """
++    def __init__(self, six_module_name):
++        self.name = six_module_name
++        self.known_modules = {}
++
++    def _add_module(self, mod, *fullnames):
++        for fullname in fullnames:
++            self.known_modules[self.name + "." + fullname] = mod
++
++    def _get_module(self, fullname):
++        return self.known_modules[self.name + "." + fullname]
++
++    def find_module(self, fullname, path=None):
++        if fullname in self.known_modules:
++            return self
++        return None
++
++    def __get_module(self, fullname):
++        try:
++            return self.known_modules[fullname]
++        except KeyError:
++            raise ImportError("This loader does not know module " + fullname)
++
++    def load_module(self, fullname):
++        try:
++            # in case of a reload
++            return sys.modules[fullname]
++        except KeyError:
++            pass
++        mod = self.__get_module(fullname)
++        if isinstance(mod, MovedModule):
++            mod = mod._resolve()
++        else:
++            mod.__loader__ = self
++        sys.modules[fullname] = mod
++        return mod
++
++    def is_package(self, fullname):
++        """
++        Return true, if the named module is a package.
++
++        We need this method to get correct spec objects with
++        Python 3.4 (see PEP451)
++        """
++        return hasattr(self.__get_module(fullname), "__path__")
++
++    def get_code(self, fullname):
++        """Return None
++
++        Required, if is_package is implemented"""
++        self.__get_module(fullname)  # eventually raises ImportError
++        return None
++    get_source = get_code  # same as get_code
++
++_importer = _SixMetaPathImporter(__name__)
++
++
++class _MovedItems(_LazyModule):
++    """Lazy loading of moved objects"""
++    __path__ = []  # mark as package
++
++
++_moved_attributes = [
++    MovedAttribute("cStringIO", "cStringIO", "io", "StringIO"),
++    MovedAttribute("filter", "itertools", "builtins", "ifilter", "filter"),
++    MovedAttribute("filterfalse", "itertools", "itertools", "ifilterfalse", "filterfalse"),
++    MovedAttribute("input", "__builtin__", "builtins", "raw_input", "input"),
++    MovedAttribute("intern", "__builtin__", "sys"),
++    MovedAttribute("map", "itertools", "builtins", "imap", "map"),
++    MovedAttribute("range", "__builtin__", "builtins", "xrange", "range"),
++    MovedAttribute("reload_module", "__builtin__", "imp", "reload"),
++    MovedAttribute("reduce", "__builtin__", "functools"),
++    MovedAttribute("shlex_quote", "pipes", "shlex", "quote"),
++    MovedAttribute("StringIO", "StringIO", "io"),
++    MovedAttribute("UserDict", "UserDict", "collections"),
++    MovedAttribute("UserList", "UserList", "collections"),
++    MovedAttribute("UserString", "UserString", "collections"),
++    MovedAttribute("xrange", "__builtin__", "builtins", "xrange", "range"),
++    MovedAttribute("zip", "itertools", "builtins", "izip", "zip"),
++    MovedAttribute("zip_longest", "itertools", "itertools", "izip_longest", "zip_longest"),
++
++    MovedModule("builtins", "__builtin__"),
++    MovedModule("configparser", "ConfigParser"),
++    MovedModule("copyreg", "copy_reg"),
++    MovedModule("dbm_gnu", "gdbm", "dbm.gnu"),
++    MovedModule("_dummy_thread", "dummy_thread", "_dummy_thread"),
++    MovedModule("http_cookiejar", "cookielib", "http.cookiejar"),
++    MovedModule("http_cookies", "Cookie", "http.cookies"),
++    MovedModule("html_entities", "htmlentitydefs", "html.entities"),
++    MovedModule("html_parser", "HTMLParser", "html.parser"),
++    MovedModule("http_client", "httplib", "http.client"),
++    MovedModule("email_mime_multipart", "email.MIMEMultipart", "email.mime.multipart"),
++    MovedModule("email_mime_nonmultipart", "email.MIMENonMultipart", "email.mime.nonmultipart"),
++    MovedModule("email_mime_text", "email.MIMEText", "email.mime.text"),
++    MovedModule("email_mime_base", "email.MIMEBase", "email.mime.base"),
++    MovedModule("BaseHTTPServer", "BaseHTTPServer", "http.server"),
++    MovedModule("CGIHTTPServer", "CGIHTTPServer", "http.server"),
++    MovedModule("SimpleHTTPServer", "SimpleHTTPServer", "http.server"),
++    MovedModule("cPickle", "cPickle", "pickle"),
++    MovedModule("queue", "Queue"),
++    MovedModule("reprlib", "repr"),
++    MovedModule("socketserver", "SocketServer"),
++    MovedModule("_thread", "thread", "_thread"),
++    MovedModule("tkinter", "Tkinter"),
++    MovedModule("tkinter_dialog", "Dialog", "tkinter.dialog"),
++    MovedModule("tkinter_filedialog", "FileDialog", "tkinter.filedialog"),
++    MovedModule("tkinter_scrolledtext", "ScrolledText", "tkinter.scrolledtext"),
++    MovedModule("tkinter_simpledialog", "SimpleDialog", "tkinter.simpledialog"),
++    MovedModule("tkinter_tix", "Tix", "tkinter.tix"),
++    MovedModule("tkinter_ttk", "ttk", "tkinter.ttk"),
++    MovedModule("tkinter_constants", "Tkconstants", "tkinter.constants"),
++    MovedModule("tkinter_dnd", "Tkdnd", "tkinter.dnd"),
++    MovedModule("tkinter_colorchooser", "tkColorChooser",
++                "tkinter.colorchooser"),
++    MovedModule("tkinter_commondialog", "tkCommonDialog",
++                "tkinter.commondialog"),
++    MovedModule("tkinter_tkfiledialog", "tkFileDialog", "tkinter.filedialog"),
++    MovedModule("tkinter_font", "tkFont", "tkinter.font"),
++    MovedModule("tkinter_messagebox", "tkMessageBox", "tkinter.messagebox"),
++    MovedModule("tkinter_tksimpledialog", "tkSimpleDialog",
++                "tkinter.simpledialog"),
++    MovedModule("urllib_parse", __name__ + ".moves.urllib_parse", "urllib.parse"),
++    MovedModule("urllib_error", __name__ + ".moves.urllib_error", "urllib.error"),
++    MovedModule("urllib", __name__ + ".moves.urllib", __name__ + ".moves.urllib"),
++    MovedModule("urllib_robotparser", "robotparser", "urllib.robotparser"),
++    MovedModule("xmlrpc_client", "xmlrpclib", "xmlrpc.client"),
++    MovedModule("xmlrpc_server", "SimpleXMLRPCServer", "xmlrpc.server"),
++    MovedModule("winreg", "_winreg"),
++]
++for attr in _moved_attributes:
++    setattr(_MovedItems, attr.name, attr)
++    if isinstance(attr, MovedModule):
++        _importer._add_module(attr, "moves." + attr.name)
++del attr
++
++_MovedItems._moved_attributes = _moved_attributes
++
++moves = _MovedItems(__name__ + ".moves")
++_importer._add_module(moves, "moves")
++
++
++class Module_six_moves_urllib_parse(_LazyModule):
++    """Lazy loading of moved objects in six.moves.urllib_parse"""
++
++
++_urllib_parse_moved_attributes = [
++    MovedAttribute("ParseResult", "urlparse", "urllib.parse"),
++    MovedAttribute("SplitResult", "urlparse", "urllib.parse"),
++    MovedAttribute("parse_qs", "urlparse", "urllib.parse"),
++    MovedAttribute("parse_qsl", "urlparse", "urllib.parse"),
++    MovedAttribute("urldefrag", "urlparse", "urllib.parse"),
++    MovedAttribute("urljoin", "urlparse", "urllib.parse"),
++    MovedAttribute("urlparse", "urlparse", "urllib.parse"),
++    MovedAttribute("urlsplit", "urlparse", "urllib.parse"),
++    MovedAttribute("urlunparse", "urlparse", "urllib.parse"),
++    MovedAttribute("urlunsplit", "urlparse", "urllib.parse"),
++    MovedAttribute("quote", "urllib", "urllib.parse"),
++    MovedAttribute("quote_plus", "urllib", "urllib.parse"),
++    MovedAttribute("unquote", "urllib", "urllib.parse"),
++    MovedAttribute("unquote_plus", "urllib", "urllib.parse"),
++    MovedAttribute("urlencode", "urllib", "urllib.parse"),
++    MovedAttribute("splitquery", "urllib", "urllib.parse"),
++    MovedAttribute("splittag", "urllib", "urllib.parse"),
++    MovedAttribute("splituser", "urllib", "urllib.parse"),
++    MovedAttribute("uses_fragment", "urlparse", "urllib.parse"),
++    MovedAttribute("uses_netloc", "urlparse", "urllib.parse"),
++    MovedAttribute("uses_params", "urlparse", "urllib.parse"),
++    MovedAttribute("uses_query", "urlparse", "urllib.parse"),
++    MovedAttribute("uses_relative", "urlparse", "urllib.parse"),
++]
++for attr in _urllib_parse_moved_attributes:
++    setattr(Module_six_moves_urllib_parse, attr.name, attr)
++del attr
++
++Module_six_moves_urllib_parse._moved_attributes = _urllib_parse_moved_attributes
++
++_importer._add_module(Module_six_moves_urllib_parse(__name__ + ".moves.urllib_parse"),
++                      "moves.urllib_parse", "moves.urllib.parse")
++
++
++class Module_six_moves_urllib_error(_LazyModule):
++    """Lazy loading of moved objects in six.moves.urllib_error"""
++
++
++_urllib_error_moved_attributes = [
++    MovedAttribute("URLError", "urllib2", "urllib.error"),
++    MovedAttribute("HTTPError", "urllib2", "urllib.error"),
++    MovedAttribute("ContentTooShortError", "urllib", "urllib.error"),
++]
++for attr in _urllib_error_moved_attributes:
++    setattr(Module_six_moves_urllib_error, attr.name, attr)
++del attr
++
++Module_six_moves_urllib_error._moved_attributes = _urllib_error_moved_attributes
++
++_importer._add_module(Module_six_moves_urllib_error(__name__ + ".moves.urllib.error"),
++                      "moves.urllib_error", "moves.urllib.error")
++
++
++class Module_six_moves_urllib_request(_LazyModule):
++    """Lazy loading of moved objects in six.moves.urllib_request"""
++
++
++_urllib_request_moved_attributes = [
++    MovedAttribute("urlopen", "urllib2", "urllib.request"),
++    MovedAttribute("install_opener", "urllib2", "urllib.request"),
++    MovedAttribute("build_opener", "urllib2", "urllib.request"),
++    MovedAttribute("pathname2url", "urllib", "urllib.request"),
++    MovedAttribute("url2pathname", "urllib", "urllib.request"),
++    MovedAttribute("getproxies", "urllib", "urllib.request"),
++    MovedAttribute("Request", "urllib2", "urllib.request"),
++    MovedAttribute("OpenerDirector", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPDefaultErrorHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPRedirectHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPCookieProcessor", "urllib2", "urllib.request"),
++    MovedAttribute("ProxyHandler", "urllib2", "urllib.request"),
++    MovedAttribute("BaseHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPPasswordMgr", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPPasswordMgrWithDefaultRealm", "urllib2", "urllib.request"),
++    MovedAttribute("AbstractBasicAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPBasicAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("ProxyBasicAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("AbstractDigestAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPDigestAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("ProxyDigestAuthHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPSHandler", "urllib2", "urllib.request"),
++    MovedAttribute("FileHandler", "urllib2", "urllib.request"),
++    MovedAttribute("FTPHandler", "urllib2", "urllib.request"),
++    MovedAttribute("CacheFTPHandler", "urllib2", "urllib.request"),
++    MovedAttribute("UnknownHandler", "urllib2", "urllib.request"),
++    MovedAttribute("HTTPErrorProcessor", "urllib2", "urllib.request"),
++    MovedAttribute("urlretrieve", "urllib", "urllib.request"),
++    MovedAttribute("urlcleanup", "urllib", "urllib.request"),
++    MovedAttribute("URLopener", "urllib", "urllib.request"),
++    MovedAttribute("FancyURLopener", "urllib", "urllib.request"),
++    MovedAttribute("proxy_bypass", "urllib", "urllib.request"),
++]
++for attr in _urllib_request_moved_attributes:
++    setattr(Module_six_moves_urllib_request, attr.name, attr)
++del attr
++
++Module_six_moves_urllib_request._moved_attributes = _urllib_request_moved_attributes
++
++_importer._add_module(Module_six_moves_urllib_request(__name__ + ".moves.urllib.request"),
++                      "moves.urllib_request", "moves.urllib.request")
++
++
++class Module_six_moves_urllib_response(_LazyModule):
++    """Lazy loading of moved objects in six.moves.urllib_response"""
++
++
++_urllib_response_moved_attributes = [
++    MovedAttribute("addbase", "urllib", "urllib.response"),
++    MovedAttribute("addclosehook", "urllib", "urllib.response"),
++    MovedAttribute("addinfo", "urllib", "urllib.response"),
++    MovedAttribute("addinfourl", "urllib", "urllib.response"),
++]
++for attr in _urllib_response_moved_attributes:
++    setattr(Module_six_moves_urllib_response, attr.name, attr)
++del attr
++
++Module_six_moves_urllib_response._moved_attributes = _urllib_response_moved_attributes
++
++_importer._add_module(Module_six_moves_urllib_response(__name__ + ".moves.urllib.response"),
++                      "moves.urllib_response", "moves.urllib.response")
++
++
++class Module_six_moves_urllib_robotparser(_LazyModule):
++    """Lazy loading of moved objects in six.moves.urllib_robotparser"""
++
++
++_urllib_robotparser_moved_attributes = [
++    MovedAttribute("RobotFileParser", "robotparser", "urllib.robotparser"),
++]
++for attr in _urllib_robotparser_moved_attributes:
++    setattr(Module_six_moves_urllib_robotparser, attr.name, attr)
++del attr
++
++Module_six_moves_urllib_robotparser._moved_attributes = _urllib_robotparser_moved_attributes
++
++_importer._add_module(Module_six_moves_urllib_robotparser(__name__ + ".moves.urllib.robotparser"),
++                      "moves.urllib_robotparser", "moves.urllib.robotparser")
++
++
++class Module_six_moves_urllib(types.ModuleType):
++    """Create a six.moves.urllib namespace that resembles the Python 3 namespace"""
++    __path__ = []  # mark as package
++    parse = _importer._get_module("moves.urllib_parse")
++    error = _importer._get_module("moves.urllib_error")
++    request = _importer._get_module("moves.urllib_request")
++    response = _importer._get_module("moves.urllib_response")
++    robotparser = _importer._get_module("moves.urllib_robotparser")
++
++    def __dir__(self):
++        return ['parse', 'error', 'request', 'response', 'robotparser']
++
++_importer._add_module(Module_six_moves_urllib(__name__ + ".moves.urllib"),
++                      "moves.urllib")
++
++
++def add_move(move):
++    """Add an item to six.moves."""
++    setattr(_MovedItems, move.name, move)
++
++
++def remove_move(name):
++    """Remove item from six.moves."""
++    try:
++        delattr(_MovedItems, name)
++    except AttributeError:
++        try:
++            del moves.__dict__[name]
++        except KeyError:
++            raise AttributeError("no such move, %r" % (name,))
++
++
++if PY3:
++    _meth_func = "__func__"
++    _meth_self = "__self__"
++
++    _func_closure = "__closure__"
++    _func_code = "__code__"
++    _func_defaults = "__defaults__"
++    _func_globals = "__globals__"
++else:
++    _meth_func = "im_func"
++    _meth_self = "im_self"
++
++    _func_closure = "func_closure"
++    _func_code = "func_code"
++    _func_defaults = "func_defaults"
++    _func_globals = "func_globals"
++
++
++try:
++    advance_iterator = next
++except NameError:
++    def advance_iterator(it):
++        return it.next()
++next = advance_iterator
++
++
++try:
++    callable = callable
++except NameError:
++    def callable(obj):
++        return any("__call__" in klass.__dict__ for klass in type(obj).__mro__)
++
++
++if PY3:
++    def get_unbound_function(unbound):
++        return unbound
++
++    create_bound_method = types.MethodType
++
++    Iterator = object
++else:
++    def get_unbound_function(unbound):
++        return unbound.im_func
++
++    def create_bound_method(func, obj):
++        return types.MethodType(func, obj, obj.__class__)
++
++    class Iterator(object):
++
++        def next(self):
++            return type(self).__next__(self)
++
++    callable = callable
++_add_doc(get_unbound_function,
++         """Get the function out of a possibly unbound function""")
++
++
++get_method_function = operator.attrgetter(_meth_func)
++get_method_self = operator.attrgetter(_meth_self)
++get_function_closure = operator.attrgetter(_func_closure)
++get_function_code = operator.attrgetter(_func_code)
++get_function_defaults = operator.attrgetter(_func_defaults)
++get_function_globals = operator.attrgetter(_func_globals)
++
++
++if PY3:
++    def iterkeys(d, **kw):
++        return iter(d.keys(**kw))
++
++    def itervalues(d, **kw):
++        return iter(d.values(**kw))
++
++    def iteritems(d, **kw):
++        return iter(d.items(**kw))
++
++    def iterlists(d, **kw):
++        return iter(d.lists(**kw))
++
++    viewkeys = operator.methodcaller("keys")
++
++    viewvalues = operator.methodcaller("values")
++
++    viewitems = operator.methodcaller("items")
++else:
++    def iterkeys(d, **kw):
++        return iter(d.iterkeys(**kw))
++
++    def itervalues(d, **kw):
++        return iter(d.itervalues(**kw))
++
++    def iteritems(d, **kw):
++        return iter(d.iteritems(**kw))
++
++    def iterlists(d, **kw):
++        return iter(d.iterlists(**kw))
++
++    viewkeys = operator.methodcaller("viewkeys")
++
++    viewvalues = operator.methodcaller("viewvalues")
++
++    viewitems = operator.methodcaller("viewitems")
++
++_add_doc(iterkeys, "Return an iterator over the keys of a dictionary.")
++_add_doc(itervalues, "Return an iterator over the values of a dictionary.")
++_add_doc(iteritems,
++         "Return an iterator over the (key, value) pairs of a dictionary.")
++_add_doc(iterlists,
++         "Return an iterator over the (key, [values]) pairs of a dictionary.")
++
++
++if PY3:
++    def b(s):
++        return s.encode("latin-1")
++    def u(s):
++        return s
++    unichr = chr
++    if sys.version_info[1] <= 1:
++        def int2byte(i):
++            return bytes((i,))
++    else:
++        # This is about 2x faster than the implementation above on 3.2+
++        int2byte = operator.methodcaller("to_bytes", 1, "big")
++    byte2int = operator.itemgetter(0)
++    indexbytes = operator.getitem
++    iterbytes = iter
++    import io
++    StringIO = io.StringIO
++    BytesIO = io.BytesIO
++    _assertCountEqual = "assertCountEqual"
++    _assertRaisesRegex = "assertRaisesRegex"
++    _assertRegex = "assertRegex"
++else:
++    def b(s):
++        return s
++    # Workaround for standalone backslash
++    def u(s):
++        return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")
++    unichr = unichr
++    int2byte = chr
++    def byte2int(bs):
++        return ord(bs[0])
++    def indexbytes(buf, i):
++        return ord(buf[i])
++    iterbytes = functools.partial(itertools.imap, ord)
++    import StringIO
++    StringIO = BytesIO = StringIO.StringIO
++    _assertCountEqual = "assertItemsEqual"
++    _assertRaisesRegex = "assertRaisesRegexp"
++    _assertRegex = "assertRegexpMatches"
++_add_doc(b, """Byte literal""")
++_add_doc(u, """Text literal""")
++
++
++def assertCountEqual(self, *args, **kwargs):
++    return getattr(self, _assertCountEqual)(*args, **kwargs)
++
++
++def assertRaisesRegex(self, *args, **kwargs):
++    return getattr(self, _assertRaisesRegex)(*args, **kwargs)
++
++
++def assertRegex(self, *args, **kwargs):
++    return getattr(self, _assertRegex)(*args, **kwargs)
++
++
++if PY3:
++    exec_ = getattr(moves.builtins, "exec")
++
++
++    def reraise(tp, value, tb=None):
++        if value is None:
++            value = tp()
++        if value.__traceback__ is not tb:
++            raise value.with_traceback(tb)
++        raise value
++
++else:
++    def exec_(_code_, _globs_=None, _locs_=None):
++        """Execute code in a namespace."""
++        if _globs_ is None:
++            frame = sys._getframe(1)
++            _globs_ = frame.f_globals
++            if _locs_ is None:
++                _locs_ = frame.f_locals
++            del frame
++        elif _locs_ is None:
++            _locs_ = _globs_
++        exec("""exec _code_ in _globs_, _locs_""")
++
++
++    exec_("""def reraise(tp, value, tb=None):
++    raise tp, value, tb
++""")
++
++
++if sys.version_info[:2] == (3, 2):
++    exec_("""def raise_from(value, from_value):
++    if from_value is None:
++        raise value
++    raise value from from_value
++""")
++elif sys.version_info[:2] > (3, 2):
++    exec_("""def raise_from(value, from_value):
++    raise value from from_value
++""")
++else:
++    def raise_from(value, from_value):
++        raise value
++
++
++print_ = getattr(moves.builtins, "print", None)
++if print_ is None:
++    def print_(*args, **kwargs):
++        """The new-style print function for Python 2.4 and 2.5."""
++        fp = kwargs.pop("file", sys.stdout)
++        if fp is None:
++            return
++        def write(data):
++            if not isinstance(data, basestring):
++                data = str(data)
++            # If the file has an encoding, encode unicode with it.
++            if (isinstance(fp, file) and
++                isinstance(data, unicode) and
++                fp.encoding is not None):
++                errors = getattr(fp, "errors", None)
++                if errors is None:
++                    errors = "strict"
++                data = data.encode(fp.encoding, errors)
++            fp.write(data)
++        want_unicode = False
++        sep = kwargs.pop("sep", None)
++        if sep is not None:
++            if isinstance(sep, unicode):
++                want_unicode = True
++            elif not isinstance(sep, str):
++                raise TypeError("sep must be None or a string")
++        end = kwargs.pop("end", None)
++        if end is not None:
++            if isinstance(end, unicode):
++                want_unicode = True
++            elif not isinstance(end, str):
++                raise TypeError("end must be None or a string")
++        if kwargs:
++            raise TypeError("invalid keyword arguments to print()")
++        if not want_unicode:
++            for arg in args:
++                if isinstance(arg, unicode):
++                    want_unicode = True
++                    break
++        if want_unicode:
++            newline = unicode("\n")
++            space = unicode(" ")
++        else:
++            newline = "\n"
++            space = " "
++        if sep is None:
++            sep = space
++        if end is None:
++            end = newline
++        for i, arg in enumerate(args):
++            if i:
++                write(sep)
++            write(arg)
++        write(end)
++if sys.version_info[:2] < (3, 3):
++    _print = print_
++    def print_(*args, **kwargs):
++        fp = kwargs.get("file", sys.stdout)
++        flush = kwargs.pop("flush", False)
++        _print(*args, **kwargs)
++        if flush and fp is not None:
++            fp.flush()
++
++_add_doc(reraise, """Reraise an exception.""")
++
++if sys.version_info[0:2] < (3, 4):
++    def wraps(wrapped, assigned=functools.WRAPPER_ASSIGNMENTS,
++              updated=functools.WRAPPER_UPDATES):
++        def wrapper(f):
++            f = functools.wraps(wrapped, assigned, updated)(f)
++            f.__wrapped__ = wrapped
++            return f
++        return wrapper
++else:
++    wraps = functools.wraps
++
++def with_metaclass(meta, *bases):
++    """Create a base class with a metaclass."""
++    # This requires a bit of explanation: the basic idea is to make a dummy
++    # metaclass for one level of class instantiation that replaces itself with
++    # the actual metaclass.
++    class metaclass(meta):
++        def __new__(cls, name, this_bases, d):
++            return meta(name, bases, d)
++    return type.__new__(metaclass, 'temporary_class', (), {})
++
++
++def add_metaclass(metaclass):
++    """Class decorator for creating a class with a metaclass."""
++    def wrapper(cls):
++        orig_vars = cls.__dict__.copy()
++        slots = orig_vars.get('__slots__')
++        if slots is not None:
++            if isinstance(slots, str):
++                slots = [slots]
++            for slots_var in slots:
++                orig_vars.pop(slots_var)
++        orig_vars.pop('__dict__', None)
++        orig_vars.pop('__weakref__', None)
++        return metaclass(cls.__name__, cls.__bases__, orig_vars)
++    return wrapper
++
++
++def python_2_unicode_compatible(klass):
++    """
++    A decorator that defines __unicode__ and __str__ methods under Python 2.
++    Under Python 3 it does nothing.
++
++    To support Python 2 and 3 with a single code base, define a __str__ method
++    returning text and apply this decorator to the class.
++    """
++    if PY2:
++        if '__str__' not in klass.__dict__:
++            raise ValueError("@python_2_unicode_compatible cannot be applied "
++                             "to %s because it doesn't define __str__()." %
++                             klass.__name__)
++        klass.__unicode__ = klass.__str__
++        klass.__str__ = lambda self: self.__unicode__().encode('utf-8')
++    return klass
++
++
++# Complete the moves implementation.
++# This code is at the end of this module to speed up module loading.
++# Turn this module into a package.
++__path__ = []  # required for PEP 302 and PEP 451
++__package__ = __name__  # see PEP 366 @ReservedAssignment
++if globals().get("__spec__") is not None:
++    __spec__.submodule_search_locations = []  # PEP 451 @UndefinedVariable
++# Remove other six meta path importers, since they cause problems. This can
++# happen if six is removed from sys.modules and then reloaded. (Setuptools does
++# this for some reason.)
++if sys.meta_path:
++    for i, importer in enumerate(sys.meta_path):
++        # Here's some real nastiness: Another "instance" of the six module might
++        # be floating around. Therefore, we can't use isinstance() to check for
++        # the six meta path importer, since the other six instance will have
++        # inserted an importer with different class.
++        if (type(importer).__name__ == "_SixMetaPathImporter" and
++            importer.name == __name__):
++            del sys.meta_path[i]
++            break
++    del i, importer
++# Finally, add the importer to the meta path import hook.
++sys.meta_path.append(_importer)
+diff --git a/desktop/core/ext-py/six-1.9.0/test_six.py b/desktop/core/ext-py/six-1.9.0/test_six.py
+new file mode 100644
+index 0000000..76a8ccb
+--- /dev/null
++++ b/desktop/core/ext-py/six-1.9.0/test_six.py
+@@ -0,0 +1,858 @@
++import operator
++import sys
++import types
++import unittest
++
++import py
++
++import six
++
++
++def test_add_doc():
++    def f():
++        """Icky doc"""
++        pass
++    six._add_doc(f, """New doc""")
++    assert f.__doc__ == "New doc"
++
++
++def test_import_module():
++    from logging import handlers
++    m = six._import_module("logging.handlers")
++    assert m is handlers
++
++
++def test_integer_types():
++    assert isinstance(1, six.integer_types)
++    assert isinstance(-1, six.integer_types)
++    assert isinstance(six.MAXSIZE + 23, six.integer_types)
++    assert not isinstance(.1, six.integer_types)
++
++
++def test_string_types():
++    assert isinstance("hi", six.string_types)
++    assert isinstance(six.u("hi"), six.string_types)
++    assert issubclass(six.text_type, six.string_types)
++
++
++def test_class_types():
++    class X:
++        pass
++    class Y(object):
++        pass
++    assert isinstance(X, six.class_types)
++    assert isinstance(Y, six.class_types)
++    assert not isinstance(X(), six.class_types)
++
++
++def test_text_type():
++    assert type(six.u("hi")) is six.text_type
++
++
++def test_binary_type():
++    assert type(six.b("hi")) is six.binary_type
++
++
++def test_MAXSIZE():
++    try:
++        # This shouldn't raise an overflow error.
++        six.MAXSIZE.__index__()
++    except AttributeError:
++        # Before Python 2.6.
++        pass
++    py.test.raises(
++        (ValueError, OverflowError),
++        operator.mul, [None], six.MAXSIZE + 1)
++
++
++def test_lazy():
++    if six.PY3:
++        html_name = "html.parser"
++    else:
++        html_name = "HTMLParser"
++    assert html_name not in sys.modules
++    mod = six.moves.html_parser
++    assert sys.modules[html_name] is mod
++    assert "htmlparser" not in six._MovedItems.__dict__
++
++
++try:
++    import _tkinter
++except ImportError:
++    have_tkinter = False
++else:
++    have_tkinter = True
++
++have_gdbm = True
++try:
++    import gdbm
++except ImportError:
++    try:
++        import dbm.gnu
++    except ImportError:
++        have_gdbm = False
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._moved_attributes])
++def test_move_items(item_name):
++    """Ensure that everything loads correctly."""
++    try:
++        item = getattr(six.moves, item_name)
++        if isinstance(item, types.ModuleType):
++            __import__("six.moves." + item_name)
++    except AttributeError:
++        if item_name == "zip_longest" and sys.version_info < (2, 6):
++            py.test.skip("zip_longest only available on 2.6+")
++    except ImportError:
++        if item_name == "winreg" and not sys.platform.startswith("win"):
++            py.test.skip("Windows only module")
++        if item_name.startswith("tkinter"):
++            if not have_tkinter:
++                py.test.skip("requires tkinter")
++            if item_name == "tkinter_ttk" and sys.version_info[:2] <= (2, 6):
++                py.test.skip("ttk only available on 2.7+")
++        if item_name.startswith("dbm_gnu") and not have_gdbm:
++            py.test.skip("requires gdbm")
++        raise
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves)
++
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._urllib_parse_moved_attributes])
++def test_move_items_urllib_parse(item_name):
++    """Ensure that everything loads correctly."""
++    if item_name == "ParseResult" and sys.version_info < (2, 5):
++        py.test.skip("ParseResult is only found on 2.5+")
++    if item_name in ("parse_qs", "parse_qsl") and sys.version_info < (2, 6):
++        py.test.skip("parse_qs[l] is new in 2.6")
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves.urllib.parse)
++    getattr(six.moves.urllib.parse, item_name)
++
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._urllib_error_moved_attributes])
++def test_move_items_urllib_error(item_name):
++    """Ensure that everything loads correctly."""
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves.urllib.error)
++    getattr(six.moves.urllib.error, item_name)
++
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._urllib_request_moved_attributes])
++def test_move_items_urllib_request(item_name):
++    """Ensure that everything loads correctly."""
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves.urllib.request)
++    getattr(six.moves.urllib.request, item_name)
++
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._urllib_response_moved_attributes])
++def test_move_items_urllib_response(item_name):
++    """Ensure that everything loads correctly."""
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves.urllib.response)
++    getattr(six.moves.urllib.response, item_name)
++
++
++@py.test.mark.parametrize("item_name",
++                          [item.name for item in six._urllib_robotparser_moved_attributes])
++def test_move_items_urllib_robotparser(item_name):
++    """Ensure that everything loads correctly."""
++    if sys.version_info[:2] >= (2, 6):
++        assert item_name in dir(six.moves.urllib.robotparser)
++    getattr(six.moves.urllib.robotparser, item_name)
++
++
++def test_import_moves_error_1():
++    from six.moves.urllib.parse import urljoin
++    from six import moves
++    # In 1.4.1: AttributeError: 'Module_six_moves_urllib_parse' object has no attribute 'urljoin'
++    assert moves.urllib.parse.urljoin
++
++
++def test_import_moves_error_2():
++    from six import moves
++    assert moves.urllib.parse.urljoin
++    # In 1.4.1: ImportError: cannot import name urljoin
++    from six.moves.urllib.parse import urljoin
++
++
++def test_import_moves_error_3():
++    from six.moves.urllib.parse import urljoin
++    # In 1.4.1: ImportError: cannot import name urljoin
++    from six.moves.urllib_parse import urljoin
++
++
++def test_from_imports():
++    from six.moves.queue import Queue
++    assert isinstance(Queue, six.class_types)
++    from six.moves.configparser import ConfigParser
++    assert isinstance(ConfigParser, six.class_types)
++
++
++def test_filter():
++    from six.moves import filter
++    f = filter(lambda x: x % 2, range(10))
++    assert six.advance_iterator(f) == 1
++
++
++def test_filter_false():
++    from six.moves import filterfalse
++    f = filterfalse(lambda x: x % 3, range(10))
++    assert six.advance_iterator(f) == 0
++    assert six.advance_iterator(f) == 3
++    assert six.advance_iterator(f) == 6
++
++def test_map():
++    from six.moves import map
++    assert six.advance_iterator(map(lambda x: x + 1, range(2))) == 1
++
++
++def test_zip():
++    from six.moves import zip
++    assert six.advance_iterator(zip(range(2), range(2))) == (0, 0)
++
++
++@py.test.mark.skipif("sys.version_info < (2, 6)")
++def test_zip_longest():
++    from six.moves import zip_longest
++    it = zip_longest(range(2), range(1))
++
++    assert six.advance_iterator(it) == (0, 0)
++    assert six.advance_iterator(it) == (1, None)
++
++
++class TestCustomizedMoves:
++
++    def teardown_method(self, meth):
++        try:
++            del six._MovedItems.spam
++        except AttributeError:
++            pass
++        try:
++            del six.moves.__dict__["spam"]
++        except KeyError:
++            pass
++
++
++    def test_moved_attribute(self):
++        attr = six.MovedAttribute("spam", "foo", "bar")
++        if six.PY3:
++            assert attr.mod == "bar"
++        else:
++            assert attr.mod == "foo"
++        assert attr.attr == "spam"
++        attr = six.MovedAttribute("spam", "foo", "bar", "lemma")
++        assert attr.attr == "lemma"
++        attr = six.MovedAttribute("spam", "foo", "bar", "lemma", "theorm")
++        if six.PY3:
++            assert attr.attr == "theorm"
++        else:
++            assert attr.attr == "lemma"
++
++
++    def test_moved_module(self):
++        attr = six.MovedModule("spam", "foo")
++        if six.PY3:
++            assert attr.mod == "spam"
++        else:
++            assert attr.mod == "foo"
++        attr = six.MovedModule("spam", "foo", "bar")
++        if six.PY3:
++            assert attr.mod == "bar"
++        else:
++            assert attr.mod == "foo"
++
++
++    def test_custom_move_module(self):
++        attr = six.MovedModule("spam", "six", "six")
++        six.add_move(attr)
++        six.remove_move("spam")
++        assert not hasattr(six.moves, "spam")
++        attr = six.MovedModule("spam", "six", "six")
++        six.add_move(attr)
++        from six.moves import spam
++        assert spam is six
++        six.remove_move("spam")
++        assert not hasattr(six.moves, "spam")
++
++
++    def test_custom_move_attribute(self):
++        attr = six.MovedAttribute("spam", "six", "six", "u", "u")
++        six.add_move(attr)
++        six.remove_move("spam")
++        assert not hasattr(six.moves, "spam")
++        attr = six.MovedAttribute("spam", "six", "six", "u", "u")
++        six.add_move(attr)
++        from six.moves import spam
++        assert spam is six.u
++        six.remove_move("spam")
++        assert not hasattr(six.moves, "spam")
++
++
++    def test_empty_remove(self):
++        py.test.raises(AttributeError, six.remove_move, "eggs")
++
++
++def test_get_unbound_function():
++    class X(object):
++        def m(self):
++            pass
++    assert six.get_unbound_function(X.m) is X.__dict__["m"]
++
++
++def test_get_method_self():
++    class X(object):
++        def m(self):
++            pass
++    x = X()
++    assert six.get_method_self(x.m) is x
++    py.test.raises(AttributeError, six.get_method_self, 42)
++
++
++def test_get_method_function():
++    class X(object):
++        def m(self):
++            pass
++    x = X()
++    assert six.get_method_function(x.m) is X.__dict__["m"]
++    py.test.raises(AttributeError, six.get_method_function, hasattr)
++
++
++def test_get_function_closure():
++    def f():
++        x = 42
++        def g():
++            return x
++        return g
++    cell = six.get_function_closure(f())[0]
++    assert type(cell).__name__ == "cell"
++
++
++def test_get_function_code():
++    def f():
++        pass
++    assert isinstance(six.get_function_code(f), types.CodeType)
++    if not hasattr(sys, "pypy_version_info"):
++        py.test.raises(AttributeError, six.get_function_code, hasattr)
++
++
++def test_get_function_defaults():
++    def f(x, y=3, b=4):
++        pass
++    assert six.get_function_defaults(f) == (3, 4)
++
++
++def test_get_function_globals():
++    def f():
++        pass
++    assert six.get_function_globals(f) is globals()
++
++
++def test_dictionary_iterators(monkeypatch):
++    def stock_method_name(iterwhat):
++        """Given a method suffix like "lists" or "values", return the name
++        of the dict method that delivers those on the version of Python
++        we're running in."""
++        if six.PY3:
++            return iterwhat
++        return 'iter' + iterwhat
++
++    class MyDict(dict):
++        if not six.PY3:
++            def lists(self, **kw):
++                return [1, 2, 3]
++        def iterlists(self, **kw):
++            return iter([1, 2, 3])
++    f = MyDict.iterlists
++    del MyDict.iterlists
++    setattr(MyDict, stock_method_name('lists'), f)
++
++    d = MyDict(zip(range(10), reversed(range(10))))
++    for name in "keys", "values", "items", "lists":
++        meth = getattr(six, "iter" + name)
++        it = meth(d)
++        assert not isinstance(it, list)
++        assert list(it) == list(getattr(d, name)())
++        py.test.raises(StopIteration, six.advance_iterator, it)
++        record = []
++        def with_kw(*args, **kw):
++            record.append(kw["kw"])
++            return old(*args)
++        old = getattr(MyDict, stock_method_name(name))
++        monkeypatch.setattr(MyDict, stock_method_name(name), with_kw)
++        meth(d, kw=42)
++        assert record == [42]
++        monkeypatch.undo()
++
++
++@py.test.mark.skipif(sys.version_info[:2] < (2, 7),
++                reason="view methods on dictionaries only available on 2.7+")
++def test_dictionary_views():
++    def stock_method_name(viewwhat):
++        """Given a method suffix like "keys" or "values", return the name
++        of the dict method that delivers those on the version of Python
++        we're running in."""
++        if six.PY3:
++            return viewwhat
++        return 'view' + viewwhat
++
++    d = dict(zip(range(10), (range(11, 20))))
++    for name in "keys", "values", "items":
++        meth = getattr(six, "view" + name)
++        view = meth(d)
++        assert set(view) == set(getattr(d, name)())
++
++
++def test_advance_iterator():
++    assert six.next is six.advance_iterator
++    l = [1, 2]
++    it = iter(l)
++    assert six.next(it) == 1
++    assert six.next(it) == 2
++    py.test.raises(StopIteration, six.next, it)
++    py.test.raises(StopIteration, six.next, it)
++
++
++def test_iterator():
++    class myiter(six.Iterator):
++        def __next__(self):
++            return 13
++    assert six.advance_iterator(myiter()) == 13
++    class myitersub(myiter):
++        def __next__(self):
++            return 14
++    assert six.advance_iterator(myitersub()) == 14
++
++
++def test_callable():
++    class X:
++        def __call__(self):
++            pass
++        def method(self):
++            pass
++    assert six.callable(X)
++    assert six.callable(X())
++    assert six.callable(test_callable)
++    assert six.callable(hasattr)
++    assert six.callable(X.method)
++    assert six.callable(X().method)
++    assert not six.callable(4)
++    assert not six.callable("string")
++
++
++def test_create_bound_method():
++    class X(object):
++        pass
++    def f(self):
++        return self
++    x = X()
++    b = six.create_bound_method(f, x)
++    assert isinstance(b, types.MethodType)
++    assert b() is x
++
++
++if six.PY3:
++
++    def test_b():
++        data = six.b("\xff")
++        assert isinstance(data, bytes)
++        assert len(data) == 1
++        assert data == bytes([255])
++
++
++    def test_u():
++        s = six.u("hi \u0439 \U00000439 \\ \\\\ \n")
++        assert isinstance(s, str)
++        assert s == "hi \u0439 \U00000439 \\ \\\\ \n"
++
++else:
++
++    def test_b():
++        data = six.b("\xff")
++        assert isinstance(data, str)
++        assert len(data) == 1
++        assert data == "\xff"
++
++
++    def test_u():
++        s = six.u("hi \u0439 \U00000439 \\ \\\\ \n")
++        assert isinstance(s, unicode)
++        assert s == "hi \xd0\xb9 \xd0\xb9 \\ \\\\ \n".decode("utf8")
++
++
++def test_u_escapes():
++    s = six.u("\u1234")
++    assert len(s) == 1
++
++
++def test_unichr():
++    assert six.u("\u1234") == six.unichr(0x1234)
++    assert type(six.u("\u1234")) is type(six.unichr(0x1234))
++
++
++def test_int2byte():
++    assert six.int2byte(3) == six.b("\x03")
++    py.test.raises((OverflowError, ValueError), six.int2byte, 256)
++
++
++def test_byte2int():
++    assert six.byte2int(six.b("\x03")) == 3
++    assert six.byte2int(six.b("\x03\x04")) == 3
++    py.test.raises(IndexError, six.byte2int, six.b(""))
++
++
++def test_bytesindex():
++    assert six.indexbytes(six.b("hello"), 3) == ord("l")
++
++
++def test_bytesiter():
++    it = six.iterbytes(six.b("hi"))
++    assert six.next(it) == ord("h")
++    assert six.next(it) == ord("i")
++    py.test.raises(StopIteration, six.next, it)
++
++
++def test_StringIO():
++    fp = six.StringIO()
++    fp.write(six.u("hello"))
++    assert fp.getvalue() == six.u("hello")
++
++
++def test_BytesIO():
++    fp = six.BytesIO()
++    fp.write(six.b("hello"))
++    assert fp.getvalue() == six.b("hello")
++
++
++def test_exec_():
++    def f():
++        l = []
++        six.exec_("l.append(1)")
++        assert l == [1]
++    f()
++    ns = {}
++    six.exec_("x = 42", ns)
++    assert ns["x"] == 42
++    glob = {}
++    loc = {}
++    six.exec_("global y; y = 42; x = 12", glob, loc)
++    assert glob["y"] == 42
++    assert "x" not in glob
++    assert loc["x"] == 12
++    assert "y" not in loc
++
++
++def test_reraise():
++    def get_next(tb):
++        if six.PY3:
++            return tb.tb_next.tb_next
++        else:
++            return tb.tb_next
++    e = Exception("blah")
++    try:
++        raise e
++    except Exception:
++        tp, val, tb = sys.exc_info()
++    try:
++        six.reraise(tp, val, tb)
++    except Exception:
++        tp2, value2, tb2 = sys.exc_info()
++        assert tp2 is Exception
++        assert value2 is e
++        assert tb is get_next(tb2)
++    try:
++        six.reraise(tp, val)
++    except Exception:
++        tp2, value2, tb2 = sys.exc_info()
++        assert tp2 is Exception
++        assert value2 is e
++        assert tb2 is not tb
++    try:
++        six.reraise(tp, val, tb2)
++    except Exception:
++        tp2, value2, tb3 = sys.exc_info()
++        assert tp2 is Exception
++        assert value2 is e
++        assert get_next(tb3) is tb2
++    try:
++        six.reraise(tp, None, tb)
++    except Exception:
++        tp2, value2, tb2 = sys.exc_info()
++        assert tp2 is Exception
++        assert value2 is not val
++        assert isinstance(value2, Exception)
++        assert tb is get_next(tb2)
++
++
++def test_raise_from():
++    try:
++        try:
++            raise Exception("blah")
++        except Exception:
++            ctx = sys.exc_info()[1]
++            f = Exception("foo")
++            six.raise_from(f, None)
++    except Exception:
++        tp, val, tb = sys.exc_info()
++    if sys.version_info[:2] > (3, 0):
++        # We should have done a raise f from None equivalent.
++        assert val.__cause__ is None
++        assert val.__context__ is ctx
++    if sys.version_info[:2] >= (3, 3):
++        # And that should suppress the context on the exception.
++        assert val.__suppress_context__
++    # For all versions the outer exception should have raised successfully.
++    assert str(val) == "foo"
++
++
++def test_print_():
++    save = sys.stdout
++    out = sys.stdout = six.moves.StringIO()
++    try:
++        six.print_("Hello,", "person!")
++    finally:
++        sys.stdout = save
++    assert out.getvalue() == "Hello, person!\n"
++    out = six.StringIO()
++    six.print_("Hello,", "person!", file=out)
++    assert out.getvalue() == "Hello, person!\n"
++    out = six.StringIO()
++    six.print_("Hello,", "person!", file=out, end="")
++    assert out.getvalue() == "Hello, person!"
++    out = six.StringIO()
++    six.print_("Hello,", "person!", file=out, sep="X")
++    assert out.getvalue() == "Hello,Xperson!\n"
++    out = six.StringIO()
++    six.print_(six.u("Hello,"), six.u("person!"), file=out)
++    result = out.getvalue()
++    assert isinstance(result, six.text_type)
++    assert result == six.u("Hello, person!\n")
++    six.print_("Hello", file=None) # This works.
++    out = six.StringIO()
++    six.print_(None, file=out)
++    assert out.getvalue() == "None\n"
++    class FlushableStringIO(six.StringIO):
++        def __init__(self):
++            six.StringIO.__init__(self)
++            self.flushed = False
++        def flush(self):
++            self.flushed = True
++    out = FlushableStringIO()
++    six.print_("Hello", file=out)
++    assert not out.flushed
++    six.print_("Hello", file=out, flush=True)
++    assert out.flushed
++
++
++@py.test.mark.skipif("sys.version_info[:2] >= (2, 6)")
++def test_print_encoding(monkeypatch):
++    # Fool the type checking in print_.
++    monkeypatch.setattr(six, "file", six.BytesIO, raising=False)
++    out = six.BytesIO()
++    out.encoding = "utf-8"
++    out.errors = None
++    six.print_(six.u("\u053c"), end="", file=out)
++    assert out.getvalue() == six.b("\xd4\xbc")
++    out = six.BytesIO()
++    out.encoding = "ascii"
++    out.errors = "strict"
++    py.test.raises(UnicodeEncodeError, six.print_, six.u("\u053c"), file=out)
++    out.errors = "backslashreplace"
++    six.print_(six.u("\u053c"), end="", file=out)
++    assert out.getvalue() == six.b("\\u053c")
++
++
++def test_print_exceptions():
++    py.test.raises(TypeError, six.print_, x=3)
++    py.test.raises(TypeError, six.print_, end=3)
++    py.test.raises(TypeError, six.print_, sep=42)
++
++
++def test_with_metaclass():
++    class Meta(type):
++        pass
++    class X(six.with_metaclass(Meta)):
++        pass
++    assert type(X) is Meta
++    assert issubclass(X, object)
++    class Base(object):
++        pass
++    class X(six.with_metaclass(Meta, Base)):
++        pass
++    assert type(X) is Meta
++    assert issubclass(X, Base)
++    class Base2(object):
++        pass
++    class X(six.with_metaclass(Meta, Base, Base2)):
++        pass
++    assert type(X) is Meta
++    assert issubclass(X, Base)
++    assert issubclass(X, Base2)
++    assert X.__mro__ == (X, Base, Base2, object)
++
++
++def test_wraps():
++    def f(g):
++        @six.wraps(g)
++        def w():
++            return 42
++        return w
++    def k():
++        pass
++    original_k = k
++    k = f(f(k))
++    assert hasattr(k, '__wrapped__')
++    k = k.__wrapped__
++    assert hasattr(k, '__wrapped__')
++    k = k.__wrapped__
++    assert k is original_k
++    assert not hasattr(k, '__wrapped__')
++
++    def f(g, assign, update):
++        def w():
++            return 42
++        w.glue = {"foo" : "bar"}
++        return six.wraps(g, assign, update)(w)
++    k.glue = {"melon" : "egg"}
++    k.turnip = 43
++    k = f(k, ["turnip"], ["glue"])
++    assert k.__name__ == "w"
++    assert k.turnip == 43
++    assert k.glue == {"melon" : "egg", "foo" : "bar"}
++
++
++def test_add_metaclass():
++    class Meta(type):
++        pass
++    class X:
++        "success"
++    X = six.add_metaclass(Meta)(X)
++    assert type(X) is Meta
++    assert issubclass(X, object)
++    assert X.__module__ == __name__
++    assert X.__doc__ == "success"
++    class Base(object):
++        pass
++    class X(Base):
++        pass
++    X = six.add_metaclass(Meta)(X)
++    assert type(X) is Meta
++    assert issubclass(X, Base)
++    class Base2(object):
++        pass
++    class X(Base, Base2):
++        pass
++    X = six.add_metaclass(Meta)(X)
++    assert type(X) is Meta
++    assert issubclass(X, Base)
++    assert issubclass(X, Base2)
++
++    # Test a second-generation subclass of a type.
++    class Meta1(type):
++        m1 = "m1"
++    class Meta2(Meta1):
++        m2 = "m2"
++    class Base:
++        b = "b"
++    Base = six.add_metaclass(Meta1)(Base)
++    class X(Base):
++        x = "x"
++    X = six.add_metaclass(Meta2)(X)
++    assert type(X) is Meta2
++    assert issubclass(X, Base)
++    assert type(Base) is Meta1
++    assert "__dict__" not in vars(X)
++    instance = X()
++    instance.attr = "test"
++    assert vars(instance) == {"attr": "test"}
++    assert instance.b == Base.b
++    assert instance.x == X.x
++
++    # Test a class with slots.
++    class MySlots(object):
++        __slots__ = ["a", "b"]
++    MySlots = six.add_metaclass(Meta1)(MySlots)
++
++    assert MySlots.__slots__ == ["a", "b"]
++    instance = MySlots()
++    instance.a = "foo"
++    py.test.raises(AttributeError, setattr, instance, "c", "baz")
++
++    # Test a class with string for slots.
++    class MyStringSlots(object):
++        __slots__ = "ab"
++    MyStringSlots = six.add_metaclass(Meta1)(MyStringSlots)
++    assert MyStringSlots.__slots__ == "ab"
++    instance = MyStringSlots()
++    instance.ab = "foo"
++    py.test.raises(AttributeError, setattr, instance, "a", "baz")
++    py.test.raises(AttributeError, setattr, instance, "b", "baz")
++
++    class MySlotsWeakref(object):
++        __slots__ = "__weakref__",
++    MySlotsWeakref = six.add_metaclass(Meta)(MySlotsWeakref)
++    assert type(MySlotsWeakref) is Meta
++
++
++@py.test.mark.skipif("sys.version_info[:2] < (2, 7)")
++def test_assertCountEqual():
++    class TestAssertCountEqual(unittest.TestCase):
++        def test(self):
++            with self.assertRaises(AssertionError):
++                six.assertCountEqual(self, (1, 2), [3, 4, 5])
++
++            six.assertCountEqual(self, (1, 2), [2, 1])
++
++    TestAssertCountEqual('test').test()
++
++
++@py.test.mark.skipif("sys.version_info[:2] < (2, 7)")
++def test_assertRegex():
++    class TestAssertRegex(unittest.TestCase):
++        def test(self):
++            with self.assertRaises(AssertionError):
++                six.assertRegex(self, 'test', r'^a')
++
++            six.assertRegex(self, 'test', r'^t')
++
++    TestAssertRegex('test').test()
++
++
++@py.test.mark.skipif("sys.version_info[:2] < (2, 7)")
++def test_assertRaisesRegex():
++    class TestAssertRaisesRegex(unittest.TestCase):
++        def test(self):
++            with six.assertRaisesRegex(self, AssertionError, '^Foo'):
++                raise AssertionError('Foo')
++
++            with self.assertRaises(AssertionError):
++                with six.assertRaisesRegex(self, AssertionError, r'^Foo'):
++                    raise AssertionError('Bar')
++
++    TestAssertRaisesRegex('test').test()
++
++
++def test_python_2_unicode_compatible():
++    @six.python_2_unicode_compatible
++    class MyTest(object):
++        def __str__(self):
++            return six.u('hello')
++
++        def __bytes__(self):
++            return six.b('hello')
++
++    my_test = MyTest()
++
++    if six.PY2:
++        assert str(my_test) == six.b("hello")
++        assert unicode(my_test) == six.u("hello")
++    elif six.PY3:
++        assert bytes(my_test) == six.b("hello")
++        assert str(my_test) == six.u("hello")
++
++    assert getattr(six.moves.builtins, 'bytes', str)(my_test) == six.b("hello")
+-- 
+1.7.9.5
+

@@ -1,0 +1,277 @@
+From 9e3d0f976a69e9a4946a8cbe62d9c1008f21f534 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 01:26:46 +0100
+Subject: [PATCH 0575/1173] [spark] Toggle left panel
+
+---
+ apps/spark/src/spark/templates/editor.mako         |   63 ++++++++++++--------
+ apps/spark/static/js/spark.vm.js                   |   48 ++++++++-------
+ .../core/src/desktop/templates/common_footer.mako  |    6 +-
+ desktop/core/static/js/ko.charts.js                |   13 ++++
+ 4 files changed, 82 insertions(+), 48 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 5a9fea3..231de0e 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -160,12 +160,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ <div id="assistQuickLook" class="modal hide fade">
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+-##      % if has_metastore:
+-##      <a class="tableLink pull-right" href="#" target="_blank" style="margin-right: 20px;margin-top:6px">
+-##        <i class="fa fa-external-link"></i> ${ _('View in Metastore Browser') }
+-##      </a>
+-##      % endif
+-
+       <h3>${_('Data sample for')} <span class="tableName"></span></h3>
+     </div>
+     <div class="modal-body" style="min-height: 100px">
+@@ -343,7 +337,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+ 
+         <div class="row-fluid" data-bind="visible: result.meta().length > 0 && showGrid()" style="height: 400px">
+-          <div class="span2">
++          <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': !isLeftPanelVisible()}">
++            <a title="${_('Toggle columns')}" class="pull-right pointer" style="margin:3px; margin-top:9px" data-bind="click: toggleLeftPanel">
++              <i class="fa fa-chevron-left"></i>
++            </a>
+             <ul class="nav nav-list" style="border: none; background-color: #FFF">
+               <li class="nav-header">${_('columns')}</li>
+             </ul>
+@@ -351,7 +348,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               <li data-bind="visible: name != ''"><input type="checkbox" checked="checked" data-bind="event: { change: function(){toggleColumn($element, $index());}}" /> <a class="pointer" data-bind="text: $data.name, click: function(){ scrollToColumn($element, $index()); }"></a></li>
+             </ul>
+           </div>
+-          <div class="span10">
++          <div data-bind="css:{'span10': isLeftPanelVisible, 'span12 nomargin': !isLeftPanelVisible()}">
++            <a title="${_('Toggle columns')}" class="pointer" style="position:absolute; margin-left: -10px; margin-top: 10px" data-bind="click: toggleLeftPanel, visible: !isLeftPanelVisible()">
++              <i class="fa fa-chevron-right"></i>
++            </a>
+             <div data-bind="css: resultsKlass">
+               <table class="table table-condensed resultTable" data-tablescroller-fixed-height="360">
+                 <thead>
+@@ -367,7 +367,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+ 
+         <div class="row-fluid" data-bind="visible: showChart" style="height: 400px">
+-          <div class="span2">
++          <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': !isLeftPanelVisible()}">
++
++            <a title="${_('Toggle settings')}" class="pull-right pointer" style="margin:3px; margin-top:9px" data-bind="click: toggleLeftPanel">
++              <i class="fa fa-chevron-left"></i>
++            </a>
+ 
+             <ul class="nav nav-list" style="border: none; background-color: #FFF">
+               <li class="nav-header">${_('type')}</li>
+@@ -416,18 +420,22 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               <a rel="tooltip" data-placement="top" title="${_('Sort descending')}" href="javascript:void(0)" class="btn" data-bind="css: {'active': chartSorting() == 'desc'}, click: function(){ chartSorting('desc'); }"><i class="fa fa-sort-amount-desc fa-rotate-270"></i></a>
+             </div>
+           </div>
+-          <div class="span10">
++          <div data-bind="css:{'span10': isLeftPanelVisible, 'span12 nomargin': !isLeftPanelVisible()}">
++            <a title="${_('Toggle settings')}" class="pointer" style="position:absolute; margin-left: -10px; margin-top: 10px" data-bind="click: toggleLeftPanel, visible: !isLeftPanelVisible()">
++              <i class="fa fa-chevron-right"></i>
++            </a>
++
+             <div data-bind="attr:{'id': 'pieChart_'+id()}, pieChart: {data: {counts: result.data, sorting: chartSorting(), snippet: $data}, fqs: ko.observableArray([]),
+-                  transformer: pieChartDataTransformer, maxWidth: 350 }, visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART"></div>
++                  transformer: pieChartDataTransformer, maxWidth: 350 }, visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART" class="chart"></div>
+ 
+             <div data-bind="attr:{'id': 'barChart_'+id()}, barChart: {datum: {counts: result.data, sorting: chartSorting(), snippet: $data}, fqs: ko.observableArray([]), hideSelection: true,
+-                  transformer: multiSerieDataTransformer, stacked: false, showLegend: true},  stacked: true, showLegend: true, visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART"></div>
++                  transformer: multiSerieDataTransformer, stacked: false, showLegend: true},  stacked: true, showLegend: true, visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART" class="chart"></div>
+ 
+             <div data-bind="attr:{'id': 'lineChart_'+id()}, lineChart: {datum: {counts: result.data, sorting: chartSorting(), snippet: $data},
+-                  transformer: multiSerieDataTransformer, showControls: false }, visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART"></div>
++                  transformer: multiSerieDataTransformer, showControls: false }, visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART" class="chart"></div>
+ 
+             <div data-bind="attr:{'id': 'leafletMapChart_'+id()}, leafletMapChart: {datum: {counts: result.data, sorting: chartSorting(), snippet: $data},
+-                  transformer: leafletMapChartDataTransformer, showControls: false, height: 380, visible: chartType() == ko.HUE_CHARTS.TYPES.MAP}"></div>
++                  transformer: leafletMapChartDataTransformer, showControls: false, height: 380, visible: chartType() == ko.HUE_CHARTS.TYPES.MAP}" class="chart"></div>
+           </div>
+         </div>
+       </div>
+@@ -1221,6 +1229,17 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     $("#assistQuickLook").modal("show");
+   }
+ 
++  function redrawFixedHeaders() {
++      viewModel.notebooks().forEach(function (notebook) {
++        notebook.snippets().forEach(function (snippet) {
++          $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
++            fixedHeader: true,
++            includeNavigator: false
++          });
++        });
++      });
++    }
++
+   $(document).ready(function () {
+     resizeAssist();
+ 
+@@ -1229,6 +1248,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       resizeAssist();
+     });
+ 
++    $(document).on("toggleLeftPanel", function(e, snippet){
++      $("#snippet_" + snippet.id()).find(".chart").trigger("forceUpdate");
++      redrawFixedHeaders();
++    });
++
+     $(document).on("executeStarted", function (e, snippet) {
+       var _el = $("#snippet_" + snippet.id()).find(".resultTable");
+       $("#snippet_" + snippet.id()).find(".progress").animate({
+@@ -1265,17 +1289,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       }
+     });
+ 
+-    function redrawFixedHeaders() {
+-      viewModel.notebooks().forEach(function (notebook) {
+-        notebook.snippets().forEach(function (snippet) {
+-          $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
+-            fixedHeader: true,
+-            includeNavigator: false
+-          });
+-        });
+-      });
+-    }
+-
+     $(document).on("progress", function (e, options) {
+       if (options.data == 100) {
+         window.setTimeout(function () {
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 1c5c9de..a67d13b 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -176,6 +176,12 @@ var Snippet = function (notebook, snippet) {
+     $(document).trigger("forceChartDraw", self);
+   });
+ 
++  self.isLeftPanelVisible = ko.observable(typeof snippet.isLeftPanelVisible != "undefined" && snippet.isLeftPanelVisible != null ? snippet.isLeftPanelVisible : true);
++  self.toggleLeftPanel = function () {
++    self.isLeftPanelVisible(! self.isLeftPanelVisible());
++    $(document).trigger("toggleLeftPanel", self);
++  };
++
+   self.expand = function () {
+     self.size(self.size() + 1);
+     $("#snippet_" + self.id()).trigger("resize");
+@@ -233,38 +239,38 @@ var Snippet = function (notebook, snippet) {
+     }); 
+   };
+ 
+-  self.execute = function() {
++  self.execute = function () {
+     $(document).trigger("executeStarted", self);
+     $(".jHueNotify").hide();
+-	logGA('/execute/' + self.type());
+-    
+-	self.result.clear();
+-	self.progress(0);
+-	self.status('running');
++    logGA('/execute/' + self.type());
++
++    self.result.clear();
++    self.progress(0);
++    self.status('running');
+ 
+     $.post("/spark/api/execute", {
+-        notebook: ko.mapping.toJSON(notebook),
+-        snippet: ko.mapping.toJSON(self)
+-      }, function (data) {
+-        if (data.status == 0) {
+-          $.each(data.handle, function(key, val) {
+-        	 self.result.handle()[key] = val;
+-          });
++      notebook: ko.mapping.toJSON(notebook),
++      snippet: ko.mapping.toJSON(self)
++    }, function (data) {
++      if (data.status == 0) {
++        $.each(data.handle, function (key, val) {
++          self.result.handle()[key] = val;
++        });
+ 
+-          self.checkStatus();
+-        } else {
+-          self._ajax_error(data);
+-        }
++        self.checkStatus();
++      } else {
++        self._ajax_error(data);
++      }
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+       self.status('failed');
+-    });    
++    });
+   };
+   
+   self.fetchResult = function(rows, startOver) {
+-	if (typeof startOver == "undefined") {
+-	  startOver = true;
+-	}
++    if (typeof startOver == "undefined") {
++      startOver = true;
++    }
+     self.fetchResultData(rows, startOver);
+     //self.fetchResultMetadata(rows); 
+   };
+diff --git a/desktop/core/src/desktop/templates/common_footer.mako b/desktop/core/src/desktop/templates/common_footer.mako
+index 36a6994..73790f4 100644
+--- a/desktop/core/src/desktop/templates/common_footer.mako
++++ b/desktop/core/src/desktop/templates/common_footer.mako
+@@ -148,8 +148,10 @@ from django.template.defaultfilters import escape, escapejs
+     }
+   });
+ 
+-  // hides all the nvd3 logs
+-  nv.log = function() {};
++  if (typeof nv != "undefined"){
++    // hides all the nvd3 logs
++    nv.log = function() {};
++  }
+ 
+ 
+     %if collect_usage:
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index f1976b4..3e740ff 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -73,6 +73,11 @@ ko.bindingHandlers.pieChart = {
+         }
+ 
+         nv.utils.windowResize(_chart.update);
++
++        $(element).on("forceUpdate", function(){
++          _chart.update();
++        });
++
+         $(element).height($(element).width());
+         $(element).parents(".card-widget").on("resize", function () {
+           if (typeof _options.maxWidth != "undefined") {
+@@ -411,6 +416,10 @@ function lineChartBuilder(element, options) {
+ 
+       nv.utils.windowResize(_chart.update);
+ 
++      $(element).on("forceUpdate", function(){
++        _chart.update();
++      });
++
+       return _chart;
+     }, function () {
+       var _d3 = ($(element).find("svg").length > 0) ? d3.select($(element).find("svg")[0]) : d3.select($(element)[0]).append("svg");
+@@ -569,6 +578,10 @@ function barChartBuilder(element, options, isTimeline) {
+ 
+       nv.utils.windowResize(_chart.update);
+ 
++      $(element).on("forceUpdate", function(){
++        _chart.update();
++      });
++
+       return _chart;
+     }, function () {
+       var _d3 = ($(element).find("svg").length > 0) ? d3.select($(element).find("svg")[0]) : d3.select($(element)[0]).append("svg");
+-- 
+1.7.9.5
+

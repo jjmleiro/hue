@@ -1,0 +1,132 @@
+From 7d7aecfdbcc9631d2b371e16207a6902e572bd82 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 30 Jan 2015 16:49:56 +0800
+Subject: [PATCH 0726/1173] [spark] Basic download of table data
+
+---
+ apps/spark/src/spark/data_export.py        |   51 ++++++++++++++++++++++++++++
+ apps/spark/src/spark/models.py             |   15 +++++---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ 3 files changed, 62 insertions(+), 6 deletions(-)
+ create mode 100644 apps/spark/src/spark/data_export.py
+
+diff --git a/apps/spark/src/spark/data_export.py b/apps/spark/src/spark/data_export.py
+new file mode 100644
+index 0000000..126cafb
+--- /dev/null
++++ b/apps/spark/src/spark/data_export.py
+@@ -0,0 +1,51 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++
++import logging
++
++from django.utils.encoding import smart_str
++
++from desktop.lib import export_csvxls
++
++
++LOG = logging.getLogger(__name__)
++DL_FORMATS = [ 'csv', 'xls' ]
++
++
++def download(api, session, cell, format):
++  if format not in DL_FORMATS:
++    LOG.error('Unknown download format "%s"' % format)
++    return
++
++  content_generator = SparkDataAdapter(api, session, cell)
++  generator = export_csvxls.create_generator(content_generator, format)
++  return export_csvxls.make_response(generator, format, 'script_result')
++
++
++def SparkDataAdapter(api, session, cell):
++  response = api.fetch_data(session, cell)
++
++  content = response['output']
++  data = content['data']
++
++  table = data['application/vnd.livy.table.v1+json']
++
++  rows = table['data']
++  headers = table['headers']
++
++  yield headers, rows
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 8064c7f..68da20e 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -31,6 +31,7 @@ from beeswax.server.dbms import get_query_server_config, QueryServerException
+ from beeswax.views import safe_get_design, save_design, _parse_out_hadoop_jobs
+ 
+ from spark.job_server_api import get_api as get_spark_api
++from spark.data_export import download as spark_download
+ 
+ 
+ # To move to Editor API
+@@ -329,9 +330,6 @@ class SparkApi():
+     content = response['output']
+ 
+     if content['status'] == 'ok':
+-      # The frontend expects a table, so simulate that by putting our text
+-      # into a single cell.
+-
+       data = content['data']
+ 
+       try:
+@@ -346,7 +344,7 @@ class SparkApi():
+         meta = [{'name': h['name'], 'type': h['type'], 'comment': ''} for h in headers]
+         type = 'table'
+ 
+-      # start_over not supported
++      # Non start_over not supported
+       if not start_over:
+         data = []
+ 
+@@ -370,7 +368,14 @@ class SparkApi():
+       raise QueryError(msg)
+     
+   def download(self, notebook, snippet, format):
+-    return NotImplementedError()
++    try:
++      api = get_spark_api(self.user)
++      session = _get_snippet_session(notebook, snippet)
++      cell = snippet['result']['handle']['id']
++
++      return spark_download(api, session['id'], cell, format)
++    except Exception, e:
++      raise PopupException(e)
+ 
+   def cancel(self, notebook, snippet):
+     api = get_spark_api(self.user)
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 3fd76da..5baa295 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -400,7 +400,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+               <input type="hidden" name="snippet" data-bind="value: ko.mapping.toJSON($data)"/>
+               <input type="hidden" name="format" class="download-format"/>
+ 
+-              <div class="btn-group" data-bind="visible: status() == 'available' && result.hasSomeResults()">
++              <div class="btn-group" data-bind="visible: status() == 'available' && result.hasSomeResults() && result.type() == 'table'">
+                 <button class="btn dropdown-toggle" data-toggle="dropdown">
+                   <i class="fa fa-download"></i>
+                   <i class="fa fa-caret-down"></i>
+-- 
+1.7.9.5
+

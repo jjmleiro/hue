@@ -1,0 +1,25 @@
+From e0be4428616d0dd4870c6a3db85b8413f4c21203 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 5 Mar 2015 20:28:45 -0800
+Subject: [PATCH 0995/1173] [hbase] Adding back missing reset import
+
+---
+ apps/hbase/src/hbase/tests.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/hbase/src/hbase/tests.py b/apps/hbase/src/hbase/tests.py
+index e4347dd..a3b790d 100644
+--- a/apps/hbase/src/hbase/tests.py
++++ b/apps/hbase/src/hbase/tests.py
+@@ -28,7 +28,7 @@ from desktop.lib.test_utils import grant_access
+ 
+ from hbase.api import HbaseApi
+ from hbase.conf import HBASE_CONF_DIR
+-from hbase.hbase_site import get_server_authentication, get_server_principal, get_conf, _CNF_HBASE_IMPERSONATION_ENABLED, is_impersonation_enabled
++from hbase.hbase_site import get_server_authentication, get_server_principal, get_conf, reset, _CNF_HBASE_IMPERSONATION_ENABLED, is_impersonation_enabled
+ 
+ 
+ def test_security_plain():
+-- 
+1.7.9.5
+

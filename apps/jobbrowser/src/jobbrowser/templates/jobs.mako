@@ -25,7 +25,7 @@
 ${ commonheader(None, "jobbrowser", user) | n,unicode }
 ${ components.menubar() }
 
-<link href="/jobbrowser/static/css/jobbrowser.css" rel="stylesheet">
+<link href="${ static('jobbrowser/css/jobbrowser.css') }" rel="stylesheet">
 
 <div class="container-fluid">
   <div class="card card-small">
@@ -34,7 +34,7 @@ ${ components.menubar() }
     <%def name="search()">
       ${_('Username')} <input id="userFilter" type="text" class="input-medium search-query" placeholder="${_('Search for username')}" value="${ user_filter or '' }">
       &nbsp;&nbsp;${_('Text')} <input id="textFilter" type="text" class="input-xlarge search-query" placeholder="${_('Search for text')}" value="${ text_filter or '' }">
-      <img id="loading" src="/static/art/spinner.gif" />
+      <img id="loading" src="${ static('desktop/art/spinner.gif') }" />
     </%def>
 
     <%def name="creation()">
@@ -96,8 +96,8 @@ ${ components.menubar() }
   </div>
 </div>
 
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
-<script src="/jobbrowser/static/js/utils.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('jobbrowser/js/utils.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 
@@ -153,7 +153,7 @@ ${ components.menubar() }
         }
         else {
           var rows = [];
-          $(data).each(function (cnt, job) {
+          $(data.jobs).each(function (cnt, job) {
             rows.push(getJobRow(job));
           });
           jobTable.fnAddData(rows);
@@ -166,11 +166,11 @@ ${ components.menubar() }
     var updateableRows = {};
 
     function updateRunning(data) {
-      if (data != null && data.length > 0) {
+      if (data != null && data.jobs != null && data.jobs.length > 0) {
         // Update finished jobs from updateableRows.
         // jobs missing from response are finished.
         $.each(updateableRows, function(job_id, job) {
-          if ($.grep(data, function(new_job) {
+          if ($.grep(data.jobs, function(new_job) {
             return new_job.shortId == job_id;
           }).length == 0 ) {
             callJobDetails(job, true);
@@ -180,8 +180,8 @@ ${ components.menubar() }
 
         // Find new jobs and running jobs.
         // Update updateableRows.
-        for(var i = 0; i < data.length; ++i) {
-          var job = data[i];
+        for(var i = 0; i < data.jobs.length; ++i) {
+          var job = data.jobs[i];
           if (Utils.RUNNING_ARRAY.indexOf(job.status.toUpperCase()) > -1) {
             updateableRows[job.shortId] = job;
 
@@ -296,7 +296,12 @@ ${ components.menubar() }
       }
       else {
         isUpdating = true;
-        _url += "&state=running";
+        if ($(".btn-status.active").length > 0) {
+          _url += "&state=" + $(".btn-status.active").data("value");
+        }
+        else {
+          _url += "&state=running";
+        }
       }
 
       _url += "&user=" + $("#userFilter").val().trim();

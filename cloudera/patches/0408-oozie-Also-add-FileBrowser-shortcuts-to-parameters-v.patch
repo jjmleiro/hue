@@ -1,0 +1,41 @@
+From 02ef363c4111ebeee977f2fcc46545e869d3b39d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 7 Jan 2015 15:36:21 -0800
+Subject: [PATCH 0408/1173] [oozie] Also add FileBrowser shortcuts to
+ parameters values
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 86cbde5..8e17cc2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -610,6 +610,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+       <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser, keyup: enableFilechooser }, attr: { placeholder: ' ${ _("Fill me up!") }' }, typeahead: { target: value, source: $parent.actionParametersUI, sourceSuffix: '=', triggerOnFocus: true }"/>
++      <span data-bind='template: { name: "param-fs-link", data: {path: value()} }'></span>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+@@ -665,6 +666,15 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="param-fs-link">
++  <!-- ko if: path.split('=', 2)[1] -->
++    <a data-bind="attr: {href: '/filebrowser/view' + $data.path.split('=', 2)[1] }" target="_blank" title="${ _('Open') }">
++      <i class="fa fa-external-link-square"></i>
++    </a>
++  <!-- /ko -->
++</script>
++
++
+ 
+ <script type="text/html" id="hive-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+-- 
+1.7.9.5
+

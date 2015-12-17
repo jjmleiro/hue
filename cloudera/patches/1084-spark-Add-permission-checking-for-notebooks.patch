@@ -1,0 +1,254 @@
+From 6df5e56ec89fd8b128952b72d85760411c508dd0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sun, 15 Mar 2015 16:41:31 -0500
+Subject: [PATCH 1084/1173] [spark] Add permission checking for notebooks
+
+---
+ apps/spark/src/spark/api.py                        |   22 +++++++++---
+ apps/spark/src/spark/decorators.py                 |   38 ++++++++++++++++++++
+ .../src/spark/management/commands/spark_setup.py   |    4 +--
+ apps/spark/src/spark/views.py                      |    7 ++--
+ 4 files changed, 62 insertions(+), 9 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 15d39de..00a25f8 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -26,12 +26,14 @@ from desktop.lib.django_util import JsonResponse
+ from desktop.models import Document2, Document
+ 
+ from spark.models import get_api, Notebook, QueryExpired
+-from spark.decorators import api_error_handler
++from spark.decorators import api_error_handler, check_document_modify_permission
++from oozie.decorators import check_document_access_permission
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def create_session(request):
+   response = {'status': -1}
+@@ -45,6 +47,7 @@ def create_session(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def execute(request):
+   response = {'status': -1}
+@@ -58,6 +61,7 @@ def execute(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def check_status(request):
+   response = {'status': -1}
+@@ -71,6 +75,7 @@ def check_status(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def fetch_result_data(request):
+   response = {'status': -1}
+@@ -86,6 +91,7 @@ def fetch_result_data(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def fetch_result_metadata(request):
+   response = {'status': -1}
+@@ -99,6 +105,7 @@ def fetch_result_metadata(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def cancel_statement(request):
+   response = {'status': -1}
+@@ -112,6 +119,7 @@ def cancel_statement(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ @api_error_handler
+ def get_logs(request):
+   response = {'status': -1}
+@@ -131,10 +139,11 @@ def get_logs(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_modify_permission()
+ def save_notebook(request):
+   response = {'status': -1}
+ 
+-  notebook = json.loads(request.POST.get('notebook', '{}')) # TODO perms
++  notebook = json.loads(request.POST.get('notebook', '{}'))
+ 
+   if notebook.get('id'):
+     notebook_doc = Document2.objects.get(id=notebook['id'])
+@@ -153,11 +162,12 @@ def save_notebook(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ def open_notebook(request):
+   response = {'status': -1}
+ 
+   notebook_id = request.GET.get('notebook')
+-  notebook = Notebook(document=Document2.objects.get(id=notebook_id)) # Todo perms
++  notebook = Notebook(document=Document2.objects.get(id=notebook_id))
+   
+   response['status'] = 0
+   response['notebook'] = notebook.get_json()
+@@ -166,10 +176,11 @@ def open_notebook(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ def close_notebook(request):
+   response = {'status': -1}
+ 
+-  notebook = json.loads(request.POST.get('notebook', '{}'))  # Todo perms
++  notebook = json.loads(request.POST.get('notebook', '{}'))
+   
+   response['status'] = 0
+   for snippet in notebook['snippets']:
+@@ -183,10 +194,11 @@ def close_notebook(request):
+   return JsonResponse(response)
+ 
+ 
++@check_document_access_permission()
+ def close_statement(request):
+   response = {'status': -1}
+ 
+-  notebook = json.loads(request.POST.get('notebook', '{}'))  # Todo perms
++  notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+   try:    
+diff --git a/apps/spark/src/spark/decorators.py b/apps/spark/src/spark/decorators.py
+index 9e4c0ca..fcfa271 100644
+--- a/apps/spark/src/spark/decorators.py
++++ b/apps/spark/src/spark/decorators.py
+@@ -19,6 +19,7 @@ import json
+ import logging
+ 
+ from django.http import Http404
++from django.utils.functional import wraps
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.django_util import JsonResponse
+@@ -26,11 +27,48 @@ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+ 
+ from spark.models import QueryExpired, QueryError, SessionExpired
++from desktop.models import Document2, Document
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
++def check_document_access_permission():
++  def inner(view_func):
++    def decorate(request, *args, **kwargs):
++      notebook_id = request.GET.get('notebook')
++      if not notebook_id:
++        notebook_id = json.loads(request.POST.get('notebook', '{}')).get('id')
++
++      try:
++        if notebook_id:
++          document = Document2.objects.get(id=notebook_id)
++          document.doc.get().can_read_or_exception(request.user)
++      except Document2.DoesNotExist:
++        raise PopupException(_('Document %(id)s does not exist') % {'id': notebook_id})
++
++      return view_func(request, *args, **kwargs)
++    return wraps(view_func)(decorate)
++  return inner
++
++
++def check_document_modify_permission():
++  def inner(view_func):
++    def decorate(request, *args, **kwargs):
++      notebook = json.loads(request.POST.get('notebook', '{}'))
++
++      try:
++        if notebook.get('id'):
++          doc2 = Document2.objects.get(id=notebook['id'])
++          doc2.doc.get().can_write_or_exception(request.user)
++      except Document.DoesNotExist:
++        raise PopupException(_('Job %(id)s does not exist') % {'id': notebook.get('id')})
++
++      return view_func(request, *args, **kwargs)
++    return wraps(view_func)(decorate)
++  return inner
++
++
+ def api_error_handler(func):
+   def decorator(*args, **kwargs):
+     response = {}
+diff --git a/apps/spark/src/spark/management/commands/spark_setup.py b/apps/spark/src/spark/management/commands/spark_setup.py
+index d76ce2b..a3e369f 100644
+--- a/apps/spark/src/spark/management/commands/spark_setup.py
++++ b/apps/spark/src/spark/management/commands/spark_setup.py
+@@ -38,10 +38,10 @@ class Command(BaseCommand):
+       user = User.objects.get(username=pwd.getpwuid(os.getuid()).pw_name)
+     else:
+       user = options['user']
+-      
++
+     management.call_command('loaddata', 'initial_spark_examples.json', verbosity=2)
+     Document.objects.sync()
+-    
++
+     from beeswax.management.commands.beeswax_install_examples import Command
+     app_name = 'beeswax'
+     Command().handle(app_name=app_name, user=user, tables='web_logs_table.json')
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index f081bc9..7ff0575 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -23,9 +23,10 @@ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.django_util import render, JsonResponse
+ from desktop.lib.json_utils import JSONEncoderForHTML
+-from desktop.models import Document2
++from desktop.models import Document2, Document
+ 
+ from spark.conf import LANGUAGES
++from spark.decorators import check_document_access_permission
+ from spark.models import Notebook, get_api
+ from spark.management.commands.spark_setup import Command
+ 
+@@ -33,6 +34,7 @@ from spark.management.commands.spark_setup import Command
+ LOG = logging.getLogger(__name__)
+ 
+ 
++@check_document_access_permission()
+ def editor(request):
+   notebook_id = request.GET.get('notebook')
+   
+@@ -68,13 +70,14 @@ def new(request):
+   
+ 
+ def notebooks(request):
+-  notebooks = [d.to_dict() for d in Document2.objects.filter(type='notebook', owner=request.user)]
++  notebooks = [d.content_object.to_dict() for d in Document.objects.get_docs(request.user, Document2, extra='notebook')]
+ 
+   return render('notebooks.mako', request, {
+       'notebooks_json': json.dumps(notebooks, cls=JSONEncoderForHTML)
+   })
+ 
+ 
++@check_document_access_permission()
+ def download(request):
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+-- 
+1.7.9.5
+

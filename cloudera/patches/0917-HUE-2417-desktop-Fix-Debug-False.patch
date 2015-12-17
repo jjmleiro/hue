@@ -1,0 +1,54 @@
+From a2163d54b3b620a9366c190390d48bbc4fdd19d5 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 17:50:09 -0800
+Subject: [PATCH 0917/1173] HUE-2417 [desktop] Fix Debug=False
+
+---
+ desktop/core/src/desktop/urls.py |   17 +++++------------
+ 1 file changed, 5 insertions(+), 12 deletions(-)
+
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index 6751010..1b0368d 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -42,15 +42,6 @@ handler404 = 'desktop.views.serve_404_error'
+ handler500 = 'desktop.views.serve_500_error'
+ 
+ 
+-# Set up /static/appname mappings for any apps that have static directories
+-def static_pattern(urlprefix, root):
+-  """
+-  First argument is the url mapping, and second argument is the
+-  directory to serve.
+-  """
+-  return (r'^%s/(?P<path>.*)$' % urlprefix, 'django.views.static.serve', { 'document_root': root, 'show_indexes': False })
+-
+-
+ admin.autodiscover()
+ 
+ # Some django-wide URLs
+@@ -125,8 +116,6 @@ if settings.OPENID_AUTHENTICATION:
+ 
+ if settings.OAUTH_AUTHENTICATION:
+   static_patterns.append((r'^oauth/', include('liboauth.urls')))
+-  static_patterns.append(static_pattern("liboauth_static",
+-        os.path.join(os.path.dirname(__file__), "..", '..', '..', "libs/liboauth/src/liboauth/static/")))
+ 
+ # Add indexer app
+ if 'search' in [app.name for app in appmanager.DESKTOP_APPS]:
+@@ -143,7 +132,11 @@ for app in appmanager.DESKTOP_APPS:
+     dynamic_patterns.extend( patterns('', ('^' + re.escape(app.name) + '/', include(app.urls, **namespace))) )
+     app.urls_imported = True
+ 
+-static_patterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
++static_patterns.append(
++    (r'^%s(?P<path>.*)$' % re.escape(settings.STATIC_URL.lstrip('/')),
++      'django.views.static.serve',
++      { 'document_root': settings.STATIC_ROOT })
++)
+ 
+ urlpatterns = patterns('', *static_patterns) + dynamic_patterns
+ 
+-- 
+1.7.9.5
+

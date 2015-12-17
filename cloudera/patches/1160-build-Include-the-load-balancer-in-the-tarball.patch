@@ -1,0 +1,24 @@
+From 2b41555def761ff9e05841549359904f7c531ae6 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 29 Apr 2015 10:34:52 -0700
+Subject: [PATCH 1160/1173] [build] Include the load-balancer in the tarball
+
+---
+ Makefile.tarball |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile.tarball b/Makefile.tarball
+index 3e55706..12021a1 100644
+--- a/Makefile.tarball
++++ b/Makefile.tarball
+@@ -29,6 +29,7 @@ PROD_INCLUDES := \
+ 	tools/app_reg \
+ 	tools/virtual-bootstrap \
+ 	tools/relocatable.sh \
++	tools/load-balancer \
+ 	VERSION
+ 
+ # Check for things in BDIST_EXCLUDES in various apps
+-- 
+1.7.9.5
+

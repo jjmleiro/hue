@@ -1,0 +1,119 @@
+From 675184cb7154354d9e2d1851d206e7b66916b4c8 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 22 Oct 2014 16:35:32 -0700
+Subject: [PATCH 0209/1173] [oozie] Add sharelib by default to workflow
+
+---
+ apps/oozie/src/oozie/models2.py            |   17 +++++++++---
+ apps/oozie/static/js/workflow-editor.ko.js |   39 ++++++++--------------------
+ 2 files changed, 24 insertions(+), 32 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 5116902..2ac084b 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -62,14 +62,19 @@ class Workflow():
+           }
+       })
+       
+-  @property      
++  @property
+   def id(self):
+     return self.document.id
+ 
+   @property      
+   def deployment_dir(self):
+     _data = json.loads(self.data)
+-    return _data['workflow']['properties']['deployment_dir']  
++    return _data['workflow']['properties']['deployment_dir']
++  
++  @property      
++  def parameters(self):
++    _data = json.loads(self.data)
++    return _data['workflow']['properties']['parameters']  
+   
+   def get_json(self):
+     _data = self.get_data()
+@@ -86,6 +91,10 @@ class Workflow():
+       
+     if 'deployment_dir' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['deployment_dir'] = '/tmp/aa'
++    if 'parameters' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['parameters'] = [
++          {'name': 'oozie.use.system.libpath', 'value': True},
++      ]
+ 
+     if 'sla_workflow_enabled' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['sla_workflow_enabled'] = False
+@@ -142,8 +151,8 @@ class Workflow():
+ #        if param not in params:
+ #          params[param] = ''
+ 
+-#    for param in self.get_parameters():
+-#      params[param['name'].strip()] = param['value']
++    for param in self.parameters:
++      params[param['name'].strip()] = param['value']
+ 
+     return  [{'name': name, 'value': value} for name, value in params.iteritems()]
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index e0e22c9..7e03a95 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -85,18 +85,16 @@ var Workflow = function (vm, workflow) {
+   
+ 
+   self.addNode = function(widget) {
+-  // Todo get parent cell, link nodes...
++    // Todo get parent cell, link nodes... when we have the new layout
+     
+-    //if (self.nodes().length == 0) {
+-      var node = new Node(ko.mapping.toJS(widget));
+-      node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
+-      var end = self.nodes.pop()  
+-      self.nodes.push(node);
+-      self.nodes.push(end);
+-
+-      self.nodes()[0].children.removeAll();
+-      self.nodes()[0].children().push({'to': node.id()});
+-    //}
++    var node = new Node(ko.mapping.toJS(widget));
++    node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
++    var end = self.nodes.pop()  
++    self.nodes.push(node);
++    self.nodes.push(end);
++
++    self.nodes()[0].children.removeAll();
++    self.nodes()[0].children().push({'to': node.id()});
+   }
+   
+   self.getNodeById = function (node_id) {
+@@ -193,23 +191,8 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+         $(document).trigger("error", xhr.responseText);
+       });
+     };
+-  
+-//  self.submit = function () {
+-//    $.post("/oozie/editor/workflow/submit/", {        
+-//        "layout": ko.mapping.toJSON(self.columns),
+-//        "workflow": ko.mapping.toJSON(self.workflow)
+-//    }, function (data) {
+-//      if (data.status == 0) {
+-//      submitWorkflow(data);
+-//      }
+-//      else {
+-//        $(document).trigger("error", data.message);
+-//     }
+-//   }).fail(function (xhr, textStatus, errorThrown) {
+-//      $(document).trigger("error", xhr.responseText);
+-//    });
+-//  };
+-  
++
++    
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+       size: 12,
+-- 
+1.7.9.5
+

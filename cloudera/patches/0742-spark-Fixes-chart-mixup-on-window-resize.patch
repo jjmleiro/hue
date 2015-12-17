@@ -1,0 +1,137 @@
+From 8c38788954080143552ec32b1e4a36cd0605c137 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 3 Feb 2015 13:48:19 +0100
+Subject: [PATCH 0742/1173] [spark] Fixes chart mixup on window resize
+
+---
+ apps/spark/src/spark/templates/editor.mako |   41 ++++++++++++++++------------
+ desktop/core/static/js/ko.charts.js        |   32 +++++++++++++++++++---
+ 2 files changed, 52 insertions(+), 21 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 89d9693..7957236 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -1660,23 +1660,27 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       }, 100);
+     });
+ 
+-    viewModel.notebooks().forEach(function (notebook) {
+-      notebook.snippets().forEach(function (snippet) {
+-        if (snippet.result.data().length > 0) {
+-          var _el = $("#snippet_" + snippet.id()).find(".resultTable");
+-          window.setTimeout(function () {
+-            var _dt = createDatatable(_el, snippet);
+-            _dt.fnAddData(snippet.result.data());
+-            var _dtElement = $("#snippet_" + snippet.id()).find(".dataTables_wrapper");
+-            _dtElement.parent().siblings(".toggle-left-panel").css({
+-              "height": (_dtElement.height() - 30) + "px",
+-              "line-height": (_dtElement.height() - 30) + "px"
+-            });
+-            $(document).trigger("forceChartDraw", snippet);
+-          }, 100);
+-        }
++    function forceChartDraws() {
++      viewModel.notebooks().forEach(function (notebook) {
++        notebook.snippets().forEach(function (snippet) {
++          if (snippet.result.data().length > 0) {
++            var _el = $("#snippet_" + snippet.id()).find(".resultTable");
++            window.setTimeout(function () {
++              var _dt = createDatatable(_el, snippet);
++              _dt.fnAddData(snippet.result.data());
++              var _dtElement = $("#snippet_" + snippet.id()).find(".dataTables_wrapper");
++              _dtElement.parent().siblings(".toggle-left-panel").css({
++                "height": (_dtElement.height() - 30) + "px",
++                "line-height": (_dtElement.height() - 30) + "px"
++              });
++              $(document).trigger("forceChartDraw", snippet);
++            }, 100);
++          }
++        });
+       });
+-    });
++    }
++
++    forceChartDraws();
+ 
+     $(".CodeMirror").each(function () {
+       $(this)[0].CodeMirror.refresh();
+@@ -1685,7 +1689,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     var _resizeTimeout = -1;
+     $(window).on("resize", function(){
+       window.clearTimeout(_resizeTimeout);
+-      _resizeTimeout = window.setTimeout(resizeAssist, 200);
++      _resizeTimeout = window.setTimeout(function(){
++        resizeAssist();
++        forceChartDraws();
++      }, 200);
+     });
+   });
+ 
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index b87af31..522f67c 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -74,7 +74,13 @@ ko.bindingHandlers.pieChart = {
+           });
+         }
+ 
+-        nv.utils.windowResize(_chart.update);
++        var _resizeTimeout = -1;
++        nv.utils.windowResize(function(){
++          window.clearTimeout(_resizeTimeout);
++          _resizeTimeout = window.setTimeout(function(){
++            _chart.update();
++          }, 200);
++        });
+ 
+         $(element).on("forceUpdate", function(){
+           _chart.update();
+@@ -424,7 +430,13 @@ ko.bindingHandlers.scatterChart = {
+             .each("end", options.onComplete != null ? options.onComplete : void(0))
+             .call(_chart);
+ 
+-        nv.utils.windowResize(_chart.update);
++        var _resizeTimeout = -1;
++        nv.utils.windowResize(function(){
++          window.clearTimeout(_resizeTimeout);
++          _resizeTimeout = window.setTimeout(function(){
++            _chart.update();
++          }, 200);
++        });
+ 
+         $(element).on("forceUpdate", function(){
+           _chart.update();
+@@ -473,7 +485,13 @@ function lineChartBuilder(element, options) {
+           .each("end", options.onComplete != null ? options.onComplete : void(0))
+           .call(_chart);
+ 
+-      nv.utils.windowResize(_chart.update);
++      var _resizeTimeout = -1;
++      nv.utils.windowResize(function(){
++        window.clearTimeout(_resizeTimeout);
++        _resizeTimeout = window.setTimeout(function(){
++          _chart.update();
++        }, 200);
++      });
+ 
+       $(element).on("forceUpdate", function(){
+         _chart.update();
+@@ -635,7 +653,13 @@ function barChartBuilder(element, options, isTimeline) {
+         });
+       }
+ 
+-      nv.utils.windowResize(_chart.update);
++      var _resizeTimeout = -1;
++      nv.utils.windowResize(function(){
++        window.clearTimeout(_resizeTimeout);
++        _resizeTimeout = window.setTimeout(function(){
++          _chart.update();
++        }, 200);
++      });
+ 
+       $(element).on("forceUpdate", function(){
+         _chart.update();
+-- 
+1.7.9.5
+

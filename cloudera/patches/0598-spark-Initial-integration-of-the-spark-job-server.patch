@@ -1,0 +1,1070 @@
+From de0e879de396a2225cd0a05710eb8bf2bf471fe4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 6 Nov 2014 11:49:15 -0800
+Subject: [PATCH 0598/1173] [spark] Initial integration of the spark job
+ server
+
+---
+ apps/spark/.gitignore                              |    1 +
+ apps/spark/Makefile                                |   34 +++
+ apps/spark/java/pom.xml                            |  321 ++++++++++++++++++++
+ .../main/java/com/cloudera/sparker/Session.java    |   34 +++
+ .../java/com/cloudera/sparker/SessionManager.java  |   55 ++++
+ .../com/cloudera/sparker/SparkerInterpreter.java   |   73 +++++
+ .../java/com/cloudera/sparker/SparkerMain.java     |   97 ++++++
+ .../java/com/cloudera/sparker/SparkerServlet.java  |  134 ++++++++
+ .../java/com/cloudera/sparker/SparkerSession.java  |  123 ++++++++
+ apps/spark/spark_server.sh                         |   79 +++++
+ apps/spark/src/spark/conf.py                       |    7 +
+ 11 files changed, 958 insertions(+)
+ create mode 100644 apps/spark/.gitignore
+ create mode 100644 apps/spark/java/pom.xml
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+ create mode 100644 apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
+ create mode 100755 apps/spark/spark_server.sh
+
+diff --git a/apps/spark/.gitignore b/apps/spark/.gitignore
+new file mode 100644
+index 0000000..49f2729
+--- /dev/null
++++ b/apps/spark/.gitignore
+@@ -0,0 +1 @@
++/java-lib/
+diff --git a/apps/spark/Makefile b/apps/spark/Makefile
+index 71182ee..3995652 100644
+--- a/apps/spark/Makefile
++++ b/apps/spark/Makefile
+@@ -22,3 +22,37 @@ endif
+ 
+ APP_NAME = spark
+ include $(ROOT)/Makefile.sdk
++
++SPARK_ROOT := $(realpath .)
++BLD_DIR_SPARK = $(SPARK_ROOT)/java/target
++SPARK_JAVA_LIB = $(SPARK_ROOT)/java-lib
++
++SPARK := $(SPARK_JAVA_LIB)/SparkServer.jar
++SPARK_JAVA_DIR := $(SPARK_ROOT)/java
++
++HAVE_JAVA_SRC = $(wildcard $(SPARK_JAVA_DIR))
++
++compile: $(SPARK)
++
++ifneq (,$(HAVE_JAVA_SRC))
++
++clean::
++	rm -Rf $(SPARK_JAVA_LIB)
++	cd $(SPARK_JAVA_DIR) && mvn clean $(MAVEN_OPTIONS) || :
++
++$(SPARK): $(shell find $(SPARK_JAVA_DIR) -type f)
++	@echo "--- Building Desktop spark"
++	cd $(SPARK_JAVA_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
++	@mkdir -p $(SPARK_JAVA_LIB)
++	@cp $(BLD_DIR_SPARK)/spark-server-$(MAVEN_VERSION).jar $@
++
++else
++$(SPARK):
++	$(error Cannot build spark jars without source)
++endif
++
++BDIST_EXCLUDES += \
++	--exclude=java
++
++SDIST_EXCLUDES += \
++	--exclude=java-lib
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+new file mode 100644
+index 0000000..0886ad6
+--- /dev/null
++++ b/apps/spark/java/pom.xml
+@@ -0,0 +1,321 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++  Licensed to the Apache Software Foundation (ASF) under one
++  or more contributor license agreements.  See the NOTICE file
++  distributed with this work for additional information
++  regarding copyright ownership.  The ASF licenses this file
++  to you under the Apache License, Version 2.0 (the
++  "License"); you may not use this file except in compliance
++  with the License.  You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++  Unless required by applicable law or agreed to in writing, software
++  distributed under the License is distributed on an "AS IS" BASIS,
++  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++  See the License for the specific language governing permissions and
++  limitations under the License.
++-->
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue</groupId>
++        <artifactId>hue-parent</artifactId>
++        <relativePath>../../../maven/pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <groupId>com.cloudera.sparker</groupId>
++    <artifactId>spark-server</artifactId>
++    <packaging>jar</packaging>
++    <version>3.7.0-SNAPSHOT</version>
++
++    <name>Spark Server</name>
++    <description>Spark Server</description>
++
++    <licenses>
++        <license>
++            <name>The Apache Software License, Version 2.0</name>
++            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
++        </license>
++    </licenses>
++
++    <organization>
++        <name>Cloudera Inc</name>
++        <url>http://www.cloudera.com</url>
++    </organization>
++
++    <properties>
++        <javaVersion>1.7</javaVersion>
++        <!--
++        <hadoop.version>${cdh.hadoop.version}</hadoop.version>
++        <spark.version>${cdh.spark.version}</spark.version>
++        <slf4j.version>${cdh.slf4j.version}</slf4j.version>
++        <jetty.version>8.1.14.v20131031</jetty.version>
++        -->
++        <spark.version></spark.version>
++    </properties>
++
++    <repositories>
++        <repository>
++            <id>cdh.repo</id>
++            <url>https://repository.cloudera.com/content/groups/cloudera-repos</url>
++            <name>Cloudera Repositories</name>
++            <snapshots>
++                <enabled>false</enabled>
++            </snapshots>
++        </repository>
++        <repository>
++            <id>cdh.snapshots.repo</id>
++            <url>https://repository.cloudera.com/content/repositories/snapshots</url>
++            <name>Cloudera Snapshots Repository</name>
++            <snapshots>
++                <enabled>true</enabled>
++            </snapshots>
++            <releases>
++                <enabled>false</enabled>
++            </releases>
++        </repository>
++        <repository>
++            <id>Codehaus repository</id>
++            <url>http://repository.codehaus.org/</url>
++            <snapshots>
++                <enabled>false</enabled>
++            </snapshots>
++        </repository>
++    </repositories>
++
++    <dependencies>
++        <!--
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-core_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-bagel_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-mllib_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-streaming_2.10</artifactId>
++            <version>${spark.version}</version>
++        </dependency>
++        -->
++
++        <dependency>
++            <groupId>org.apache.spark</groupId>
++            <artifactId>spark-repl_2.10</artifactId>
++            <version>1.1.0-cdh5.2.0-SNAPSHOT</version>
++
++
++                <!--
++                ${spark.version}</version>
++                -->
++
++            <exclusions>
++                <exclusion>
++                    <groupId>javax.servlet</groupId>
++                    <artifactId>servlet-api</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++    </dependencies>
++
++    <build>
++        <pluginManagement>
++            <plugins>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-enforcer-plugin</artifactId>
++                    <version>1.0</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-compiler-plugin</artifactId>
++                    <version>2.5.1</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-site-plugin</artifactId>
++                    <version>3.3</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-javadoc-plugin</artifactId>
++                    <version>2.8.1</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-assembly-plugin</artifactId>
++                    <version>2.2</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-antrun-plugin</artifactId>
++                    <version>1.6</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.codehaus.mojo</groupId>
++                    <artifactId>build-helper-maven-plugin</artifactId>
++                    <version>1.8</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.hadoop</groupId>
++                    <artifactId>hadoop-maven-plugins</artifactId>
++                    <version>${hadoop.version}</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-jar-plugin</artifactId>
++                    <version>2.3.2</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-source-plugin</artifactId>
++                    <version>2.1.2</version>
++                </plugin>
++                <plugin>
++                    <groupId>com.atlassian.maven.plugins</groupId>
++                    <artifactId>maven-clover2-plugin</artifactId>
++                    <version>3.0.5</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.rat</groupId>
++                    <artifactId>apache-rat-plugin</artifactId>
++                    <version>0.8</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-deploy-plugin</artifactId>
++                    <version>2.7</version>
++                </plugin>
++                <plugin>
++                    <groupId>org.apache.felix</groupId>
++                    <artifactId>maven-bundle-plugin</artifactId>
++                    <version>2.4.0</version>
++                </plugin>
++            </plugins>
++        </pluginManagement>
++
++        <plugins>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-enforcer-plugin</artifactId>
++                <inherited>false</inherited>
++                <configuration>
++                    <rules>
++                        <requireMavenVersion>
++                            <version>[3.0.0,)</version>
++                        </requireMavenVersion>
++                        <requireJavaVersion>
++                            <version>[${javaVersion}.0,${javaVersion}.1000}]</version>
++                        </requireJavaVersion>
++                        <requireOS>
++                            <family>unix</family>
++                        </requireOS>
++                    </rules>
++                </configuration>
++                <executions>
++                    <execution>
++                        <id>clean</id>
++                        <goals>
++                            <goal>enforce</goal>
++                        </goals>
++                        <phase>pre-clean</phase>
++                    </execution>
++                    <execution>
++                        <id>default</id>
++                        <goals>
++                            <goal>enforce</goal>
++                        </goals>
++                        <phase>validate</phase>
++                    </execution>
++                    <execution>
++                        <id>site</id>
++                        <goals>
++                            <goal>enforce</goal>
++                        </goals>
++                        <phase>pre-site</phase>
++                    </execution>
++                </executions>
++            </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-compiler-plugin</artifactId>
++                <configuration>
++                    <source>1.6</source>
++                    <target>1.6</target>
++                </configuration>
++            </plugin>
++            <!--
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-jar-plugin</artifactId>
++                <configuration>
++                    <archive>
++                        <manifest>
++                            <mainClass>com.cloudera.sparker.SparkerMain</mainClass>
++                        </manifest>
++                    </archive>
++                </configuration>
++                <executions>
++                    <execution>
++                        <id>test-package</id>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>test-jar</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++            -->
++
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>2.3</version>
++                <executions>
++                    <execution>
++                        <phase>package</phase>
++                        <goals>
++                            <goal>shade</goal>
++                        </goals>
++                        <configuration>
++                            <transformers>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <mainClass>com.cloudera.sparker.SparkerMain</mainClass>
++                                </transformer>
++                            </transformers>
++                        </configuration>
++                    </execution>
++                </executions>
++
++                <configuration>
++                    <filters>
++                        <filter>
++                            <artifact>*:*</artifact>
++                            <excludes>
++                                <exclude>META-INF/*.SF</exclude>
++                                <exclude>META-INF/*.DSA</exclude>
++                                <exclude>META-INF/*.RSA</exclude>
++                            </excludes>
++                        </filter>
++                    </filters>
++                </configuration>
++            </plugin>
++        </plugins>
++    </build>
++
++</project>
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java b/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+new file mode 100644
+index 0000000..a4fbc72
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+@@ -0,0 +1,34 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import java.io.IOException;
++import java.util.List;
++
++public interface Session {
++
++    String getKey();
++
++    public void execute(String command) throws IOException;
++
++    List<String> getInputLines();
++
++    List<String> getOutputLines();
++}
++
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+new file mode 100644
+index 0000000..08a496b
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+@@ -0,0 +1,55 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import java.io.IOException;
++import java.util.Enumeration;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.TimeoutException;
++
++public class SessionManager {
++
++    private ConcurrentHashMap<String, SparkerSession> sessions = new ConcurrentHashMap<String, SparkerSession>();
++
++    public SessionManager() {
++
++    }
++
++    public Session get(String key) {
++        return sessions.get(key);
++    }
++
++    public Session create() throws IOException, InterruptedException {
++        String key = UUID.randomUUID().toString();
++        SparkerSession session = new SparkerSession(key);
++        sessions.put(key, session);
++        return session;
++    }
++
++    public void close() throws InterruptedException, TimeoutException, IOException {
++        for (SparkerSession session : sessions.values()) {
++            session.close();
++        }
++    }
++
++    public Enumeration<String> getSessionKeys() {
++        return sessions.keys();
++    }
++}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
+new file mode 100644
+index 0000000..aa04481
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerInterpreter.java
+@@ -0,0 +1,73 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import org.apache.spark.repl.Main;
++import org.apache.spark.repl.SparkILoop;
++
++import java.io.*;
++import java.util.UUID;
++
++public class SparkerInterpreter implements AutoCloseable {
++
++    private final UUID uuid;
++    private final PipedWriter stdin;
++    private final PipedReader stdout;
++    private final SparkILoop interp;
++    private final Thread thread;
++
++    public SparkerInterpreter(UUID uuid) throws IOException {
++        this.uuid = uuid;
++        this.stdin = new PipedWriter();
++        this.stdout = new PipedReader();
++        this.interp = new SparkILoop(
++                new BufferedReader(new PipedReader(stdin)),
++                new PrintWriter(System.out)); //new PipedWriter(stdout)));
++
++
++        Main.interp_$eq(interp);
++
++        thread = new Thread(new Runnable() {
++            @Override
++            public void run() {
++                interp.process(new String[]{"-usejavacp"});
++            }
++        });
++    }
++
++    public UUID getUUID() {
++        return uuid;
++    }
++
++    public void execute(String command) throws IOException {
++        stdin.write(command);
++        stdin.write("\n");
++    }
++
++    public void start() throws IOException {
++        thread.start();
++    }
++
++    @Override
++    public void close() throws Exception {
++        stdin.close();
++        stdout.close();
++        thread.join();
++    }
++}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
+new file mode 100644
+index 0000000..cfbc880
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerMain.java
+@@ -0,0 +1,97 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import org.eclipse.jetty.server.Server;
++import org.eclipse.jetty.servlet.ServletContextHandler;
++import org.eclipse.jetty.servlet.ServletHolder;
++
++public class SparkerMain {
++
++    public static void main(String[] args) throws Exception {
++        SessionManager manager = new SessionManager();
++
++        Server httpServer = new Server(8080);
++
++        ServletContextHandler context = new ServletContextHandler();
++        httpServer.setHandler(context);
++
++        context.setContextPath("/");
++        context.addServlet(new ServletHolder(new SparkerServlet(manager)), "/*");
++
++        /*
++        //InetSocketAddress address = NetUtils.createSocketAddr()
++        ServletContextHandler.Context context = new ServletContextHandler.Context();
++        context.setContextPath("");
++        context.addServlet(JMXJsonServlet.class, "/jmx");
++        context.addServlet(SparkerServlet.class, "/*");
++
++        httpServer.addHandler(context);
++        */
++
++        httpServer.start();
++        httpServer.join();
++
++        /*
++        BufferedReader reader = new BufferedReader(new StringReader(""));
++        StringWriter writer = new StringWriter();
++        String master = "erickt-1.ent.cloudera.com";
++
++        SparkILoop interp = new SparkILoop(reader, new PrintWriter(writer));
++        Main.interp_$eq(interp);
++        interp.process(new String[] { "-usejavacp" });
++        */
++
++        /*
++        SparkerInterpreter session = new SparkerInterpreter(UUID.randomUUID());
++
++        try {
++            session.start();
++
++            session.execute("sc");
++            session.execute("1 + 1");
++
++        } finally {
++            session.close();
++        }
++        */
++
++        /*
++        SessionManager manager = new SessionManager();
++
++        try {
++            Session session = manager.create();
++
++            session.execute("sc");
++            session.execute("1 + 1");
++
++            for (String input : session.getInputLines()) {
++                System.out.print("input: " + input + "\n");
++            }
++
++            for (String output : session.getOutputLines()) {
++                System.out.print("output: " + output + "\n");
++            }
++
++        } finally {
++            manager.close();
++        }
++        */
++    }
++}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+new file mode 100644
+index 0000000..5a6ff87
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+@@ -0,0 +1,134 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import org.codehaus.jackson.map.ObjectMapper;
++import org.codehaus.jackson.map.ObjectWriter;
++
++import javax.servlet.http.HttpServlet;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
++
++public class SparkerServlet extends HttpServlet {
++
++    public static final String SESSION_DATA = "sparky.sessions";
++
++    private static final String ROOT = "/";
++    private static final Pattern SESSION_ID = Pattern.compile("^/([-A-Za-z90-9]+)$");
++
++    private static final String APPLICATION_JSON_MIME = "application/json";
++
++    private ObjectWriter jsonWriter;
++
++    private final SessionManager manager;
++
++    public SparkerServlet(SessionManager manager) {
++        this.manager = manager;
++
++        ObjectMapper mapper = new ObjectMapper();
++        jsonWriter = mapper.defaultPrettyPrintingWriter();
++    }
++
++    @Override
++    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            getSessions(req, resp);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                getSession(req, resp, key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
++    private void getSessions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        jsonWriter.writeValue(resp.getOutputStream(), manager.getSessionKeys());
++    }
++
++    private void getSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
++        Session session = manager.get(key);
++        if (session == null) {
++            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            return;
++        }
++
++        jsonWriter.writeValue(resp.getOutputStream(), session.getOutputLines());
++    }
++
++    @Override
++    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            createSession(req, resp);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                writeToSession(req, resp, key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
++    private void createSession(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        try {
++            Session session = manager.create();
++
++            jsonWriter.writeValue(resp.getOutputStream(), session.getKey());
++        } catch (InterruptedException e) {
++            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
++            e.printStackTrace();
++        }
++    }
++
++    private void writeToSession(HttpServletRequest req, HttpServletResponse resp, String key) throws IOException {
++        Session session = manager.get(key);
++        if (session == null) {
++            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            return;
++        }
++
++        BufferedReader reader = req.getReader();
++        String line;
++
++        while ((line = reader.readLine()) != null) {
++            session.execute(line);
++        }
++    }
++
++}
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
+new file mode 100644
+index 0000000..4904977
+--- /dev/null
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerSession.java
+@@ -0,0 +1,123 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one
++ * or more contributor license agreements.  See the NOTICE file
++ * distributed with this work for additional information
++ * regarding copyright ownership.  The ASF licenses this file
++ * to you under the Apache License, Version 2.0 (the
++ * "License"); you may not use this file except in compliance
++ * with the License.  You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.cloudera.sparker;
++
++import com.google.common.collect.Lists;
++
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.util.List;
++import java.util.Queue;
++import java.util.concurrent.ConcurrentLinkedQueue;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeoutException;
++
++public class SparkerSession implements Session {
++
++    private final String key;
++    private final Process process;
++    private final Thread readerThread;
++
++    private final Queue<String> inputLines = new ConcurrentLinkedQueue<String>();
++    private final Queue<String> outputLines = new ConcurrentLinkedQueue<String>();
++
++    public SparkerSession(String key) throws IOException, InterruptedException {
++        this.key = key;
++
++        ProcessBuilder pb = new ProcessBuilder("spark-shell")
++                .redirectInput(ProcessBuilder.Redirect.PIPE)
++                .redirectOutput(ProcessBuilder.Redirect.PIPE)
++                .redirectErrorStream(true);
++
++        this.process = pb.start();
++
++        final CountDownLatch latch = new CountDownLatch(1);
++
++        this.readerThread = new Thread(new Runnable() {
++            @Override
++            public void run() {
++                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
++
++                try {
++                    String line;
++
++                    /*
++                    while ((line = reader.readLine()) != null) {
++                        outputLines.add(line);
++                        if (line.equals("Spark context available as sc.")) {
++                            latch.countDown();
++                        }
++                    }
++                    */
++
++                    while ((line = reader.readLine()) != null) {
++                        outputLines.add(line);
++                    }
++
++                    process.waitFor();
++                } catch (IOException e) {
++                    e.printStackTrace();
++                } catch (InterruptedException e) {
++                    e.printStackTrace();
++                }
++            }
++        });
++
++        readerThread.start();
++
++        //latch.await();
++    }
++
++    @Override
++    public String getKey() {
++        return key;
++    }
++
++    public void execute(String command) throws IOException {
++        if (!command.endsWith("\n")) {
++            command += "\n";
++        }
++
++        inputLines.add(command);
++        process.getOutputStream().write(command.getBytes("UTF-8"));
++        process.getOutputStream().flush();
++    }
++
++    @Override
++    public List<String> getInputLines() {
++        return Lists.newArrayList(inputLines);
++    }
++
++    @Override
++    public List<String> getOutputLines() {
++        return Lists.newArrayList(outputLines);
++    }
++
++    public void close() throws IOException, InterruptedException, TimeoutException {
++        process.getOutputStream().close();
++
++        readerThread.join();
++        if (readerThread.isAlive()) {
++            readerThread.interrupt();
++            process.destroy();
++            throw new TimeoutException();
++        }
++    }
++}
+diff --git a/apps/spark/spark_server.sh b/apps/spark/spark_server.sh
+new file mode 100755
+index 0000000..650794f
+--- /dev/null
++++ b/apps/spark/spark_server.sh
+@@ -0,0 +1,79 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Beeswax server.
++
++set -o errexit
++
++#if [ -z "$HADOOP_CONF_DIR" ]; then
++#  echo "\$HADOOP_CONF_DIR must be specified" 1>&2
++#  exit 1
++#fi
++#echo \$HADOOP_HOME=$HADOOP_HOME
++#
++#if [ -z "$HADOOP_BIN" ]; then
++#  echo "\$HADOOP_BIN must be specified" 1>&2
++#  exit 1
++#fi
++#echo \$HADOOP_BIN=$HADOOP_BIN
++#
++#if [ -z "$HIVE_CONF_DIR" ]; then
++#  echo "\$HIVE_CONF_DIR must be specified" 1>&2
++#  exit 1
++#fi
++#
++#echo \$HIVE_CONF_DIR=$HIVE_CONF_DIR
++#
++#if [ -z "$HIVE_HOME" ]; then
++#  echo "\$HIVE_HOME not specified. Defaulting to $HIVE_CONF_DIR/.." 1>&2
++#  export HIVE_HOME=$HIVE_CONF_DIR/..
++#  exit 1
++#fi
++#
++#echo \$HIVE_HOME=$HIVE_HOME
++#
++SPARK_ROOT=$(dirname $0)
++SPARK_JAR=$SPARK_ROOT/java-lib/SparkServer.jar
++#HIVE_LIB=$HIVE_HOME/lib
++#
++#export HADOOP_CLASSPATH=$(find $HADOOP_HOME -name hue-plugins*.jar | tr "\n" :):$(find $HIVE_LIB -name "*.jar" | tr "\n" :)
++#
++#if [ -n "$HADOOP_EXTRA_CLASSPATH_STRING" ]; then
++#  export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:$HADOOP_EXTRA_CLASSPATH_STRING
++#fi
++#
++#export HADOOP_OPTS="-Dlog4j.configuration=log4j.properties"
++#echo \$HADOOP_CLASSPATH=$HADOOP_CLASSPATH
++#echo \$HADOOP_OPTS=$HADOOP_OPTS
++#
++## Use HADOOP_CONF_DIR to preprend to classpath, to avoid fb303 conflict,
++## and to force hive-default to correspond to the Hive version we have.
++## Because we are abusing HADOOP_CONF_DIR, we have to emulate its default
++## behavior here as well.
++#if [ -f $HADOOP_CONF_DIR/hadoop-env.sh ]; then
++#  . $HADOOP_CONF_DIR/hadoop-env.sh
++#fi
++#
++#export HADOOP_CONF_DIR=$HIVE_CONF_DIR:$HADOOP_CONF_DIR
++#echo \$HADOOP_CONF_DIR=$HADOOP_CONF_DIR
++#echo \$HADOOP_MAPRED_HOME=$HADOOP_MAPRED_HOME
++
++# Note: I've had trouble running this with just "java -jar" with the classpath
++# determined with a seemingly appropriate find command.
++echo CWD=$(pwd)
++echo Executing java jar $SPARK_JAR "$@"
++exec java -jar $SPARK_JAR "$@"
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 734b15f..ea811c5 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -16,6 +16,7 @@
+ # limitations under the License.
+ 
+ import json
++import os
+ import sys
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+@@ -47,6 +48,12 @@ LANGUAGES = Config(
+   ]"""
+ )
+ 
++SPARK_SERVER_BIN = Config(
++  key="spark_server_bin",
++  help=_t("Path to spark_server.sh"),
++  private=True,
++  default=os.path.join(os.path.dirname(__file__), "..", "..", "spark_server.sh"))
++
+ 
+ def get_spark_status(user):
+   from spark.job_server_api import get_api
+-- 
+1.7.9.5
+

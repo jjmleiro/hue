@@ -22,7 +22,7 @@
   from django.utils.translation import ugettext as _
 %>
 <%
-  path_enc = urlencode(path)
+  path_enc = path
   dirname_enc = urlencode(view['dirname'])
   base_url = url('filebrowser.views.view', path=path_enc)
 %>
@@ -31,7 +31,7 @@
 ${ commonheader(_('%(filename)s - File Viewer') % dict(filename=truncate(filename)), 'filebrowser', user) | n,unicode }
 ${ fb_components.menubar() }
 
-<link href="/filebrowser/static/css/display.css" rel="stylesheet" />
+<link href="${ static('filebrowser/css/display.css') }" rel="stylesheet" />
 <div class="container-fluid">
   <div class="row-fluid">
     <div class="span2">
@@ -79,7 +79,7 @@ ${ fb_components.menubar() }
             <div id="fileArea" data-bind="css: {'loading': isLoading}">
               <div id="loader" data-bind="visible: isLoading">
                 <!--[if !IE]><!--><i class="fa fa-spinner fa-spin"></i><!--<![endif]-->
-                <!--[if IE]><img src="/static/art/spinner.gif"/><![endif]-->
+                <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }"/><![endif]-->
               </div>
               % if 'contents' in view:
                 <pre></pre>
@@ -97,8 +97,8 @@ ${ fb_components.menubar() }
   </div>
 </div>
 
-<script src="/static/ext/js/jquery/plugins/jquery.visible.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/jquery/plugins/jquery.visible.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 <script type="text/javascript" charset="utf-8">
 (function () {
   <%
@@ -108,8 +108,11 @@ ${ fb_components.menubar() }
   var pages = {};
 
   function resizeText () {
-    $("#fileArea").height($(window).height() - $("#fileArea").offset().top - 26);
-    $("#loader").css("marginLeft", ($("#fileArea").width() - $("#loader").width()) / 2);
+    var _fileArea = $("#fileArea");
+    if (_fileArea.height() > 0) {
+      _fileArea.height($(window).height() - _fileArea.offset().top - 26);
+      $("#loader").css("marginLeft", (_fileArea.width() - $("#loader").width()) / 2);
+    }
   }
 
   function formatHex (number, padding) {

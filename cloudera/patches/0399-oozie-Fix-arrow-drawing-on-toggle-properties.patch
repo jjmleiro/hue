@@ -1,0 +1,24 @@
+From 047ce015a87ecfbcfb84d9dda78e5e03daf6dade Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 5 Jan 2015 16:38:31 +0100
+Subject: [PATCH 0399/1173] [oozie] Fix arrow drawing on toggle properties
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 86c0e6f..165e930 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1995,6 +1995,7 @@ ${ dashboard.import_bindings() }
+           widget.ooziePropertiesExpanded(false);
+         }
+       }
++      $(document).trigger("drawArrows");
+     }
+   }
+ 
+-- 
+1.7.9.5
+

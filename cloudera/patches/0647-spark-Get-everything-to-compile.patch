@@ -1,0 +1,77 @@
+From 46842c05ebfc9ca78d5d81c1332bc870efa51ad2 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 09:11:42 -0800
+Subject: [PATCH 0647/1173] [spark] Get everything to compile
+
+---
+ apps/spark/java/livy-repl/pom.xml                  |    6 ------
+ apps/spark/java/livy-yarn/pom.xml                  |    4 ----
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    2 +-
+ apps/spark/java/pom.xml                            |    6 ++++++
+ 4 files changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index ec2d4e9..9cfd9f0 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -14,12 +14,6 @@
+     <packaging>jar</packaging>
+ 
+     <properties>
+-        <hadoop.version>2.5.0</hadoop.version>
+-        <scala.binary.version>2.10</scala.binary.version>
+-        <scala.macros.version>2.0.1</scala.macros.version>
+-        <scala.version>2.10.3</scala.version>
+-        <scalatra.version>2.2.1</scalatra.version>
+-        <spark.version>1.1.0</spark.version>
+         <PermGen>64m</PermGen>
+         <MaxPermGen>512m</MaxPermGen>
+     </properties>
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 70bdb46..4ecc2b9 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -14,10 +14,6 @@
+     <packaging>jar</packaging>
+ 
+     <properties>
+-        <hadoop.version>2.5.0</hadoop.version>
+-        <scala.binary.version>2.10</scala.binary.version>
+-        <scala.macros.version>2.0.1</scala.macros.version>
+-        <scala.version>2.10.3</scala.version>
+         <PermGen>64m</PermGen>
+         <MaxPermGen>512m</MaxPermGen>
+     </properties>
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 016b214..9f5da40 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -135,7 +135,7 @@ class Job(client: YarnClient, appId: ApplicationId) {
+     val startTimeMs = System.currentTimeMillis()
+ 
+     while (System.currentTimeMillis() - startTimeMs < timeoutMs) {
+-      val status = getStatus()
++      val status = getStatus
+       status match {
+         case SuccessfulFinish() | UnsuccessfulFinish() => {
+           return Some(status)
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 222b861..0bb5f48 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -49,6 +49,12 @@
+ 
+     <properties>
+         <javaVersion>1.7</javaVersion>
++        <hadoop.version>2.5.0</hadoop.version>
++        <scala.binary.version>2.10.3</scala.binary.version>
++        <scala.macros.version>2.0.1</scala.macros.version>
++        <scala.version>2.10.3</scala.version>
++        <scalatra.version>2.2.1</scalatra.version>
++        <spark.version>1.1.0</spark.version>
+     </properties>
+ 
+     <modules>
+-- 
+1.7.9.5
+

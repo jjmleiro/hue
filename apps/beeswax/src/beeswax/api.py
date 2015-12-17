@@ -21,13 +21,14 @@ import re
 
 from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse, Http404
+from django.http import Http404
 from django.utils.translation import ugettext as _
 
 from thrift.transport.TTransport import TTransportException
 from desktop.context_processors import get_app_name
-from desktop.lib.i18n import force_unicode
+from desktop.lib.django_util import JsonResponse
 from desktop.lib.exceptions_renderable import PopupException
+from desktop.lib.i18n import force_unicode
 from jobsub.parameterization import substitute_variables
 
 import beeswax.models
@@ -35,6 +36,7 @@ import beeswax.models
 from beeswax.forms import QueryForm
 from beeswax.data_export import upload
 from beeswax.design import HQLdesign
+from beeswax.conf import USE_GET_LOG_API
 from beeswax.server import dbms
 from beeswax.server.dbms import expand_exception, get_query_server_config, QueryServerException
 from beeswax.views import authorized_get_design, authorized_get_query_history, make_parameterization_form,\
@@ -73,7 +75,7 @@ def error_handler(view_fn):
         response['status'] = 2 # Frontend will not display this type of error
         LOG.warn('error_handler silencing the exception: %s' % e)
 
-      return HttpResponse(json.dumps(response), mimetype="application/json", status=200)
+      return JsonResponse(response)
   return decorator
 
 
@@ -105,7 +107,7 @@ def autocomplete(request, database=None, table=None):
     response['code'] = 500
     response['error'] = e.message
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -126,7 +128,7 @@ def parameters(request, design_id=None):
     response['parameters'] = []
     response['status']= 0
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -145,10 +147,11 @@ def execute_directly(request, query, design, query_server, tablename=None, **kwa
     'status': 0,
     'id': history_obj.id,
     'watch_url': watch_url,
-    'statement': history_obj.get_current_statement()
+    'statement': history_obj.get_current_statement(),
+    'is_redacted': history_obj.is_redacted
   }
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -172,7 +175,8 @@ def watch_query_refresh_json(request, id):
     handle, state = _get_query_handle_and_state(query_history)
 
   try:
-    log = db.get_log(handle)
+    start_over = request.POST.get('log-start-over') == 'true'
+    log = db.get_log(handle, start_over=start_over)
   except Exception, ex:
     log = str(ex)
 
@@ -188,7 +192,8 @@ def watch_query_refresh_json(request, id):
     'isFailure': query_history.is_failure(),
     'id': id,
     'statement': query_history.get_current_statement(),
-    'watch_url': reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id})
+    'watch_url': reverse(get_app_name(request) + ':api_watch_query_refresh_json', kwargs={'id': query_history.id}),
+    'oldLogsApi': USE_GET_LOG_API.get()
   }
 
   # Run time error
@@ -203,7 +208,7 @@ def watch_query_refresh_json(request, id):
   else:
     result['status'] = 0
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)
 
 def massage_job_urls_for_json(jobs):
   massaged_jobs = []
@@ -235,7 +240,7 @@ def close_operation(request, query_history_id):
     except Exception, e:
       response['message'] = unicode(e)
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -248,7 +253,7 @@ def explain_directly(request, query, design, query_server):
     'statement': query.get_query_statement(0),
   }
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -292,10 +297,10 @@ def execute(request, design_id=None):
               db = dbms.get(request.user, query_server)
               error_message, log = expand_exception(ex, db)
               response['message'] = error_message
-              return HttpResponse(json.dumps(response), mimetype="application/json")
+              return JsonResponse(response)
           else:
             response['errors'] = parameterization_form.errors
-            return HttpResponse(json.dumps(response), mimetype="application/json")
+            return JsonResponse(response)
 
       # Non-parameterized query
       query = HQLdesign(query_form, query_type=query_type)
@@ -314,7 +319,7 @@ def execute(request, design_id=None):
   except RuntimeError, e:
     response['message']= str(e)
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -345,7 +350,7 @@ def save_query_design(request, design_id=None):
   except RuntimeError, e:
     response['message'] = str(e)
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -360,7 +365,7 @@ def fetch_saved_design(request, design_id):
   design = safe_get_design(request, query_type, design_id)
 
   response['design'] = design_to_dict(design)
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 @error_handler
 def fetch_query_history(request, query_history_id):
@@ -372,7 +377,7 @@ def fetch_query_history(request, query_history_id):
   query = authorized_get_query_history(request, query_history_id, must_exist=True)
 
   response['query_history'] = query_history_to_dict(request, query)
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 @error_handler
 def cancel_query(request, query_history_id):
@@ -390,7 +395,7 @@ def cancel_query(request, query_history_id):
     except Exception, e:
       response['message'] = unicode(e)
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -413,7 +418,7 @@ def save_results_hdfs_directory(request, query_history_id):
     if not query_history.is_success():
       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
       response['status'] = -1
-      return HttpResponse(json.dumps(response), mimetype="application/json")
+      return JsonResponse(response)
 
     db = dbms.get(request.user, query_history.get_query_server_config())
 
@@ -439,7 +444,7 @@ def save_results_hdfs_directory(request, query_history_id):
       response['status'] = 1
       response['errors'] = form.errors
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -462,7 +467,7 @@ def save_results_hdfs_file(request, query_history_id):
     if not query_history.is_success():
       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
       response['status'] = -1
-      return HttpResponse(json.dumps(response), mimetype="application/json")
+      return JsonResponse(response)
 
     db = dbms.get(request.user, query_history.get_query_server_config())
 
@@ -480,7 +485,7 @@ def save_results_hdfs_file(request, query_history_id):
       except Exception, ex:
         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
         response['status'] = -2
-        return HttpResponse(json.dumps(response), mimetype="application/json")
+        return JsonResponse(response)
 
       try:
         if overwrite and request.fs.exists(target_file):
@@ -505,7 +510,7 @@ def save_results_hdfs_file(request, query_history_id):
       response['status'] = 1
       response['errors'] = form.errors
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @error_handler
@@ -528,7 +533,7 @@ def save_results_hive_table(request, query_history_id):
     if not query_history.is_success():
       response['message'] = _('This query is %(state)s. Results unavailable.') % {'state': state}
       response['status'] = -1
-      return HttpResponse(json.dumps(response), mimetype="application/json")
+      return JsonResponse(response)
 
     db = dbms.get(request.user, query_history.get_query_server_config())
     database = query_history.design.get_design().query.get('database', 'default')
@@ -543,7 +548,7 @@ def save_results_hive_table(request, query_history_id):
       except Exception, ex:
         response['message'] = _('Cannot find query handle and state: %s') % str(query_history)
         response['status'] = -2
-        return HttpResponse(json.dumps(response), mimetype="application/json")
+        return JsonResponse(response)
 
       try:
         query_history = db.create_table_as_a_select(request, query_history, form.target_database, form.cleaned_data['target_table'], result_meta)
@@ -562,7 +567,7 @@ def save_results_hive_table(request, query_history_id):
       response['status'] = 1
       response['errors'] = form.errors
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def design_to_dict(design):
@@ -577,7 +582,8 @@ def design_to_dict(design):
     'file_resources': hql_design.file_resources,
     'functions': hql_design.functions,
     'is_parameterized': hql_design.query.get('is_parameterized', True),
-    'email_notify': hql_design.query.get('email_notify', True)
+    'email_notify': hql_design.query.get('email_notify', True),
+    'is_redacted': design.is_redacted
   }
 
 

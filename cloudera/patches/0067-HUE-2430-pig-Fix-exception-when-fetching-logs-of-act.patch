@@ -1,0 +1,29 @@
+From b8606f4e6b625483c4297b39295def8c7770981f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 22 Oct 2014 10:25:30 -0700
+Subject: [PATCH 0067/1173] HUE-2430 [pig] Fix exception when fetching logs of
+ action on dashboard
+
+---
+ apps/pig/src/pig/api.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/src/pig/api.py b/apps/pig/src/pig/api.py
+index 254373a..f478161 100644
+--- a/apps/pig/src/pig/api.py
++++ b/apps/pig/src/pig/api.py
+@@ -220,9 +220,9 @@ class OozieApi:
+         get_copy['format'] = 'python'
+         request.GET = get_copy
+         try:
+-          logs, workflow_action = self.get_log(request, job)
++          logs, workflow_action, is_really_done = self.get_log(request, job)
+           progress = workflow_action[0]['progress']
+-        except Exception:
++        except:
+           progress = 0
+       else:
+         progress = 100
+-- 
+1.7.9.5
+

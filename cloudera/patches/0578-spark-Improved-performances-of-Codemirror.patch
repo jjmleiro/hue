@@ -1,0 +1,229 @@
+From 50b4ad73071b947dffee2de4eecf78c31145f4d7 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 02:52:56 +0100
+Subject: [PATCH 0578/1173] [spark] Improved performances of Codemirror
+
+---
+ apps/spark/src/spark/templates/editor.mako     |   41 +++++++----
+ apps/spark/static/js/spark.vm.js               |   94 ++++++++++++------------
+ desktop/core/static/js/jquery.tableextender.js |    4 +-
+ 3 files changed, 78 insertions(+), 61 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 25e800e..6cf48d4 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -852,23 +852,31 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       editor.setSize("100%", "100px");
+       var wrapperElement = $(editor.getWrapperElement());
+ 
++      var _changeTimeout = -1;
++      var _previousLineCount = 7;
+       editor.on("change", function () {
+-        if (editor.lineCount() <= 7) {
++        var _redraw = false;
++        if (editor.lineCount() <= 7 && _previousLineCount > 7) {
+           editor.setSize("100%", "100px");
+         }
+-        else if (editor.lineCount() > 7 && editor.lineCount() < 21) {
++        else if (editor.lineCount() > 7 && editor.lineCount() < 21 && (_previousLineCount <=7 || _previousLineCount >= 20)) {
+           editor.setSize("100%", "auto");
+         }
+-        else {
++        else if (_previousLineCount >= 20) {
+           editor.setSize("100%", "270px");
+         }
+-
+-        $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
+-          fixedHeader: true,
+-          includeNavigator: false
+-        });
+-
+-        allBindingsAccessor().value(editor.getValue());
++        if (_previousLineCount != editor.lineCount()){
++          $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
++            fixedHeader: true,
++            includeNavigator: false,
++            parentId: snippet.id()
++          });
++        }
++        _previousLineCount = editor.lineCount();
++        window.clearTimeout(_changeTimeout);
++        _changeTimeout = window.setTimeout(function(){
++          allBindingsAccessor().value(editor.getValue());
++        }, 600);
+       });
+ 
+       ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+@@ -989,7 +997,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+         $(el).jHueTableExtender({
+           fixedHeader: true,
+-          includeNavigator: false
++          includeNavigator: false,
++          parentId: snippet.id()
+         });
+       },
+       "aoColumnDefs": [
+@@ -1014,7 +1023,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+     $(el).jHueTableExtender({
+       fixedHeader: true,
+-      includeNavigator: false
++      includeNavigator: false,
++      parentId: snippet.id()
+     });
+     $(".dataTables_filter").hide();
+     var dataTableEl = $(el).parents(".dataTables_wrapper");
+@@ -1243,7 +1253,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           var _el = $("#snippet_" + snippet.id()).find(".resultTable");
+           _el.jHueTableExtender({
+             fixedHeader: true,
+-            includeNavigator: false
++            includeNavigator: false,
++            parentId: snippet.id()
+           });
+         });
+       });
+@@ -1334,6 +1345,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     });
+   });
+ 
++
++function getTime(){
++  return (new Date()).getTime();
++}
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index a67d13b..4d76ec1 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -66,60 +66,62 @@ var Snippet = function (notebook, snippet) {
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : '');
++  self.statement_raw.extend({ rateLimit: 150 });
+   self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
+   self.settings = ko.mapping.fromJS(typeof snippet.settings != "undefined" && snippet.settings != null ? snippet.settings : {});
+   self.variables = ko.observableArray([]);
+-  self.variableNames = ko.computed(function() {
+-	var matches = [];
+-	var myRegexp = /(?:[^\\]\$)([^\d'" ]\w*)/g;
+-	var match = myRegexp.exec(self.statement_raw());
+-
+-	while (match != null) {
+-	  matches.push(match[1]);
+-	  match = myRegexp.exec(self.statement());
+-	}
+-	return matches;  
++  self.variableNames = ko.computed(function () {
++    var matches = [];
++    var myRegexp = /(?:[^\\]\$)([^\d'" ]\w*)/g;
++    var match = myRegexp.exec(self.statement_raw());
++
++    while (match != null) {
++      matches.push(match[1]);
++      match = myRegexp.exec(self.statement());
++    }
++    return matches;
+   });
+-  self.variableNames.subscribe(function(newVal){
+-	var toDelete = [];
+-	var toAdd = [];
+-	
+-	$.each(newVal, function(key, name) {
+-	  var match = ko.utils.arrayFirst(self.variables(), function(_var) {
+-		return _var.name() == name;
+-      });	  
+-	  if (! match) {
+-		toAdd.push(name);
+-	  }
+-	});
+-	$.each(self.variables(), function(key, _var) {
+-	  var match = ko.utils.arrayFirst(newVal, function(name) {
+-		return _var.name() == name;
+-      });	  
+-	  if (! match) {
+-		toDelete.push(_var);
+-	  }
+-	});
+-	
+-	$.each(toDelete, function(index, item) {
++  self.variableNames.extend({ rateLimit: 150 });
++  self.variableNames.subscribe(function (newVal) {
++    var toDelete = [];
++    var toAdd = [];
++
++    $.each(newVal, function (key, name) {
++      var match = ko.utils.arrayFirst(self.variables(), function (_var) {
++        return _var.name() == name;
++      });
++      if (!match) {
++        toAdd.push(name);
++      }
++    });
++    $.each(self.variables(), function (key, _var) {
++      var match = ko.utils.arrayFirst(newVal, function (name) {
++        return _var.name() == name;
++      });
++      if (!match) {
++        toDelete.push(_var);
++      }
++    });
++
++    $.each(toDelete, function (index, item) {
+       self.variables.remove(item);
+-	});
+-	$.each(toAdd, function(index, item) {
++    });
++    $.each(toAdd, function (index, item) {
+       self.variables.push(ko.mapping.fromJS({'name': item, 'value': ''}));
+-	});
+-	
+-	self.variables.sort(function(left, right) { 
+-	  var leftIndex = newVal.indexOf(left.name());
+-	  var rightIndex = newVal.indexOf(right.name());
+-	  return leftIndex == rightIndex ? 0 : (leftIndex  < rightIndex  ? -1 : 1); 
+-	});
++    });
++
++    self.variables.sort(function (left, right) {
++      var leftIndex = newVal.indexOf(left.name());
++      var rightIndex = newVal.indexOf(right.name());
++      return leftIndex == rightIndex ? 0 : (leftIndex < rightIndex ? -1 : 1);
++    });
+   });
+-  self.statement = ko.computed(function() {
++  self.statement = ko.computed(function () {
+     var statement = self.statement_raw();
+-	$.each(self.variables(), function(index, variable) {
+-	  statement = statement.replace(RegExp("([^\\\\])\\$" + variable.name(), "g"), "$1" + variable.value());
+-	});
+-	return statement;
++    $.each(self.variables(), function (index, variable) {
++      statement = statement.replace(RegExp("([^\\\\])\\$" + variable.name(), "g"), "$1" + variable.value());
++    });
++    return statement;
+   });
+   self.result = new Result(snippet, snippet.result);
+   self.showGrid = ko.observable(typeof snippet.showGrid != "undefined" && snippet.showGrid != null ? snippet.showGrid : true);
+diff --git a/desktop/core/static/js/jquery.tableextender.js b/desktop/core/static/js/jquery.tableextender.js
+index bf3649f..daf1faf 100644
+--- a/desktop/core/static/js/jquery.tableextender.js
++++ b/desktop/core/static/js/jquery.tableextender.js
+@@ -172,8 +172,8 @@
+ 
+ 
+   function drawHeader(plugin) {
+-    if (!$(plugin.element).attr("id")){
+-      $(plugin.element).attr("id", "eT" + UUID());
++    if (!$(plugin.element).attr("id") && plugin.options.parentId){
++      $(plugin.element).attr("id", "eT" + plugin.options.parentId);
+     }
+     $("#" + $(plugin.element).attr("id") + "jHueTableExtenderClonedContainer").remove();
+     var clonedTable = $(plugin.element).clone();
+-- 
+1.7.9.5
+

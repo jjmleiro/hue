@@ -1,0 +1,42 @@
+From f7fb63528eef95f0f860a67621eae2ff86f822b8 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 3 Feb 2015 19:02:40 +0100
+Subject: [PATCH 0743/1173] [spark] Fixed discrete bar chart re-draw
+
+---
+ desktop/core/static/js/nv.d3.growingDiscreteBar.js |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/core/static/js/nv.d3.growingDiscreteBar.js b/desktop/core/static/js/nv.d3.growingDiscreteBar.js
+index e6842b1..a040541 100644
+--- a/desktop/core/static/js/nv.d3.growingDiscreteBar.js
++++ b/desktop/core/static/js/nv.d3.growingDiscreteBar.js
+@@ -203,10 +203,10 @@ nv.models.growingDiscreteBar = function() {
+ 
+       barsEnter.append('rect')
+           .attr('height', 0)
+-          .attr('width', x.rangeBand() * .9 / data.length )
+           .attr('x', function(d,i,j) {
+               return (j * x.rangeBand() / data.length )
+           })
++          .attr('width', (x.rangeBand() / data.length) )
+ 
+       if (showValues) {
+         barsEnter.append('text')
+@@ -233,9 +233,11 @@ nv.models.growingDiscreteBar = function() {
+         .select('rect')
+           .attr('class', rectClass)
+           .transition()
+-          .attr('width', x.rangeBand() * .9 / data.length);
++          .attr('x', function(d,i) {
++              return d.series * x.rangeBand() / data.length
++            })
++            .attr('width', (x.rangeBand() / data.length) * 0.9)
+       bars.transition()
+-        //.delay(function(d,i) { return i * 1200 / data[0].values.length })
+           .attr('transform', function(d,i) {
+             var left = x(getX(d,i)) + x.rangeBand() * .05,
+                 top = getY(d,i) < 0 ?
+-- 
+1.7.9.5
+

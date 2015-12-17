@@ -1,0 +1,48 @@
+From fd73c4ebe3ae39d90edcd46261aa1c5ad566fba0 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 22 Jan 2015 20:10:21 -0800
+Subject: [PATCH 0658/1173] [spark] Fix connecting to livy, starting a session
+
+---
+ apps/spark/src/spark/conf.py           |    2 +-
+ apps/spark/src/spark/job_server_api.py |    8 ++++++--
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index 9252e8c..06f5360 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -32,7 +32,7 @@ def coerce_json(j):
+ JOB_SERVER_URL = Config(
+   key="server_url",
+   help=_t("URL of the Spark Job Server."),
+-  default="http://localhost:8080/"
++  default="http://localhost:8998/"
+ )
+ 
+ LANGUAGES = Config(
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index 8364432..e62a7e6 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -81,11 +81,15 @@ class JobServerApi(object):
+       self._thread_local.user = user
+ 
+   def create_session(self, **kwargs):
+-    return self._root.post('sessions', params=kwargs)
++    return self._root.post('sessions',
++        data=json.dumps(kwargs),
++        contenttype='application/json')
+ 
+   def submit_statement(self, uuid, statement):
+     data = {'statement': statement}
+-    return self._root.post('sessions/%s' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
++    return self._root.post('sessions/%s' % uuid,
++        data=json.dumps(data),
++        contenttype=_JSON_CONTENT_TYPE)
+ 
+   def fetch_data(self, session, cell):
+     return self._root.get('sessions/%s/cells/%s' % (session, cell))
+-- 
+1.7.9.5
+

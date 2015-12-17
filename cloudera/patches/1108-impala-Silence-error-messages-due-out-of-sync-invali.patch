@@ -1,0 +1,88 @@
+From f5ab5bb355c02666c341556ba245c4efa41b09b2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 20:31:38 -0500
+Subject: [PATCH 1108/1173] [impala] Silence error messages due out of sync
+ invalidate metadata
+
+Cache is not always in sync and we error when a table is deleted
+from Impala and the tables refreshed.
+---
+ apps/beeswax/src/beeswax/server/dbms.py |   20 +++++++++++++-------
+ apps/impala/src/impala/views.py         |   16 +++++++---------
+ 2 files changed, 20 insertions(+), 16 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/dbms.py b/apps/beeswax/src/beeswax/server/dbms.py
+index 8911752..75d7eb6 100644
+--- a/apps/beeswax/src/beeswax/server/dbms.py
++++ b/apps/beeswax/src/beeswax/server/dbms.py
+@@ -31,6 +31,7 @@ from beeswax.models import QueryHistory, QUERY_TYPES
+ 
+ from filebrowser.views import location_to_url
+ from desktop.lib.django_util import format_preserving_redirect
++from desktop.lib.i18n import smart_str
+ 
+ 
+ 
+@@ -255,14 +256,19 @@ class HiveServer2Dbms(object):
+ 
+ 
+   def invalidate_tables(self, database, tables):
+-    for table in tables:
+-      hql = "INVALIDATE METADATA %s.%s" % (database, table,)
+-      query = hql_query(hql, database, query_type=QUERY_TYPES[1])
+-
+-      handle = self.execute_and_wait(query, timeout_sec=10.0)
++    handle = None
+ 
+-      if handle:
+-        self.close(handle)
++    for table in tables:
++      try:
++        hql = "INVALIDATE METADATA %s.%s" % (database, table,)
++        query = hql_query(hql, database, query_type=QUERY_TYPES[1])
++  
++        handle = self.execute_and_wait(query, timeout_sec=10.0)
++      except Exception, e:
++        LOG.warn('Refresh tables cache out of sync: %s' % smart_str(e))
++      finally:
++        if handle:
++          self.close(handle)
+ 
+ 
+   def drop_database(self, database):
+diff --git a/apps/impala/src/impala/views.py b/apps/impala/src/impala/views.py
+index f6ae504..dd3c812 100644
+--- a/apps/impala/src/impala/views.py
++++ b/apps/impala/src/impala/views.py
+@@ -34,21 +34,19 @@ LOG = logging.getLogger(__name__)
+ 
+ def refresh_tables(request):
+   app_name = get_app_name(request)
+-  query_server = get_query_server_config(app_name)  
++  query_server = get_query_server_config(app_name)
+   db = dbms.get(request.user, query_server=query_server)
+-  
+-  response = {'status': -1, 'message': ''}
+-  
++
++  response = {'status': 0, 'message': ''}
++
+   if request.method == "POST":
+     try:
+       database = json.loads(request.POST['database'])
+       added = json.loads(request.POST['added'])
+       removed = json.loads(request.POST['removed'])
+-      
++
+       db.invalidate_tables(database, added + removed)
+-      
+-      response['status'] = 0
+     except Exception, e:
+-      response['message'] = str(e)    
+-  
++      response['message'] = str(e)
++
+   return JsonResponse(response)
+-- 
+1.7.9.5
+

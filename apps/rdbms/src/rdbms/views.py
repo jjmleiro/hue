@@ -15,8 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import wraps
 import logging
+import json
+
+from functools import wraps
 
 from django.utils.translation import ugettext as _
 from django.core.urlresolvers import reverse
@@ -70,6 +72,7 @@ def execute_query(request, design_id=None, query_history_id=None):
 
   return render('execute.mako', request, {
     'action': action,
+    'doc_id': json.dumps(design.id and design.doc.get().id),
     'design': design,
     'autocomplete_base_url': reverse('rdbms:api_autocomplete_databases', kwargs={}),
     'can_edit_name': design.id and not design.is_auto,
@@ -118,6 +121,7 @@ def save_design(request, save_form, query_form, type_, design, explicit_save=Fal
       design.name = beeswax_models.SavedQuery.DEFAULT_NEW_DESIGN_NAME
     design.is_auto = True
 
+  design.name = design.name[:64]
   design.type = type_
   design.data = new_data
 

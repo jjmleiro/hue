@@ -1,0 +1,43 @@
+From 52814aa06336734dd7c1f5bf8cb0211d48bdf104 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 28 Jan 2015 00:48:28 +0100
+Subject: [PATCH 0697/1173] [spark] Fix Assist async and force calls settings
+
+---
+ apps/spark/static/js/assist.js |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/static/js/assist.js b/apps/spark/static/js/assist.js
+index 7574d2c..0e3977f 100644
+--- a/apps/spark/static/js/assist.js
++++ b/apps/spark/static/js/assist.js
+@@ -37,7 +37,7 @@ var Assist = function (options) {
+   }
+ 
+ 
+-  function jsonCalls() {
++  function jsonCalls(force) {
+     if (typeof options.baseURL == "undefined" || options.baseURL == null) {
+       console.error("Assist should always have a baseURL set to work fine.");
+       return null;
+@@ -54,7 +54,7 @@ var Assist = function (options) {
+     var _cachePath = getTotalStoragePrefix() + _url;
+     var _cached = $.totalStorage(_cachePath);
+     var _returnCached = false;
+-    if (_cached != null && !hasExpired(_cached.timestamp) && typeof options.forceReload == "undefined") {
++    if (_cached != null && !hasExpired(_cached.timestamp) && typeof force == "undefined") {
+       options.onDataReceived(_cached.data);
+       _returnCached = true;
+     }
+@@ -93,7 +93,7 @@ var Assist = function (options) {
+       error: function (error) {
+         $(document).trigger('error', error);
+       },
+-      async: options.sync == "undefined"
++      async: typeof options.async != "undefined" && optons.async
+     });
+ 
+   }
+-- 
+1.7.9.5
+

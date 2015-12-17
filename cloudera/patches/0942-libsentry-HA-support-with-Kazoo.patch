@@ -1,0 +1,136 @@
+From 0c67d98d989522429fa9d6e6e3c16b7efd872cb7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 12 Feb 2015 17:20:52 -0800
+Subject: [PATCH 0942/1173] [libsentry] HA support with Kazoo
+
+---
+ desktop/libs/libsentry/src/libsentry/api.py        |   58 ++++++++++++++++++++
+ .../libs/libsentry/src/libsentry/sentry_site.py    |   18 ++++++
+ 2 files changed, 76 insertions(+)
+
+diff --git a/desktop/libs/libsentry/src/libsentry/api.py b/desktop/libs/libsentry/src/libsentry/api.py
+index a6a09d2..45a71f2 100644
+--- a/desktop/libs/libsentry/src/libsentry/api.py
++++ b/desktop/libs/libsentry/src/libsentry/api.py
+@@ -15,15 +15,28 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++from desktop.lib.exceptions_renderable import PopupException
++from django.utils.translation import ugettext as _
++
++from kazoo.client import KazooClient
++
+ from libsentry.client import SentryClient
+ from libsentry.conf import HOSTNAME, PORT
++from libsentry.sentry_site import get_sentry_server_ha_enabled, get_sentry_server_ha_has_security, get_sentry_server_ha_zookeeper_quorum, get_sentry_server_ha_zookeeper_namespace
+ 
+ import logging
++import json
++import threading
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
++_api_cache = None
++_api_cache_lock = threading.Lock()
++
++
++
+ class SentryException(Exception):
+   def __init__(self, e):
+     super(SentryException, self).__init__(e)
+@@ -34,8 +47,53 @@ class SentryException(Exception):
+ 
+ 
+ def get_api(user):
++  if get_sentry_server_ha_enabled():
++    servers = _get_server_properties()
++    if servers:
++      server = servers[0]
++    else:
++      raise PopupException(_('No Sentry servers are available.'))    
++  else:
++    server = {
++        'hostname': HOSTNAME.get(),
++        'port': PORT.get()
++    }
++  
+   return SentryApi(SentryClient(HOSTNAME.get(), PORT.get(), user.username))
+ 
++  
++def _get_server_properties():
++  global _api_cache
++
++  if _api_cache is None:
++    _api_cache_lock.acquire()  
++    
++    try:
++      if _api_cache is None:
++        zk = KazooClient(hosts=get_sentry_server_ha_zookeeper_quorum(), read_only=True)
++        
++        if get_sentry_server_ha_has_security():
++          pass # zk.add_kerb
++
++        zk.start()
++        
++        servers = []
++        namespace = get_sentry_server_ha_zookeeper_namespace()
++        
++        children = zk.get_children("/%s/sentry-service/sentry-service/" % namespace)
++        for server in children:        
++          data, stat = zk.get("/%s/sentry-service/sentry-service/%s" % (namespace, server))
++          server = json.loads(data.decode("utf-8"))
++          servers.append({'hostname': server['address'], 'port': server['sslPort'] if server['sslPort'] else server['port']})
++
++        zk.stop()
++
++        _api_cache = servers
++    finally:
++      _api_cache_lock.release()
++
++  return _api_cache
++
+ 
+ class SentryApi(object):
+ 
+diff --git a/desktop/libs/libsentry/src/libsentry/sentry_site.py b/desktop/libs/libsentry/src/libsentry/sentry_site.py
+index 8c4e1d5..a6441d8 100644
+--- a/desktop/libs/libsentry/src/libsentry/sentry_site.py
++++ b/desktop/libs/libsentry/src/libsentry/sentry_site.py
+@@ -36,6 +36,11 @@ _CONF_SENTRY_SERVER_PRINCIPAL = 'sentry.service.server.principal'
+ _CONF_SENTRY_SERVER_SECURITY_MODE = 'sentry.service.security.mode'
+ _CONF_SENTRY_SERVER_ADMIN_GROUP = 'sentry.service.admin.group'
+ 
++_CONF_SENTRY_SERVER_HA_ENABLED = 'sentry.ha.enabled'
++_CONF_SENTRY_SERVER_HA_HAS_SECURITY = 'sentry.ha.zookeeper.security'
++_CONF_SENTRY_SERVER_HA_ZOOKEEPER_ADDRESSES = 'sentry.ha.zookeeper.security.quorum'
++_CONF_SENTRY_SERVER_HA_ZOOKEEPER_NAMESPACE = 'sentry.ha.zookeeper.namespace'
++
+ 
+ def reset():
+   global _SITE_DICT
+@@ -69,6 +74,19 @@ def get_sentry_server_admin_groups():
+   return get_conf().get(_CONF_SENTRY_SERVER_ADMIN_GROUP, '').split(',')
+ 
+ 
++def get_sentry_server_ha_enabled():
++  return get_conf().get(_CONF_SENTRY_SERVER_HA_ENABLED, 'FALSE').upper() == 'TRUE'
++
++def get_sentry_server_ha_has_security():
++  return get_conf().get(_CONF_SENTRY_SERVER_HA_HAS_SECURITY, 'FALSE').upper() == 'TRUE'
++
++def get_sentry_server_ha_zookeeper_quorum():
++  return get_conf().get(_CONF_SENTRY_SERVER_HA_ZOOKEEPER_ADDRESSES)
++
++def get_sentry_server_ha_zookeeper_namespace():
++  return get_conf().get(_CONF_SENTRY_SERVER_HA_ZOOKEEPER_NAMESPACE, 'sentry')
++
++
+ def _parse_sites():
+   global _SITE_DICT
+   _SITE_DICT ={}
+-- 
+1.7.9.5
+

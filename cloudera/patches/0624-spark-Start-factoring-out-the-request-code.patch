@@ -1,0 +1,136 @@
+From fd2131a2c13284d6d7ad48d6b82e1d320530ca58 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 8 Dec 2014 17:33:37 -0800
+Subject: [PATCH 0624/1173] [spark] Start factoring out the request code
+
+---
+ .../hue/sparker/server/sessions/Session.java       |   10 +++-
+ .../hue/sparker/server/sessions/SparkSession.java  |   52 ++++++++++++++------
+ 2 files changed, 46 insertions(+), 16 deletions(-)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+index 9cac5f4..895e4ff 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+@@ -26,10 +26,18 @@ import java.util.concurrent.TimeoutException;
+ 
+ public interface Session {
+ 
++    public enum State {
++        EXECUTING_STATEMENT,
++        READY
++    }
++
+     @JsonProperty
+     String getId();
+ 
+     @JsonProperty
++    State getState();
++
++    @JsonProperty
+     List<Statement> getStatements();
+ 
+     List<Statement> getStatementRange(Integer fromIndex, Integer toIndex);
+@@ -43,7 +51,7 @@ public interface Session {
+ 
+     public void close() throws IOException, InterruptedException, TimeoutException;
+ 
+-    void interrupt() throws Exception;
++    void interrupt() throws Exception, ClosedSessionException;
+ 
+     public static class StatementNotFound extends Throwable {
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+index e862584..5785cbd 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+@@ -55,6 +55,7 @@ public class SparkSession implements Session {
+     private static final String SPARKER_SHELL = SPARKER_HOME + "/sparker-shell";
+ 
+     private final String id;
++    private State state = State.READY;
+     private final Process process;
+     private final Writer writer;
+     private final BufferedReader reader;
+@@ -88,6 +89,11 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
++    public State getState() {
++        return state;
++    }
++
++    @Override
+     public long getLastActivity() {
+         return this.lastActivity;
+     }
+@@ -124,22 +130,15 @@ public class SparkSession implements Session {
+         request.put("type", "stdin");
+         request.put("statement", statementStr);
+ 
+-        writer.write(request.toString());
+-        writer.write("\n");
+-        writer.flush();
+-
+-        String line = reader.readLine();
++        state = State.EXECUTING_STATEMENT;
+ 
+-        if (line == null) {
+-            // The process must have shutdown on us!
+-            process.waitFor();
+-            throw new ClosedSessionException();
++        JsonNode response;
++        try {
++            response = doRequest(request);
++        } finally {
++            state = State.READY;
+         }
+ 
+-        LOG.info("[" + id + "] spark stdout: " + line);
+-
+-        JsonNode response = objectMapper.readTree(line);
+-
+         if (response.has("stdout")) {
+             statement.addOutput(response.get("stdout").asText());
+         }
+@@ -158,12 +157,35 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
+-    public void interrupt() throws Exception {
++    public void interrupt() throws Exception, ClosedSessionException {
+         // FIXME: is there a better way to do this?
+-        throw new Exception("not implemented");
++        if (this.state == State.EXECUTING_STATEMENT) {
++            ObjectNode request = objectMapper.createObjectNode();
++            request.put("type", "interrupt");
++
++            JsonNode response = doRequest(request);
++        }
+     }
+ 
+     private void touchLastActivity() {
+         this.lastActivity = System.currentTimeMillis();
+     }
++
++    private JsonNode doRequest(ObjectNode request) throws IOException, InterruptedException, ClosedSessionException {
++        writer.write(request.toString());
++        writer.write("\n");
++        writer.flush();
++
++        String line = reader.readLine();
++
++        if (line == null) {
++            // The process must have shutdown on us!
++            process.waitFor();
++            throw new ClosedSessionException();
++        }
++
++        LOG.info("[" + id + "] spark stdout: " + line);
++
++        return objectMapper.readTree(line);
++    }
+ }
+-- 
+1.7.9.5
+

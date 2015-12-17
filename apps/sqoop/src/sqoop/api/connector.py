@@ -15,18 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-  import json
-except ImportError:
-  import simplejson as json
+import json
 import logging
 import socket
 
-from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 
 from sqoop import client, conf
 from decorators import get_connector_or_exception
+from desktop.lib.django_util import JsonResponse
 from desktop.lib.exceptions import StructuredException
 from desktop.lib.rest.http_client import RestException
 from exception import handle_rest_exception
@@ -50,7 +47,7 @@ def get_connectors(request):
     response['connectors'] = list_to_dict(c.get_connectors())
   except RestException, e:
     response.update(handle_rest_exception(e, _('Could not get connectors.')))
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 def connectors(request):
   if request.method == 'GET':
@@ -68,6 +65,6 @@ def connector(request, connector):
   }
   if request.method == 'GET':
     response['connector'] = connector.to_dict()
-    return HttpResponse(json.dumps(response), mimetype="application/json")
+    return JsonResponse(response)
   else:
     raise StructuredException(code="INVALID_METHOD", message=_('GET request required.'), error_code=405)

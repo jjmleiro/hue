@@ -1,0 +1,40 @@
+From c4e19b46542e7d8447d48cdebf33429affc52c70 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 28 Jan 2015 01:31:00 +0100
+Subject: [PATCH 0699/1173] [spark] Added split group to switch between grid
+ and chart results
+
+---
+ apps/spark/src/spark/templates/editor.mako |    8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index c20f070..fbd4901 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -324,17 +324,19 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         </div>
+ 
+         <div style="padding-top: 10px;">
+-          <a data-bind="visible: result.hasSomeResults(), click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }">
++          <button data-bind="visible: result.hasSomeResults(), click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }">
+             <i class="fa fa-th"></i>
+-          </a>
++          </button>
+           <div class="btn-group" data-bind="visible: type() != 'scala' && type() != 'python' && result.hasSomeResults()">
+-            <button class="btn dropdown-toggle" style="height: 31px" data-bind="css: {'active': $data.showChart}" data-toggle="dropdown">
++            <button class="btn" data-bind="css: {'active': $data.showChart}, click: function(){ $data.showChart(true); }">
+               <i class="hcha hcha-bar-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.BARCHART"></i>
+               <i class="hcha hcha-line-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.LINECHART"></i>
+               <i class="hcha hcha-pie-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.PIECHART"></i>
+               <i class="fa fa-fw fa-dot-circle-o" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.SCATTERCHART"></i>
+               <i class="fa fa-fw fa-map-marker" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.MAP"></i>
+               <i class="hcha hcha-map-chart" data-bind="visible: chartType() == ko.HUE_CHARTS.TYPES.GRADIENTMAP"></i>
++            </button>
++            <button class="btn dropdown-toggle" data-bind="css: {'active': $data.showChart}" data-toggle="dropdown">
+               <i class="fa fa-caret-down"></i>
+             </button>
+             <ul class="dropdown-menu">
+-- 
+1.7.9.5
+

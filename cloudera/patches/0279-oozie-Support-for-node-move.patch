@@ -1,0 +1,97 @@
+From dd682c92f7f45693b1d23ab027e6c1b0718ad351 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 11 Nov 2014 19:09:00 +0100
+Subject: [PATCH 0279/1173] [oozie] Support for node move
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   12 ++++++---
+ apps/oozie/static/js/workflow-editor.ko.js         |   27 ++++++++++++--------
+ 2 files changed, 25 insertions(+), 14 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 95b7f4b..20b0c8a 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -297,7 +297,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ <script type="text/html" id="widget-template">
+-  <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass">
++  <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass, draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.setCurrentDraggedWidget($data); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.toElement).text());_title.appendTo(_par);_par.height(80);_par.width(180);return _par;}}}">
+     <h2 class="card-heading simple">
+       <span data-bind="visible: $root.isEditing">
+         <a href="javascript:void(0)" class="move-widget"><i class="fa fa-arrows"></i></a>
+@@ -1153,9 +1153,15 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function widgetDraggedAdditionalHandler(widget) {
+-    viewModel.workflow.newNode(widget);
+     $("canvas").remove();
+-    showAddActionDemiModal(widget);
++    if (viewModel.currentlyDraggedWidget && viewModel.currentlyDraggedWidget.id() == ""){
++      viewModel.workflow.newNode(widget);
++      showAddActionDemiModal(widget);
++    }
++    else {
++      // TODO: rebuild nodes here, it's after a d'n'd
++      $(document).trigger("drawArrows");
++    }
+   }
+ 
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index e3a473c..f6fbfd4 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -423,16 +423,22 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+         _newRow = _parentCol.addEmptyRow(false, _rowIdx);
+       }
++
+       var _w = new Widget({
+-        size: self.currentlyDraggedWidget.size(),
+-        id: UUID(),
+-        name: self.currentlyDraggedWidget.name(),
+-        widgetType: self.currentlyDraggedWidget.widgetType(),
+-        properties: self.currentlyDraggedWidget.properties(),
+-        offset: self.currentlyDraggedWidget.offset(),
+-        loading: true,
+-        vm: self
+-      });
++          size: self.currentlyDraggedWidget.size(),
++          id: UUID(),
++          name: self.currentlyDraggedWidget.name(),
++          widgetType: self.currentlyDraggedWidget.widgetType(),
++          properties: self.currentlyDraggedWidget.properties(),
++          offset: self.currentlyDraggedWidget.offset(),
++          loading: true,
++          vm: self
++        });
++
++      if (self.currentlyDraggedWidget.id() != ""){
++        self.removeWidgetById(self.currentlyDraggedWidget.id());
++        _w = self.currentlyDraggedWidget;
++      }
+ 
+       _newRow.widgets([_w]);
+ 
+@@ -523,7 +529,6 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       }
+ 
+       self.currentlyCreatingFork = true;
+-      self.currentlyDraggedWidget = null;
+ 
+       return _w;
+     }
+@@ -848,7 +853,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+       size: 12,
+-      id: UUID(),
++      id: "",
+       name: name,
+       widgetType: type
+     });
+-- 
+1.7.9.5
+

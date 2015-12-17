@@ -1,0 +1,59 @@
+From 5fbc01d98074d4c40ba526f2f559735a3d9240c0 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Mon, 15 Dec 2014 12:32:48 -0800
+Subject: [PATCH 0150/1173] HUE-2492 [impala] Avoid imports for deleted app
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    5 ++---
+ apps/beeswax/src/beeswax/templates/execute.mako    |    5 ++++-
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index 6d5fd96..290f62f 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -39,9 +39,6 @@ from beeswax.models import Session, HiveServerQueryHandle, HiveServerQueryHistor
+ from beeswax.server.dbms import Table, NoSuchObjectException, DataTable,\
+                                 QueryServerException
+ 
+-from impala import conf as impala_conf
+-
+-
+ LOG = logging.getLogger(__name__)
+ 
+ IMPALA_RESULTSET_CACHE_SIZE = 'impala.resultset.cache.size'
+@@ -314,6 +311,8 @@ class HiveServerClient:
+     self.impersonation_enabled = impersonation_enabled
+ 
+     if self.query_server['server_name'] == 'impala':
++      from impala import conf as impala_conf
++
+       ssl_enabled = impala_conf.SSL.ENABLED.get()
+       ca_certs = impala_conf.SSL.CACERTS.get()
+       keyfile = impala_conf.SSL.KEY.get()
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 951c912..a37cf8c 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -17,7 +17,6 @@
+   from desktop.lib.django_util import extract_field_data
+   from desktop.views import commonheader, commonfooter, commonshare
+   from beeswax import conf as beeswax_conf
+-  from impala import conf as impala_conf
+   from django.utils.translation import ugettext as _
+ 
+ %>
+@@ -2427,6 +2426,10 @@ $(document).ready(function () {
+ });
+ % endif
+ 
++<%
++  if app_name == 'impala':
++    from impala import conf as impala_conf
++%>
+ % if ( app_name == 'beeswax' and beeswax_conf.CLOSE_QUERIES.get() ) or ( app_name == 'impala' and impala_conf.CLOSE_QUERIES.get() ):
+ $(document).ready(function () {
+   $(document).on('explain.query', function() {
+-- 
+1.7.9.5
+

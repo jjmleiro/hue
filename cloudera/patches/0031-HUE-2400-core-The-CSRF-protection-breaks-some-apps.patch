@@ -1,0 +1,58 @@
+From e6a444437cf8cdeab2bdb37bac4e10104470d1d6 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 13 Oct 2014 15:09:20 +0200
+Subject: [PATCH 0031/1173] HUE-2400 [core] The CSRF protection breaks some
+ apps
+
+Moved the XMLHttpRequest.send hack outside document.ready
+---
+ .../core/src/desktop/templates/common_header.mako  |   27 ++++++++++----------
+ 1 file changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 7c7383f..037ed29 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -169,25 +169,26 @@ from django.utils.translation import ugettext as _
+   <script src="/static/js/popover-extra-placements.js"></script>
+ 
+   <script type="text/javascript" charset="utf-8">
++
++    //Add CSRF Token to all XHR Requests
++    var csrftoken = $.cookie('csrftoken');
++    function csrfSafeMethod(method) {
++      // these HTTP methods do not require CSRF protection
++      return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
++    }
++
++    var xrhsend = XMLHttpRequest.prototype.send;
++    XMLHttpRequest.prototype.send = function (data) {
++      this.setRequestHeader('X-CSRFToken', csrftoken);
++      return xrhsend.apply(this, arguments);
++    }
++
+     $(document).ready(function () {
+       // forces IE's ajax calls not to cache
+       if ($.browser.msie) {
+         $.ajaxSetup({ cache: false });
+       }
+ 
+-      //Add CSRF Token to all XHR Requests
+-      var csrftoken = $.cookie('csrftoken');
+-      function csrfSafeMethod(method) {
+-        // these HTTP methods do not require CSRF protection
+-        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+-      }
+-
+-      var xrhsend = XMLHttpRequest.prototype.send;
+-      XMLHttpRequest.prototype.send = function(data) {
+-        this.setRequestHeader('X-CSRFToken', csrftoken);
+-        return xrhsend.apply(this, arguments);
+-      }
+-      /////
+ 
+       // prevents framebusting and clickjacking
+       if (self == top){
+-- 
+1.7.9.5
+

@@ -1,0 +1,138 @@
+From 4cfe8a2093ec689173203c0529b86b8fe20bccbe Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 29 Dec 2014 17:28:40 -0800
+Subject: [PATCH 0369/1173] [oozie] Add properties of Subworkflow action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   18 +++++++-------
+ .../oozie/templates/editor/workflow_editor.mako    |   25 +++++++++++++++++++-
+ 2 files changed, 33 insertions(+), 10 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index deeacee..cbf6e94 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -407,7 +407,7 @@ class JavaAction(Action):
+           'label': _('Main class'),
+           'value': '',
+           'help_text': _('Full name of the Java class. E.g. org.apache.hadoop.examples.Grep'),
+-          'type': ''
++          'type': 'text'
+      },
+      'arguments': { 
+           'name': 'arguments',
+@@ -659,7 +659,7 @@ class SqoopAction(Action):
+           'label': _('Sqoop command'),
+           'value': 'import  --connect jdbc:hsqldb:file:db.hsqldb --table TT --target-dir hdfs://localhost:8020/user/foo -m 1',
+           'help_text': _('The full %(type)s command. Either put it here or split it by spaces and insert the parts as multiple parameters below.') % {'type': TYPE},
+-          'type': 'text'
++          'type': 'textarea'
+      },            
+      'parameters': { 
+           'name': 'parameters',
+@@ -865,7 +865,7 @@ class SshAction(Action):
+           'label': _('Ssh command'),
+           'value': 'ls',
+           'help_text': _('The path of the Shell command to execute.'),
+-          'type': 'text'
++          'type': 'textarea'
+      },    
+      'arguments': {
+           'name': 'arguments',
+@@ -955,28 +955,28 @@ class EmailAction(Action):
+           'label': _('To addresses'),
+           'value': '',
+           'help_text': _('Comma-separated values.'),
+-          'type': ''
++          'type': 'text'
+      },         
+      'cc': { 
+           'name': 'cc',
+           'label': _('Cc addresses (optional)'),
+           'value': '',
+           'help_text': _('Comma-separated values.'),
+-          'type': ''
++          'type': 'text'
+      },    
+      'subject': {
+           'name': 'subject',
+           'label': _('Subject'),
+           'value': 'Subject',
+           'help_text': _('Plain-text.'),
+-          'type': ''
++          'type': 'text'
+      },
+      'body': { 
+           'name': 'body',
+           'label': _('Body'),
+           'value': '',
+           'help_text': _('Plain-text.'),
+-          'type': 'text'
++          'type': 'textarea'
+      },
+   }
+ 
+@@ -1050,7 +1050,7 @@ class DistCpAction(Action):
+           'label': _('Arguments'),
+           'value': [],
+           'help_text': _('The arguments of the %(type)s command. Put options first, then source paths, then destination path.') % {'type': TYPE.title()},
+-          'type': 'text'
++          'type': 'textarea'
+      },
+       # Common
+      'prepares': { 
+@@ -1088,7 +1088,7 @@ class KillAction(Action):
+           'label': _('Message'),
+           'value': _('Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]'),
+           'help_text': _('Message to display when the workflow fails. Can contain some EL functions.'),
+-          'type': 'text'
++          'type': 'textarea'
+      }
+   }
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index a3e40b3..a5ab3cb 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -986,7 +986,27 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       </ul>
+       <div class="tab-content">
+         <div class="tab-pane active" data-bind="attr: { id: 'properties-' + id() }">
+-          <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <span data-bind="text: $root.workflow_properties.propagate_configuration.label"></span>
++          <input type="checkbox" data-bind="checked: properties.propagate_configuration" />
++
++          <br/>
++
++          <h6>
++            <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''});$(document).trigger('drawArrows') }">
++              ${ _('Properties') } <i class="fa fa-plus"></i>
++            </a>
++          </h6>
++          <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
++            <li>
++              <input data-bind="value: name"/>
++              <input data-bind="value: value"/>
++              <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this);$(document).trigger('drawArrows') }">
++                <i class="fa fa-minus"></i>
++              </a>
++            </li>
++          </ul>
++          <em data-bind="visible: properties.job_properties().length == 0">${ _('No properties defined.') }</em>
++
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
+@@ -1482,6 +1502,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <!-- /ko -->
+           <!-- ko if: type == 'text' -->
+           <input data-bind="value: value" class="input-xxlarge"/>
++          <!-- /ko -->          
++          <!-- ko if: type == 'textarea' -->
++          <input data-bind="value: value" class="input-xxlarge"/>
+           <!-- /ko -->
+         </td>
+       </tr>
+-- 
+1.7.9.5
+

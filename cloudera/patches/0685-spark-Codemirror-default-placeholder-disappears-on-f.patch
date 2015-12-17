@@ -1,0 +1,36 @@
+From b863b45d064e856595bbd6d070ce351edf2983eb Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 27 Jan 2015 10:50:52 +0100
+Subject: [PATCH 0685/1173] [spark] Codemirror default placeholder disappears
+ on focus and reappears on blur if empty
+
+---
+ apps/spark/src/spark/templates/editor.mako |   12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 0df5057..d0fc3c4 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -978,6 +978,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }, 600);
+       });
+ 
++      editor.on("focus", function () {
++        if (editor.getValue() == viewModel.snippetPlaceholders[snippet.type()]) {
++          editor.setValue("");
++        }
++      });
++
++      editor.on("blur", function () {
++        if (editor.getValue() == ""){
++          editor.setValue(viewModel.snippetPlaceholders[snippet.type()]); 
++        }
++      });
++
+       ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
+         wrapperElement.remove();
+       });
+-- 
+1.7.9.5
+

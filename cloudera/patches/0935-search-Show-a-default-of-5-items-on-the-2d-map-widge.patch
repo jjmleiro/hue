@@ -1,0 +1,47 @@
+From 894915ea747d7fc2e6e48843f09c8e27148bdb33 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 26 Feb 2015 09:49:04 -0800
+Subject: [PATCH 0935/1173] [search] Show a default of 5 items on the 2d map
+ widget
+
+---
+ apps/search/src/search/models.py |    2 +-
+ apps/search/src/search/views.py  |    3 +--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 2cf3f27..709c393 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -292,7 +292,7 @@ class Collection(models.Model):
+       if facet['widgetType'] == 'map-widget' and facet['type'] == 'field':
+         facet['type'] = 'pivot'
+         properties['facets'] = []
+-        properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 1}
++        properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+ 
+     return json.dumps(props)
+ 
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index 321f10a..34f7601 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -468,14 +468,13 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
+   if widget_type in ('tree-widget', 'heatmap-widget', 'map-widget'):
+     properties['mincount'] = 1
+     properties['facets'] = []
++    properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+ 
+     if widget_type == 'map-widget':
+       properties['scope'] = 'world'
+-      properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 1}
+       properties['limit'] = 100
+     else:
+       properties['scope'] = 'stack' if widget_type == 'heatmap-widget' else 'tree'
+-      properties['facets_form'] = {'field': '', 'mincount': 1, 'limit': 5}
+ 
+   return {
+     'id': facet_id,
+-- 
+1.7.9.5
+

@@ -16,16 +16,16 @@
 # limitations under the License.
 
 import errno
-import logging
 import json
+import logging
 import mimetypes
 import operator
+import os
 import parquet
 import posixpath
 import re
 import shutil
 import stat as stat_module
-import os
 
 from datetime import datetime
 
@@ -40,7 +40,7 @@ from django.views.static import was_modified_since
 from django.shortcuts import redirect
 from django.template.defaultfilters import urlencode
 from django.utils.functional import curry
-from django.utils.http import http_date, urlquote
+from django.utils.http import http_date
 from django.utils.html import escape
 from django.utils.translation import ugettext as _
 from cStringIO import StringIO
@@ -50,6 +50,7 @@ from avro import datafile, io
 from desktop.lib import i18n, paginator
 from desktop.lib.conf import coerce_bool
 from desktop.lib.django_util import make_absolute, render, render_json, format_preserving_redirect
+from desktop.lib.django_util import JsonResponse
 from desktop.lib.exceptions_renderable import PopupException
 from hadoop.fs.hadoopfs import Hdfs
 from hadoop.fs.exceptions import WebHdfsException
@@ -94,8 +95,13 @@ class ParquetOptions(object):
 def index(request):
   # Redirect to home directory by default
   path = request.user.get_home_directory()
-  if not request.fs.isdir(path):
-    path = '/'
+
+  try:
+    if not request.fs.isdir(path):
+       path = '/'
+  except Exception:
+    pass
+
   return view(request, path)
 
 
@@ -121,7 +127,7 @@ def download(request, path):
     if not request.fs.isfile(path):
         raise PopupException(_("'%(path)s' is not a file.") % {'path': path})
 
-    mimetype = mimetypes.guess_type(path)[0] or 'application/octet-stream'
+    content_type = mimetypes.guess_type(path)[0] or 'application/octet-stream'
     stats = request.fs.stats(path)
     mtime = stats['mtime']
     size = stats['size']
@@ -131,7 +137,7 @@ def download(request, path):
     # but tricky to do here.
     fh = request.fs.open(path)
 
-    response = HttpResponse(_file_reader(fh), mimetype=mimetype)
+    response = HttpResponse(_file_reader(fh), content_type=content_type)
     response["Last-Modified"] = http_date(stats['mtime'])
     response["Content-Length"] = stats['size']
     response['Content-Disposition'] = request.GET.get('disposition', 'attachment')
@@ -162,14 +168,16 @@ def view(request, path):
         else:
             return display(request, path)
     except (IOError, WebHdfsException), e:
-        msg = _("Cannot access: %(path)s.") % {'path': escape(path)}
+        msg = _("Cannot access: %(path)s. ") % {'path': escape(path)}
+        if "Connection refused" in e.message:
+            msg += _(" The HDFS REST service is not available. ")
         if request.user.is_superuser and not request.user == request.fs.superuser:
             msg += _(' Note: You are a Hue admin but not a HDFS superuser (which is "%(superuser)s").') % {'superuser': request.fs.superuser}
         if request.is_ajax():
           exception = {
             'error': msg
           }
-          return render_json(exception)
+          return JsonResponse(exception)
         else:
           raise PopupException(msg , detail=e)
 
@@ -416,7 +424,6 @@ def listdir_paged(request, path):
 
     page.object_list = [ _massage_stats(request, s) for s in shown_stats ]
 
-
     data = {
         'path': path,
         'breadcrumbs': breadcrumbs,
@@ -435,7 +442,8 @@ def listdir_paged(request, path):
         'is_superuser': request.user.username == request.fs.superuser,
         'groups': request.user.username == request.fs.superuser and [str(x) for x in Group.objects.values_list('name', flat=True)] or [],
         'users': request.user.username == request.fs.superuser and [str(x) for x in User.objects.values_list('username', flat=True)] or [],
-        'superuser': request.fs.superuser
+        'superuser': request.fs.superuser,
+        'is_sentry_managed': request.fs.is_sentry_managed(path)
     }
     return render('listdir.mako', request, data)
 
@@ -475,8 +483,9 @@ def _massage_stats(request, stats):
         'type': filetype(stats['mode']),
         'rwx': rwx(stats['mode'], stats['aclBit']),
         'mode': stringformat(stats['mode'], "o"),
-        'url': make_absolute(request, "view", dict(path=urlquote(normalized))),
-        }
+        'url': make_absolute(request, "view", dict(path=normalized)),
+        'is_sentry_managed': request.fs.is_sentry_managed(path)
+    }
 
 
 def stat(request, path):
@@ -489,7 +498,7 @@ def stat(request, path):
     if not request.fs.exists(path):
         raise Http404(_("File not found: %(path)s") % {'path': escape(path)})
     stats = request.fs.stats(path)
-    return render_json(_massage_stats(request, stats))
+    return JsonResponse(_massage_stats(request, stats))
 
 
 def display(request, path):
@@ -621,6 +630,7 @@ def read_contents(codec_type, path, fs, offset, length):
        Returns: A tuple of codec_type, offset, length and contents read.
     """
     contents = ''
+    fhandle = None
 
     try:
         fhandle = fs.open(path)
@@ -660,7 +670,8 @@ def read_contents(codec_type, path, fs, offset, length):
             contents = _read_simple(fhandle, path, offset, length, stats)
 
     finally:
-        fhandle.close()
+        if fhandle:
+            fhandle.close()
 
     return (codec_type, offset, length, contents)
 
@@ -688,17 +699,21 @@ def _read_avro(fhandle, path, offset, length, stats):
     try:
         fhandle.seek(offset)
         data_file_reader = datafile.DataFileReader(fhandle, io.DatumReader())
-        contents_list = []
-        read_start = fhandle.tell()
-        # Iterate over the entire sought file.
-        for datum in data_file_reader:
-            read_length = fhandle.tell() - read_start
-            if read_length > length and len(contents_list) > 0:
-                break
-            else:
-                datum_str = str(datum) + "\n"
-                contents_list.append(datum_str)
-        data_file_reader.close()
+
+        try:
+            contents_list = []
+            read_start = fhandle.tell()
+            # Iterate over the entire sought file.
+            for datum in data_file_reader:
+                read_length = fhandle.tell() - read_start
+                if read_length > length and len(contents_list) > 0:
+                    break
+                else:
+                    datum_str = str(datum) + "\n"
+                    contents_list.append(datum_str)
+        finally:
+            data_file_reader.close()
+
         contents = "".join(contents_list)
     except:
         logging.warn("Could not read avro file at %s" % path, exc_info=True)
@@ -1218,14 +1233,13 @@ def _upload_archive(request):
         try:
             # Extract if necessary
             # Make sure dest path is without the extension
-            if dest.endswith('.zip'):
+            if dest.lower().endswith('.zip'):
                 temp_path = archive_factory(uploaded_file, 'zip').extract()
                 if not temp_path:
                     raise PopupException(_('Could not extract contents of file.'))
                 # Move the file to where it belongs
                 dest = dest[:-4]
-            elif dest.endswith('.tar.gz'):
-                print uploaded_file
+            elif dest.lower().endswith('.tar.gz') or dest.lower().endswith('.tgz'):
                 temp_path = archive_factory(uploaded_file, 'tgz').extract()
                 if not temp_path:
                     raise PopupException(_('Could not extract contents of file.'))

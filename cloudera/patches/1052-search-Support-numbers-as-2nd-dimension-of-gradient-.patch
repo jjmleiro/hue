@@ -1,0 +1,35 @@
+From 36fbaf5c21c25e27459d0fd0bd6e7680f583d232 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 12 Mar 2015 11:24:52 -0700
+Subject: [PATCH 1052/1173] [search] Support numbers as 2nd dimension of
+ gradient map
+
+---
+ apps/search/src/search/models.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index ddaf1d6..72e2f40 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -28,7 +28,7 @@ from django.utils.html import escape
+ from django.utils.translation import ugettext as _, ugettext_lazy as _t
+ 
+ 
+-from desktop.lib.i18n import smart_unicode
++from desktop.lib.i18n import smart_unicode, smart_str
+ 
+ from libsolr.api import SolrApi
+ 
+@@ -639,7 +639,7 @@ def _augment_pivot_nd(facet_id, counts, selected_values, fields='', values=''):
+ 
+   for c in counts:
+     fq_fields = (fields + ':' if fields else '') + c['field']
+-    fq_values = (values + ':' if values else '') + c['value']
++    fq_values = (smart_str(values) + ':' if values else '') + smart_str(c['value'])
+     if 'pivot' in c:
+       _augment_pivot_nd(facet_id, c['pivot'], selected_values, fq_fields, fq_values)
+ 
+-- 
+1.7.9.5
+

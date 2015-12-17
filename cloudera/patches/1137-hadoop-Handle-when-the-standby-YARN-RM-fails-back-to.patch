@@ -1,0 +1,85 @@
+From 6620cd04b8fb65cc8446a524e18ae7d7d8bff7e1 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Mar 2015 12:13:22 -0700
+Subject: [PATCH 1137/1173] [hadoop] Handle when the standby YARN RM fails
+ back to the master RM
+
+---
+ desktop/libs/hadoop/src/hadoop/cluster.py          |    6 ++++--
+ .../hadoop/src/hadoop/yarn/resource_manager_api.py |   18 ++++++++++++++++++
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/cluster.py b/desktop/libs/hadoop/src/hadoop/cluster.py
+index 6d31bec..0f3127f 100644
+--- a/desktop/libs/hadoop/src/hadoop/cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/cluster.py
+@@ -175,6 +175,8 @@ def get_next_ha_yarncluster():
+   """
+   Return the next available YARN RM instance and cache its name.
+   """
++  from hadoop.yarn import mapreduce_api
++  from hadoop.yarn import resource_manager_api
+   from hadoop.yarn.resource_manager_api import ResourceManagerApi
+   global MR_NAME_CACHE
+ 
+@@ -190,13 +192,13 @@ def get_next_ha_yarncluster():
+           if cluster_info['clusterInfo']['haState'] == 'ACTIVE':
+             MR_NAME_CACHE = name
+             LOG.warn('Picking RM HA: %s' % name)
+-            from hadoop.yarn import resource_manager_api
+             resource_manager_api._api_cache = None # Reset cache
+-            from hadoop.yarn import mapreduce_api
+             mapreduce_api._api_cache = None
+             return (config, rm)
+           else:
+             LOG.info('RM %s is not RUNNING, skipping it: %s' % (name, cluster_info))
++        except resource_manager_api.YarnFailoverOccurred:
++          LOG.info('RM %s has failed back to another server' % (name,))
+         except Exception, ex:
+           LOG.exception('RM %s is not available, skipping it: %s' % (name, ex))
+       else:
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+index 2e9d34f..be1b811 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+@@ -54,6 +54,10 @@ def get_resource_manager():
+   return _api_cache
+ 
+ 
++class YarnFailoverOccurred(Exception):
++  pass
++
++
+ class ResourceManagerApi(object):
+ 
+   def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+@@ -80,12 +84,26 @@ class ResourceManagerApi(object):
+ 
+   def cluster(self, **kwargs):
+     return self._root.get('cluster', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
++    return self._execute(self._root.get, 'cluster', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+ 
+   def apps(self, **kwargs):
+     return self._root.get('cluster/apps', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
++    return self._execute(self._root.get, 'cluster/apps', params=kwargs, headers={'Accept': _JSON_CONTENT_TYPE})
+ 
+   def app(self, app_id):
+     return self._root.get('cluster/apps/%(app_id)s' % {'app_id': app_id}, headers={'Accept': _JSON_CONTENT_TYPE})
++    return self._execute(self._root.get, 'cluster/apps/%(app_id)s' % {'app_id': app_id}, headers={'Accept': _JSON_CONTENT_TYPE})
+ 
+   def kill(self, app_id):
+     return self._root.put('cluster/apps/%(app_id)s/state' % {'app_id': app_id}, data=json.dumps({'state': 'KILLED'}), contenttype=_JSON_CONTENT_TYPE)
++    return self._execute(self._root.put, 'cluster/apps/%(app_id)s/state' % {'app_id': app_id}, data=json.dumps({'state': 'KILLED'}), contenttype=_JSON_CONTENT_TYPE)
++
++  def _execute(self, function, *args, **kwargs):
++    response = function(*args, **kwargs)
++
++    # YARN-2605: Yarn does not use proper HTTP redirects when the standby RM has
++    # failed back to the master RM.
++    if isinstance(response, str) and response.startswith('This is standby RM. Redirecting to the current active RM'):
++      raise YarnFailoverOccurred(response)
++
++    return response
+-- 
+1.7.9.5
+

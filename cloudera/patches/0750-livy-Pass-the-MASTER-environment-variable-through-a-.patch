@@ -1,0 +1,30 @@
+From c4c0a6ccd2c78341ed6ec70a542e12b2dd114394 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 3 Feb 2015 13:00:05 -0800
+Subject: [PATCH 0750/1173] [livy] Pass the MASTER environment variable
+ through a YARN app
+
+---
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 17fbb56..251fa35 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -98,6 +98,12 @@ class Client(yarnConf: YarnConfiguration) {
+     containerCtx.setCommands(cmds)
+     containerCtx.setLocalResources(Map("__package" -> packageResource))
+ 
++    // FIXME: Spark needs the `MASTER` environment passed through to run on YARN. This needs a better approach.
++    val master = System.getenv("MASTER")
++    if (master != null) {
++      containerCtx.getEnvironment()("MASTER") = master
++    }
++
+     appContext.setApplicationId(appId)
+     appContext.setAMContainerSpec(containerCtx)
+     appContext.setApplicationType("livy")
+-- 
+1.7.9.5
+

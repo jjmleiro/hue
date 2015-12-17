@@ -1,0 +1,247 @@
+From a30fdc6098b6748a28d875f10012f4298d2342c0 Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Mon, 13 Oct 2014 15:28:53 -0700
+Subject: [PATCH 0041/1173] HUE-2094 [jb] Spark jobs will now be visible in
+ the job browser instead of erroring
+
+---
+ apps/jobbrowser/src/jobbrowser/api.py             |   19 ++++----
+ apps/jobbrowser/src/jobbrowser/models.py          |    2 +-
+ apps/jobbrowser/src/jobbrowser/templates/job.mako |   53 +++++++++++++++++++--
+ apps/jobbrowser/src/jobbrowser/views.py           |   16 +++++++
+ apps/jobbrowser/src/jobbrowser/yarn_models.py     |    1 +
+ desktop/core/src/desktop/lib/rest/resource.py     |    5 +-
+ 6 files changed, 79 insertions(+), 17 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index b926a4b..b4ea912 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -263,15 +263,18 @@ class YarnApi(JobBrowserApi):
+       elif job['state'] == 'KILLED':
+         return KilledYarnJob(self.resource_manager_api, job)
+ 
+-      # MR id, assume 'applicationType': 'MAPREDUCE'
+-      jobid = jobid.replace('application', 'job')
+-
+-      if job['state'] in ('NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'):
+-        json = self.mapreduce_api.job(self.user, jobid)
+-        job = YarnJob(self.mapreduce_api, json['job'])
++      if job['applicationType'] == 'SPARK':
++        job = Application(job)
+       else:
+-        json = self.history_server_api.job(self.user, jobid)
+-        job = YarnJob(self.history_server_api, json['job'])
++        # MR id, assume 'applicationType': 'MAPREDUCE'
++        jobid = jobid.replace('application', 'job')
++
++        if job['state'] in ('NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'):
++          json = self.mapreduce_api.job(self.user, jobid)
++          job = YarnJob(self.mapreduce_api, json['job'])
++        else:
++          json = self.history_server_api.job(self.user, jobid)
++          job = YarnJob(self.history_server_api, json['job'])
+     except ApplicationNotRunning, e:
+       raise e
+     except Exception, e:
+diff --git a/apps/jobbrowser/src/jobbrowser/models.py b/apps/jobbrowser/src/jobbrowser/models.py
+index 97e6e85..f02cd20 100644
+--- a/apps/jobbrowser/src/jobbrowser/models.py
++++ b/apps/jobbrowser/src/jobbrowser/models.py
+@@ -77,7 +77,6 @@ class JobLinkage(object):
+                     self._jobtracker.thrifttaskid_from_string(task_id))
+     return Task(ttask, self._jobtracker)
+ 
+-
+ class Job(JobLinkage):
+   """
+   Creates a Job instance pulled from the job tracker Thrift interface.
+@@ -132,6 +131,7 @@ class Job(JobLinkage):
+     self._init_attributes()
+     self.is_retired = hasattr(thriftJob, 'is_retired')
+     self.is_mr2 = False
++    self.applicationType = thriftJob['applicationType']
+ 
+   @property
+   def counters(self):
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/job.mako b/apps/jobbrowser/src/jobbrowser/templates/job.mako
+index 3ef486b..3a18ad7 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/job.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/job.mako
+@@ -26,7 +26,6 @@
+   from django.template.defaultfilters import urlencode
+   from django.utils.translation import ugettext as _
+ %>
+-
+ <%def name="task_table(dom_id, tasks)">
+     <table id="${ dom_id }" class="taskTable table table-condensed">
+         <thead>
+@@ -101,6 +100,48 @@ ${ comps.menubar() }
+   %endif
+ </style>
+ 
++% if job.applicationType == 'SPARK':
++
++<div class="container-fluid">
++  <div class="row-fluid">
++    <div class="span2">
++      <div class="sidebar-nav" style="padding-top: 0">
++        <ul class="nav nav-list">
++          <li class="nav-header">${_('Job ID')}</li>
++          <li class="white hellipsify">${job.jobId_short}</li>
++          <li class="nav-header">${_('User')}</li>
++          <li class="white">${job.user}</li>
++          <li class="nav-header">${_('Status')}</li>
++          <li class="white" id="jobStatus">&nbsp;</li>
++          <li class="nav-header">${_('Logs')}</li>
++          <li><a href="${job.trackingUrl }" target="_blank"><i class="fa fa-tasks"></i> ${_('Logs')}</a></li>
++          % if not job.is_retired:
++          <li class="nav-header">${_('Maps')}</li>
++          <li class="white" id="jobMaps">&nbsp;</li>
++          <li class="nav-header">${_('Reduces')}</li>
++          <li class="white" id="jobReduces">&nbsp;</li>
++          % endif
++          <li class="nav-header">${_('Duration')}</li>
++          <li class="white">${job.durationFormatted}</li>
++          <li class="nav-header killJob">${_('Actions')}</li>
++          <li id="killJobContainer" class="white killJob"></li>
++        </ul>
++      </div>
++    </div>
++    <div class="span10">
++      <div class="card card-small">
++        <h1 class="card-heading simple">${_(job.name)}</h1>
++        <div class="card-body">
++          <p>
++            <a href="${job.trackingUrl}" id="tracking-link" target="_blank">${_('Go to spark job list at %s' % job.trackingUrl)}</a>
++          </p>
++        </div>
++      </div>
++    </div>
++  </div>
++</div>
++
++% else:
+ <div class="container-fluid">
+   <div class="row-fluid">
+     <div class="span2">
+@@ -147,7 +188,7 @@ ${ comps.menubar() }
+     </div>
+     <div class="span10">
+       <div class="card card-small">
+-        <h1 class="card-heading simple">${_('Job: %(jobId)s') % dict(jobId=job.jobId_short)}</h1>
++        <h1 class="card-heading simple">${_(job.name)}</h1>
+           <div class="card-body">
+             <p>
+               <ul class="nav nav-tabs">
+@@ -308,6 +349,7 @@ ${ comps.menubar() }
+     </div>
+   </div>
+ </div>
++% endif
+ 
+ 
+ <div id="killModal" class="modal hide fade">
+@@ -396,8 +438,10 @@ $(document).ready(function () {
+     $.getJSON("?format=json", function (data) {
+       if (data != null && data.job != null) {
+         updateJob(data.job);
+-        updateFailedTasks(data.failedTasks);
+-        updateRecentTasks(data.recentTasks);
++        if (data.applicationType != 'SPARK') {
++          updateFailedTasks(data.failedTasks);
++          updateRecentTasks(data.recentTasks);
++        }
+       }
+       isUpdating = false;
+     });
+@@ -546,5 +590,4 @@ $(document).ready(function () {
+ });
+ </script>
+ 
+-
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/jobbrowser/src/jobbrowser/views.py b/apps/jobbrowser/src/jobbrowser/views.py
+index c5d53a5..79a7939 100644
+--- a/apps/jobbrowser/src/jobbrowser/views.py
++++ b/apps/jobbrowser/src/jobbrowser/views.py
+@@ -127,6 +127,7 @@ def massage_job_for_json(job, request):
+     'cleanupProgress': hasattr(job, 'cleanupProgress') and job.cleanupProgress or '',
+     'desiredMaps': job.desiredMaps,
+     'desiredReduces': job.desiredReduces,
++    'applicationType': job.applicationType,
+     'mapsPercentComplete': int(job.maps_percent_complete) if job.maps_percent_complete else '',
+     'finishedMaps': job.finishedMaps,
+     'finishedReduces': job.finishedReduces,
+@@ -157,11 +158,26 @@ def massage_task_for_json(task):
+   return task
+ 
+ 
++def single_spark_job(request, job):
++  if request.REQUEST.get('format') == 'json':
++    json_job = {
++      'job': massage_job_for_json(job, request)
++    }
++    return HttpResponse(encode_json_for_js(json_job), mimetype="application/json")
++  else:
++    return render('job.mako', request, {
++      'request': request,
++      'job': job
++    })
++
+ @check_job_permission
+ def single_job(request, job):
+   def cmp_exec_time(task1, task2):
+     return cmp(task1.execStartTimeMs, task2.execStartTimeMs)
+ 
++  if job.applicationType == 'SPARK':
++    return single_spark_job(request, job)
++
+   failed_tasks = job.filter_tasks(task_states=('failed',))
+   failed_tasks.sort(cmp_exec_time)
+   recent_tasks = job.filter_tasks(task_states=('running', 'succeeded',))
+diff --git a/apps/jobbrowser/src/jobbrowser/yarn_models.py b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+index bae17fd..f4fb2dc 100644
+--- a/apps/jobbrowser/src/jobbrowser/yarn_models.py
++++ b/apps/jobbrowser/src/jobbrowser/yarn_models.py
+@@ -105,6 +105,7 @@ class Job(object):
+     setattr(self, 'desiredMaps', None)
+     setattr(self, 'finishedReduces', self.reducesCompleted)
+     setattr(self, 'desiredReduces', None)
++    setattr(self, 'applicationType', None)
+ 
+   def kill(self):
+     return self.api.kill(self.id)
+diff --git a/desktop/core/src/desktop/lib/rest/resource.py b/desktop/core/src/desktop/lib/rest/resource.py
+index ccbfb1d..76425e4 100644
+--- a/desktop/core/src/desktop/lib/rest/resource.py
++++ b/desktop/core/src/desktop/lib/rest/resource.py
+@@ -78,7 +78,6 @@ class Resource(object):
+ 
+     return self._format_response(resp)
+ 
+-
+   def get(self, relpath=None, params=None, headers=None):
+     """
+     Invoke the GET method on a resource.
+@@ -107,7 +106,7 @@ class Resource(object):
+     @param relpath: Optional. A relative path to this resource's path.
+     @param params: Key-value data.
+     @param data: Optional. Body of the request.
+-    @param contenttype: Optional. 
++    @param contenttype: Optional.
+ 
+     @return: A dictionary of the JSON result.
+     """
+@@ -121,7 +120,7 @@ class Resource(object):
+     @param relpath: Optional. A relative path to this resource's path.
+     @param params: Key-value data.
+     @param data: Optional. Body of the request.
+-    @param contenttype: Optional. 
++    @param contenttype: Optional.
+ 
+     @return: A dictionary of the JSON result.
+     """
+-- 
+1.7.9.5
+

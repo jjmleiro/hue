@@ -1,0 +1,25 @@
+From 5e634b668677221038318fdf241b5a7e2c08eae0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 30 Dec 2014 11:26:59 +0100
+Subject: [PATCH 0371/1173] [oozie] Fixed filechooser on new action binding
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 366d1b3..ef939d2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1489,7 +1489,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         <td data-bind="text: label" style="width: 1%; padding-right: 10px" class="no-wrap"></td>        
+         <td>
+           <!-- ko if: type == '' -->
+-          <input type="text" data-bind="filechooser: value, attr: { placeholder: help_text }">
++          <input type="text" class="filechooser-input" data-bind="value: value, filechooser: value, attr: { placeholder: help_text }">
+           <!-- /ko -->
+           <!-- ko if: type == 'text' -->
+           <input data-bind="value: value" class="input-xxlarge"/>
+-- 
+1.7.9.5
+

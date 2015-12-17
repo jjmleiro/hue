@@ -1,0 +1,46 @@
+From 668a945fe60c359ff21a2b1f85ab93538c32a1c8 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 11 Dec 2014 18:17:07 -0800
+Subject: [PATCH 0145/1173] [beeswax] Add a test case for ',' and ':' in a
+ partition key comments
+
+---
+ apps/beeswax/src/beeswax/tests.py |   15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index 31901cd..5938fd3 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -60,7 +60,7 @@ from beeswax.models import SavedQuery, QueryHistory, HQL, HIVE_SERVER2
+ from beeswax.server import dbms
+ from beeswax.server.dbms import QueryServerException
+ from beeswax.server.hive_server2_lib import HiveServerClient,\
+-  PartitionValueCompatible, HiveServerTable
++  PartitionKeyCompatible, PartitionValueCompatible, HiveServerTable
+ from beeswax.test_base import BeeswaxSampleProvider
+ from beeswax.hive_site import get_metastore
+ 
+@@ -1789,6 +1789,19 @@ class MockHiveServerTable(HiveServerTable):
+ 
+ class TestHiveServer2API():
+ 
++  def test_partition_keys(self):
++    table = MockHiveServerTable({'path_location': '/my/table'})
++
++    key = PartitionKeyCompatible('name:a_name, type:int, comment:null')
++    assert_equal('a_name', key.name)
++    assert_equal('int', key.type)
++    assert_equal('null', key.comment)
++
++    key = PartitionKeyCompatible('name:a_name, type:int, comment:this, has extra: sigils')
++    assert_equal('a_name', key.name)
++    assert_equal('int', key.type)
++    assert_equal('this, has extra: sigils', key.comment)
++
+   def test_partition_values(self):
+     table = MockHiveServerTable({'path_location': '/my/table'})
+ 
+-- 
+1.7.9.5
+

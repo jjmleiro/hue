@@ -152,9 +152,6 @@ class WorkflowAction(Action):
     else:
       self.conf_dict = {}
 
-    if self.externalId is not None and not re.match('job_.*', self.externalId):
-      self.externalId = None
-
   def get_absolute_url(self):
     related_job_ids = []
 
@@ -169,6 +166,20 @@ class WorkflowAction(Action):
       extra_params = ''
 
     return reverse('oozie:list_oozie_workflow_action', kwargs={'action': self.id}) + extra_params
+
+  def get_absolute_log_url(self):
+    url = None
+    if self.externalId and re.match('job_.*', self.externalId):
+      url = self.externalId and reverse('jobbrowser.views.job_single_logs', kwargs={'job': self.externalId}) or ''
+    return url
+
+  def get_external_id_url(self):
+    url = None
+    if self.externalId and self.externalId.endswith('W'):
+      url = reverse('oozie:list_oozie_workflow', kwargs={'job_id': self.externalId}) or ''
+    elif self.externalId and re.match('job_.*', self.externalId):
+      url = reverse('jobbrowser.views.single_job', kwargs={'job': self.externalId}) or ''
+    return url
 
 
 class CoordinatorAction(Action):
@@ -417,6 +428,11 @@ class Workflow(Job):
   def type(self):
     return 'Workflow'
 
+  def get_parent_job_id(self):
+    if self.parentId and '@' in self.parentId:
+      return self.parentId.split('@')[0]
+    return self.parentId
+
   def get_absolute_url(self, format='html'):
     extra_params = []
 
@@ -435,7 +451,7 @@ class Workflow(Job):
     return reverse('oozie:list_oozie_workflow', kwargs={'job_id': self.id}) + extra_params
 
   def get_progress(self, full_node_list=None):
-    if self.status == 'SUCCEEDED':
+    if self.status in ('SUCCEEDED', 'KILLED', 'FAILED'):
       return 100 # Case of decision nodes
     else:
       if full_node_list is not None:            # Should remove the un-reached branches if decision node

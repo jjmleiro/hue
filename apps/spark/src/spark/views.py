@@ -17,126 +17,124 @@
 
 import json
 import logging
+import uuid
 
-from django.http import HttpResponse
-from django.utils.translation import ugettext as _
 from django.core.urlresolvers import reverse
+from django.utils.translation import ugettext as _
 
-from desktop.context_processors import get_app_name
-from desktop.lib.django_util import render
-from django.shortcuts import redirect
+from desktop.lib.django_util import render, JsonResponse
+from desktop.lib.json_utils import JSONEncoderForHTML
+from desktop.models import Document2, Document
 
-from beeswax import models as beeswax_models
-from beeswax.views import safe_get_design
-
-from spark.job_server_api import get_api
-from spark.forms import UploadApp
-from desktop.lib.exceptions import StructuredException
-from spark.api import design_to_dict
-
-from spark.decorators import view_error_handler
+from spark.conf import LANGUAGES
+from spark.decorators import check_document_access_permission,\
+  check_document_modify_permission
+from spark.models import Notebook, get_api
+from spark.management.commands.spark_setup import Command
 
 
 LOG = logging.getLogger(__name__)
 
 
-@view_error_handler
-def editor(request, design_id=None, query_history_id=None):
-  api = get_api(request.user)
-  jobs = api.jobs()
-  if design_id is not None and not design_id.isdigit():
-    job_id, design_id = design_id, None
-  else:
-    job_id = None
+@check_document_access_permission()
+def editor(request):
+  notebook_id = request.GET.get('notebook')
 
-  action = request.path
-  app_name = get_app_name(request)
-  query_type = beeswax_models.SavedQuery.TYPES_MAPPING[app_name]
-  design = safe_get_design(request, query_type, design_id)
+  if notebook_id:
+    notebook = Notebook(document=Document2.objects.get(id=notebook_id))
+  else:
+    notebook = Notebook()
+
+  autocomplete_base_url = ''
+  try:
+    autocomplete_base_url = reverse('beeswax:api_autocomplete_databases', kwargs={})
+  except:
+    pass
 
   return render('editor.mako', request, {
-    'action': action,
-    'design': design,
-    'design_json': json.dumps(design_to_dict(design)),
-    'can_edit_name': design.id and not design.is_auto,
-    'job_id': job_id,
+      'notebooks_json': json.dumps([notebook.get_data()]),
+      'options_json': json.dumps({
+          'languages': LANGUAGES.get(),
+          'snippet_placeholders' : {
+              'scala': _('Example: 1 + 1, or press CTRL + space'),
+              'python': _('Example: 1 + 1, or press CTRL + space'),
+              'impala': _('Example: SELECT * FROM tablename, or press CTRL + space'),
+              'hive': _('Example: SELECT * FROM tablename, or press CTRL + space'),
+              'text': _('<h2>This is a text snippet</h2>Type your text here')
+          }
+      }),
+      'autocomplete_base_url': autocomplete_base_url,
   })
 
-@view_error_handler
-def list_jobs(request):
-  api = get_api(request.user)
-  jobs = api.jobs()
 
-  return render('list_jobs.mako', request, {
-    'jobs': jobs,
-    'jobs_json': json.dumps(jobs)
+def new(request):
+  return editor(request)
+
+
+def notebooks(request):
+  notebooks = [d.content_object.to_dict() for d in Document.objects.get_docs(request.user, Document2, extra='notebook')]
+
+  return render('notebooks.mako', request, {
+      'notebooks_json': json.dumps(notebooks, cls=JSONEncoderForHTML)
   })
 
-@view_error_handler
-def list_contexts(request):
-  api = get_api(request.user)
-  contexts = api.contexts()
 
-  return render('list_contexts.mako', request, {
-    'contexts': contexts,
-    'contexts_json': json.dumps(contexts)
-  })
+@check_document_modify_permission()
+def delete(request):
+  notebooks = json.loads(request.POST.get('notebooks', '[]'))
 
-@view_error_handler
-def delete_contexts(request):
+  for notebook in notebooks:
+    doc2 = Document2.objects.get(uuid=notebook['uuid'])
+    doc = doc2.doc.get()
+    doc.can_write_or_exception(request.user)
+
+    doc.delete()
+    doc2.delete()
+
+  return JsonResponse({})
+
+
+@check_document_access_permission()
+def copy(request):
+  notebooks = json.loads(request.POST.get('notebooks', '[]'))
+
+  for notebook in notebooks:
+    doc2 = Document2.objects.get(uuid=notebook['uuid'])
+    copy_doc = doc2.doc.get().copy(owner=request.user)
+
+    doc2.pk = None
+    doc2.id = None
+    doc2.uuid = str(uuid.uuid4())
+    doc2.owner = request.user
+    doc2.save()
+
+    doc2.doc.all().delete()
+    doc2.doc.add(copy_doc)
+    doc2.save()
+
+  return JsonResponse({})
+
+
+@check_document_access_permission()
+def download(request):
+  notebook = json.loads(request.POST.get('notebook', '{}'))
+  snippet = json.loads(request.POST.get('snippet', '{}'))
+  file_format = request.POST.get('format', 'csv')
+
+  return get_api(request.user, snippet).download(notebook, snippet, file_format)
+
+
+def install_examples(request):
+  response = {'status': -1, 'message': ''}
+
   if request.method == 'POST':
-    api = get_api(request.user)
-    ids = request.POST.getlist('contexts_selection')
-    for name in ids:
-      api.delete_context(name)
-    return redirect(reverse('spark:list_contexts'))
-  else:
-    return render('confirm.mako', request, {'url': request.path, 'title': _('Delete context(s)?')})
-
-@view_error_handler
-def list_applications(request):
-  api = get_api(request.user)
-  applications = api.jars()
-
-  return render('list_applications.mako', request, {
-    'applications': applications,
-    'applications_json': json.dumps([applications])
-  })
-
-
-def upload_app(request):
-  if request.method != 'POST':
-    raise StructuredException(code="INVALID_REQUEST_ERROR", message=_('Requires a POST'))
-  response = {
-    'status': -1
-  }
-
-  form = UploadApp(request.POST, request.FILES)
-
-  if form.is_valid():
-    app_name = form.cleaned_data['app_name']
     try:
-      data = form.cleaned_data['jar_file'].read()
-      api = get_api(request.user)
+      Command().handle(user=request.user)
       response['status'] = 0
-      response['results'] = api.upload_jar(app_name, data)
-    except ValueError:
-      # No json is returned
-      pass
+    except Exception, err:
+      LOG.exception(err)
+      response['message'] = str(err)
   else:
-    response['results'] = form.errors
+    response['message'] = _('A POST request is required.')
 
-  return redirect(request.META['HTTP_REFERER'])
-
-@view_error_handler
-def download_result(request, job_id):
-  api = get_api(request.user)
-  result = api.job(job_id)
-
-  mimetype = 'application/json'
-  gen = json.dumps(result['result'])
-
-  resp = HttpResponse(gen, mimetype=mimetype)
-  resp['Content-Disposition'] = 'attachment; filename=query_result.%s' % format
-
-  return resp
+  return JsonResponse(response)

@@ -1,0 +1,28 @@
+From 6dccd548e2f30e7112e7e4f968d5df250533b59c Mon Sep 17 00:00:00 2001
+From: Andrew Bayer <andrew@cloudera.com>
+Date: Wed, 20 Nov 2013 09:29:09 -0800
+Subject: [PATCH 0001/1173] CLOUDERA-BUILD. Use CDH parent POM hadoop version
+
+Conflicts:
+
+	maven/pom.xml
+---
+ maven/pom.xml |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 42a49ed..7af8bc0 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -37,7 +37,7 @@
+   </licenses>
+ 
+   <properties>
+-    <hadoop.version>2.2.0-mr1-cdh5.0.0-SNAPSHOT</hadoop.version>
++    <hadoop.version>${cdh.mr1.version}</hadoop.version>
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+     <thrift.version>0.9.0</thrift.version>
+-- 
+1.7.9.5
+

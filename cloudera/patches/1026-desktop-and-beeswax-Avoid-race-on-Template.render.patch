@@ -1,0 +1,74 @@
+From 8c6c5b826a1d75630e08e3b31cbea85ca1105087 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 10 Mar 2015 16:41:40 -0700
+Subject: [PATCH 1026/1173] [desktop and beeswax] Avoid race on
+ Template.render
+
+This hopefully solves the sporatic test failures we're getting
+with beeswax.tests's test_parallel_queries.
+---
+ desktop/core/src/desktop/lib/test_runners.py |   35 ++++++++++++++++----------
+ 1 file changed, 22 insertions(+), 13 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/test_runners.py b/desktop/core/src/desktop/lib/test_runners.py
+index 91413a0..edb07a0 100644
+--- a/desktop/core/src/desktop/lib/test_runners.py
++++ b/desktop/core/src/desktop/lib/test_runners.py
+@@ -16,6 +16,7 @@
+ # limitations under the License.
+ 
+ import sys
++import threading
+ 
+ from django.conf import settings
+ from django.core.management.base import BaseCommand
+@@ -28,25 +29,33 @@ from mako.template import Template
+ 
+ __all__ = ['HueTestRunner']
+ 
++# Capturing the mako context is not thread safe, so we wrap rendering in a mutex.
++_MAKO_LOCK = threading.RLock()
++
+ 
+ def _instrumented_test_render(self, *args, **data):
+     """
+     An instrumented Template render method, providing a signal
+     that can be intercepted by the test system Client
+     """
+-    def mako_callable_(context, *args, **kwargs):
+-      template_rendered.send(sender=self, template=self, context=context)
+-      return self.original_callable_[-1](context, *args, **kwargs)
+-    if hasattr(self, 'original_callable_'):
+-      self.original_callable_.append(self.callable_)
+-    else:
+-      self.original_callable_ = [self.callable_]
+-    self.callable_ = mako_callable_
+-    try:
+-      response = runtime._render(self, self.original_callable_[-1], args, data)
+-    finally:
+-      self.callable_ = self.original_callable_.pop()
+-    return response
++
++    with _MAKO_LOCK:
++      def mako_callable_(context, *args, **kwargs):
++        template_rendered.send(sender=self, template=self, context=context)
++        return self.original_callable_[-1](context, *args, **kwargs)
++
++      if hasattr(self, 'original_callable_'):
++        self.original_callable_.append(self.callable_)
++      else:
++        self.original_callable_ = [self.callable_]
++
++      self.callable_ = mako_callable_
++      try:
++        response = runtime._render(self, self.original_callable_[-1], args, data)
++      finally:
++        self.callable_ = self.original_callable_.pop()
++
++      return response
+ 
+ 
+ class HueTestRunner(NoseTestSuiteRunner):
+-- 
+1.7.9.5
+

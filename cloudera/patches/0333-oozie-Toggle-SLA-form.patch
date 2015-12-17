@@ -1,0 +1,29 @@
+From 81ac3361585a3c70495245307365bc55de82182d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 12 Dec 2014 21:06:45 +0100
+Subject: [PATCH 0333/1173] [oozie] Toggle SLA form
+
+---
+ apps/oozie/src/oozie/templates/utils.inc.mako |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/utils.inc.mako b/apps/oozie/src/oozie/templates/utils.inc.mako
+index 692910c..73026f4 100644
+--- a/apps/oozie/src/oozie/templates/utils.inc.mako
++++ b/apps/oozie/src/oozie/templates/utils.inc.mako
+@@ -270,10 +270,12 @@
+       <label class="checkbox" style="text-align: left"><span class="control-label"></span> <input type="checkbox" data-bind="checked: value"/></label>
+       <!-- /ko -->
+       <!-- ko if:  key() != 'enabled' -->
++      <span data-bind="visible: ko.utils.arrayFilter($parent.sla(), function(item) { return item.key() == 'enabled' && item.value()==true }).length == 1">
+       <label class="control-label" style="text-align: left"></label>
+       <div class="controls">
+         <input type="text" data-bind="value: value" class="span7">
+       </div>
++      </span>
+       <!-- /ko -->
+     </div>
+   </div>
+-- 
+1.7.9.5
+

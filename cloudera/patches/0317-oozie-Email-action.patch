@@ -1,0 +1,175 @@
+From e9c435bed7828a8b91bce7b96765cfa95488f69c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 24 Nov 2014 15:25:26 -0800
+Subject: [PATCH 0317/1173] [oozie] Email action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   39 +++++++++++++++++-
+ .../templates/editor/gen2/workflow-email.xml.mako  |   16 ++++----
+ .../oozie/templates/editor/workflow_editor.mako    |   42 +++++++++++++-------
+ 3 files changed, 73 insertions(+), 24 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 3e18859..c549751 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -829,6 +829,40 @@ class FsAction(Action):
+     return []
+ 
+ 
++class EmailAction(Action):
++  TYPE = 'email' 
++  FIELDS = {
++     'to': { 
++          'name': 'to',
++          'label': _('To addresses'),
++          'value': '',
++          'help_text': _('Comma-separated values.')
++     },         
++     'cc': { 
++          'name': 'cc',
++          'label': _('Cc addresses (optional)'),
++          'value': '',
++          'help_text': _('Comma-separated values.')
++     },    
++     'subject': {
++          'name': 'subject',
++          'label': _('Subject'),
++          'value': 'Subject',
++          'help_text': _('Plain-text.')
++     },
++     'body': { 
++          'name': 'body',
++          'label': _('Body'),
++          'value': '',
++          'help_text': _('Plain-text.')
++     },
++  }
++
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['to'], cls.FIELDS['subject'], cls.FIELDS['body']]
++
++
+ class KillAction(Action):
+   TYPE = 'kill'
+   FIELDS = {
+@@ -863,8 +897,9 @@ NODES = {
+   'mapreduce-widget': MapReduceAction,  
+   'subworkflow-widget': SubWorkflowAction,
+   'shell-widget': ShellAction,
+-  'ssh-widget': SshAction,
+-  'fs-widget': FsAction,    
++  'ssh-widget': SshAction,  
++  'fs-widget': FsAction,
++  'email-widget': EmailAction,
+   'kill-widget': KillAction,
+   'join-widget': JoinAction,
+ }
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
+index ac98860..40109a2 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-email.xml.mako
+@@ -17,16 +17,16 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <email xmlns="uri:oozie:email-action:0.1">
+-            <to>${ node.to }</to>
+-            % if node.cc:
+-              <cc>${ node.cc }</cc>
++            <to>${ node['properties']['to'] }</to>
++            % if node['properties']['cc']:
++            <cc>${ node['properties']['cc'] }</cc>
+             % endif
+-            <subject>${ node.subject }</subject>
+-            <body>${ node.body }</body>
++            <subject>${ node['properties']['subject'] }</subject>
++            <body>${ node['properties']['body'] }</body>
+         </email>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']].name }"/>
++        <error to="${ node_mapping[node['children'][1]['error']].name }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 09f5a67..8222d48 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -107,7 +107,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableEmailAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){}}}"
++                    options: {'start': function(event, ui){$root.currentlyDraggedWidget(draggableEmailAction());}}}"
+          title="${_('Email')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-envelope-o"></i></a>
+     </div>    
+@@ -1207,7 +1207,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+           <br/>
+           
+           <span data-bind="text: $root.workflow_properties.moves.label"></span>
+-          <span data-bind="text: $root.workflow_properties.moves.label"></span>
+           <ul data-bind="foreach: properties.moves">
+             <li>
+               <input data-bind="value: source"/>
+@@ -1298,26 +1297,41 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <ul class="nav nav-tabs">
+-        <li class="active"><a href="#action" data-toggle="tab">${ _('Email') }</a></li>
+-        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
+-        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
+-        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
+-        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Email') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
+       </ul>
+       <div class="tab-content">
+         <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
+           <i class="fa fa-envelope-o"></i>
++          
++          <span data-bind="text: $root.workflow_properties.to.label"></span>
++          <input type="text" data-bind="value: properties.to" />
++          <br/>
++          <span data-bind="text: $root.workflow_properties.subject.label"></span>
++          <input type="text" data-bind="value: properties.subject" />
++          <br/>
++          <span data-bind="text: $root.workflow_properties.body.label"></span>
++          <input type="text" data-bind="value: properties.body" />
+         </div>
+-        <div class="tab-pane" id="properties">
+-          <span data-bind="template: { name: 'common-action-properties' }"></span>
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
++          <span data-bind="text: $root.workflow_properties.cc.label"></span>
++          <input type="text" data-bind="value: properties.cc" />        
+         </div>
+-        <div class="tab-pane" id="sla">
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
+         </div>
+-        <div class="tab-pane" id="credentials">
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
+         </div>
+-        <div class="tab-pane" id="transitions">
+-          OK --> []
+-          KO --> []
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
+         </div>
+       </div>
+     </div>
+-- 
+1.7.9.5
+

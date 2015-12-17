@@ -1,0 +1,449 @@
+From 09b25d1948cc9d6dca0532aef7180dd65b3ca619 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 25 Feb 2015 22:23:41 -0800
+Subject: [PATCH 0939/1173] [oozie] Adding the Spark Action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   82 +++++++++++++
+ .../src/oozie/static/oozie/art/icon_spark_48.png   |  Bin 0 -> 1460 bytes
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    1 +
+ .../oozie/templates/editor2/common_workflow.mako   |  127 ++++++++++++++++++--
+ .../oozie/templates/editor2/workflow_editor.mako   |   19 ++-
+ 5 files changed, 210 insertions(+), 19 deletions(-)
+ create mode 100644 apps/oozie/src/oozie/static/oozie/art/icon_spark_48.png
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index df3673d..71ad609 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1074,6 +1074,87 @@ class DistCpAction(Action):
+     return [cls.FIELDS['distcp_parameters']]
+ 
+ 
++class SparkAction(Action):
++  TYPE = 'spark'
++  FIELDS = {
++     'spark_master': {
++          'name': 'spark_master',
++          'label': _('Spark Master'),
++          'value': 'local[*]',
++          'help_text': _('Ex: spark://host:port, mesos://host:port, yarn, or local.'),
++          'type': ''
++     },
++     'mode': {
++          'name': 'mode',
++          'label': _('Mode'),
++          'value': 'client',
++          'help_text': _('Where to run spark driver. Ex: client,cluster.'),
++          'type': ''
++     },
++     'app_name': {
++          'name': 'app_name',
++          'label': _('App name'),
++          'value': 'MySpark',
++          'help_text': _('The name of the spark application'),
++          'type': ''
++     },
++    'class': {
++          'name': 'class',
++          'label': _('Main class'),
++          'value': '',
++          'help_text': _("e.g. org.apache.spark.examples.mllib.JavaALS."),
++          'type': ''
++     },
++     'jars': {
++          'name': 'jars',
++          'label': _('Jars/py files'),
++          'value': '',
++          'help_text': _('Comma separated list of jars or python HDFS files.'),
++          'type': ''
++     },
++     'spark_opts': {
++          'name': 'spark_opts',
++          'label': _('Options list'),
++          'value': '',
++          'help_text': _('Ex: --executor-memory 20G --num-executors 50'),
++          'type': ''
++     },
++     'spark_arguments': {
++          'name': 'spark_arguments',
++          'label': _('Arguments'),
++          'value': [],
++          'help_text': _('Arguments, one by one, e.g. 1000, /path/a.'),
++          'type': ''
++     },
++     # Common
++     'job_properties': {
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('value, e.g. production'),
++          'type': ''
++     },
++     'prepares': {
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('Path to manipulate before starting the application.'),
++          'type': ''
++     },
++     'job_xml': {
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml'),
++          'type': ''
++     }
++  }
++
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['spark_master'], cls.FIELDS['mode'], cls.FIELDS['class'], cls.FIELDS['jars']]
++
++
+ class KillAction(Action):
+   TYPE = 'kill'
+   FIELDS = {
+@@ -1138,6 +1219,7 @@ NODES = {
+   'join-widget': JoinAction,
+   'fork-widget': ForkNode,
+   'decision-widget': DecisionNode,
++  'spark-widget': SparkAction
+ }
+ 
+ 
+diff --git a/apps/oozie/src/oozie/static/oozie/art/icon_spark_48.png b/apps/oozie/src/oozie/static/oozie/art/icon_spark_48.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..4b2ec033e39ffec2b0609c567df0d8d0b20a483c
+GIT binary patch
+literal 1460
+zcmV;l1xxygP)<h;3K|Lk000e1NJLTq001xm001xu1^@s6R|5Hm00004b3#c}2nYxW
+zd<bNS00009a7bBm000XT000XT0n*)m`~Uy|9CSrkbW?9;ba!ELWdK2BZ(?O2Mrm?o
+zcW-iQb09-gHt4*vi~s-t6?8>dbVG7wVRUJ4ZXi@?ZDjy4F)uYQF*DP++K&JL1r13=
+zK~!jg?V5Xt6;&L^KX=>`v(n1`FoTxRuo6AC7RJ#GA{DJvdXkAjQ5XwSRCF+m%H31J
+zB3MKbJ?TYRl=jjL)a3|0#N(<&l3|8a5|)ozU(EK$nRV~ZoVj=Ioxz*X7cTeC?{R*=
+z-^}^_&N;uirJkN1PG$s+b|5cK`T$Br4J5P~0Ner$EF&+sN**lAh7V0e3^KN@vjn^k
+z%!#qC0PZWoMj8s4LO~ELAn8270-?>+B5b4~_Y@l2)>#UI;3uFtMPxTH#wz(&URyro
+zegZ)dTu!?403(29dF`ayFJO#`8D!=OZDto>D}f>cxHzNSOG2A-3$WJ@MFenuM!8|Y
+ziv`&0huldlwAloR82N8pi5{5LV4hX-%^Gbq0ha;earyQu@TpaDM-c(+1<s0*zW~+)
+z?H-kVz@=8n-4(_RB4@7!t_CIngJWVnKx?i5gf>F}UwPEPV&H4sor`027>3ik7EM0B
+zlN8zv1EvF0qwg&FvOn)iJU)f~gH`gF(B>}STaqjO)F24%722!@W=9`M?Kv6dP2#i)
+zv;)8@X@RFwWS)!UI)KU4S5TJa4Ir%o{aE&UN$k2819IBl2DIl5Kze8gt&+d>URWg$
+z1FbcVdjQykt7blQ19PpChwBbNXfp!$=;N>nf|9F%4=W7UgG>0uKnpN548s=SvlRKe
+zt&*Fej_tJ2=5$<XdkFu$U6-P&fLZiSog=^+;3Hs#Rr2?k9Sz*<8Rr?R<lDU$RRa*(
+zoB>RsuO3gJ^8EGQX{+RRq0Lg@yvXU#(+)dAn}xt59@g?O4Exc&>p-+;xt+f9c1i_@
+z%h73-yegxt7ebr)z-u1X2H+a2<e_q6zb7EHnTU&gW}KG+N62~l658Adyy9Vf4_qI2
+z9wH~B74>=CU9Sh-z-?B^t##@nw3!CHLo%;+1JkXNdwqH(q0LaB6Btv6-Gjipz>`+V
+zU3KUKAhekPtR=bM*$+&zN^VKhZ33PqyYnHi1y^a-0AE=p|EbmCatLjP11m^6e-xNi
+z$$4-A+)>5G9^eDq4s)GVa$lXkrr}j!xQD*LD!I0rauaY`6`A*d$E}io)b3kl2yI3I
+z(>$y%t&%Ti86(R|+zRXz+H?qQnrrYc3w{Cq^w685UQ<;BxQ0|U3<e$mb_i`&3T<wP
+zPD!~CmBnX0tWiM_%*--I5QgEcz=OCtUR55r4)_?@CA4W5+6>C-a0-^<PHAyGmgOk~
+zU5h67SS34fo2ZR77#;#_vr2Z?pp!t<@LK9&O$dVErfT}fb0AuTCIX9q#EKWg&%l*d
+z$+v3owGujT)h>>9p-shYOur<yN*=RHwgaPa3zQElfflP|S3REk5N+y~cvvHWdn)Nx
+zoMS?palk@g25wbsvr4{Rr=Jxev^f>G=eaP(+5?QVN*?g(75080D}*-p1K)&UxS_l&
+z5%J~%zMfH=Rq|2ac#Q~PCvX9<9p~&SV6#>7aMTalNU~AZ4UF>jk{a=f>1gzQ5%2`=
+zD0xU|vk%w{jPvLW!k;4z2_SK1j&LTfG^fpq`9hmZ;>1P-@J5|_CE(#W@q`BuhT$i`
+zcXg^K+LR|efT;4!!L{0JJxi>O6Ha&)Du>YKY~W7ZnIx^x+Ka8gl=#uIp#hXbXfqo3
+zo_PlD^=z+i-M|aLVqY8PKNCPXgf{2kp2#3zeWg=i>Hj}_G#Dp+0RIAxymo`B<tWGi
+O0000<MNUMnLSTY0kd{&a
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index a1c7231..5330d5d 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -1111,6 +1111,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.draggableEmailAction = ko.observable(bareWidgetBuilder("Email", "email-widget"));
+   self.draggableStreamingAction = ko.observable(bareWidgetBuilder("Streaming", "streaming-widget"));
+   self.draggableDistCpAction = ko.observable(bareWidgetBuilder("Distcp", "distcp-widget"));
++  self.draggableSparkAction = ko.observable(bareWidgetBuilder("Spark", "spark-widget"));
+ 
+   self.draggableKillNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
+ };
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index 1750cae..fe0678d 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -27,7 +27,7 @@
+ <%namespace name="utils" file="../utils.inc.mako" />
+ 
+ <%def name="render()">
+-  
++
+ <div data-bind="css: {'dashboard': true, 'readonly': ! isEditing()}">
+   <!-- ko if: $root.workflow.properties.imported -->
+     <div class="alert alert-warn" style="margin-top: 93px; margin-bottom: 0; border: none; text-align: center">
+@@ -204,6 +204,10 @@
+       <a class="widget-icon"><i class="fa fa-files-o"></i></a>
+       <!-- /ko -->
+ 
++      <!-- ko if: widgetType() == 'spark-widget' -->
++      <img src="${ static('oozie/art/icon_spark_48.png') }" class="widget-icon">
++      <!-- /ko -->
++
+       <!-- ko if: widgetType() == 'kill-widget' -->
+       <a class="widget-icon"><i class="fa fa-stop"></i></a>
+       <!-- /ko -->
+@@ -273,7 +277,7 @@
+     <div class="big-icon" data-bind="visible: ! $root.isEditing()"><i class="fa fa-magic"></i></div>
+ 
+     <div data-bind="visible: $root.isEditing" style="padding: 10px">
+-      <a class="custom-popover pull-right" href="javascript:void(0)" target="_blank" data-trigger="click" data-toggle="popover" data-placement="right" rel="popover" 
++      <a class="custom-popover pull-right" href="javascript:void(0)" target="_blank" data-trigger="click" data-toggle="popover" data-placement="right" rel="popover"
+         data-html="true" data-content="<strong>${ _('Examples of predicates:') }</strong><br/>
+                 <br/>${'${'} fs:fileSize(secondjobOutputDir) gt 10 * GB }
+                 <br/>
+@@ -281,7 +285,7 @@
+                 <br/>
+                 <a href='http://oozie.apache.org/docs/4.1.0/WorkflowFunctionalSpec.html#a4.2_Expression_Language_Functions'>${ _('Click for more') }</a>">
+           <i class="fa fa-question-circle" title="${ _('Click for more info') }"></i>
+-      </a>    
++      </a>
+       <ul data-bind="foreach: children" class="unstyled">
+         <li>
+           ${ _('If') } <input type="text" data-bind="value: $data['condition']" />
+@@ -380,6 +384,7 @@
+     </ul>
+     <em data-bind="visible: properties.job_properties().length == 0">${ _('No properties defined.') }</em>
+ 
++    <!-- ko if: properties.archives -->
+     <h6>
+       <a class="pointer" data-bind="click: function(){ properties.archives.push(ko.mapping.fromJS({'name': ''})); $(document).trigger('drawArrows') }">
+         ${ _('Archives') } <i class="fa fa-plus"></i>
+@@ -395,6 +400,7 @@
+       </li>
+     </ul>
+     <em data-bind="visible: properties.archives().length == 0">${ _('No archives defined.') }</em>
++    <!-- /ko -->
+   </div>
+ </script>
+ 
+@@ -544,7 +550,7 @@
+ 
+         &nbsp;&nbsp;
+ 
+-        <span data-bind="text: $root.workflow_properties.hive_xml.label"></span>      
++        <span data-bind="text: $root.workflow_properties.hive_xml.label"></span>
+         <input type="text" style="width:25%" class="input-large filechooser-input" data-bind="filechooser: properties.hive_xml, filechooserOptions: globalFilechooserOptions, attr: { placeholder: $root.workflow_properties.hive_xml.help_text }"/>
+ 
+         <div class="row-fluid">
+@@ -698,12 +704,107 @@
+ </script>
+ 
+ 
++<script type="text/html" id="spark-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
++
++    <div data-bind="visible: ! $root.isEditing()">
++      <span data-bind="text: properties.app_name" />
++      &nbsp;&nbsp;&nbsp;
++      <span data-bind="text: properties.spark_master" />
++      <span data-bind="text: properties.mode" />
++      </br>
++      <span data-bind="text: properties.class" />
++      <span data-bind="text: properties.jars" />
++    </div>
++
++    <div data-bind="visible: $root.isEditing">
++      <div data-bind="visible: ! $parent.ooziePropertiesExpanded()" class="nowrap">
++
++        <div class="row-fluid">
++          <div class="span6">
++        <span data-bind="text: $root.workflow_properties.spark_master.label" style="display: inline-block"></span>
++        <input type="text" class="input-medium" data-bind="value: properties.spark_master, attr: { placeholder: $root.workflow_properties.spark_master.help_text }" />
++
++          </div>
++          <div class="span6">
++                 <span data-bind="text: $root.workflow_properties.mode.label" style="display: inline-block"></span>
++        <input type="text" class="input-medium" data-bind="value: properties.mode, attr: { placeholder: $root.workflow_properties.mode.help_text }" />
++
++          </div>
++        </div>
++
++        <span data-bind="text: $root.workflow_properties.app_name.label" style="display: inline-block; width: 75px"></span>
++        <input type="text" class="input-xlarge" data-bind="value: properties.app_name, attr: { placeholder: $root.workflow_properties.app_name.help_text }" />
++
++        <br/>
++
++        <span data-bind="text: $root.workflow_properties.class.label" style="display: inline-block; width: 75px"></span>
++        <input type="text" class="input-xlarge" data-bind="value: properties.class, attr: { placeholder: $root.workflow_properties.class.help_text }" />
++
++        <br/>
++
++        <span data-bind="text: $root.workflow_properties.jars.label" style="display: inline-block; width: 75px"></span>
++        <input type="text" class="filechooser-input" data-bind="filechooser: properties.jars, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: properties.jars, attr: { placeholder:  $root.workflow_properties.jars.help_text }" />
++        <span data-bind='template: { name: "common-fs-link", data: {path: properties.jars(), with_label: false}}'></span>
++
++  <h6>
++    <a class="pointer" data-bind="click: function(){ properties.spark_arguments.push({'value': ''}); $(document).trigger('drawArrows') }">
++      ${ _('Arguments') } <i class="fa fa-plus"></i>
++    </a>
++  </h6>
++  <ul class="unstyled" data-bind="visible: properties.spark_arguments().length > 0, foreach: properties.spark_arguments">
++    <li>
++      <input type="text" class="input-xlarge" data-bind="value: value, attr: { placeholder: $root.workflow_properties.spark_arguments.help_text }"/>
++      <a href="#" data-bind="click: function(){ $parent.properties.spark_arguments.remove(this); $(document).trigger('drawArrows') }">
++        <i class="fa fa-minus"></i>
++      </a>
++    </li>
++  </ul>
++  <em data-bind="visible: properties.spark_arguments().length == 0">${ _('No arguments defined.') }</em>
++      </div>
++    </div>
++
++    <div data-bind="visible: $parent.ooziePropertiesExpanded">
++      <ul class="nav nav-tabs">
++        <li class="active"><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" data-bind="attr: { id: 'properties-' + id() }">
++          <span data-bind="text: $root.workflow_properties.spark_opts.label" style="display: inline-block; width: 75px"></span>
++          <input type="text" class="input-xlarge" data-bind="value: properties.spark_opts, attr: { placeholder: $root.workflow_properties.spark_opts.help_text }" />
++
++          <br/>
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
+ <script type="text/html" id="java-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
+ 
+     <div data-bind="visible: ! $root.isEditing()">
+-      <pan data-bind="text: properties.main_class" />
++      <span data-bind="text: properties.main_class" />
+     </div>
+ 
+     <div data-bind="visible: $root.isEditing">
+@@ -850,7 +951,7 @@
+             </a>
+           </li>
+         </ul>
+-        
++
+         <div class="span12" data-bind="template: { name: 'common-properties-files' }"></div>
+       </div>
+     </div>
+@@ -886,12 +987,12 @@
+         <a class="pointer" data-bind="click: function(){ properties.prepares.push({'type': 'delete', 'value': ''}); $(document).trigger('drawArrows') }">
+           ${ _('Delete') } <i class="fa fa-plus"></i>
+         </a>
+-    
++
+         <!-- ko if: properties.job_xml -->
+           <h6>${ _('Job XML') }</h6>
+           <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: properties.job_xml, filechooserOptions: globalFilechooserOptions, attr: { placeholder: $root.workflow_properties.job_xml.help_text }"/>
+         <!-- /ko -->
+-    
++
+         <h6>
+           <a class="pointer" data-bind="click: function(){ properties.archives.push(ko.mapping.fromJS({'name': ''})); $(document).trigger('drawArrows') }">
+             ${ _('Archives') } <i class="fa fa-plus"></i>
+@@ -1392,7 +1493,7 @@
+         <span data-bind="text: $root.workflow_properties.reducer.label"></span
+         <input type="text" data-bind="value: properties.reducer" />
+         <span data-bind='template: { name: "common-fs-link", data: {path: properties.reducer(), with_label: false} }'></span>
+-        
++
+         <div data-bind="template: { name: 'common-properties-files' }"></div>
+       </div>
+     </div>
+@@ -1458,7 +1559,7 @@
+ 
+       </div>
+     </div>
+-    
++
+     <div data-bind="visible: ! $root.isEditing()">
+       ${ _('Parameters') }
+       <ul data-bind="foreach: properties.distcp_parameters" class="unstyled">
+@@ -1495,7 +1596,7 @@
+        <a class="pointer" data-bind="click: function(){ properties.prepares.push({'type': 'delete', 'value': ''}); $(document).trigger('drawArrows') }">
+          ${ _('Delete') } <i class="fa fa-plus"></i>
+        </a>
+-    
++
+        <h6>
+          <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
+            ${ _('Properties') } <i class="fa fa-plus"></i>
+@@ -1512,8 +1613,8 @@
+            </ul>
+            <em data-bind="visible: properties.job_properties().length == 0">${ _('No properties defined.') }</em>
+ 
+-           <h6>             
+-             <span data-bind="text: $root.workflow_properties.java_opts.label"></span>             
++           <h6>
++             <span data-bind="text: $root.workflow_properties.java_opts.label"></span>
+            </h6>
+            <input type="text" class="input-xlarge" data-bind="value: properties.java_opts, attr: { placeholder: $root.workflow_properties.java_opts.help_text }" />
+         </div>
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 1ef723f..ff6d650 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -67,6 +67,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     </div>
+ 
+     <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableSparkAction(), isEnabled: true,
++                    options: {'refreshPositions': true, 'stop': function(){ $root.isDragging(false); }, 'start': function(event, ui){ $root.isDragging(true); $root.currentlyDraggedWidget(draggableSparkAction());}}}"
++         title="${_('Spark program')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><img src="${ static('oozie/art/icon_spark_48.png') }" class="app-icon"></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableJavaAction(), isEnabled: true,
+                     options: {'refreshPositions': true, 'stop': function(){ $root.isDragging(false); }, 'start': function(event, ui){ $root.isDragging(true); $root.currentlyDraggedWidget(draggableJavaAction());}}}"
+          title="${_('Java program')}" rel="tooltip" data-placement="top">
+@@ -152,6 +159,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     <span data-bind="visible: workflow.isDirty() || workflow.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
+ 
++    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
++      <i class="fa fa-fw fa-pencil"></i>
++    </a>
++
++    &nbsp;&nbsp;&nbsp;
++
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+     </a>
+@@ -161,12 +174,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     &nbsp;&nbsp;&nbsp;
+ 
+-    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+-      <i class="fa fa-fw fa-pencil"></i>
+-    </a>
+-
+-    &nbsp;&nbsp;&nbsp;
+-
+     <a title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsModal" data-bind="css: {'btn': true}, visible: canEdit">
+       <i class="fa fa-fw fa-cog"></i>
+     </a>
+-- 
+1.7.9.5
+

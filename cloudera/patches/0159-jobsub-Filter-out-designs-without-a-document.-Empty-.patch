@@ -1,0 +1,51 @@
+From b49283447aed4d6626d198a98ad60a2f5ae1f595 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 16 Dec 2014 15:56:54 -0800
+Subject: [PATCH 0159/1173] [jobsub] Filter out designs without a document.
+ Empty documents will break the editor.
+
+---
+ apps/jobsub/src/jobsub/views.py |   27 ++++++++++++++-------------
+ 1 file changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/apps/jobsub/src/jobsub/views.py b/apps/jobsub/src/jobsub/views.py
+index bdcb517..7bc1274 100644
+--- a/apps/jobsub/src/jobsub/views.py
++++ b/apps/jobsub/src/jobsub/views.py
+@@ -69,19 +69,20 @@ def _list_designs(request, owner, name, order_by='-last_modified'):
+   for doc in data[:MAX_DESIGNS]:
+     design = doc.content_object
+ 
+-    ko_design = {
+-      'id': design.id,
+-      'owner': design.owner.username,
+-      # Design name is validated by workflow and node forms.
+-      'name': design.name,
+-      'description': design.description,
+-      'node_type': design.start.get_child('to').node_type,
+-      'last_modified': py_time.mktime(design.last_modified.timetuple()),
+-      'editable': design.owner.id == request.user.id,
+-      'is_shared': design.is_shared,
+-      'is_trashed': doc.is_trashed()
+-    }
+-    designs.append(ko_design)
++    if design is not None:
++      ko_design = {
++       'id': design.id,
++       'owner': design.owner.username,
++       # Design name is validated by workflow and node forms.
++       'name': design.name,
++       'description': design.description,
++       'node_type': design.start.get_child('to').node_type,
++       'last_modified': py_time.mktime(design.last_modified.timetuple()),
++       'editable': design.owner.id == request.user.id,
++       'is_shared': design.is_shared,
++       'is_trashed': doc.is_trashed()
++      }
++      designs.append(ko_design)
+ 
+   return designs
+ 
+-- 
+1.7.9.5
+

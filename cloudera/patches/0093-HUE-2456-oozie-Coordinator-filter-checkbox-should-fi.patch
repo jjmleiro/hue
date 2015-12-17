@@ -1,0 +1,27 @@
+From bd66c6e47b42faee4e0b9f9dc71f7a50994325ef Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 5 Nov 2014 11:34:21 -0600
+Subject: [PATCH 0093/1173] HUE-2456 [oozie] Coordinator filter checkbox
+ should filter by character regardless of case
+
+Updated filter to search on lowercase search terms
+---
+ .../dashboard/list_oozie_coordinator.mako          |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+index 5ded280..c264520 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+@@ -493,7 +493,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+       if (self.searchFilter().length === 0) {
+         self.filter([]);
+       } else {
+-        self.filter(self.searchFilter());
++        self.filter(self.searchFilter().toLowerCase());
+       }
+ 
+       if (self.selectedActions().length === self.actions().length) {
+-- 
+1.7.9.5
+

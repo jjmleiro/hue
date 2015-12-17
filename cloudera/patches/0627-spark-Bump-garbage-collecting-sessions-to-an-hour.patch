@@ -1,0 +1,235 @@
+From 20286b2bbd346b044d55f08ee3b246e2b4cd0c81 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 9 Dec 2014 14:20:37 -0800
+Subject: [PATCH 0627/1173] [spark] Bump garbage collecting sessions to an
+ hour
+
+---
+ apps/spark/java/sparker-repl/pom.xml               |   31 +++++++++++++++--
+ .../sparker-repl/src/main/scala/Scalatra.scala     |   35 +++++---------------
+ .../cloudera/hue/sparker/repl/HelloWorldApp.scala  |    9 +++++
+ .../scala/com/cloudera/hue/sparker/repl/Main.scala |   24 ++++++++++++++
+ .../sparker/server/sessions/SessionManager.java    |    2 +-
+ apps/spark/sparker-shell                           |    5 ++-
+ 6 files changed, 74 insertions(+), 32 deletions(-)
+ create mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+index 14449ef..8213f48 100644
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -29,7 +29,24 @@
+             <groupId>org.apache.spark</groupId>
+             <artifactId>spark-repl_2.10</artifactId>
+             <version>${spark.version}</version>
++
++            <!--
++            <exclusions>
++                <exclusion>
++                    <groupId>commons-beanutils</groupId>
++                    <artifactId>commons-beanutils</artifactId>
++                </exclusion>
++            </exclusions>
++            -->
++        </dependency>
++
++        <!--
++        <dependency>
++            <groupId>commons-beanutils</groupId>
++            <artifactId>commons-beanutils</artifactId>
++            <version>1.8.0</version>
+         </dependency>
++        -->
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+@@ -42,20 +59,31 @@
+             <artifactId>scalatra_2.10</artifactId>
+             <version>${scalatra.version}</version>
+             <scope>compile</scope>
++            <!--
++            <exclusions>
++                <exclusion>
++                    <groupId>com.typesafe.akka</groupId>
++                    <artifactId>akka-actor_2.10</artifactId>
++                </exclusion>
++            </exclusions>
++            -->
+         </dependency>
+ 
++        <!--
+         <dependency>
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra_2.10</artifactId>
+             <version>${scalatra.version}</version>
+             <scope>compile</scope>
+         </dependency>
++        -->
+ 
+     </dependencies>
+ 
+     <build>
+         <plugins>
+ 
++            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-shade-plugin</artifactId>
+@@ -90,6 +118,7 @@
+                     </execution>
+                 </executions>
+             </plugin>
++            -->
+ 
+             <plugin>
+                 <groupId>org.eclipse.jetty</groupId>
+@@ -121,7 +150,6 @@
+                 </configuration>
+             </plugin>
+ 
+-            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-dependency-plugin</artifactId>
+@@ -154,7 +182,6 @@
+                     </archive>
+                 </configuration>
+             </plugin>
+-            -->
+         </plugins>
+     </build>
+ 
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+index feba7cd..35339fb 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+@@ -1,36 +1,19 @@
++import java.io.StringWriter
+ import javax.servlet.ServletContext
+ 
+-import org.eclipse.jetty.server.Server
+-import org.eclipse.jetty.servlet.DefaultServlet
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.{ScalatraFilter, LifeCycle}
+-import org.scalatra.servlet.ScalatraListener
++import com.cloudera.hue.sparker.repl.{HelloWorldApp, SparkerILoop}
++import org.scalatra.LifeCycle
+ 
+-class HelloWorldApp extends ScalatraFilter {
+-  get("/") {
+-    <h1>Hello {params("name")}</h1>
++trait SparkerILoopInit {
++  def configureSparkerILoop() {
++    org.apache.spark.repl.Main.interp = new SparkerILoop(Console.in, new StringWriter)
++    org.apache.spark.repl.Main.interp.process(new Array[String](0))
+   }
+ }
+ 
+-object Main {
+-  def main(args: Array[String]): Unit = {
+-    val port = 8087
+-    val server = new Server(port)
+-    val context = new WebAppContext()
+-    context.setContextPath("/")
+-    context.setResourceBase("src/main/com/cloudera/hue/sparker/repl")
+-    context.addEventListener(new ScalatraListener)
+-    context.addServlet(classOf[DefaultServlet], "/")
+-
+-    server.setHandler(context)
+-
+-    server.start()
+-    server.join()
+-  }
+-}
+-
+-class ScalatraBootstrap extends LifeCycle {
++class ScalatraBootstrap extends LifeCycle with SparkerILoopInit {
+   override def init(context: ServletContext): Unit = {
++    configureSparkerILoop()
+     context.mount(new HelloWorldApp, "/*")
+   }
+ }
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+new file mode 100644
+index 0000000..f889f15
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+@@ -0,0 +1,9 @@
++package com.cloudera.hue.sparker.repl
++
++import org.scalatra.ScalatraFilter
++
++class HelloWorldApp extends ScalatraFilter {
++  get("/") {
++    <h1>Hello {params("name")}</h1>
++  }
++}
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+index f2aeb52..1ca0fd9 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+@@ -2,9 +2,33 @@ package com.cloudera.hue.sparker.repl
+ 
+ import java.io.StringWriter
+ 
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.DefaultServlet
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.servlet.ScalatraListener
++
+ object Main {
+   def main(args: Array[String]): Unit = {
+     org.apache.spark.repl.Main.interp = new SparkerILoop(Console.in, new StringWriter)
+     org.apache.spark.repl.Main.interp.process(args)
+   }
+ }
++
++/*
++object Main {
++  def main(args: Array[String]): Unit = {
++    val port = 8087
++    val server = new Server(port)
++    val context = new WebAppContext()
++    context.setContextPath("/")
++    context.setResourceBase("src/main/com/cloudera/hue/sparker/repl")
++    context.addEventListener(new ScalatraListener)
++    context.addServlet(classOf[DefaultServlet], "/")
++
++    server.setHandler(context)
++
++    server.start()
++    server.join()
++  }
++}
++*/
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+index 7457b3f..ee20708 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+@@ -112,7 +112,7 @@ public class SessionManager {
+ 
+     private class SessionManagerGarbageCollector extends Thread {
+ 
+-        protected long period = 600000; // Time in milliseconds; TODO: make configurable
++        protected long period = 1000 * 60 * 60; // Time in milliseconds; TODO: make configurable
+ 
+         public SessionManagerGarbageCollector() {
+             super();
+diff --git a/apps/spark/sparker-shell b/apps/spark/sparker-shell
+index a85167c..ffbe7e3 100755
+--- a/apps/spark/sparker-shell
++++ b/apps/spark/sparker-shell
+@@ -2,8 +2,7 @@
+ 
+ cd `dirname $0`
+ 
+-	#-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5006 \
+-
+ exec java \
++	-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5006 \
+ 	-cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" \
+-	com.cloudera.hue.sparker.repl.Main -usejavacp "$@" 2>/dev/null
++	com.cloudera.hue.sparker.repl.Main #-usejavacp "$@" 2>/dev/null
+-- 
+1.7.9.5
+

@@ -1,0 +1,197 @@
+From 18f3ad17649b578994a9e8faf76b5767b647c4e8 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 29 Dec 2014 14:21:05 +0100
+Subject: [PATCH 0363/1173] [oozie] Coordinator name as x-editable
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |   19 ++++-----
+ .../oozie/templates/editor/workflow_editor.mako    |    5 ++-
+ apps/oozie/static/css/common-editor.css            |   41 ++++++++++++++++++++
+ apps/oozie/static/css/coordinator-editor.css       |    4 --
+ apps/oozie/static/css/workflow-editor.css          |   24 ------------
+ 5 files changed, 51 insertions(+), 42 deletions(-)
+ create mode 100644 apps/oozie/static/css/common-editor.css
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 1222acf..e5049b1 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -32,9 +32,6 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
+-
+-
+-
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+     <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
+@@ -67,10 +64,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   </div>
+ 
+   <form class="form-search" style="margin: 0">
+-    <strong>${_("Name")}</strong>
+-    <input data-bind="value: $root.coordinator.name"/>
+-    &nbsp;&nbsp;&nbsp;
+-    Scrollspy?
++    <div class="inline object-name">
++      <span data-bind="editable: $root.coordinator.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
++    </div>
+   </form>
+ </div>
+ 
+@@ -291,19 +287,18 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ <link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-charts.css">
+ <link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
++<link rel="stylesheet" href="/oozie/static/css/common-editor.css">
+ <link rel="stylesheet" href="/oozie/static/css/coordinator-editor.css">
+ 
+-
+-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
+-
++${ dashboard.import_layout() }
+ 
+ <script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/js/hue.utils.js"></script>
+-<script src="/static/js/ko.hue-bindings.js"></script>
+ <script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
+ 
++${ dashboard.import_bindings() }
++
+ 
+ <script src="/oozie/static/js/coordinator-editor.ko.js" type="text/javascript" charset="utf-8"></script>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 915cd6e..4b2119f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -185,10 +185,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </div>
+ 
+   <form class="form-search">
+-    <div class="inline workflow-name">
++    <div class="inline object-name">
+       <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+     </div>
+-    <div class="inline workflow-description">
++    <div class="inline object-description">
+       <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_('Add a description...')}'}"></span>
+     </div>
+   </form>
+@@ -1544,6 +1544,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-charts.css">
+ <link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
++<link rel="stylesheet" href="/oozie/static/css/common-editor.css">
+ <link rel="stylesheet" href="/oozie/static/css/workflow-editor.css">
+ 
+ 
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+new file mode 100644
+index 0000000..69d3e46
+--- /dev/null
++++ b/apps/oozie/static/css/common-editor.css
+@@ -0,0 +1,41 @@
++/*
++ Licensed to Cloudera, Inc. under one
++ or more contributor license agreements.  See the NOTICE file
++ distributed with this work for additional information
++ regarding copyright ownership.  Cloudera, Inc. licenses this file
++ to you under the Apache License, Version 2.0 (the
++ "License"); you may not use this file except in compliance
++ with the License.  You may obtain a copy of the License at
++
++     http://www.apache.org/licenses/LICENSE-2.0
++
++ Unless required by applicable law or agreed to in writing, software
++ distributed under the License is distributed on an "AS IS" BASIS,
++ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ See the License for the specific language governing permissions and
++ limitations under the License.
++*/
++
++.form-search {
++  margin: 0;
++  padding-top: 5px;
++}
++
++.object-name {
++  font-size: 20px;
++  font-weight: 300;
++}
++
++.object-description {
++  margin-left: 10px;
++  font-size: 14px;
++}
++
++.editable-click {
++  cursor: pointer;
++}
++
++.editable-empty, .editable-empty:hover {
++  color: #666!important;
++  opacity: .55;
++}
+\ No newline at end of file
+diff --git a/apps/oozie/static/css/coordinator-editor.css b/apps/oozie/static/css/coordinator-editor.css
+index 637566a..c8893a7 100644
+--- a/apps/oozie/static/css/coordinator-editor.css
++++ b/apps/oozie/static/css/coordinator-editor.css
+@@ -187,10 +187,6 @@ em {
+   cursor: pointer;
+ }
+ 
+-.editable-click {
+-  cursor: pointer;
+-}
+-
+ .CodeMirror {
+   border: 1px dotted #DDDDDD;
+ }
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 817d499..00ad031 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -182,10 +182,6 @@
+   cursor: pointer;
+ }
+ 
+-.editable-click {
+-  cursor: pointer;
+-}
+-
+ .CodeMirror {
+   border: 1px dotted #DDDDDD;
+ }
+@@ -517,23 +513,3 @@ em {
+   border: 1px solid #d8d8d8;
+   border-top: none;
+ }
+-
+-.workflow-name {
+-  font-size: 20px;
+-  font-weight: 300;
+-}
+-
+-.workflow-description {
+-  margin-left: 10px;
+-  font-size: 14px;
+-}
+-
+-.editable-empty, .editable-empty:hover {
+-  color: #666!important;
+-  opacity: .55;
+-}
+-
+-.form-search {
+-  margin: 0;
+-  padding-top: 5px;
+-}
+\ No newline at end of file
+-- 
+1.7.9.5
+

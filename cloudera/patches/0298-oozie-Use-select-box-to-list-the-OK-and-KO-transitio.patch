@@ -1,0 +1,88 @@
+From 048c009f5d765aae1d6e389ea0bf990f5db30677 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 19 Nov 2014 16:33:22 -0800
+Subject: [PATCH 0298/1173] [oozie] Use select box to list the OK and KO
+ transitions
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   21 +++++++++++++++++---
+ apps/oozie/static/js/workflow-editor.ko.js         |   21 +++++++++++++++++++-
+ 2 files changed, 38 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index d087ee0..ff0a88d 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -378,7 +378,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div>
+       To:
+       <span data-bind="foreach: children">
+-        <span data-bind="text: $data['to']"></span> if <input data-bind="value: $data['condition']" />
++        <select data-bind="options: $root.workflow.nodeIds,
++                     optionsText: function(item) {return $root.workflow.nodeNamesMapping()[item]; },
++                     value: $data['to']
++                     ">
++        </select>      
++        if <input data-bind="value: $data['condition']" />
+       </span>
+       <a>${ _('Jump to another node') } <i class="fa fa-plus"></i></a>
+     </div>
+@@ -536,9 +541,19 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+ <script type="text/html" id="common-action-transition">
+   <!-- ko if: children().length == 2 -->
+-  OK --> <input type="text" data-bind="value: children()[0]['to']" />
++  OK -->
++  <select data-bind="options: $root.workflow.nodeIds,
++                     optionsText: function(item) {return $root.workflow.nodeNamesMapping()[item]; },
++                     value: children()[0]['to']
++                     ">
++  </select>
+   <br/>
+-  KO --> <input type="text" data-bind="value: children()[1]['error']" />
++  KO -->
++  <select data-bind="options: $root.workflow.nodeIds,
++                     optionsText: function(item) {return $root.workflow.nodeNamesMapping()[item]; },
++                     value: children()[1]['error']
++                     ">
++  </select>
+   <!-- /ko -->
+ </script>
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 86af556..c862b86 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -132,9 +132,28 @@ var Workflow = function (vm, workflow) {
+   self.nodes = ko.observableArray([]);
+   self.movedNode = null;
+   
++  self.nodeIds = ko.computed(function() {
++    var mapping = [];
++    
++    $.each(self.nodes(), function(index, node) {
++      mapping.push(node.id());
++    });
++
++    return mapping;
++  });
++  self.nodeNamesMapping = ko.computed(function() {
++    var mapping = {};
++    
++    $.each(self.nodes(), function(index, node) {
++      mapping[node.id()] = node.name();
++    });
++
++    return mapping;
++  });
+   self.linkMapping = ko.computed(function() {
+ 	var mapping = {};
+-    $.each(self.nodes(), function(index, node) {
++    
++	$.each(self.nodes(), function(index, node) {
+       var links = []
+       $.each(node.children(), function(index, link) {
+         if ('to' in link) {
+-- 
+1.7.9.5
+

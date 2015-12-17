@@ -1,0 +1,54 @@
+From 149799e38f818b3c8c8241df31bd7d33ac4754ae Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Mar 2015 09:06:24 -0700
+Subject: [PATCH 1122/1173] [core] Bump number of cherrypy threads to 40
+
+Most of the requests takes times to come back
+---
+ desktop/conf.dist/hue.ini                |    2 +-
+ desktop/conf/pseudo-distributed.ini.tmpl |    2 +-
+ desktop/core/src/desktop/conf.py         |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 7de6002..0d6a57a 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -60,7 +60,7 @@
+   ## enable_server=yes
+ 
+   # Number of threads used by the CherryPy web server
+-  ## cherrypy_server_threads=10
++  ## cherrypy_server_threads=40
+ 
+   # Filename of SSL Certificate
+   ## ssl_certificate=
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index d932cf6..37d3927 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -66,7 +66,7 @@
+   ## enable_server=yes
+ 
+   # Number of threads used by the CherryPy web server
+-  ## cherrypy_server_threads=10
++  ## cherrypy_server_threads=40
+ 
+   # Filename of SSL Certificate
+   ## ssl_certificate=
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index d217a78..894818f 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -135,7 +135,7 @@ CHERRYPY_SERVER_THREADS = Config(
+   key="cherrypy_server_threads",
+   help=_("Number of threads used by the CherryPy web server."),
+   type=int,
+-  default=10)
++  default=40)
+ 
+ SECRET_KEY = Config(
+   key="secret_key",
+-- 
+1.7.9.5
+

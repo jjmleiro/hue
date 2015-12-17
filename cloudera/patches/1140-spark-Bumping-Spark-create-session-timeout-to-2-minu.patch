@@ -1,0 +1,26 @@
+From 89ab99b482f2e0beb9f186a14dd02d5415cd1c94 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Mar 2015 15:05:43 -0700
+Subject: [PATCH 1140/1173] [spark] Bumping Spark create session timeout to 2
+ minutes
+
+---
+ apps/spark/src/spark/models.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 7c81b29..f05915f 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -279,7 +279,7 @@ class SparkApi():
+     status = api.get_session(response['id'])
+     count = 0
+ 
+-    while status['state'] == 'starting' and count < 60:
++    while status['state'] == 'starting' and count < 120:
+       status = api.get_session(response['id'])
+       count += 1
+       time.sleep(1)
+-- 
+1.7.9.5
+

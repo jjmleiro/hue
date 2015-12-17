@@ -1,0 +1,198 @@
+From 84bbf8864b2dd1395dccc625af309e7bc2dd8e8a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 13 Feb 2015 12:54:11 -0600
+Subject: [PATCH 0839/1173] [oozie] Make list of jobs work after Django 1.6
+ upgrade
+
+---
+ .../templates/dashboard/list_oozie_bundles.mako    |   14 +++++++-------
+ .../dashboard/list_oozie_coordinators.mako         |   14 +++++++-------
+ .../templates/dashboard/list_oozie_workflows.mako  |   14 +++++++-------
+ 3 files changed, 21 insertions(+), 21 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+index e314938..b462fd1 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundles.mako
+@@ -315,13 +315,13 @@ ${layout.menubar(section='bundles', dashboard=True)}
+ 
+     refreshRunning = function () {
+       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
+-        if (data) {
++        if (data.jobs) {
+           var nNodes = runningTable.fnGetNodes();
+ 
+           // check for zombie nodes
+           $(nNodes).each(function (iNode, node) {
+             var nodeFound = false;
+-            $(data).each(function (iBundle, currentItem) {
++            $(data.jobs).each(function (iBundle, currentItem) {
+               if ($(node).children("td").eq(7).text() == currentItem.id) {
+                 nodeFound = true;
+               }
+@@ -332,7 +332,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+             }
+           });
+ 
+-          $(data).each(function (iBundle, item) {
++          $(data.jobs).each(function (iBundle, item) {
+             var bundle = new Bundle(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+@@ -366,11 +366,11 @@ ${layout.menubar(section='bundles', dashboard=True)}
+             }
+           });
+         }
+-        if (data.length == 0) {
++        if (data.jobs.length == 0) {
+           runningTable.fnClearTable();
+         }
+ 
+-        if (data.length != numRunning) {
++        if (data.jobs.length != numRunning) {
+           refreshCompleted();
+         }
+         numRunning = data.length;
+@@ -382,7 +382,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+     function refreshCompleted() {
+       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
+         completedTable.fnClearTable();
+-        $(data).each(function (iWf, item) {
++        $(data.jobs).each(function (iWf, item) {
+           var bundle = new Bundle(item);
+           try {
+             completedTable.fnAddData([
+@@ -405,7 +405,7 @@ ${layout.menubar(section='bundles', dashboard=True)}
+     function refreshProgress() {
+       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
+         var nNodes = runningTable.fnGetNodes();
+-        $(data).each(function (iWf, item) {
++        $(data.jobs).each(function (iWf, item) {
+             var bundle = new Bundle(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+index 343a9f0..14b525b 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinators.mako
+@@ -350,13 +350,13 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+ 
+     refreshRunning = function () {
+       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
+-        if (data) {
++        if (data.jobs) {
+           var nNodes = runningTable.fnGetNodes();
+ 
+           // check for zombie nodes
+           $(nNodes).each(function (iNode, node) {
+             var nodeFound = false;
+-            $(data).each(function (iCoord, currentItem) {
++            $(data.jobs).each(function (iCoord, currentItem) {
+               % if enable_cron_scheduling:
+               if ($(node).children("td").eq(8).text() == currentItem.id) {
+                  nodeFound = true;
+@@ -374,7 +374,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+             }
+           });
+ 
+-          $(data).each(function (iCoord, item) {
++          $(data.jobs).each(function (iCoord, item) {
+             var coord = new Coordinator(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+@@ -418,11 +418,11 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+             }
+           });
+         }
+-        if (data.length == 0) {
++        if (data.jobs.length == 0) {
+           runningTable.fnClearTable();
+         }
+ 
+-        if (data.length != numRunning) {
++        if (data.jobs.length != numRunning) {
+           refreshCompleted();
+         }
+         numRunning = data.length;
+@@ -433,7 +433,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+     function refreshCompleted() {
+       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
+         completedTable.fnClearTable();
+-        $(data).each(function (iWf, item) {
++        $(data.jobs).each(function (iWf, item) {
+           var coord = new Coordinator(item);
+           try {
+             completedTable.fnAddData([
+@@ -463,7 +463,7 @@ ${layout.menubar(section='coordinators', dashboard=True)}
+     function refreshProgress() {
+       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
+         var nNodes = runningTable.fnGetNodes();
+-          $(data).each(function (iCoord, item) {
++          $(data.jobs).each(function (iCoord, item) {
+             var coord = new Coordinator(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index a1b84c2..40b1335 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -316,13 +316,13 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+ 
+     refreshRunning = function () {
+       $.getJSON(window.location.pathname + "?format=json&type=running", function (data) {
+-        if (data) {
++        if (data.jobs) {
+           var nNodes = runningTable.fnGetNodes();
+ 
+           // check for zombie nodes
+           $(nNodes).each(function (iNode, node) {
+             var nodeFound = false;
+-            $(data).each(function (iWf, currentItem) {
++            $(data.jobs).each(function (iWf, currentItem) {
+               if ($(node).children("td").eq(7).text() == currentItem.id) {
+                 nodeFound = true;
+               }
+@@ -333,7 +333,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+             }
+           });
+ 
+-          $(data).each(function (iWf, item) {
++          $(data.jobs).each(function (iWf, item) {
+             var wf = new Workflow(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+@@ -365,11 +365,11 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+             }
+           });
+         }
+-        if (data.length == 0) {
++        if (data.jobs.length == 0) {
+           runningTable.fnClearTable();
+         }
+ 
+-        if (data.length != numRunning) {
++        if (data.jobs.length != numRunning) {
+           refreshCompleted();
+         }
+         numRunning = data.length;
+@@ -381,7 +381,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+     function refreshCompleted() {
+       $.getJSON(window.location.pathname + "?format=json&type=completed", function (data) {
+         completedTable.fnClearTable();
+-        $(data).each(function (iWf, item) {
++        $(data.jobs).each(function (iWf, item) {
+           var wf = new Workflow(item);
+           try {
+             completedTable.fnAddData([
+@@ -404,7 +404,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+     function refreshProgress() {
+       $.getJSON(window.location.pathname + "?format=json&type=progress", function (data) {
+         var nNodes = runningTable.fnGetNodes();
+-        $(data).each(function (iWf, item) {
++        $(data.jobs).each(function (iWf, item) {
+             var wf = new Workflow(item);
+             var foundRow = null;
+             $(nNodes).each(function (iNode, node) {
+-- 
+1.7.9.5
+

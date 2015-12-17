@@ -1,0 +1,79 @@
+From 3d9a91c48985597fb242b0bc9779c9d0f2b22c6f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 21 Jan 2015 16:44:52 -0800
+Subject: [PATCH 0488/1173] [oozie] Enable deleting old workflows from new
+ editor
+
+---
+ apps/oozie/src/oozie/templates/navigation-bar.mako |    4 ++--
+ apps/oozie/src/oozie/views/editor2.py              |   19 ++++++++++++-------
+ desktop/core/src/desktop/models.py                 |    1 +
+ 3 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/navigation-bar.mako b/apps/oozie/src/oozie/templates/navigation-bar.mako
+index 551ff11..cb9c64b 100644
+--- a/apps/oozie/src/oozie/templates/navigation-bar.mako
++++ b/apps/oozie/src/oozie/templates/navigation-bar.mako
+@@ -55,8 +55,8 @@
+                   <li class="${utils.is_selected(section, 'bundles')}"><a href="${url('oozie:list_bundles')}">${ _('Bundles') }</a></li>
+ 
+                   % if ENABLE_V2.get():
+-                    <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px">
+-                     ${ _('This is the old editor, please migrate your workflows to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows')}">${ _('new editor.') }</a>
++                    <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px; margin-top:4px">
++                      ${ _('This is the old editor, please migrate your workflows to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows')}">${ _('new editor.') }</a>
+                     </li>
+                   % endif
+                 % endif
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index db785a4..3a63d68 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -38,7 +38,7 @@ from liboozie.submission2 import Submission
+ 
+ from oozie.decorators import check_document_access_permission, check_document_modify_permission
+ from oozie.forms import ParameterForm
+-from oozie.models import Workflow as OlfWorklow
++from oozie.models import Workflow as OlfWorklow, Job
+ from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflow_from_hue_3_7,\
+     find_dollar_variables, find_dollar_braced_variables
+ from oozie.views.editor import edit_workflow as old_edit_workflow 
+@@ -125,12 +125,17 @@ def delete_job(request):
+   jobs = json.loads(request.POST.get('selection'))
+ 
+   for job in jobs:
+-    doc2 = Document2.objects.get(id=job['id'])
+-    doc = doc2.doc.get()
+-    doc.can_write_or_exception(request.user)
+-    
+-    doc.delete()
+-    doc2.delete()
++    if job.get('uuid'):
++      doc2 = Document2.objects.get(id=job['id'])
++      doc = doc2.doc.get()
++      doc.can_write_or_exception(request.user)
++      
++      doc.delete()
++      doc2.delete()
++    else: # Old workflow version
++      job = Job.objects.can_read_or_exception(request, job['object_id'])
++      Job.objects.can_edit_or_exception(request, job)
++      OlfWorklow.objects.destroy(job, request.fs)      
+ 
+   response = {}
+   request.info(_('Document deleted.') if len(jobs) > 1 else _('Document deleted.'))
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 9816f29..07bc6c1 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -507,6 +507,7 @@ class Document(models.Model):
+       'uuid': None,
+       'id': self.id,
+       'doc1_id': self.id,
++      'object_id': self.object_id,
+       'type': str(self.content_type),
+       'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
+       'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
+-- 
+1.7.9.5
+

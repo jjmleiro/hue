@@ -1,0 +1,27 @@
+From 893ee9ba8d263fbe53b10d3cbba95c546463f15e Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 18 Nov 2014 17:34:09 -0800
+Subject: [PATCH 0123/1173] HUE-2467 [sentry] Check NN plugin prefixes for
+ exact match of subpath
+
+Do not match /user/hive/warehouse3 if prefix is /user/hive/warehouse
+---
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index f711016..a38f743 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -110,7 +110,7 @@ class WebHdfs(Hdfs):
+   def is_sentry_managed(cls, path):
+     prefixes = get_nn_sentry_prefixes().split(',')
+ 
+-    return any([path.startswith(p) for p in prefixes if p])
++    return any([path == p or path.startswith(p + '/') for p in prefixes if p])
+ 
+   @property
+   def fs_defaultfs(self):
+-- 
+1.7.9.5
+

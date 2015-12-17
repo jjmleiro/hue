@@ -1,0 +1,105 @@
+From e7eb8d287f912013c437700ae81d05a97bc0907c Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 16:28:41 -0800
+Subject: [PATCH 0912/1173] HUE-2417 [desktop] Switch to using
+ django.contrib.staticfiles
+
+---
+ desktop/core/src/desktop/settings.py |   11 ++++++++++-
+ desktop/core/src/desktop/urls.py     |   19 +++----------------
+ 2 files changed, 13 insertions(+), 17 deletions(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 98e4b32..e2ddc2a 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -32,6 +32,9 @@ import desktop.redaction
+ from desktop.lib.paths import get_desktop_root
+ from desktop.lib.python_util import force_dict_to_strings
+ 
++# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
++BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '..', '..'))
++
+ 
+ HUE_DESKTOP_VERSION = pkg_resources.get_distribution("desktop").version or "Unknown"
+ NICE_NAME = "Hue"
+@@ -97,11 +100,16 @@ MEDIA_URL = ''
+ ############################################################
+ 
+ # Additional locations of static files
+-STATICFILES_DIRS = ()
++STATICFILES_DIRS = (
++    os.path.join(BASE_DIR, 'desktop', 'libs', 'indexer', 'src', 'indexer', 'static'),
++    os.path.join(BASE_DIR, 'desktop', 'libs', 'liboauth', 'src', 'liboauth', 'static'),
++)
+ 
+ # For Django admin interface
+ STATIC_URL = '/static/'
+ 
++STATIC_ROOT = os.path.join(BASE_DIR, 'static')
++
+ # List of callables that know how to import templates from various sources.
+ TEMPLATE_LOADERS = (
+   'django.template.loaders.filesystem.Loader',
+@@ -152,6 +160,7 @@ INSTALLED_APPS = [
+     'django.contrib.contenttypes',
+     'django.contrib.sessions',
+     'django.contrib.sites',
++    'django.contrib.staticfiles',
+ 
+     'django.contrib.admin',
+     'django_extensions',
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index e508e50..6751010 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -30,6 +30,7 @@ import desktop.monkey_patches
+ 
+ from django.conf import settings
+ from django.conf.urls import include, patterns
++from django.conf.urls.static import static
+ from django.contrib import admin
+ 
+ from desktop import appmanager
+@@ -41,7 +42,7 @@ handler404 = 'desktop.views.serve_404_error'
+ handler500 = 'desktop.views.serve_500_error'
+ 
+ 
+-# Set up /appname/static mappings for any apps that have static directories
++# Set up /static/appname mappings for any apps that have static directories
+ def static_pattern(urlprefix, root):
+   """
+   First argument is the url mapping, and second argument is the
+@@ -131,8 +132,6 @@ if settings.OAUTH_AUTHENTICATION:
+ if 'search' in [app.name for app in appmanager.DESKTOP_APPS]:
+   namespace = {'namespace': 'indexer', 'app_name': 'indexer'}
+   dynamic_patterns.extend( patterns('', ('^indexer/', include('indexer.urls', **namespace))) )
+-  static_patterns.append(static_pattern('indexer/static',
+-                                        os.path.join(os.path.dirname(__file__), "..", '..', '..', "libs/indexer/static/")))
+ 
+ # Root each app at /appname if they have a "urls" module
+ for app in appmanager.DESKTOP_APPS:
+@@ -144,19 +143,7 @@ for app in appmanager.DESKTOP_APPS:
+     dynamic_patterns.extend( patterns('', ('^' + re.escape(app.name) + '/', include(app.urls, **namespace))) )
+     app.urls_imported = True
+ 
+-  # Root a /appname/static if they have a static dir
+-  if app.static_dir:
+-    static_patterns.append(
+-      static_pattern('%s/static' % app.name, app.static_dir))
+-
+-# TODO this stuff should probably be moved into a "ui" lib or such so it
+-# is autodiscovered
+-def buildpath(d):
+-  return os.path.join(os.path.dirname(__file__), "..", '..', '..', d)
+-static_patterns.append(static_pattern("static", buildpath("core/static")))
+-static_patterns.append((r'^(?P<path>favicon.ico)$',
+-                        'django.views.static.serve',
+-                        { 'document_root': buildpath('core/static/art') }))
++static_patterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+ 
+ urlpatterns = patterns('', *static_patterns) + dynamic_patterns
+ 
+-- 
+1.7.9.5
+

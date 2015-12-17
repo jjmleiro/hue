@@ -1,0 +1,242 @@
+From 4aa222079d132174e516ab277b9a8b54cf89d2ed Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 2 Dec 2014 19:38:26 -0600
+Subject: [PATCH 0539/1173] [spark] Fetch again status of runnin queries on
+ page refresh
+
+---
+ apps/spark/src/spark/api.py                |   19 ++++++++++++++
+ apps/spark/src/spark/models.py             |   20 +++++++++------
+ apps/spark/src/spark/templates/editor.mako |    7 +++++-
+ apps/spark/src/spark/urls.py               |    1 +
+ apps/spark/static/js/spark.vm.js           |   37 ++++++++++++++++++++++------
+ 5 files changed, 67 insertions(+), 17 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 81de53a..75c7323 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -123,6 +123,25 @@ def cancel_statement(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def get_log(request):
++  response = {'status': -1}
++
++  notebook = json.loads(request.POST.get('notebook', '{}'))
++  snippet = json.loads(request.POST.get('snippet', '{}'))
++
++  try:
++    response['logs'] = get_api(request.user, snippet).get_log(snippet)
++    response['status'] = 0
++  except Exception, e:
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['message'] = force_unicode(str(e))
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
+ def save_notebook(request):
+   response = {'status': -1}
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 3c699cd..9882d29 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -86,6 +86,10 @@ class HS2Api():
+   def __init__(self, user):
+     self.user = user
+     
++  def _get_handle(self, snippet):
++    snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
++    return HiveServerQueryHandle(**snippet['result']['handle'])
++    
+   def create_session(self, lang):
+     return {
+         'type': lang,
+@@ -123,8 +127,7 @@ class HS2Api():
+   def check_status(self, notebook, snippet):
+     db = dbms.get(self.user)
+       
+-    snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+-    handle = HiveServerQueryHandle(**snippet['result']['handle'])
++    handle = self._get_handle(snippet)
+     status =  db.get_state(handle)
+ 
+     return {
+@@ -139,8 +142,7 @@ class HS2Api():
+   def fetch_result(self, notebook, snippet):
+     db = dbms.get(self.user)
+       
+-    snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+-    handle = HiveServerQueryHandle(**snippet['result']['handle'])
++    handle = self._get_handle(snippet)
+     results = db.fetch(handle, start_over=False, rows=10)
+     
+     # no escaping...
+@@ -159,13 +161,15 @@ class HS2Api():
+   def cancel(self, notebook, snippet):
+     db = dbms.get(self.user)
+       
+-    snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+-    handle = HiveServerQueryHandle(**snippet['result']['handle'])
++    handle = self._get_handle(snippet)
+     db.cancel_operation(handle)
+     return {'status': 'canceled'}    
+ 
+-  def get_log(self):
+-    pass
++  def get_log(self, snippet):
++    db = dbms.get(self.user)
++      
++    handle = self._get_handle(snippet)    
++    return db.get_log(self, handle)
+   
+   def progress(self):
+     pass  
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index a7bbe4a..92ba850 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -185,7 +185,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <!-- /ko -->
+ 
+ 
+-        <span data-bind="editable: id, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
++        <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+         <div class="inline pull-right">
+           <strong class="muted" data-bind="text: status"></strong> &nbsp;
+           <a href="javascript:void(0)" data-bind="visible: $root.isEditing, click: function(){ remove($parent, $data);}"><i class="fa fa-times"></i></a>
+@@ -203,9 +203,14 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+           <a href="javascript:void(0)" data-bind="click: execute, visible: status() != 'running'" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
+           <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
++          <a href="javascript:void(0)" data-bind="click: function() { $data.showLogs(! $data.showLogs()); }" class="btn">${ _('Logs') }</a>         
+         </div>
+       </div>
+ 
++      <div data-bind="visible: showLogs, css: resultsKlass">
++        <span data-bind="text: result.logs"></span>
++      </div>
++
+       <div data-bind="css: resultsKlass">
+         <table class="table table-condensed">
+           <thead>
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index f7673cc..f105f56 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -32,6 +32,7 @@ urlpatterns += patterns('spark.api',
+   url(r'^api/check_status$', 'check_status', name='check_status'),
+   url(r'^api/fetch_result$', 'fetch_result', name='fetch_result'),
+   url(r'^api/cancel_statement', 'cancel_statement', name='cancel_statement'),
++  url(r'^api/get_log', 'get_log', name='get_log'),
+ 
+   url(r'^api/notebook/save$', 'save_notebook', name='save_notebook'),
+   url(r'^api/notebook/open$', 'open_notebook', name='open_notebook'),
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 5efd651..e7e6ed3 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -23,6 +23,7 @@ var Result = function (snippet, result) {
+   self.handle = ko.observable({});
+   self.meta = ko.mapping.fromJS(typeof result.meta != "undefined" && result.meta != null ? result.meta : []);
+   self.data = ko.mapping.fromJS(typeof result.data != "undefined" && result.data != null ? result.data : []);
++  self.logs = ko.observable('log');
+   
+   if (typeof result.handle != "undefined" && result.handle != null) {
+     $.each(result.handle, function(key, val) {
+@@ -51,6 +52,7 @@ var Snippet = function (notebook, snippet) {
+   var self = this;
+   
+   self.id = ko.observable(typeof snippet.id != "undefined" && snippet.id != null ? snippet.id : UUID());
++  self.name = ko.observable(typeof snippet.name != "undefined" && snippet.name != null ? snippet.name : '');
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : '');
+@@ -109,6 +111,7 @@ var Snippet = function (notebook, snippet) {
+ 	return statement;
+   });
+   self.result = new Result(snippet, snippet.result);
++  self.showLogs = ko.observable(typeof snippet.showLogs != "undefined" && snippet.showLogs != null ? snippet.showLogs : false);
+ 
+   self.size = ko.observable(typeof snippet.size != "undefined" && snippet.size != null ? snippet.size : 12).extend({ numeric: 0 });
+   self.offset = ko.observable(typeof snippet.offset != "undefined" && snippet.offset != null ? snippet.offset : 0).extend({ numeric: 0 });
+@@ -151,8 +154,11 @@ var Snippet = function (notebook, snippet) {
+   
+   self.checkStatusTimeout = null;
+   
+-  // init()
+-  // checkStatus()
++  self.init = function() {
++	if (self.status() == 'running') {
++	  self.checkStatus();	
++	}
++  };
+ 
+   self.create_session = function() {
+     $.post("/spark/api/create_session", {
+@@ -199,20 +205,18 @@ var Snippet = function (notebook, snippet) {
+     });    
+   };
+ 
+-  self.checkStatus = function() {
+-	  
++  self.checkStatus = function() {	  
+     $.post("/spark/api/check_status", {
+        notebook: ko.mapping.toJSON(notebook),
+        snippet: ko.mapping.toJSON(self)
+ 	  }, function (data) {
+ 	    if (data.status == 0) {
+-
+           self.status(data.query_status.status);
+ 
+           if (self.status() == 'running') {
+         	self.checkStatusTimeout = setTimeout(self.checkStatus, 1000);
+           } 
+-           else if (self.status() == 'ready') {
++          else if (self.status() == 'ready') {
+         	self.fetchResult();
+           }
+ 	    } else if (data.status == -2) {
+@@ -269,6 +273,21 @@ var Snippet = function (notebook, snippet) {
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
++  
++  self.get_log = function() {
++    $.post("/spark/api/get_log", {
++        notebook: ko.mapping.toJSON(notebook),
++        snippet: ko.mapping.toJSON(self)
++ 	  }, function (data) {
++ 	    if (data.status == 0) {
++ 	      self.status('canceled'); 
++ 	    } else {
++ 	      $(document).trigger("error", data.message);
++ 	    }
++ 	}).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
+ }
+ 
+ 
+@@ -315,8 +334,10 @@ var Notebook = function (vm, notebook) {
+ 	self.snippets.push(_snippet);
+ 	
+ 	if (self.getSession(_snippet.type()) == null) {
+-	  _snippet.create_session();
+-    }	
++	  _snippet.create_session();	  
++    }
++	
++	_snippet.init();
+   };  
+ 
+   self.newSnippet = function() {
+-- 
+1.7.9.5
+

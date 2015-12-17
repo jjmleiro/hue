@@ -1,0 +1,431 @@
+From 3720ae93f28d361ead2165b497cd1add49b61103 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 15 Jan 2015 19:15:01 -0800
+Subject: [PATCH 0787/1173] HUE-2436 [all] Django 1.6 ->
+ django.conf.urls.defaults -> django.conf.urls
+
+---
+ apps/about/src/about/urls.py                       |    2 +-
+ apps/beeswax/src/beeswax/urls.py                   |    2 +-
+ apps/filebrowser/src/filebrowser/urls.py           |    2 +-
+ apps/hbase/src/hbase/urls.py                       |    2 +-
+ apps/help/src/help/urls.py                         |    2 +-
+ apps/impala/src/impala/urls.py                     |    2 +-
+ apps/jobbrowser/src/jobbrowser/urls.py             |    2 +-
+ apps/jobsub/src/jobsub/urls.py                     |    2 +-
+ apps/metastore/src/metastore/urls.py               |    2 +-
+ apps/oozie/src/oozie/urls.py                       |    2 +-
+ apps/pig/src/pig/urls.py                           |    2 +-
+ apps/proxy/src/proxy/urls.py                       |    2 +-
+ apps/rdbms/src/rdbms/urls.py                       |    4 ++--
+ apps/search/src/search/urls.py                     |    2 +-
+ apps/security/src/security/urls.py                 |    2 +-
+ apps/spark/src/spark/urls.py                       |    2 +-
+ apps/sqoop/src/sqoop/urls.py                       |    4 ++--
+ apps/useradmin/src/useradmin/urls.py               |    2 +-
+ apps/zookeeper/src/zookeeper/urls.py               |    2 +-
+ desktop/core/src/desktop/api_tests.py              |    2 +-
+ .../src/desktop/app_template/src/app_name/urls.py  |    2 +-
+ .../app_template_proxy/src/app_name/urls.py        |    2 +-
+ desktop/core/src/desktop/tests.py                  |    2 +-
+ desktop/core/src/desktop/urls.py                   |    4 ++--
+ desktop/libs/indexer/src/indexer/urls.py           |    2 +-
+ desktop/libs/liboauth/src/liboauth/urls.py         |    4 +---
+ desktop/libs/libopenid/src/libopenid/urls.py       |    2 +-
+ desktop/libs/libsaml/src/libsaml/urls.py           |    2 +-
+ 28 files changed, 31 insertions(+), 33 deletions(-)
+
+diff --git a/apps/about/src/about/urls.py b/apps/about/src/about/urls.py
+index a27a1f6..1e4bf4a 100644
+--- a/apps/about/src/about/urls.py
++++ b/apps/about/src/about/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('about.views',
+   url(r'^$', 'admin_wizard', name='index'),
+diff --git a/apps/beeswax/src/beeswax/urls.py b/apps/beeswax/src/beeswax/urls.py
+index 4bd3c50..6876320 100644
+--- a/apps/beeswax/src/beeswax/urls.py
++++ b/apps/beeswax/src/beeswax/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ urlpatterns = patterns('beeswax.views',
+diff --git a/apps/filebrowser/src/filebrowser/urls.py b/apps/filebrowser/src/filebrowser/urls.py
+index c08029c..52a3b09 100644
+--- a/apps/filebrowser/src/filebrowser/urls.py
++++ b/apps/filebrowser/src/filebrowser/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import url, patterns
++from django.conf.urls import url, patterns
+ 
+ 
+ urlpatterns = patterns('filebrowser.views',
+diff --git a/apps/hbase/src/hbase/urls.py b/apps/hbase/src/hbase/urls.py
+index 83d03e7..25375aa 100644
+--- a/apps/hbase/src/hbase/urls.py
++++ b/apps/hbase/src/hbase/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('hbase.views',
+   url(r'^$', 'app', name='index'),
+diff --git a/apps/help/src/help/urls.py b/apps/help/src/help/urls.py
+index bf486d1..9762437 100644
+--- a/apps/help/src/help/urls.py
++++ b/apps/help/src/help/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import url, patterns
++from django.conf.urls import url, patterns
+ 
+ urlpatterns = patterns('',
+   url(r'^$', 'help.views.view', { "app": "desktop", "path": "/index.html" }),
+diff --git a/apps/impala/src/impala/urls.py b/apps/impala/src/impala/urls.py
+index 0393c41..d01b698 100644
+--- a/apps/impala/src/impala/urls.py
++++ b/apps/impala/src/impala/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ from beeswax.urls import urlpatterns as beeswax_urls
+ 
+diff --git a/apps/jobbrowser/src/jobbrowser/urls.py b/apps/jobbrowser/src/jobbrowser/urls.py
+index 0aaba77..5a99641 100644
+--- a/apps/jobbrowser/src/jobbrowser/urls.py
++++ b/apps/jobbrowser/src/jobbrowser/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('jobbrowser.views',
+   # "Default"
+diff --git a/apps/jobsub/src/jobsub/urls.py b/apps/jobsub/src/jobsub/urls.py
+index 9271cd5..ebd5fb3 100644
+--- a/apps/jobsub/src/jobsub/urls.py
++++ b/apps/jobsub/src/jobsub/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns(
+   'jobsub.views',
+diff --git a/apps/metastore/src/metastore/urls.py b/apps/metastore/src/metastore/urls.py
+index a0b36df..ad82b08 100644
+--- a/apps/metastore/src/metastore/urls.py
++++ b/apps/metastore/src/metastore/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('metastore.views',
+   url(r'^$', 'index', name='index'),
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 25479c8..8cee18e 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ IS_URL_NAMESPACED = True
+diff --git a/apps/pig/src/pig/urls.py b/apps/pig/src/pig/urls.py
+index d4cae97..b43f7d1 100644
+--- a/apps/pig/src/pig/urls.py
++++ b/apps/pig/src/pig/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('pig.views',
+   url(r'^$', 'app', name='index'),
+diff --git a/apps/proxy/src/proxy/urls.py b/apps/proxy/src/proxy/urls.py
+index 777698f..c32cd95 100644
+--- a/apps/proxy/src/proxy/urls.py
++++ b/apps/proxy/src/proxy/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('proxy',
+   # Prefix the names of your views with the app name.
+diff --git a/apps/rdbms/src/rdbms/urls.py b/apps/rdbms/src/rdbms/urls.py
+index a1a5627..522156d 100644
+--- a/apps/rdbms/src/rdbms/urls.py
++++ b/apps/rdbms/src/rdbms/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ # Views
+@@ -53,4 +53,4 @@ urlpatterns += patterns('beeswax.api',
+   url(r'^autocomplete/$', 'autocomplete', name='api_autocomplete_databases'),
+   url(r'^autocomplete/(?P<database>\w+)/$', 'autocomplete', name='api_autocomplete_tables'),
+   url(r'^autocomplete/(?P<database>\w+)/(?P<table>\w+)$', 'autocomplete', name='api_autocomplete_columns')
+-)
+\ No newline at end of file
++)
+diff --git a/apps/search/src/search/urls.py b/apps/search/src/search/urls.py
+index 2016e17..52fb3cb 100644
+--- a/apps/search/src/search/urls.py
++++ b/apps/search/src/search/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('search.views',
+   url(r'^$', 'index', name='index'),
+diff --git a/apps/security/src/security/urls.py b/apps/security/src/security/urls.py
+index 06977f7..bd42ff0 100644
+--- a/apps/security/src/security/urls.py
++++ b/apps/security/src/security/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ urlpatterns = patterns('security.views',
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 79aa061..20aa9fd 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ # Views
+diff --git a/apps/sqoop/src/sqoop/urls.py b/apps/sqoop/src/sqoop/urls.py
+index 80f71dd..12e14f1 100644
+--- a/apps/sqoop/src/sqoop/urls.py
++++ b/apps/sqoop/src/sqoop/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('sqoop.views',
+   url(r'^$', 'app', name='index')
+@@ -40,4 +40,4 @@ urlpatterns += patterns('sqoop.api',
+   url(r'^api/jobs/(?P<job_id>\d+)/stop/?$', 'job_stop', name='job_stop'),
+   url(r'^api/jobs/(?P<job_id>\d+)/status/?$', 'job_status', name='job_status'),
+   url(r'^api/submissions/?$', 'submissions', name='submissions')
+-)
+\ No newline at end of file
++)
+diff --git a/apps/useradmin/src/useradmin/urls.py b/apps/useradmin/src/useradmin/urls.py
+index 3e46335..3e04e6f 100644
+--- a/apps/useradmin/src/useradmin/urls.py
++++ b/apps/useradmin/src/useradmin/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ from desktop.lib.django_util import get_username_re_rule, get_groupname_re_rule
+ 
+ username_re = get_username_re_rule()
+diff --git a/apps/zookeeper/src/zookeeper/urls.py b/apps/zookeeper/src/zookeeper/urls.py
+index 43418a2..6dcf6ff 100644
+--- a/apps/zookeeper/src/zookeeper/urls.py
++++ b/apps/zookeeper/src/zookeeper/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ 
+ urlpatterns = patterns('zookeeper.views',
+diff --git a/desktop/core/src/desktop/api_tests.py b/desktop/core/src/desktop/api_tests.py
+index 4b60850..5e155e2 100644
+--- a/desktop/core/src/desktop/api_tests.py
++++ b/desktop/core/src/desktop/api_tests.py
+@@ -20,7 +20,7 @@ import json
+ 
+ from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+ from django.http import HttpResponse
+diff --git a/desktop/core/src/desktop/app_template/src/app_name/urls.py b/desktop/core/src/desktop/app_template/src/app_name/urls.py
+index 9e908fa..0d28243 100644
+--- a/desktop/core/src/desktop/app_template/src/app_name/urls.py
++++ b/desktop/core/src/desktop/app_template/src/app_name/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('${app_name}',
+   url(r'^$', 'views.index'),
+diff --git a/desktop/core/src/desktop/app_template_proxy/src/app_name/urls.py b/desktop/core/src/desktop/app_template_proxy/src/app_name/urls.py
+index 9e908fa..0d28243 100644
+--- a/desktop/core/src/desktop/app_template_proxy/src/app_name/urls.py
++++ b/desktop/core/src/desktop/app_template_proxy/src/app_name/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('${app_name}',
+   url(r'^$', 'views.index'),
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index b647d2e..16765ef 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -30,7 +30,7 @@ import proxy.conf
+ from nose.plugins.attrib import attr
+ from nose.plugins.skip import SkipTest
+ from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal, assert_raises
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+ from django.http import HttpResponse
+diff --git a/desktop/core/src/desktop/urls.py b/desktop/core/src/desktop/urls.py
+index b3e4c8f..fe993e7 100644
+--- a/desktop/core/src/desktop/urls.py
++++ b/desktop/core/src/desktop/urls.py
+@@ -20,13 +20,13 @@ import os
+ import re
+ 
+ from django.conf import settings
+-from django.conf.urls.defaults import include, patterns
++from django.conf.urls import include, patterns
+ from django.contrib import admin
+ 
+ from desktop import appmanager
+ 
+ # Django expects handler404 and handler500 to be defined.
+-# django.conf.urls.defaults provides them. But we want to override them.
++# django.conf.urls provides them. But we want to override them.
+ # Also see http://code.djangoproject.com/ticket/5350
+ handler404 = 'desktop.views.serve_404_error'
+ handler500 = 'desktop.views.serve_500_error'
+diff --git a/desktop/libs/indexer/src/indexer/urls.py b/desktop/libs/indexer/src/indexer/urls.py
+index cc21ad2..f0bfd0f 100644
+--- a/desktop/libs/indexer/src/indexer/urls.py
++++ b/desktop/libs/indexer/src/indexer/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns('indexer.views',
+   url(r'^$', 'collections', name='collections'),
+diff --git a/desktop/libs/liboauth/src/liboauth/urls.py b/desktop/libs/liboauth/src/liboauth/urls.py
+index 6ed45c5..634a26f 100644
+--- a/desktop/libs/liboauth/src/liboauth/urls.py
++++ b/desktop/libs/liboauth/src/liboauth/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns(
+     'liboauth.views',
+@@ -23,5 +23,3 @@ urlpatterns = patterns(
+        url(r'^social_login/oauth/?$', 'oauth_login', name='oauth_login'),
+        url(r'^social_login/oauth_authenticated/?$', 'oauth_authenticated', name='oauth_authenticated'),
+ )
+-
+-
+diff --git a/desktop/libs/libopenid/src/libopenid/urls.py b/desktop/libs/libopenid/src/libopenid/urls.py
+index 72a0375..2f93435 100644
+--- a/desktop/libs/libopenid/src/libopenid/urls.py
++++ b/desktop/libs/libopenid/src/libopenid/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ urlpatterns = patterns(
+     'libopenid.views',
+diff --git a/desktop/libs/libsaml/src/libsaml/urls.py b/desktop/libs/libsaml/src/libsaml/urls.py
+index f79fbd2..6a548db 100644
+--- a/desktop/libs/libsaml/src/libsaml/urls.py
++++ b/desktop/libs/libsaml/src/libsaml/urls.py
+@@ -15,7 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from django.conf.urls.defaults import patterns, url
++from django.conf.urls import patterns, url
+ 
+ try:
+   from djangosaml2.views import logout_service_post
+-- 
+1.7.9.5
+

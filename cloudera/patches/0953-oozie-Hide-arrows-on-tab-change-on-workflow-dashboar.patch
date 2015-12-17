@@ -1,0 +1,48 @@
+From 269e3ed9c1a74d02cef39222d173947cbc250d95 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 27 Feb 2015 09:10:40 +0100
+Subject: [PATCH 0953/1173] [oozie] Hide arrows on tab change on workflow
+ dashboard
+
+---
+ .../templates/dashboard/list_oozie_workflow.mako   |   17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 21a862e..0d9a28c 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -530,6 +530,12 @@ ${ utils.slaGlobal() }
+ 
+     // force refresh on tab change
+     $("a[data-toggle='tab']").on("shown", function (e) {
++      if ($(e.target).attr("href") == "#graph") {
++        drawArrows();
++      }
++      else {
++        $("canvas").remove();
++      }
+       if ($(e.target).attr("href") == "#definition") {
+         codeMirror.refresh();
+       }
+@@ -681,8 +687,15 @@ ${ utils.slaGlobal() }
+       });
+     }
+ 
+-    $(window).resize(function () {
+-      resizeLogs();
++    var resizeTimeout = -1;
++    $(window).on("resize", function () {
++      window.clearTimeout(resizeTimeout);
++      resizeTimeout = window.setTimeout(function () {
++        resizeLogs();
++        if ($("#graph").is(":visible")){
++          drawArrows();
++        }
++      }, 200);
+     });
+ 
+     $("a[href='#log']").on("shown", function () {
+-- 
+1.7.9.5
+

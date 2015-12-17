@@ -1,0 +1,82 @@
+From cae8c8837ce948b5a2826178bc3ab1e69835371b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 21:33:42 -0500
+Subject: [PATCH 1110/1173] [fb] Support viewing files with tabs
+
+We should also display tabs in the file names
+---
+ .../src/filebrowser/templates/display.mako         |    1 -
+ .../filebrowser/templates/listdir_components.mako  |    2 +-
+ apps/filebrowser/src/filebrowser/views.py          |    3 ---
+ apps/filebrowser/src/filebrowser/views_test.py     |    2 +-
+ 4 files changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/display.mako b/apps/filebrowser/src/filebrowser/templates/display.mako
+index 6e27da5..a7e9e59 100644
+--- a/apps/filebrowser/src/filebrowser/templates/display.mako
++++ b/apps/filebrowser/src/filebrowser/templates/display.mako
+@@ -22,7 +22,6 @@
+   from django.utils.translation import ugettext as _
+ %>
+ <%
+-  path_enc = urlencode(path)
+   path_enc = path
+   dirname_enc = urlencode(view['dirname'])
+   base_url = url('filebrowser.views.view', path=path_enc)
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 9c59201..fc94cbc 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -994,7 +994,7 @@ from django.utils.translation import ugettext as _
+           self.targetPath("${url('filebrowser.views.view', path=urlencode('/'))}" + "." + stripHashes(file.path));
+           location.hash = stripHashes(file.path);
+         } else {
+-          location.href = "${url('filebrowser.views.view', path=urlencode('/'))}" + stripHashes(file.path);
++          location.href = file.url;
+         }
+       };
+ 
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 77994d7..978aeab 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -63,7 +63,6 @@ from filebrowser.lib import xxd
+ from filebrowser.forms import RenameForm, UploadFileForm, UploadArchiveForm, MkDirForm, EditorForm, TouchForm,\
+                               RenameFormSet, RmTreeFormSet, ChmodFormSet, ChownFormSet, CopyFormSet, RestoreFormSet,\
+                               TrashPurgeForm
+-import urllib
+ 
+ 
+ DEFAULT_CHUNK_SIZE_BYTES = 1024 * 4 # 4KB
+@@ -280,7 +279,6 @@ def parse_breadcrumbs(path):
+     while (i < len(breadcrumbs_parts)):
+         breadcrumb_url = breadcrumbs[i - 1]['url'] + '/' + breadcrumbs_parts[i]
+         if breadcrumb_url != '/':
+-            #breadcrumbs.append({'url': breadcrumb_url, 'label': urllib.unquote(breadcrumbs_parts[i])})
+             breadcrumbs.append({'url': breadcrumb_url, 'label': breadcrumbs_parts[i]})
+         i = i + 1
+     return breadcrumbs
+@@ -426,7 +424,6 @@ def listdir_paged(request, path):
+ 
+     page.object_list = [ _massage_stats(request, s) for s in shown_stats ]
+ 
+-
+     data = {
+         'path': path,
+         'breadcrumbs': breadcrumbs,
+diff --git a/apps/filebrowser/src/filebrowser/views_test.py b/apps/filebrowser/src/filebrowser/views_test.py
+index 06b348a..09976d6 100644
+--- a/apps/filebrowser/src/filebrowser/views_test.py
++++ b/apps/filebrowser/src/filebrowser/views_test.py
+@@ -983,7 +983,7 @@ def edit_helper(cluster, encoding, contents_pass_1, contents_pass_2):
+   c = make_logged_in_client(cluster.superuser)
+ 
+   # This path is non-normalized to test normalization too
+-  filename = u'//test-filebrowser//./test-edit-carácter-internacional with space and ()'
++  filename = u'//test-filebrowser//./test-edit-carácter-internacional with space and () en-hello pt-Olá ch-你好 ko-안녕 ru-Здравствуйте'
+ 
+   # File doesn't exist - should be empty
+   edit_url = '/filebrowser/edit' + filename
+-- 
+1.7.9.5
+

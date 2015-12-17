@@ -1,0 +1,181 @@
+From 460bc2dd597ffd95860b360319f75ed6e3c320f0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 5 Mar 2015 15:41:47 -0800
+Subject: [PATCH 0994/1173] [hbase] Examples installed from the UI should use
+ the current user credentials
+
+When installed from the CLI, used the sample user (for not creating another
+dummy user).
+---
+ apps/hbase/src/hbase/api.py                        |    4 ++--
+ apps/hbase/src/hbase/hbase_site.py                 |    4 ++--
+ .../src/hbase/management/commands/hbase_setup.py   |   16 +++++++++++-----
+ apps/hbase/src/hbase/templates/app.mako            |    7 -------
+ apps/hbase/src/hbase/tests.py                      |   14 ++++++++------
+ apps/hbase/src/hbase/views.py                      |    2 +-
+ 6 files changed, 24 insertions(+), 23 deletions(-)
+
+diff --git a/apps/hbase/src/hbase/api.py b/apps/hbase/src/hbase/api.py
+index 6c81e1e..749a8ad 100644
+--- a/apps/hbase/src/hbase/api.py
++++ b/apps/hbase/src/hbase/api.py
+@@ -167,7 +167,7 @@ class HbaseApi(object):
+ 
+   def getRowsFull(self, cluster, tableName, startRowKey, numRows):
+     client = self.connectCluster(cluster)
+-    return self.getRows(cluster, tableName, [smart_str(column) for column in client.getColumnDescriptors(tableName, aaa=11, doas=self.user.username)], smart_str(startRowKey), numRows)
++    return self.getRows(cluster, tableName, [smart_str(column) for column in client.getColumnDescriptors(tableName, doas=self.user.username)], smart_str(startRowKey), numRows)
+ 
+   def getRowFull(self, cluster, tableName, startRowKey, numRows):
+     row = self.getRowsFull(cluster, tableName, smart_str(startRowKey), 1)
+@@ -188,7 +188,7 @@ class HbaseApi(object):
+     return client.mutateRow(tableName, smart_str(row), mutations, None, doas=self.user.username)
+ 
+   def deleteColumn(self, cluster, tableName, row, column):
+-    return self.deleteColumns(cluster, tableName, smart_str(row), [smart_str(column)], doas=self.user.username)
++    return self.deleteColumns(cluster, tableName, smart_str(row), [smart_str(column)])
+ 
+   def deleteAllRow(self, cluster, tableName, row, attributes):
+     client = self.connectCluster(cluster)
+diff --git a/apps/hbase/src/hbase/hbase_site.py b/apps/hbase/src/hbase/hbase_site.py
+index 08cec04..d4abf7e 100644
+--- a/apps/hbase/src/hbase/hbase_site.py
++++ b/apps/hbase/src/hbase/hbase_site.py
+@@ -62,10 +62,10 @@ def get_server_authentication():
+   return get_conf().get(_CNF_HBASE_AUTHENTICATION, 'NOSASL').upper()
+ 
+ def is_impersonation_enabled():
+-  return get_conf().get(_CNF_HBASE_IMPERSONATION_ENABLED, 'FALSE').upper() == 'TRUE' and USE_DOAS.get()
++  return get_conf().get(_CNF_HBASE_IMPERSONATION_ENABLED, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
+ 
+ def is_using_thrift_http():
+-  return get_conf().get(_CNF_HBASE_USE_THRIFT_HTTP, 'FALSE').upper() == 'TRUE' and USE_DOAS.get()
++  return get_conf().get(_CNF_HBASE_USE_THRIFT_HTTP, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
+ 
+ def is_using_thrift_ssl():
+   return get_conf().get(_CNF_HBASE_USE_THRIFT_SSL, 'FALSE').upper() == 'TRUE'
+diff --git a/apps/hbase/src/hbase/management/commands/hbase_setup.py b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+index 3c6e303..465db8e 100644
+--- a/apps/hbase/src/hbase/management/commands/hbase_setup.py
++++ b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+@@ -17,16 +17,17 @@
+ 
+ import logging
+ import os
+-import pwd
+ 
+ from datetime import datetime, timedelta
+ 
+ from django.contrib.auth.models import User
+-from django.core.management.base import NoArgsCommand
++from django.core.management.base import BaseCommand
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.paths import get_apps_root
+ 
++from useradmin.models import install_sample_user
++
+ from hbased.ttypes import AlreadyExists
+ from hbase.api import HbaseApi
+ 
+@@ -34,11 +35,16 @@ from hbase.api import HbaseApi
+ LOG = logging.getLogger(__name__)
+ 
+ 
+-class Command(NoArgsCommand):
++class Command(BaseCommand):
+   help = 'Create and fill some demo tables in the first configured cluster.'
++  args = '<username>'
++
++  def handle(self, *args, **options):
++    if args:
++      user = args[0]
++    else:
++      user = install_sample_user()
+ 
+-  def handle_noargs(self, **options):
+-    user = User.objects.get(username=pwd.getpwuid(os.getuid()).pw_name)
+     api = HbaseApi(user=user)
+     cluster_name = api.getClusters()[0]['name'] # Currently pick first configured cluster
+ 
+diff --git a/apps/hbase/src/hbase/templates/app.mako b/apps/hbase/src/hbase/templates/app.mako
+index 8e92887..d9415b2 100644
+--- a/apps/hbase/src/hbase/templates/app.mako
++++ b/apps/hbase/src/hbase/templates/app.mako
+@@ -61,13 +61,6 @@ ${ commonheader(None, "hbase", user) | n,unicode }
+               <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }"/><![endif]-->
+             </td>
+         </tr>
+-        <tr data-bind="visible: ${datasource}.items().length == 0 && !${datasource}.isLoading() && !${datasource}.isReLoading()">
+-            <td colspan="8">
+-                <div class="alert">
+-                    ${_('There are no tables matching the search criteria.')}
+-                </div>
+-          </td>
+-        </tr>
+       </tfoot>
+   </table>
+ </%def>
+diff --git a/apps/hbase/src/hbase/tests.py b/apps/hbase/src/hbase/tests.py
+index aa252f4..e4347dd 100644
+--- a/apps/hbase/src/hbase/tests.py
++++ b/apps/hbase/src/hbase/tests.py
+@@ -27,8 +27,8 @@ from desktop.lib.django_test_util import make_logged_in_client
+ from desktop.lib.test_utils import grant_access
+ 
+ from hbase.api import HbaseApi
+-from hbase.conf import HBASE_CONF_DIR, USE_DOAS
+-from hbase.hbase_site import get_server_authentication, get_server_principal, reset
++from hbase.conf import HBASE_CONF_DIR
++from hbase.hbase_site import get_server_authentication, get_server_principal, get_conf, _CNF_HBASE_IMPERSONATION_ENABLED, is_impersonation_enabled
+ 
+ 
+ def test_security_plain():
+@@ -114,25 +114,27 @@ def test_impersonation():
+   proto = MockProtocol()
+   client = thrift_hbase.Client(proto)
+ 
+-  reset = USE_DOAS.set_for_testing(False)
++  impersonation_enabled = is_impersonation_enabled()
++
++  get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = 'FALSE'
+   try:
+     client.getTableNames(doas=user.username)
+   except AttributeError:
+     pass # We don't mock everything
+   finally:
+-    reset()
++    get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = impersonation_enabled
+ 
+   assert_equal({}, proto.get_headers())
+ 
+ 
+-  reset = USE_DOAS.set_for_testing(True)
++  get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = 'TRUE'
+ 
+   try:
+     client.getTableNames(doas=user.username)
+   except AttributeError:
+     pass # We don't mock everything
+   finally:
+-    reset()
++    get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = impersonation_enabled
+ 
+   assert_equal({'doAs': u'test_hbase'}, proto.get_headers())
+ 
+diff --git a/apps/hbase/src/hbase/views.py b/apps/hbase/src/hbase/views.py
+index eff9abc..a20704a 100644
+--- a/apps/hbase/src/hbase/views.py
++++ b/apps/hbase/src/hbase/views.py
+@@ -132,7 +132,7 @@ def install_examples(request):
+     result['message'] = _('A POST request is required.')
+   else:
+     try:
+-      hbase_setup.Command().handle_noargs()
++      hbase_setup.Command().handle(user=request.user)
+       result['status'] = 0
+     except Exception, e:
+       LOG.exception(e)
+-- 
+1.7.9.5
+

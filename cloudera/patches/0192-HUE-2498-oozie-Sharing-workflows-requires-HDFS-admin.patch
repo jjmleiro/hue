@@ -1,0 +1,25 @@
+From a06611204f1e3dcc024a8b7bb1c794c4983c7987 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 7 Jan 2015 22:24:53 -0800
+Subject: [PATCH 0192/1173] HUE-2498 [oozie] Sharing workflows requires HDFS
+ admin privileges
+
+---
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index 37dde1b..7fbb7c2 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -597,7 +597,6 @@ class WebHdfs(Hdfs):
+         self.copy_remote_dir(source_file, destination_file, dir_mode, owner)
+       else:
+         self.do_as_user(owner, self.copyfile, source_file, destination_file)
+-        self.do_as_superuser(self.chown, destination_file, owner, owner)
+ 
+ 
+   def copy(self, src, dest, recursive=False, dir_mode=None, owner=None):
+-- 
+1.7.9.5
+

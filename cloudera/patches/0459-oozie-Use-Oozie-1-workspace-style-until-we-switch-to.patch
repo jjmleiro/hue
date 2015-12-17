@@ -1,0 +1,41 @@
+From 3d9b37cc8e4b0789c9233c6b853d1819f7eb8a66 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 16 Jan 2015 13:04:27 -0800
+Subject: [PATCH 0459/1173] [oozie] Use Oozie 1 workspace style until we
+ switch to 2
+
+---
+ apps/oozie/src/oozie/conf.py    |    3 ++-
+ apps/oozie/src/oozie/models2.py |    2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/conf.py b/apps/oozie/src/oozie/conf.py
+index 2144364..370201d 100644
+--- a/apps/oozie/src/oozie/conf.py
++++ b/apps/oozie/src/oozie/conf.py
+@@ -49,7 +49,8 @@ LOCAL_SAMPLE_DATA_DIR = Config(
+ 
+ REMOTE_SAMPLE_DIR = Config(
+   key="remote_data_dir",
+-  default="/user/hue/oozie/workspaces/hue-oozie-$TIME",
++  #default="/user/hue/oozie/workspaces/hue-oozie-$TIME",
++  default="/user/hue/oozie/workspaces",
+   help=_t("Location on HDFS where the Oozie workflows are stored. Parameters are $TIME and $USER, e.g. /user/$USER/hue/workspaces/workflow-$TIME")
+ )
+ 
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index bae1ab2..325bd67 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -56,7 +56,7 @@ class Job(object):
+ 
+   @classmethod
+   def get_workspace(cls, user):
+-    return REMOTE_SAMPLE_DIR.get().replace('$USER', user.username).replace('$TIME', str(time.time()))
++    return (REMOTE_SAMPLE_DIR.get() + '/hue-oozie-$TIME').replace('$USER', user.username).replace('$TIME', str(time.time()))
+ 
+   @property
+   def validated_name(self):
+-- 
+1.7.9.5
+

@@ -1,0 +1,31 @@
+From e60fe719fa715a24c213bc972a628083fb2cfe4d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 27 Feb 2015 15:17:22 -0800
+Subject: [PATCH 0956/1173] [desktop] Return a broken path if we can't find a
+ file
+
+---
+ desktop/core/src/desktop/lib/django_mako.py |   10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/lib/django_mako.py b/desktop/core/src/desktop/lib/django_mako.py
+index 2a1382c..bfaa420 100644
+--- a/desktop/core/src/desktop/lib/django_mako.py
++++ b/desktop/core/src/desktop/lib/django_mako.py
+@@ -144,4 +144,12 @@ def static(path):
+   """
+   Returns the URL to a file using the staticfiles's storage engine
+   """
+-  return staticfiles_storage.url(path)
++  try:
++    return staticfiles_storage.url(path)
++  except ValueError:
++    # django.contrib.staticfiles raises a ValueError if the file we are looking
++    # for is not in the staticfiles directory. This will result in a 500 error
++    # in a mako script, which is a little unfriendly. Instead we'll return a
++    # path to a non-existing file so the template renders and we can see the
++    # missing file in the logs.
++    return settings.STATIC_URL + path
+-- 
+1.7.9.5
+

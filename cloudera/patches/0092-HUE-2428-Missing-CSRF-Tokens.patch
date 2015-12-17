@@ -1,0 +1,25 @@
+From bf4e8fc58be8f97b3b3b4947b014f2ec12e1f7b9 Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Tue, 4 Nov 2014 10:43:11 -0600
+Subject: [PATCH 0092/1173] HUE-2428 Missing CSRF Tokens
+
+Added CSRF token to file
+---
+ .../src/liboauth/templates/oauth-login.mako        |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/desktop/libs/liboauth/src/liboauth/templates/oauth-login.mako b/desktop/libs/liboauth/src/liboauth/templates/oauth-login.mako
+index 847505c..ddf2fce 100644
+--- a/desktop/libs/liboauth/src/liboauth/templates/oauth-login.mako
++++ b/desktop/libs/liboauth/src/liboauth/templates/oauth-login.mako
+@@ -161,6 +161,7 @@ from django.utils.translation import ugettext as _
+   <div class="row">
+     <div class="login-content">
+       <form method="POST" action="${action}" class="well">
++        ${ csrf_token(request) | n,unicode }
+         <img id="logo" src="/static/art/hue-login-logo.png" data-orig="/static/art/hue-login-logo.png"
+              data-hover="/static/art/hue-login-logo-skew.png"/>
+ 
+-- 
+1.7.9.5
+

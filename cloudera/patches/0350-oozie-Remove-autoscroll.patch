@@ -1,0 +1,29 @@
+From e74e1aaf521c9652f33e0955a05f0064184862f9 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 18 Dec 2014 14:36:08 +0100
+Subject: [PATCH 0350/1173] [oozie] Remove autoscroll
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 637031c..bf18d82 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1686,11 +1686,7 @@ ${ dashboard.import_bindings() }
+         });
+         _el.animate({
+           "width": _width < $(window).width()/2 ? $(window).width()/2 : _width
+-        }, 200, function () {
+-          if ($(document).width() > $(window).width()) {
+-            $(document).scrollLeft($(document).width() - $(window).width());
+-          }
+-        });
++        }, 200);
+         _el.find(".prop-editor").show();
+ 
+         $("#exposeOverlay").fadeIn(300);
+-- 
+1.7.9.5
+

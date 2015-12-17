@@ -1,0 +1,123 @@
+From 553a24aaa8cd50d7a90c1a018587ed52e8c6ce4e Mon Sep 17 00:00:00 2001
+From: Chris Conner <cconner@cloudera.com>
+Date: Wed, 1 Apr 2015 12:51:41 -0400
+Subject: [PATCH 1148/1173] HUE-2671 [core] sync_groups_on_login doesn't work
+ with NT Domain
+
+---
+ apps/useradmin/src/useradmin/ldap_access.py |    9 ++++++++-
+ desktop/conf.dist/hue.ini                   |   16 +++++++++++++---
+ desktop/conf/pseudo-distributed.ini.tmpl    |   10 ++++++++++
+ desktop/core/src/desktop/conf.py            |   14 ++++++++++++++
+ 4 files changed, 45 insertions(+), 4 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/ldap_access.py b/apps/useradmin/src/useradmin/ldap_access.py
+index 6279fe0..ccf258d 100644
+--- a/apps/useradmin/src/useradmin/ldap_access.py
++++ b/apps/useradmin/src/useradmin/ldap_access.py
+@@ -35,7 +35,14 @@ CACHED_LDAP_CONN = None
+ 
+ 
+ def get_connection_from_server(server=None):
+-  ldap_config = desktop.conf.LDAP.LDAP_SERVERS.get()[server] if server else desktop.conf.LDAP
++
++  ldap_servers = desktop.conf.LDAP.LDAP_SERVERS.get()
++
++  if server and ldap_servers:
++    ldap_config = ldap_servers[server]
++  else:
++    ldap_config = desktop.conf.LDAP
++     
+   return get_connection(ldap_config)
+ 
+ def get_connection(ldap_config):
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index b5fce10..b39d482 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -212,9 +212,6 @@
+     # Defaults to HTTP_REMOTE_USER
+     ## remote_user_header=HTTP_REMOTE_USER
+ 
+-    # Synchronize a users groups when they login
+-    ## sync_groups_on_login=false
+-
+     # Ignore the case of usernames when searching for existing users.
+     # Only supported in remoteUserDjangoBackend.
+     ## ignore_username_case=true
+@@ -268,6 +265,9 @@
+     # For use when using LdapBackend for Hue authentication
+     ## create_users_on_login = true
+ 
++    # Synchronize a users groups when they login
++    ## sync_groups_on_login=false
++
+     # Ignore the case of usernames when searching for existing users in Hue.
+     ## ignore_username_case=false
+ 
+@@ -355,6 +355,16 @@
+         # Whether or not to follow referrals
+         ## follow_referrals=false
+ 
++        # Enable python-ldap debugging.
++        ## debug=false
++
++        # Sets the debug level within the underlying LDAP C lib.
++        ## debug_level=255
++
++        # Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,
++        # 2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.
++        ## trace_level=0
++
+         ## [[[[[users]]]]]
+ 
+           # Base filter for searching for users
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 6902c4f..6135d8f 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -358,6 +358,16 @@
+         # Whether or not to follow referrals
+         ## follow_referrals=false
+ 
++        # Enable python-ldap debugging.
++        ## debug=false
++
++        # Sets the debug level within the underlying LDAP C lib.
++        ## debug_level=255
++
++        # Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,
++        # 2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.
++        ## trace_level=0
++
+         ## [[[[[users]]]]]
+ 
+           # Base filter for searching for users
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 4214d9e..a6040c4 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -610,6 +610,20 @@ LDAP = ConfigSection(
+                                     type=coerce_bool,
+                                     default=False),
+ 
++          DEBUG = Config("debug",
++            type=coerce_bool,
++            default=False,
++            help=_("Set to a value to enable python-ldap debugging.")),
++          DEBUG_LEVEL = Config("debug_level",
++            default=255,
++            type=int,
++            help=_("Sets the debug level within the underlying LDAP C lib.")),
++          TRACE_LEVEL = Config("trace_level",
++            default=0,
++            type=int,
++            help=_("Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,"
++                   "2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.")),
++
+           USERS = ConfigSection(
+             key="users",
+             help=_("Configuration for LDAP user schema and search."),
+-- 
+1.7.9.5
+

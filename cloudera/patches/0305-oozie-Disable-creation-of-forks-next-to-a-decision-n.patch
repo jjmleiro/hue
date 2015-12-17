@@ -1,0 +1,35 @@
+From 8dfbaf7eef226add0e3e2ab50a27f7b415f86689 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sat, 22 Nov 2014 22:22:42 +0100
+Subject: [PATCH 0305/1173] [oozie] Disable creation of forks next to a
+ decision node
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 2b260be..3916ec9 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -282,7 +282,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+     <div class="row-fluid">
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+-        <div data-bind="visible: $root.isEditing() && enableOozieDropOnSide() && !($data.widgets().length > 0 && $data.widgets()[0].widgetType() == 'join-widget'), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div data-bind="visible: $root.isEditing() && enableOozieDropOnSide() && !($data.widgets().length > 0 && ['join-widget', 'decision-widget'].indexOf($data.widgets()[0].widgetType()) > -1), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div  data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+         <div data-bind="visible: columns().length == 0, css: {'row-fluid': true, 'row-container':true, 'is-editing': $root.isEditing},
+@@ -300,7 +300,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+       <div  data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}">
+-        <div data-bind="visible: $root.isEditing() && enableOozieDropOnSide() && !($data.widgets().length > 0 && $data.widgets()[0].widgetType() == 'join-widget'),, css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div data-bind="visible: $root.isEditing() && enableOozieDropOnSide() && !($data.widgets().length > 0 && ['join-widget', 'decision-widget'].indexOf($data.widgets()[0].widgetType()) > -1), css: {'drop-target drop-target-side': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addSideDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+     </div>
+   </div>
+-- 
+1.7.9.5
+

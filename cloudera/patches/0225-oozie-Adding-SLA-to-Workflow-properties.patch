@@ -1,0 +1,91 @@
+From b63bba35a94884dda710f052e2e35dce4b3dca29 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 3 Nov 2014 12:29:26 +0000
+Subject: [PATCH 0225/1173] [oozie] Adding SLA to Workflow properties
+
+---
+ apps/oozie/src/oozie/models2.py                    |   14 +++++++++++++-
+ .../oozie/templates/editor/workflow_editor.mako    |    9 ++++++++-
+ apps/oozie/src/oozie/views/editor2.py              |   12 +-----------
+ 3 files changed, 22 insertions(+), 13 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 90cca18..ea408e4 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -42,6 +42,17 @@ LOG = logging.getLogger(__name__)
+ class Workflow():
+   XML_FILE_NAME = 'workflow.xml'
+   PROPERTY_APP_PATH = 'oozie.wf.application.path'
++  SLA_DEFAULT = [
++      {'key': 'enabled', 'value': False},
++      {'key': 'nominal-time', 'value': ''},
++      {'key': 'should-start', 'value': ''},
++      {'key': 'should-end', 'value': ''},
++      {'key': 'max-duration', 'value': ''},
++      {'key': 'alert-events', 'value': ''},
++      {'key': 'alert-contact', 'value': ''},
++      {'key': 'notification-msg', 'value': ''},
++      {'key': 'upstream-apps', 'value': ''},
++  ]
+   HUE_ID = 'hue-id-w'
+   
+   def __init__(self, data=None, document=None, workflow=None):
+@@ -69,7 +80,8 @@ class Workflow():
+                     "schema_version": "uri:oozie:workflow:0.4",
+                     "sla_workflow_enabled": False,
+                     "credentials": [],
+-                    "properties": []
++                    "properties": [],
++                    "sla": Workflow.SLA_DEFAULT
+               },
+               "nodes":[
+                   {"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 60ad987..025ae48 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -533,9 +533,16 @@ ${ dashboard.layout_skeleton() }
+ 	  </button>
+ 
+       <br/>
+-      ${_("Job XML")}
++      ${ _("Job XML") }
+       <input data-bind="value: $root.workflow.properties.job_xml"/>
+ 
++      <br/>
++      <div class="control-group">
++        <label class="control-label">${ _('SLA Configuration') }</label>
++        <div class="controls" data-bind="with: $root.workflow.properties">
++          ${ utils.slaForm() }
++        </div>
++      </div>
+     </div>
+   </div>
+ </div>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 1908f44..9f00074 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -190,17 +190,7 @@ def add_node(request):
+       'prepares': [],
+       'job_xml': '',
+       'properties': [],
+-      'sla': [
+-          {'key': 'enabled', 'value': False},
+-          {'key': 'nominal-time', 'value': ''},
+-          {'key': 'should-start', 'value': ''},
+-          {'key': 'should-end', 'value': ''},
+-          {'key': 'max-duration', 'value': ''},
+-          {'key': 'alert-events', 'value': ''},
+-          {'key': 'alert-contact', 'value': ''},
+-          {'key': 'notification-msg', 'value': ''},
+-          {'key': 'upstream-apps', 'value': ''},
+-      ],
++      'sla': Workflow.SLA_DEFAULT,
+       'credentials': []
+   })
+ 
+-- 
+1.7.9.5
+

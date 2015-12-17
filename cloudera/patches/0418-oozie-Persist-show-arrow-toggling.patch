@@ -1,0 +1,106 @@
+From fe5617f80c83047bc426346b609fc59458cb1f71 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 8 Jan 2015 10:14:05 -0800
+Subject: [PATCH 0418/1173] [oozie] Persist show arrow toggling
+
+---
+ apps/oozie/src/oozie/models2.py                    |    5 +++-
+ .../oozie/templates/editor/workflow_editor.mako    |    8 +++----
+ apps/oozie/static/js/workflow-editor.ko.js         |   24 ++++++++------------
+ 3 files changed, 17 insertions(+), 20 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 294af9c..9a03001 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -119,7 +119,8 @@ class Workflow(Job):
+                   "sla_workflow_enabled": False,
+                   "credentials": [],
+                   "properties": [],
+-                  "sla": Workflow.SLA_DEFAULT
++                  "sla": Workflow.SLA_DEFAULT,
++                  "show_arrows": True,
+               },
+               "nodes":[
+                   {"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
+@@ -155,6 +156,8 @@ class Workflow(Job):
+       _data['workflow']['properties']['parameters'] = [
+           {'name': 'oozie.use.system.libpath', 'value': True},
+       ]
++    if 'show_arrows' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['show_arrows'] = True
+ 
+     return _data
+   
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index cc8cdd8..a8786ce 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1725,10 +1725,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         <i class="fa fa-plus"></i> ${ _('Add property') }
+       </a>
+ 
+-      <h4>${ _("Toggle arrows") }</h4>
+-      <a title="${ _('Toggle arrow showing') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleArrows, css: {'btn': true, 'btn-inverse': hasArrows}">
+-        <i class="fa fa-fw fa-long-arrow-down"></i>
+-      </a>
++      <h4>${ _("Show graph arrows") }</h4>      
++      <input type="checkbox" data-bind="checked: $root.workflow.properties.show_arrows" title="${ _('Toggle arrow showing') }" rel="tooltip" data-placement="bottom" />
+ 
+       <h4>${ _("Version") }</h4>
+       <select class="input-xlarge" data-bind="value: $root.workflow.properties.schema_version, options: $root.workflow.versions"></select>
+@@ -1970,7 +1968,7 @@ ${ dashboard.import_bindings() }
+ 
+   function renderChangeables() {
+     resizeDrops();
+-    if (viewModel.hasArrows()){
++    if (viewModel.workflow.properties.show_arrows()){
+       drawArrows();
+     }
+   }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 20698a0..e4a50e4 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -176,8 +176,17 @@ var Workflow = function (vm, workflow) {
+   self.properties = ko.mapping.fromJS(typeof workflow.properties != "undefined" && workflow.properties != null ? workflow.properties : {});
+   self.nodes = ko.observableArray([]);
+ 
++  self.versions = ko.mapping.fromJS(['uri:oozie:workflow:0.4', 'uri:oozie:workflow:0.4.5', 'uri:oozie:workflow:0.5']);
+   self.movedNode = null;
+-  self.versions = ko.mapping.fromJS(['uri:oozie:workflow:0.4', 'uri:oozie:workflow:0.4.5', 'uri:oozie:workflow:0.5']) 
++  self.properties.show_arrows.subscribe(function (newVal) {
++    if (newVal){
++      $(document).trigger("drawArrows");
++    }
++    else {
++      $(document).trigger("removeArrows");
++    }
++  });
++
+ 
+   self.nodeIds = ko.computed(function () {
+     var mapping = [];
+@@ -451,19 +460,6 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     self.isEditing(!self.isEditing());
+   };
+ 
+-  self.hasArrows = ko.observable(true);
+-  self.hasArrows.subscribe(function (newVal) {
+-    if (newVal){
+-      $(document).trigger("drawArrows");
+-    }
+-    else {
+-      $(document).trigger("removeArrows");
+-    }
+-  });
+-  self.toggleArrows = function () {
+-    self.hasArrows(! self.hasArrows());
+-  };
+-
+   self.newAction = ko.observable();
+ 
+   self.columns = ko.observableArray([]);
+-- 
+1.7.9.5
+

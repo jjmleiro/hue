@@ -1,0 +1,26 @@
+From df6e40ce2df1871f0bea47737b53804962db6ec0 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 22 Jan 2015 16:30:30 -0800
+Subject: [PATCH 0501/1173] [desktop] Python-2.6's logging.Handler is an
+ old-style class
+
+---
+ desktop/core/src/desktop/redaction/tests.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+index bf78bab..ad38e1a 100644
+--- a/desktop/core/src/desktop/redaction/tests.py
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -28,7 +28,7 @@ from nose.tools import assert_true, assert_equal, assert_not_equal
+ 
+ class MockLoggingHandler(logging.Handler):
+   def __init__(self, *args, **kwargs):
+-    super(MockLoggingHandler, self).__init__(*args, **kwargs)
++    logging.Handler.__init__(self, *args, **kwargs)
+ 
+     self.records = []
+ 
+-- 
+1.7.9.5
+

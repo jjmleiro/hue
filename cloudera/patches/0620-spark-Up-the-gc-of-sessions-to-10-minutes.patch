@@ -1,0 +1,25 @@
+From ed4781412aa14d0ae090a446e67e5d0624719432 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 17:32:48 -0800
+Subject: [PATCH 0620/1173] [spark] Up the gc of sessions to 10 minutes.
+
+---
+ .../sparker/server/sessions/SessionManager.java    |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+index 2ebca2a..a8b7c4e 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SessionManager.java
+@@ -93,7 +93,7 @@ public class SessionManager {
+ 
+         protected SessionManager manager;
+ 
+-        protected long period = 60000; // Time in milliseconds; TODO: make configurable
++        protected long period = 600000; // Time in milliseconds; TODO: make configurable
+ 
+         public SessionManagerGarbageCollector(SessionManager manager) {
+             super();
+-- 
+1.7.9.5
+

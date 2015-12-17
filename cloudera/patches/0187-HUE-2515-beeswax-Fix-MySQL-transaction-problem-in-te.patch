@@ -1,0 +1,38 @@
+From a4f996095d2f036d585d9e952f824ff3f2bbdd25 Mon Sep 17 00:00:00 2001
+From: Ivan Orlov <ivanorlo@amazon.com>
+Date: Wed, 29 Oct 2014 17:25:58 -0700
+Subject: [PATCH 0187/1173] HUE-2515 [beeswax] Fix MySQL transaction problem
+ in test_parallel_queries unit test
+
+There is a transaction inconsistency problem in test_parallel_queries
+when tests run with MySQL database. The patch fixes the issue by committing
+transactions, which ensures that QueryHistory is up to date.
+---
+ apps/beeswax/src/beeswax/tests.py |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index e862438..6db3c0a 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -37,6 +37,7 @@ from django.utils.encoding import smart_str
+ from django.utils.html import escape
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
++from django.db import transaction
+ 
+ from desktop.lib.django_test_util import make_logged_in_client, assert_equal_mod_whitespace
+ from desktop.lib.test_utils import grant_access, add_to_group
+@@ -617,6 +618,9 @@ for x in sys.stdin:
+     for t in threads:
+       t.join()
+ 
++    # Commit transactions to be sure that QueryHistory up to date
++    transaction.commit()
++
+     for i in range(PARALLEL_TASKS):
+       csv = get_csv(self.client, responses[i])
+       # We get 3 rows: Column header, and 2 rows of results in double quotes
+-- 
+1.7.9.5
+

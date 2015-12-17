@@ -1,0 +1,27 @@
+From 98eae315ee82ff00864147b878773ebee8931b59 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 4 Mar 2015 21:52:12 +0100
+Subject: [PATCH 0981/1173] [oozie] Fix workflow editor in non-viewer mode
+
+---
+ .../oozie/templates/editor2/common_workflow.mako   |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index cb1ccbb..e17919f 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -212,8 +212,8 @@
+       <a class="widget-icon"><i class="fa fa-stop"></i></a>
+       <!-- /ko -->
+ 
+-      <span data-bind="visible: ! $root.isViewer(), editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
+-      <a class="pointer" data-bind="visible: $root.isViewer(), click: function(){ location.href = actionURL(); }, text: name"></a>
++      <span data-bind="visible: typeof $root.isViewer == 'undefined' || ! $root.isViewer(), editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}, attr: {'title': id().slice(0, 4)}"></span>
++      <a class="pointer" data-bind="visible: typeof $root.isViewer != 'undefined' && $root.isViewer(), click: function(){ location.href = actionURL(); }, text: name"></a>
+ 
+       <!-- ko if: logsURL() != '' -->
+         <a class="pull-right pointer" data-bind="click: function(){ location.href = logsURL(); }" style="margin-top: 34px;font-size: 20px;margin-right: 7px;"><i class="fa fa-tasks"></i></a>
+-- 
+1.7.9.5
+

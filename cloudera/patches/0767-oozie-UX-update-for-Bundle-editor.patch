@@ -1,0 +1,97 @@
+From 48e1fe3b70c732991b1acf5a07bcca8683d6319b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 14:25:56 +0100
+Subject: [PATCH 0767/1173] [oozie] UX update for Bundle editor
+
+---
+ .../src/oozie/templates/editor2/bundle_editor.mako |   49 +++++++++++---------
+ apps/oozie/src/oozie/views/editor2.py              |    2 +-
+ 2 files changed, 29 insertions(+), 22 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index 42ddb08..d96ee16 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -84,7 +84,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+   <div class="row-fluid">
+     <div class="span12 bundle">
+ 
+-      <div class="card card-home">
++      <div class="card card-home" style="padding-bottom: 10px">
+         <h1 class="card-heading simple">${ _('Which schedules to bundle?') }</h1>
+ 
+         <div class="card-body">
+@@ -92,30 +92,37 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+           <a class="pointer" data-bind="click: function() { showChooseCoordinator(); }">
+             <i class="fa fa-plus"></i> ${ _('Add a coordinator') }
+           </a>
++        </div>
++      </div>
+ 
+           
+-          <ul data-bind="foreach: bundle.coordinators" class="unstyled">
+-            <li>
+-              <h3><a class="pointer" data-bind="click: function() { showChooseCoordinator(this); }, text: $root.getCoordinatorById(coordinator()).name"></a></h3>
+-
+-              <ul data-bind="foreach: properties" class="unstyled">
+-                <li>
+-                  <input data-bind="value: name"/>
+-                  <input data-bind="value: value"/>
+-                  <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
+-                    <i class="fa fa-minus"></i>
+-                  </a>
+-                </li>
+-              </ul>
+-
+-              <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }">
+-                <i class="fa fa-plus"></i> ${ _('Add a parameter') }
+-              </a>
+-            </li>          
+-          </ul>
++      <div data-bind="foreach: bundle.coordinators">
++        <div class="card card-home" style="margin-top: 20px; padding-bottom: 10px">
++          <h1 class="card-heading simple">
++          <a class="pointer" data-bind="click: function() { showChooseCoordinator(this); }, text: $root.getCoordinatorById(coordinator()).name"></a>
++          <a data-bind="attr: { href: '${ url('oozie:edit_coordinator') }?coordinator=' + $root.getCoordinatorById(coordinator()).id() }" target="_blank" title="${ _('Open') }"><i class="fa fa-external-link-square"></i></a>
++          <a class="pointer pull-right" data-bind="click: function() { $root.bundle.coordinators.remove(this); }"><i class="fa fa-times"></i></a>
++          </h1>
++
++          <div class="card-body">
++
++            <ul data-bind="foreach: properties" class="unstyled">
++              <li>
++                <input data-bind="value: name"/>
++                <input data-bind="value: value"/>
++                <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
++                  <i class="fa fa-minus"></i>
++                </a>
++              </li>
++            </ul>
++
++            <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }">
++              <i class="fa fa-plus"></i> ${ _('Add a parameter') }
++            </a>
++          </div>
+         </div>
+-        
+       </div>
++   
+ 
+     </div>
+   </div>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index b6cefe7..ca4a5a9 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -581,7 +581,7 @@ def edit_bundle(request):
+     bundle = Bundle()
+     bundle.set_workspace(request.user)
+ 
+-  coordinators = [dict([('uuid', d.content_object.uuid), ('name', d.content_object.name)])
++  coordinators = [dict([('id', d.content_object.id), ('uuid', d.content_object.uuid), ('name', d.content_object.name)])
+                       for d in Document.objects.get_docs(request.user, Document2, extra='coordinator2')]
+ 
+   return render('editor2/bundle_editor.mako', request, {
+-- 
+1.7.9.5
+

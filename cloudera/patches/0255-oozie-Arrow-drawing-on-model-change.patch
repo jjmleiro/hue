@@ -1,0 +1,100 @@
+From 7ce84d92945580aba3861fc8c921193e9ab82c0f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 23:06:47 +0100
+Subject: [PATCH 0255/1173] [oozie] Arrow drawing on model change
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   28 ++++++++++++++++++--
+ apps/oozie/static/js/workflow-editor.ko.js         |    9 ++++++-
+ 2 files changed, 34 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 8ce94d2..a894e34 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -755,6 +755,7 @@ ${ dashboard.import_bindings() }
+ 
+   function widgetDraggedAdditionalHandler(widget) {
+     viewModel.workflow.newNode(widget);
++    $("canvas").remove();
+     showAddActionDemiModal(widget);
+   }
+ 
+@@ -784,8 +785,8 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function linkWidgets(fromId, toId) {
+-    var _from = $("#wdg_" + fromId);
+-    var _to = $("#wdg_" + toId);
++    var _from = $("#wdg_" + (typeof fromId == "function"?fromId():fromId));
++    var _to = $("#wdg_" + (typeof toId == "function"?toId():toId));
+ 
+     var _fromCenter = {
+       x: _from.position().left + _from.outerWidth() / 2,
+@@ -822,6 +823,29 @@ ${ dashboard.import_bindings() }
+ 
+   }
+ 
++  function drawArrows(){
++    $("canvas").remove();
++    var _links = viewModel.workflow.linkMapping();
++    Object.keys(_links).forEach(function(id){
++      if (_links[id].length > 0){
++        _links[id].forEach(function(nextId){
++          linkWidgets(id, nextId);
++        });
++      }
++    });
++  }
++
++  var _linkMappingTimeout = -1;
++  $(document).on("drawArrows", function(){
++    window.clearTimeout(_linkMappingTimeout);
++    _linkMappingTimeout = window.setTimeout(drawArrows, 25);
++  });
++
++  $(document).on("editingToggled", function(){
++    $("canvas").remove();
++    window.setTimeout(drawArrows, 100);
++  });
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 1a9da30..fed1772 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -146,7 +146,7 @@ var Workflow = function (vm, workflow) {
+   self.nodes = ko.observableArray([]);
+   
+   self.linkMapping = ko.computed(function() {
+-	var mapping = {};
++	  var mapping = {};
+     $.each(self.nodes(), function(index, node) {
+       var links = []
+       $.each(node.children(), function(index, link) {
+@@ -160,6 +160,10 @@ var Workflow = function (vm, workflow) {
+     return mapping;
+   });
+ 
++  self.linkMapping.subscribe(function(newVal){
++    $(document).trigger("drawArrows");
++  });
++
+   self.loadNodes = function(workflow) {
+     var nodes = []
+     $.each(workflow.nodes, function(index, node) {
+@@ -341,6 +345,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.isNested = ko.observable(true);
+ 
+   self.isEditing = ko.observable(true);
++  self.isEditing.subscribe(function(newVal){
++    $(document).trigger("editingToggled");
++  });
+   self.toggleEditing = function () {
+     self.isEditing(! self.isEditing());
+   };
+-- 
+1.7.9.5
+

@@ -1,0 +1,94 @@
+From ae117ba21cf29affd03331f3805d0df9d9d175eb Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 26 Jan 2015 20:05:48 +0800
+Subject: [PATCH 0690/1173] [livy] Use Seq instead of List
+
+---
+ .../com/cloudera/hue/livy/ExecuteResponse.scala    |    2 +-
+ .../scala/com/cloudera/hue/livy/repl/Session.scala |    2 +-
+ .../com/cloudera/hue/livy/server/Statement.scala   |    2 +-
+ .../hue/livy/server/sessions/SparkWebSession.scala |    8 ++++----
+ .../hue/livy/server/sessions/session.scala         |    4 ++--
+ 5 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+index 923dc5a..6e1c16d 100644
+--- a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+@@ -1,6 +1,6 @@
+ package com.cloudera.hue.livy
+ 
+-case class ExecuteResponse(id: Int /*, state: State*/, input: List[String], output: List[String])
++case class ExecuteResponse(id: Int /*, state: State*/, input: Seq[String], output: Seq[String])
+ 
+ sealed trait State
+ case class Ready() extends State
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+index 7262b5d..d68e4ff 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+@@ -5,7 +5,7 @@ import com.cloudera.hue.livy.ExecuteResponse
+ import scala.concurrent.Future
+ 
+ trait Session {
+-  def statements: List[ExecuteResponse]
++  def statements: Seq[ExecuteResponse]
+ 
+   def statement(id: Int): Option[ExecuteResponse]
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+index f9a8008..ccea297 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+@@ -3,7 +3,7 @@ package com.cloudera.hue.livy.server
+ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ import scala.util.{Failure, Success}
+ 
+-class Statement(val id: Int, val input: String, val output: Future[List[String]]) {
++class Statement(val id: Int, val input: String, val output: Future[Seq[String]]) {
+   sealed trait State
+   case class Running() extends State
+   case class Available() extends State
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
+index 493a866..2dade02 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/SparkWebSession.scala
+@@ -60,15 +60,15 @@ abstract class SparkWebSession(val id: String, hostname: String, port: Int) exte
+     }
+   }
+ 
+-  override def statements(): List[Statement] = {
++  override def statements(): Seq[Statement] = {
+     ensureRunning {
+-      statements_.toList
++      statements_.toSeq
+     }
+   }
+ 
+-  override def statements(fromIndex: Integer, toIndex: Integer): List[Statement] = {
++  override def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement] = {
+     ensureRunning {
+-      statements_.slice(fromIndex, toIndex).toList
++      statements_.slice(fromIndex, toIndex).toSeq
+     }
+   }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+index d7d234a..0ebe11b 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+@@ -16,9 +16,9 @@ trait Session {
+ 
+   def statement(statementId: Int): Option[Statement]
+ 
+-  def statements(): List[Statement]
++  def statements(): Seq[Statement]
+ 
+-  def statements(fromIndex: Integer, toIndex: Integer): List[Statement]
++  def statements(fromIndex: Integer, toIndex: Integer): Seq[Statement]
+ 
+   def interrupt(): Future[Unit]
+ 
+-- 
+1.7.9.5
+

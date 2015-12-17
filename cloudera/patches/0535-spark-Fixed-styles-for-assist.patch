@@ -1,0 +1,75 @@
+From 2f07c2f15a8b3c34dadba8ee7357a7e12020886e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 2 Dec 2014 21:50:55 +0100
+Subject: [PATCH 0535/1173] [spark] Fixed styles for assist
+
+---
+ apps/spark/src/spark/templates/editor.mako |   18 ++++++++++++------
+ apps/spark/static/css/spark.css            |    4 ++++
+ 2 files changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 27c4fc2..746e852 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -94,7 +94,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <select data-bind="options: $root.assistContent().mainObjects, chosen: {}" class="input-medium" data-placeholder="${_('Choose a database...')}"></select>
+           <input type="text" placeholder="${ _('Table name...') }" style="width:90%; margin-top: 20px"/>
+           <div data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length == 0">${_('The selected database has no tables.')}</div>
+-          <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: Object.keys($root.assistContent().firstLevelObjects())" class="unstyled">
++          <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: Object.keys($root.assistContent().firstLevelObjects())" class="unstyled assist-main">
+             <li>
+               <a href="javascript:void(0)" class="pull-right" style="padding-right:5px"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
+               <a href="javascript:void(0)" data-bind="click: loadAssistSecondLevel"><i class="fa fa-table"></i> <span data-bind="text: $data"></span></a>
+@@ -189,7 +189,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <div data-bind="foreach: variables">
+             <div>
+               <span data-bind="text: name"></span>
+-              <input data-bind="value: value"></input>
++              <input type="text" data-bind="value: value" />
+             </div>
+           </div>
+           <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+@@ -625,6 +625,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       assist.getData(viewModel.assistContent().selectedMainObject() + "/" + first);
+     }
+     viewModel.assistContent().firstLevelObjects()[first].open(! viewModel.assistContent().firstLevelObjects()[first].open());
++    window.setTimeout(resizeAssist, 100);
+   }
+ 
+   function loadAssistFirstLevel() {
+@@ -687,10 +688,15 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     return escapeString(level.name + " (" + level.type + ")");
+   }
+ 
+-$(document).ready(function(){
+-  $(".assist").width($(".assist").parents(".span2").width());
+-  $(".assist").parents(".span2").height($(".assist").height() + 100);
+-});
++  function resizeAssist() {
++    $(".assist").width($(".assist").parents(".span2").width());
++    $(".assist").parents(".span2").height($(".assist").height() + 100);
++    $(".assist-main").height($(window).height() - 230);
++  }
++
++  $(document).ready(function(){
++    resizeAssist();
++  });
+ 
+ </script>
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 02613c6..9245778 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -114,3 +114,7 @@
+   padding: 4px;
+   position: fixed;
+ }
++
++.assist-main {
++  overflow-y: scroll;
++}
+-- 
+1.7.9.5
+

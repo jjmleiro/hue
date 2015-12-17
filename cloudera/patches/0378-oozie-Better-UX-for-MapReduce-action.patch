@@ -1,0 +1,393 @@
+From 2d9eaf89fbd8fa1b7c8edd16dc2963391fe2a7ba Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 30 Dec 2014 14:58:54 -0800
+Subject: [PATCH 0378/1173] [oozie] Better UX for MapReduce action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   68 ++++++++++----------
+ .../oozie/templates/editor/workflow_editor.mako    |   46 +++++++++----
+ 2 files changed, 69 insertions(+), 45 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index a40348b..c9782a8 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -352,28 +352,28 @@ class PigAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -441,28 +441,28 @@ class JavaAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -503,28 +503,28 @@ class HiveAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -580,28 +580,28 @@ class HiveServer2Action(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -674,28 +674,28 @@ class SqoopAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -729,28 +729,28 @@ class MapReduceAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -810,28 +810,28 @@ class ShellAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.'),
++          'help_text': _('Files put in the running directory.'),
+           'type': ''
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.'),
++          'help_text': _('Archives uncompressed into the running directory.'),
+           'type': ''
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).'),
++          'help_text': _('value, e.g. production'),
+           'type': ''
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.'),
++          'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+      'job_xml': { 
+@@ -1007,25 +1007,25 @@ class StreamingAction(Action):
+           'name': 'files',
+           'label': _('Files'),
+           'value': [],
+-          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++          'help_text': _('Files put in the running directory.')
+      },
+      'archives': { 
+           'name': 'archives',
+           'label': _('Archives'),
+           'value': [],
+-          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++          'help_text': _('Archives uncompressed into the running directory.')
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++          'help_text': _('value, e.g. production')
+      },
+      'prepares': { 
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.')
++          'help_text': _('Path to manipulate before starting the application.')
+      },
+      'job_xml': { 
+           'name': 'job_xml',
+@@ -1057,13 +1057,13 @@ class DistCpAction(Action):
+           'name': 'prepares',
+           'label': _('Prepares'),
+           'value': [],
+-          'help_text': _('Paths to manipulate before starting the application.')
++          'help_text': _('Path to manipulate before starting the application.')
+      },
+      'job_properties': { 
+           'name': 'job_properties',
+           'label': _('Hadoop job properties'),
+           'value': [],
+-          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++          'help_text': _('value, e.g. production')
+      },
+      'java_opts': { 
+           'name': 'java_opts',
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index abafab3..126d740 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -498,7 +498,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <ul data-bind="visible: properties.prepares().length > 0, foreach: properties.prepares" class="unstyled">
+       <li>
+         <div style="display: inline-block; width: 60px" data-bind="text: type"></div>
+-        <input type="text" class="input-xlarge" data-bind="value: value, attr: { placeholder: $root.workflow_properties.prepares.help_text }"/>
++        <input type="text" class="filechooser-input input-xlarge"
++            data-bind="filechooser: value, value: value, attr: { placeholder: $root.workflow_properties.prepares.help_text }"/>
+         <a href="#" data-bind="click: function(){ $parent.properties.prepares.remove(this); $(document).trigger('drawArrows') }">
+           <i class="fa fa-minus"></i>
+         </a>
+@@ -515,14 +516,14 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: properties.job_xml, attr: { placeholder: $root.workflow_properties.job_xml.help_text }"/>
+ 
+     <h6>
+-      <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''});$(document).trigger('drawArrows') }">
++      <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
+         ${ _('Properties') } <i class="fa fa-plus"></i>
+       </a>
+     </h6>
+     <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
+       <li>
+-        <input data-bind="value: name"/>
+-        <input data-bind="value: value"/>
++        <input data-bind="value: name" placeholder="${ _('name, e.g. mapred.job.queue.name') }"/>
++        <input class="filechooser-input input-xlarge" data-bind="filechooser: value, value: value, attr: { placeholder: $root.workflow_properties.job_properties.help_text }"/>
+         <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); $(document).trigger('drawArrows') }">
+           <i class="fa fa-minus"></i>
+         </a>
+@@ -537,8 +538,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     </h6>
+     <ul data-bind="visible: properties.archives().length > 0, foreach: properties.archives" class="unstyled">
+       <li>
+-        <input data-bind="value: name"/>
+-        <a href="#" data-bind="click: function(){ $parent.properties.archives.remove(this);$(document).trigger('drawArrows') }">
++        <input class="filechooser-input input-xlarge" data-bind="filechooser: name, value: name, attr: { placeholder: $root.workflow_properties.archives.help_text }"/>
++        <a href="#" data-bind="click: function(){ $parent.properties.archives.remove(this); $(document).trigger('drawArrows') }">
+           <i class="fa fa-minus"></i>
+         </a>
+       </li>
+@@ -871,7 +872,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           </h6>
+           <ul class="unstyled" data-bind="foreach: properties.java_opts">
+             <li>
+-              <input data-bind="value: value, attr: { placeholder: $root.workflow_properties.java_opts.help_text }"/>
++              <input data-bind="value: value, attr: { placeholder: $root.workflow_properties.java_opts.help_text }" class="input-xlarge"/>
+               <a href="#" data-bind="click: function(){ $parent.properties.java_opts.remove(this); }">
+                 <i class="fa fa-minus"></i>
+               </a>
+@@ -917,6 +918,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         </div>
+       </div>
+     </div>
++    
++    <div data-bind="visible: ! $root.isEditing()">
++      <a href="javascript:void(0)">
++        <span type="text" data-bind="text: properties.command().slice(0, 70), attr: { title: properties.command() }" />...
++      </a>
++    </div>
+ 
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+@@ -954,12 +961,29 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()">
+         <span data-bind="text: $root.workflow_properties.jar_path.label"></span>
+-        <input type="text" data-bind="value: properties.jar_path" />
+-        <div class="row-fluid">
+-          <div class="span6" data-bind="template: { name: 'common-properties-parameters' }"></div>
+-        </div>
++        <input type="text" class="filechooser-input input-xlarge" data-bind="filechooser: properties.jar_path, value: properties.jar_path" />
++        <span data-bind='template: { name: "common-fs-link", data: {path: properties.jar_path(), with_label: false}}'></span>
++
++        <h6>
++          <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
++            ${ _('Properties') } <i class="fa fa-plus"></i>
++          </a>
++        </h6>
++        <ul data-bind="visible: properties.job_properties().length > 0, foreach: properties.job_properties" class="unstyled">
++          <li>
++            <input data-bind="value: name" placeholder="${ _('name, e.g. mapred.job.queue.name') }"/>
++            <input class="filechooser-input input-xlarge" data-bind="filechooser: value, value: value, attr: { placeholder: $root.workflow_properties.job_properties.help_text }"/>
++            <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); $(document).trigger('drawArrows') }">
++              <i class="fa fa-minus"></i>
++            </a>
++          </li>
++        </ul> 
+       </div>
+     </div>
++    
++    <div data-bind="visible: ! $root.isEditing()">
++      <span data-bind='template: { name: "common-fs-link", data: {path: properties.jar_path(), with_label: true} }'></span>
++    </div>    
+ 
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+-- 
+1.7.9.5
+

@@ -339,7 +339,7 @@ class Workflow(Job):
   objects = WorkflowManager()
 
   HUE_ID = 'hue-id-w'
-  ICON = '/oozie/static/art/icon_oozie_workflow_48.png'
+  ICON = 'oozie/art/icon_oozie_workflow_48.png'
   METADATA_FORMAT_VERSION = "0.0.1"
 
   def get_type(self):
@@ -480,7 +480,7 @@ class Workflow(Job):
     return 'workflow.xml'
 
   def get_absolute_url(self):
-    if self.doc.get().extra == 'jobsub':
+    if self.doc.only('extra').get().extra == 'jobsub':
       return '/jobsub/#edit-design/%s' % self.id
     else:
       return reverse('oozie:edit_workflow', kwargs={'workflow': self.id}) + '#editWorkflow'
@@ -1415,7 +1415,7 @@ class Coordinator(Job):
                                     help_text=_t('Additional properties to transmit to the workflow, e.g. limit=100, and EL functions, e.g. username=${coord:user()}'))
 
   HUE_ID = 'hue-id-c'
-  ICON = '/oozie/static/art/icon_oozie_coordinator_48.png'
+  ICON = 'oozie/art/icon_oozie_coordinator_48.png'
   METADATA_FORMAT_VERSION = "0.0.1"
   CRON_MAPPING = {
     '0,15,30,45 * * * *': _('Every 15 minutes'),
@@ -1762,7 +1762,7 @@ class Bundle(Job):
   coordinators = models.ManyToManyField(Coordinator, through='BundledCoordinator')
 
   HUE_ID = 'hue-id-b'
-  ICON = '/oozie/static/art/icon_oozie_bundle_48.png'
+  ICON = 'oozie/art/icon_oozie_bundle_48.png'
   METADATA_FORMAT_VERSION = '0.0.1'
 
   def get_type(self):
@@ -1942,6 +1942,10 @@ def get_link(oozie_id):
     link = reverse('oozie:list_oozie_workflow', kwargs={'job_id': oozie_id})
   elif oozie_id.endswith('C'):
     link = reverse('oozie:list_oozie_coordinator', kwargs={'job_id': oozie_id})
+  elif 'C@' in oozie_id:
+    link = reverse('oozie:list_oozie_coordinator', kwargs={'job_id': oozie_id.split('@')[0]})
+  elif 'B@' in oozie_id:
+    link = reverse('oozie:list_oozie_bundle', kwargs={'job_id': oozie_id.split('@')[0]})
 
   return link
 
@@ -2009,8 +2013,6 @@ _STD_PROPERTIES = [
   'mapred.reduce.tasks.speculative.execution',
   'mapred.queue.default.acl-administer-jobs',
 ]
-
-_STD_PROPERTIES_JSON = json.dumps(_STD_PROPERTIES)
 
 ACTION_TYPES = {
   Mapreduce.node_type: Mapreduce,

@@ -1,0 +1,25 @@
+From 5e18565014c1be6692528565b17816ee98b05921 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 9 Dec 2014 21:06:51 -0800
+Subject: [PATCH 0465/1173] [beeswax] Replace tabs with spaces
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index 9a2df24..02eb0dc 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -353,7 +353,7 @@ class HiveServerClient:
+                                           use_sasl=use_sasl,
+                                           mechanism=mechanism,
+                                           username=username,
+-					                                password=password,
++                                          password=password,
+                                           timeout_seconds=timeout,
+                                           use_ssl=ssl_enabled,
+                                           ca_certs=ca_certs,
+-- 
+1.7.9.5
+

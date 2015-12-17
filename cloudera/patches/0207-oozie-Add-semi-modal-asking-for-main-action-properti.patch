@@ -1,0 +1,141 @@
+From 2d4f42114ac3283590b94576ed931d1da4beaedd Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 21 Oct 2014 12:06:43 -0700
+Subject: [PATCH 0207/1173] [oozie] Add semi modal asking for main action
+ properties
+
+Here for Pig script we ask for script name
+---
+ apps/oozie/src/oozie/models2.py                    |    4 +-
+ .../oozie/templates/editor/workflow_editor.mako    |   40 +++++++++++++++++++-
+ apps/oozie/static/js/workflow-editor.ko.js         |    5 +++
+ 3 files changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index aff24b1..36f9b05 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -140,8 +140,8 @@ class Node():
+     if 'archives' not in self.data['properties']:
+       self.data['properties']['archives'] = []
+ 
+-    if 'script_path' not in self.data['properties']:
+-      self.data['properties']['script_path'] = 'test.pig'      
++#    if 'script_path' not in self.data['properties']:
++#      self.data['properties']['script_path'] = 'test.pig'      
+ 
+     if 'sla_enabled' not in self.data['properties']:
+       self.data['properties']['sla_enabled'] = False
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 06367fc..cf90028 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -81,6 +81,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       <a class="btn" href="${ url('oozie:new_workflow') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+         <i class="fa fa-file-o"></i>
+       </a>
++      <a class="btn" href="${ url('oozie:list_editor_workflows') }" title="${ _('Workflows') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-tags"></i>
++      </a>
+     % endif
+   </div>
+ </div>
+@@ -177,6 +180,7 @@ ${ dashboard.layout_skeleton() }
+       <div class="tab-content">
+         <div class="tab-pane active" id="action">
+           <img src="/oozie/static/art/icon_pig_48.png" class="app-icon">
++          <input type="text" data-bind="value: properties.script_path" />
+         </div>
+         <div class="tab-pane" id="files">
+         </div>
+@@ -195,6 +199,21 @@ ${ dashboard.layout_skeleton() }
+ </script>
+ 
+ 
++<div id="addActionDemiModal" class="demi-modal hide" data-backdrop="false">
++  <div class="modal-body">
++    <a href="javascript: void(0)" data-dismiss="modal" data-bind="click: addActionDemiModalFieldCancel" class="pull-right"><i class="fa fa-times"></i></a>
++    
++    <input type="text" data-bind="value: $root.addActionScriptPath"/>
++    
++    <a data-bind="click: addActionDemiModalFieldPreview">
++      Add
++    </a>
++    
++    <div>
++  </div>
++</div>
++
++
+ <link rel="stylesheet" href="/oozie/static/css/workflow-editor.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
+ <link rel="stylesheet" href="/static/ext/css/hue-charts.css">
+@@ -224,8 +243,27 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function widgetDraggedAdditionalHandler(widget) {
+-    viewModel.workflow.addNode(widget);
++    showAddActionDemiModal(widget);
++  }
++  
++  var newAction = null;
++
++  function showAddActionDemiModal(widget) {
++    newAction = widget;
++    $("#addActionDemiModal").modal("show");
++  }
++  
++  function addActionDemiModalFieldPreview(field) {    
++    if (newAction != null) {
++      newAction.properties()['script_path'] = viewModel.addActionScriptPath();
++      viewModel.workflow.addNode(newAction);
++      $("#addActionDemiModal").modal("hide");
++    }
+   }
++    
++  function addActionDemiModalFieldCancel() {
++    //viewModel.removeWidget(selectedWidget); todo remove node
++  }  
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index efe5fe7..3222bc8 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -47,6 +47,7 @@ function loadLayout(viewModel, json_layout) {
+   viewModel.columns(_columns);
+ }
+ 
++
+ // End dashboard lib
+ 
+ var Node = function (node) {
+@@ -90,6 +91,7 @@ var Workflow = function (vm, workflow) {
+       var node = new Node(ko.mapping.toJS(widget));
+       node.children().push({'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'})
+       self.nodes.push(node);
++
+       self.nodes()[0].children.removeAll();
+       self.nodes()[0].children().push({'to': node.id()});
+     //}
+@@ -126,6 +128,8 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+     self.workflow.loadNodes(workflow_json);
+   }
+ 
++  self.addActionScriptPath = ko.observable("");
++  
+   self.getWidgetById = function (widget_id) {
+     var _widget = null;
+     $.each(self.columns(), function (i, col) {
+@@ -133,6 +137,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json) {
+         $.each(row.widgets(), function (z, widget) {
+           if (widget.id() == widget_id){
+             _widget = widget;
++            return false;
+           }
+         });
+       });
+-- 
+1.7.9.5
+

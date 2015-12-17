@@ -1,0 +1,149 @@
+From d9742546515d6eeae759f8d6ecfedaf4027834c0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 3 Mar 2015 14:33:15 -0800
+Subject: [PATCH 0979/1173] [oozie] Dashboard support for Bundle version 2
+
+---
+ apps/oozie/src/oozie/models2.py                    |   33 ++++++++++++++++++--
+ .../templates/dashboard/list_oozie_bundle.mako     |   30 ++++++++++++------
+ apps/oozie/src/oozie/views/dashboard.py            |    5 ++-
+ 3 files changed, 56 insertions(+), 12 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index fd45e92..aa68a79 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1881,7 +1881,7 @@ class Bundle(Job):
+     if mapping is None:
+       mapping = {}
+ 
+-    mapping.update(dict(list(Document2.objects.filter(type='oozie-coordinator2', uuid__in=self.data['coordinators']).values('uuid', 'name'))))
++    mapping.update(dict(list(self.get_coordinator_docs().values('uuid', 'name'))))
+     tmpl = "editor2/gen/bundle.xml.mako"
+     return force_unicode(
+               re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {
+@@ -1889,6 +1889,13 @@ class Bundle(Job):
+                 'mapping': mapping
+            })))
+ 
++  def get_coordinator_docs(self):
++    coordinator_ids = [coordinator['coordinator'] for coordinator in self.data['coordinators']]
++    return Document2.objects.filter(type='oozie-coordinator2', uuid__in=coordinator_ids)
++
++  def get_coordinator_objects(self):
++    return [Coordinator(document=doc) for doc in self.get_coordinator_docs()]
++
+   @property
+   def name(self):
+     return self.data['name']
+@@ -1909,7 +1916,21 @@ class Bundle(Job):
+     return self.data['properties']['deployment_dir']
+ 
+   def find_parameters(self):
+-    return {}
++    params = set()
++
++    for param in find_dollar_braced_variables(self.name):
++      params.add(param)
++
++    for coord in self.get_coordinator_objects():
++      params.update(coord.find_parameters())
++
++    for param in find_json_parameters([self.data['properties']]):
++      params.add(param)
++
++    return dict([(param, '') for param in list(params)])
++
++  def get_absolute_url(self):
++    return reverse('oozie:edit_bundle') + '?bundle=%s' % self.id
+ 
+   @classmethod
+   def get_application_path_key(cls):
+@@ -1933,3 +1954,11 @@ class History(object):
+       return Coordinator(document=doc)
+     except Document2.DoesNotExist:
+       pass
++
++  @classmethod
++  def get_bundle_from_config(self, conf_dict):
++    try:
++      doc = Document2.objects.get(type='oozie-bundle2', id=conf_dict.get(Bundle.HUE_ID))
++      return Bundle(document=doc)
++    except Document2.DoesNotExist:
++      pass
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
+index c409345..b1ea007 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_bundle.mako
+@@ -18,6 +18,8 @@
+ <%!
+   from desktop.views import commonheader, commonfooter
+   from django.utils.translation import ugettext as _
++
++  from oozie.conf import ENABLE_V2
+ %>
+ 
+ <%namespace name="layout" file="../navigation-bar.mako" />
+@@ -64,16 +66,26 @@ ${ layout.menubar(section='bundles', dashboard=True) }
+ 
+         % if bundle:
+             <li class="nav-header">${ _('Coordinators') }</li>
+-          % for bundled in bundle.coordinators.distinct():
+-            <li rel="tooltip" title="${ bundled.coordinator.name }" class="white">
+-              <a href="${ bundled.coordinator.get_absolute_url() }">
+-                <i class="fa fa-eye"></i> <span class="dataset">${ bundled.coordinator.name }</span>
+-              </a>
+-            </li>
+-          % endfor
++          % if not ENABLE_V2.get():
++            % for bundled in bundle.coordinators.distinct():
++              <li rel="tooltip" title="${ bundled.coordinator.name }" class="white">
++                <a href="${ bundled.coordinator.get_absolute_url() }">
++                  <i class="fa fa-eye"></i> <span class="dataset">${ bundled.coordinator.name }</span>
++                </a>
++              </li>
++            % endfor
++          % else:
++             % for coord in bundle.get_coordinator_objects():
++              <li rel="tooltip" title="${ coord.name }" class="white">
++                <a href="${ coord.get_absolute_url() }">
++                  <i class="fa fa-eye"></i> <span class="dataset">${ coord.name }</span>
++                </a>
++              </li>
++            % endfor
++          % endif
+         % endif
+ 
+-        % if has_job_edition_permission(oozie_bundle, user):
++        % if has_job_edition_permission(oozie_bundle, user) and oozie_bundle.status not in ('KILLED', 'FAILED'):
+           <li class="nav-header">${ _('Manage') }</li>
+           <li class="white">
+             <button title="${_('Kill %(bundle)s') % dict(bundle=oozie_bundle.id)}"
+@@ -91,7 +103,7 @@ ${ layout.menubar(section='bundles', dashboard=True) }
+                 ${_('Kill')}
+             </button>
+             <button class="btn btn-small
+-               % if oozie_bundle.is_running() or oozie_bundle.status in ('KILLED', 'FAILED'):
++               % if oozie_bundle.status in ('KILLED', 'FAILED'):
+                  hide
+                % endif
+             "
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index eadcdb6..2e372da 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -403,7 +403,10 @@ def list_oozie_bundle(request, job_id):
+   # Cross reference the submission history (if any)
+   bundle = None
+   try:
+-    bundle = get_history().objects.get(oozie_job_id=job_id).job.get_full_node()
++    if ENABLE_V2.get():
++      bundle = get_history().get_bundle_from_config(oozie_bundle.conf_dict)
++    else:
++      bundle = get_history().objects.get(oozie_job_id=job_id).job.get_full_node()
+   except:
+     pass
+ 
+-- 
+1.7.9.5
+

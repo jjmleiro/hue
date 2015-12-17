@@ -1,0 +1,35 @@
+From 6b1d8012817b749bcccb56b230e501a23d9384ea Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Feb 2015 16:42:56 -0800
+Subject: [PATCH 0827/1173] [hive] Perform fetch metadata call only when
+ start_over is true
+
+This cuts all the extra calls in the infinite scroll or download.
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index d405dc0..587c788 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -680,14 +680,14 @@ class HiveServerClient:
+     return res, schema
+ 
+ 
+-  def fetch_result(self, operation_handle, orientation=TFetchOrientation.FETCH_NEXT, max_rows=1000):
++  def fetch_result(self, operation_handle, orientation=TFetchOrientation.FETCH_FIRST, max_rows=1000):
+     if operation_handle.hasResultSet:
+       fetch_req = TFetchResultsReq(operationHandle=operation_handle, orientation=orientation, maxRows=max_rows)
+       res = self.call(self._client.FetchResults, fetch_req)
+     else:
+       res = TFetchResultsResp(results=TRowSet(startRowOffset=0, rows=[], columns=[]))
+ 
+-    if operation_handle.hasResultSet:
++    if operation_handle.hasResultSet and TFetchOrientation.FETCH_FIRST: # Only fetch for the first call that should be with start_over
+       meta_req = TGetResultSetMetadataReq(operationHandle=operation_handle)
+       schema = self.call(self._client.GetResultSetMetadata, meta_req)
+     else:
+-- 
+1.7.9.5
+

@@ -1,0 +1,25 @@
+From 50ac057e75ecac9dad1c695ee47de4b261f6c3fa Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 7 Jan 2015 12:43:23 +0100
+Subject: [PATCH 0403/1173] [oozie] Added scroll up plugin
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 7297ce5..18c4125 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -2048,6 +2048,8 @@ ${ dashboard.import_bindings() }
+       }
+     });
+ 
++    $.jHueScrollUp();
++
+   });
+ 
+ </script>
+-- 
+1.7.9.5
+

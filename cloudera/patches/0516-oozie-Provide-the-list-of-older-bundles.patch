@@ -1,0 +1,132 @@
+From b9fb45c388c11c02f7305982803602699e273b1b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Feb 2015 10:22:07 -0800
+Subject: [PATCH 0516/1173] [oozie] Provide the list of older bundles
+
+---
+ .../templates/editor/list_editor_bundles.mako      |    7 ++++++-
+ apps/oozie/src/oozie/templates/navigation-bar.mako |    5 ++++-
+ apps/oozie/src/oozie/urls.py                       |    7 ++++---
+ apps/oozie/src/oozie/views/editor2.py              |   17 ++++++++++++++---
+ 4 files changed, 28 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+index 24d3bc1..a9615aa 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+@@ -80,7 +80,12 @@ ${ layout.menubar(section='bundles', is_editor=True) }
+       <tr>
+         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
+           <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>
+-          <a data-bind="attr: { 'href': '${ url('oozie:edit_bundle') }?bundle=' + id() }" data-row-selector="true"></a>
++          <!-- ko if: ! uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:open_old_bundle') }?bundle=' + id() }" data-row-selector="true"></a>
++          <!-- /ko -->
++          <!-- ko if: uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:edit_bundle') }?bundle=' + id() }" data-row-selector="true"></a>
++          <!-- /ko -->                     
+         </td>
+         <td data-bind="text: name"></td>
+         <td data-bind="text: description"></td>
+diff --git a/apps/oozie/src/oozie/templates/navigation-bar.mako b/apps/oozie/src/oozie/templates/navigation-bar.mako
+index 8fd8991..5e5c04a 100644
+--- a/apps/oozie/src/oozie/templates/navigation-bar.mako
++++ b/apps/oozie/src/oozie/templates/navigation-bar.mako
+@@ -56,7 +56,10 @@
+ 
+                   % if ENABLE_V2.get():
+                     <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px; margin-top:4px">
+-                      ${ _('This is the old editor, please migrate your jobs to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows') if utils.is_selected(section, 'workflows') else url('oozie:list_editor_coordinators') if utils.is_selected(section, 'coordinators') else url('oozie:list_editor_bundles')}">${ _('new editor.') }</a>
++                      ${ _('This is the old editor, please migrate your jobs to the ') }
++                      <a style="display:inline" href="${url('oozie:new_workflow') if utils.is_selected(section, 'workflows') else url('oozie:new_coordinator') if utils.is_selected(section, 'coordinators') else url('oozie:new_bundle')}">
++                        ${ _('new editor.') }
++                      </a>
+                     </li>
+                   % endif
+                 % endif
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 97de6e5..c102b32 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -82,7 +82,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/parameters/$', 'workflow_parameters', name='workflow_parameters'),
+   url(r'^editor/workflow/action/parameters/$', 'action_parameters', name='action_parameters'),
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'),
+-  url(r'^editor/workflow/open_old_workflow/$', 'open_old_workflow', name='open_old_workflow'),
++  url(r'^editor/workflow/open_v1/$', 'open_old_workflow', name='open_old_workflow'),
+   
+   url(r'^editor/coordinator/list/$', 'list_editor_coordinators', name='list_editor_coordinators'),
+   url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
+@@ -92,7 +92,7 @@ urlpatterns += patterns(
+   url(r'^editor/coordinator/save/$', 'save_coordinator', name='save_coordinator'),
+   url(r'^editor/coordinator/submit/(?P<doc_id>\d+)$', 'submit_coordinator', name='editor_submit_coordinator'),
+   url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'),
+-  url(r'^editor/coordinator/open_old_coordinator/$', 'open_old_coordinator', name='open_old_coordinator'),
++  url(r'^editor/coordinator/open_v1/$', 'open_old_coordinator', name='open_old_coordinator'),
+   
+   url(r'^editor/bundle/list/$', 'list_editor_bundles', name='list_editor_bundles'),
+   url(r'^editor/bundle/edit/$', 'edit_bundle', name='edit_bundle'),
+@@ -100,7 +100,8 @@ urlpatterns += patterns(
+   url(r'^editor/bundle/delete/$', 'delete_job', name='delete_editor_bundle'),
+   url(r'^editor/bundle/copy/$', 'copy_bundle', name='copy_bundle'),
+   url(r'^editor/bundle/save/$', 'save_bundle', name='save_bundle'),
+-  url(r'^editor/bundle/submit/(?P<doc_id>\d+)$', 'submit_bundle', name='editor_submit_bundle')
++  url(r'^editor/bundle/submit/(?P<doc_id>\d+)$', 'submit_bundle', name='editor_submit_bundle'),
++  url(r'^editor/bundle/open_v1/$', 'open_old_bundle', name='open_old_bundle'),
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 609234f..cd42572 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -38,10 +38,10 @@ from liboozie.submission2 import Submission
+ 
+ from oozie.decorators import check_document_access_permission, check_document_modify_permission
+ from oozie.forms import ParameterForm
+-from oozie.models import Workflow as OlfWorklow, Coordinator as OldCoordinator, Job
++from oozie.models import Workflow as OlfWorklow, Coordinator as OldCoordinator, Bundle as OldBundle, Job
+ from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflow_from_hue_3_7,\
+     find_dollar_variables, find_dollar_braced_variables
+-from oozie.views.editor import edit_workflow as old_edit_workflow, edit_coordinator as old_edit_coordinator
++from oozie.views.editor import edit_workflow as old_edit_workflow, edit_coordinator as old_edit_coordinator, edit_bundle as old_edit_bundle
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -132,7 +132,7 @@ def delete_job(request):
+       
+       doc.delete()
+       doc2.delete()
+-    else: # Old workflow version
++    else: # Old version
+       job = Job.objects.can_read_or_exception(request, job['object_id'])
+       Job.objects.can_edit_or_exception(request, job)
+       OlfWorklow.objects.destroy(job, request.fs)      
+@@ -556,6 +556,10 @@ def _submit_coordinator(request, coordinator, mapping):
+ def list_editor_bundles(request):
+   bundles = [d.content_object.to_dict() for d in Document.objects.get_docs(request.user, Document2, extra='bundle2')]
+ 
++  bundles_v1 = [job.doc.get().to_dict() for job in Document.objects.available(OldBundle, request.user)]
++  if bundles_v1:
++    bundles.extend(bundles_v1)
++
+   return render('editor/list_editor_bundles.mako', request, {
+       'bundles_json': json.dumps(bundles, cls=JSONEncoderForHTML)
+   })
+@@ -588,6 +592,13 @@ def new_bundle(request):
+   return edit_bundle(request)
+ 
+ 
++def open_old_bundle(request):
++  doc_id = request.GET.get('bundle')
++  bundle_id = Document.objects.get(id=doc_id).object_id
++  
++  return old_edit_bundle(request, bundle=bundle_id)
++
++
+ @check_document_modify_permission()
+ def save_bundle(request):
+   response = {'status': -1}
+-- 
+1.7.9.5
+

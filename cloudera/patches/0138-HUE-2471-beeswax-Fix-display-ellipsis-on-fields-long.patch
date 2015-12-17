@@ -1,0 +1,35 @@
+From 1a0c4330487fc6d78f7ef73069701a581baf0e64 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 2 Dec 2014 02:40:37 +0100
+Subject: [PATCH 0138/1173] HUE-2471 [beeswax] Fix display ellipsis on fields
+ longer than 20 characters
+
+Removed ellipsis on shorter fields
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index c63420f..951c912 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -999,13 +999,14 @@ var truncateOutput = function (obj) {
+     name = obj.name || '',
+     type = obj.type || '',
+     output = name.length + type.length,
++    suffix = '',
+     trim;
+-
+   if (output > chars) {
+     trim = Math.abs((output + 4) - chars); // 4 accounts for ellipsis, spaces, parenthesis
+     type = type.slice(0, Math.abs(type.length - trim));
++    suffix = '&hellip;';
+   }
+-  return escapeOutput(type) + '&hellip;';
++  return escapeOutput(type) + suffix;
+ };
+ 
+ function placeResizePanelHandle() {
+-- 
+1.7.9.5
+

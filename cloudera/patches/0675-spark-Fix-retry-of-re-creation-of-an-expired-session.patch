@@ -1,0 +1,63 @@
+From 82935ba0c5ebb5e6025759c800a90de9ce3139a6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 26 Jan 2015 18:18:06 +0800
+Subject: [PATCH 0675/1173] [spark] Fix retry of re-creation of an expired
+ session
+
+---
+ apps/spark/src/spark/models.py |   12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index fc78df4..29b7e0a 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -263,15 +263,15 @@ class SparkApi():
+   def execute(self, notebook, snippet):
+     api = get_spark_api(self.user)
+     session = _get_snippet_session(notebook, snippet)
+-    response = api.submit_statement(session['id'], snippet['statement'])
+ 
+     try:
++      response = api.submit_statement(session['id'], snippet['statement'])
+       return {
+           'id': response['id'],
+           'has_result_set': True,
+       }
+     except Exception, e:
+-      message = force_unicode(str(e))
++      message = force_unicode(str(e)).lower()
+       if 'session not found' in message:
+         raise SessionExpired(e)
+       else:
+@@ -280,15 +280,15 @@ class SparkApi():
+   def check_status(self, notebook, snippet):
+     api = get_spark_api(self.user)
+     session = _get_snippet_session(notebook, snippet)
+-    cell = snippet['result']['handle']['id']
+-    response = api.fetch_data(session['id'], cell)
++    cell = snippet['result']['handle']['id']    
+ 
+     try:
++      response = api.fetch_data(session['id'], cell)
+       return {
+           'status': response['state'],
+       }
+     except Exception, e:
+-      message = force_unicode(str(e))
++      message = force_unicode(str(e)).lower()
+       if 'session not found' in message:
+         raise SessionExpired(e)
+       else:
+@@ -302,7 +302,7 @@ class SparkApi():
+     try:
+       data = api.fetch_data(session['id'], cell)
+     except Exception, e:
+-      message = force_unicode(str(e))
++      message = force_unicode(str(e)).lower()
+       if 'session not found' in message:
+         raise SessionExpired(e)
+       else:
+-- 
+1.7.9.5
+

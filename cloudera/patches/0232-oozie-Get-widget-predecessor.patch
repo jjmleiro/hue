@@ -1,0 +1,136 @@
+From 2d2684ff3e7989a3956ae0b601ff9663896e757f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 4 Nov 2014 15:42:27 +0100
+Subject: [PATCH 0232/1173] [oozie] Get widget predecessor
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +--
+ apps/oozie/static/js/workflow-editor.ko.js         |   16 +++++++++
+ desktop/core/static/js/ko.layout.js                |   36 ++++++++++++--------
+ 3 files changed, 39 insertions(+), 17 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 75ec6c6..9f9d452 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -183,12 +183,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div data-bind="template: { name: 'row-template', data: oozieStartRow }"></div>
+ 
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && oozieRows().length > 0">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true, 1); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: oozieRows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && (rows().length > 0 ||  $root.isNested())">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(false, $data.rows().length - 1); _r.addWidget(widget);$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)}); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"></div>
+     </div>
+ 
+     <div data-bind="template: { name: 'row-template', data: oozieEndRow }"></div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 51396ba..c0042d1 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -283,6 +283,22 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     }
+   }
+ 
++  self.getWidgetPredecessor = function (widget_id) {
++    var _row = self.getWidgetParentRow(widget_id);
++    var _col = self.getRowParentColumn(_row.id());
++    var _prevRow = null;
++    for (var i = 0; i < _col.rows().length; i++) {
++      if (_col.rows()[i].id() == _row.id()) {
++        break;
++      }
++      _prevRow = _col.rows()[i];
++    }
++    if (_prevRow != null) {
++      return _prevRow.widgets()[0];
++    }
++    return null;
++  }
++
+   self.getWidgetParentRow = function (widget_id) {
+     var _row = null;
+     for (var i = 0; i < self.columns().length; i++) {
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index cdadc88..41f1217 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -29,20 +29,20 @@ var Column = function (size, rows) {
+   self.id = ko.observable(UUID());
+   self.size = ko.observable(size);
+   self.rows = ko.observableArray(rows);
+-  self.oozieStartRow = ko.computed(function() {
++  self.oozieStartRow = ko.computed(function () {
+     var _row = null;
+-    ko.utils.arrayForEach(self.rows(), function(row) {
+-      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() == "start-widget")){
++    ko.utils.arrayForEach(self.rows(), function (row) {
++      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() == "start-widget")) {
+         _row = row;
+       }
+     });
+     return _row;
+   }, self);
+ 
+-  self.oozieEndRow = ko.computed(function() {
++  self.oozieEndRow = ko.computed(function () {
+     var _row = null;
+-    ko.utils.arrayForEach(self.rows(), function(row) {
+-      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() == "end-widget")){
++    ko.utils.arrayForEach(self.rows(), function (row) {
++      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() == "end-widget")) {
+         _row = row;
+       }
+     });
+@@ -50,10 +50,10 @@ var Column = function (size, rows) {
+   }, self);
+ 
+ 
+-  self.oozieRows = ko.computed(function() {
++  self.oozieRows = ko.computed(function () {
+     var _rows = [];
+-    ko.utils.arrayForEach(self.rows(), function(row) {
+-      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() != "start-widget" && row.widgets()[0].widgetType() != "end-widget") || row.widgets().length == 0){
++    ko.utils.arrayForEach(self.rows(), function (row) {
++      if ((row.widgets().length > 0 && row.widgets()[0].widgetType() != "start-widget" && row.widgets()[0].widgetType() != "end-widget") || row.widgets().length == 0) {
+         _rows.push(row);
+       }
+     });
+@@ -64,18 +64,24 @@ var Column = function (size, rows) {
+   self.klass = ko.computed(function () {
+     return "card card-home card-column span" + self.size();
+   });
+-  self.addEmptyRow = function (atBeginning) {
+-    return self.addRow(null, atBeginning);
++  self.addEmptyRow = function (atBeginning, atIndex) {
++    return self.addRow(null, atBeginning, atIndex);
+   };
+-  self.addRow = function (row, atBeginning) {
++  self.addRow = function (row, atBeginning, atIndex) {
+     if (typeof row == "undefined" || row == null) {
+       row = new Row([], viewModel); // Hacky but needed when a new row is deleted
+     }
+-    if (typeof atBeginning == "undefined" || atBeginning == null) {
+-      self.rows.push(row);
++
++    if (typeof atIndex != "undefined" && atIndex != null) {
++      self.rows.splice(atIndex, 0, row);
+     }
+     else {
+-      self.rows.unshift(row);
++      if (typeof atBeginning == "undefined" || atBeginning == null) {
++        self.rows.push(row);
++      }
++      else {
++        self.rows.unshift(row);
++      }
+     }
+     return row;
+   };
+-- 
+1.7.9.5
+

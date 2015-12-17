@@ -1,0 +1,153 @@
+From a5cc8528834f032167be4ce85730cbd35f4252ae Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 20 Mar 2015 14:04:53 -0700
+Subject: [PATCH 1135/1173] HUE-2638 [livy] Fix running spark commands by
+ setting spark.repl.class.uri
+
+This uri is how the repl passes compiled statements to the tasks.
+---
+ apps/spark/java/livy-repl/pom.xml                  |    8 +++++++-
+ .../hue/livy/repl/scala/SparkSession.scala         |    1 +
+ .../livy/repl/scala/interpreter/Interpreter.scala  |   13 +++++++++++--
+ .../cloudera/hue/livy/repl/PythonSessionSpec.scala |   17 +++++++++++++++++
+ .../cloudera/hue/livy/repl/SparkSessionSpec.scala  |   17 +++++++++++++++++
+ 5 files changed, 53 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 0c1a5c1..20552b4 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -69,11 +69,17 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>org.xerial.snappy</groupId>
++            <artifactId>snappy-java</artifactId>
++            <version>1.1.1.6</version>
++            <scope>test</scope>
++        </dependency>
++
++        <dependency>
+             <groupId>org.apache.spark</groupId>
+             <artifactId>spark-repl_${scala.binary.version}</artifactId>
+             <version>${spark.version}</version>
+             <scope>provided</scope>
+-
+         </dependency>
+ 
+         <dependency>
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+index 3ca250d..0624dc2 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+@@ -28,6 +28,7 @@ private class SparkSession extends Session {
+     case Interpreter.Idle() => Session.Idle()
+     case Interpreter.Busy() => Session.Busy()
+     case Interpreter.ShuttingDown() => Session.ShuttingDown()
++    case Interpreter.ShutDown() => Session.ShutDown()
+   }
+ 
+   override def history(): Seq[JValue] = _history
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+index 9f0427d..c04e745 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/interpreter/Interpreter.scala
+@@ -17,6 +17,7 @@ object Interpreter {
+   case class Idle() extends State
+   case class Busy() extends State
+   case class ShuttingDown() extends State
++  case class ShutDown() extends State
+ }
+ 
+ sealed abstract class ExecuteResponse(executeCount: Int)
+@@ -46,13 +47,15 @@ class Interpreter {
+     val settings = new Settings()
+     settings.usejavacp.value = true
+ 
++    sparkIMain = createSparkIMain(classLoader, settings)
++    sparkIMain.initializeSynchronous()
++
+     val sparkConf = new SparkConf(true)
+       .setAppName("Livy Spark shell")
++      .set("spark.repl.class.uri", sparkIMain.classServerUri)
+ 
+     sparkContext = new SparkContext(sparkConf)
+ 
+-    sparkIMain = createSparkIMain(classLoader, settings)
+-    sparkIMain.initializeSynchronous()
+     sparkIMain.beQuietDuring {
+       sparkIMain.bind("sc", "org.apache.spark.SparkContext", sparkContext, List("""@transient"""))
+     }
+@@ -107,9 +110,15 @@ class Interpreter {
+   def shutdown(): Unit = {
+     _state = Interpreter.ShuttingDown()
+ 
++    if (sparkContext != null) {
++      sparkContext.stop()
++    }
++
+     if (sparkIMain != null) {
+       sparkIMain.close()
+       sparkIMain = null
+     }
++
++    _state = Interpreter.ShutDown()
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+index f505cd1..0a0d3a4 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/PythonSessionSpec.scala
+@@ -159,5 +159,22 @@ class PythonSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter
+       val data = resultMap("data").extract[Map[String, JValue]]
+       data("text/plain").extract[String] should include ("<pyspark.context.SparkContext object at")
+     }
++
++    it("should execute spark commands") {
++      val result = Await.result(session.execute(
++        """
++          |sc.parallelize(xrange(0, 2)).map(lambda i: i + 1).collect()
++          |""".stripMargin), Duration.Inf)
++
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "ok",
++        "execution_count" -> 0,
++        "data" -> Map(
++          "text/plain" -> "[1, 2]"
++        )
++      ))
++
++      result should equal (expectedResult)
++    }
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+index 8b6eb89..5fcf9a0 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+@@ -132,5 +132,22 @@ class SparkSessionSpec extends FunSpec with ShouldMatchers with BeforeAndAfter {
+       val data = resultMap("data").extract[Map[String, JValue]]
+       data("text/plain").extract[String] should include ("res0: org.apache.spark.SparkContext = org.apache.spark.SparkContext")
+     }
++
++    it("should execute spark commands") {
++      val result = Await.result(session.execute(
++        """
++          |sc.parallelize(0 to 1).map{i => i+1}.collect
++          |""".stripMargin), Duration.Inf)
++
++      val expectedResult = Extraction.decompose(Map(
++        "status" -> "ok",
++        "execution_count" -> 0,
++        "data" -> Map(
++          "text/plain" -> "res0: Array[Int] = Array(1, 2)"
++        )
++      ))
++
++      result should equal (expectedResult)
++    }
+   }
+  }
+-- 
+1.7.9.5
+

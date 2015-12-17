@@ -1,0 +1,61 @@
+From f4c8d35a8a87c90ae603224df3650e0fc19e2c1f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 18 Dec 2014 15:01:42 -0800
+Subject: [PATCH 0168/1173] [desktop] Fix pseudo_hdfs4 starting up a yarn
+ nodemanager
+
+---
+ desktop/core/src/desktop/lib/python_util.py    |   13 ++++++++-----
+ desktop/libs/hadoop/src/hadoop/pseudo_hdfs4.py |    5 ++++-
+ 2 files changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/python_util.py b/desktop/core/src/desktop/lib/python_util.py
+index adce91b..b2fb926 100644
+--- a/desktop/core/src/desktop/lib/python_util.py
++++ b/desktop/core/src/desktop/lib/python_util.py
+@@ -90,11 +90,14 @@ def find_unused_port():
+   Unfortunately, this port may not be available by the time
+   the subprocess uses it, but this generally works.
+   """
+-  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+-  sock.bind(('127.0.0.1', 0))
+-  sock.listen(socket.SOMAXCONN)
+-  _, port = sock.getsockname()
+-  sock.close()
++  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
++  try:
++    sock.bind(('127.0.0.1', 0))
++    sock.listen(socket.SOMAXCONN)
++    _, port = sock.getsockname()
++  finally:
++    sock.close()
++
+   return port
+ 
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/pseudo_hdfs4.py b/desktop/libs/hadoop/src/hadoop/pseudo_hdfs4.py
+index 42a6781..0bead12 100755
+--- a/desktop/libs/hadoop/src/hadoop/pseudo_hdfs4.py
++++ b/desktop/libs/hadoop/src/hadoop/pseudo_hdfs4.py
+@@ -270,6 +270,9 @@ class PseudoHdfs4(object):
+     self._nm_proc = self._start_daemon('nodemanager', self.hadoop_conf_dir, self.mr2_env, self._get_yarn_bin(self.mr2_env))
+     self._hs_proc = self._start_daemon('historyserver', self.hadoop_conf_dir, self.mr2_env, self._get_mapred_bin(self.mr2_env))
+ 
++    # Give them a moment to actually start
++    time.sleep(1)
++
+     # Make sure they're running
+     deadline = time.time() + STARTUP_DEADLINE
+     while not self._is_mr2_ready(self.mr2_env):
+@@ -455,7 +458,7 @@ class PseudoHdfs4(object):
+       'yarn.nodemanager.localizer.address' : '%s:%s' % (self._fqdn, self._nm_port,),
+       'yarn.nodemanager.aux-services': 'mapreduce_shuffle',
+       'yarn.nodemanager.aux-services.mapreduce.shuffle.class': 'org.apache.hadoop.mapred.ShuffleHandler',
+-      'yarn.nodemanager.webapp.address': self._nm_webapp_port,
++      'yarn.nodemanager.webapp.address': '%s:%s' % (self._fqdn, self._nm_webapp_port,),
+ 
+       'yarn.app.mapreduce.am.staging-dir': '/tmp/hadoop-yarn/staging',
+ 
+-- 
+1.7.9.5
+

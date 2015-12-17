@@ -1,0 +1,188 @@
+From ae7c01b873795ce9ddbc3830422d5812b960f6cd Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 29 Dec 2014 18:04:23 -0800
+Subject: [PATCH 0370/1173] [oozie] Also get list of subworkflows at loading
+ of the editor
+
+---
+ apps/oozie/src/oozie/models2.py                    |    4 ++--
+ .../oozie/templates/editor/workflow_editor.mako    |   24 ++++++--------------
+ apps/oozie/src/oozie/views/editor2.py              |   22 ++++++++++--------
+ apps/oozie/static/js/workflow-editor.ko.js         |    4 ++--
+ 4 files changed, 24 insertions(+), 30 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index cbf6e94..0c0ce1b 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -628,7 +628,7 @@ class SubWorkflowAction(Action):
+           'label': _('Sub-workflow'),
+           'value': None,
+           'help_text': _('The sub-workflow application to include. You must own all the sub-workflows'),
+-          'type': ''
++          'type': 'workflow'
+      },
+      'propagate_configuration': { 
+           'name': 'propagate_configuration',
+@@ -648,7 +648,7 @@ class SubWorkflowAction(Action):
+ 
+   @classmethod
+   def get_mandatory_fields(cls):
+-    return []
++    return [cls.FIELDS['workflow']] 
+ 
+ 
+ class SqoopAction(Action):
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index a5ab3cb..366d1b3 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -392,15 +392,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <a class="widget-icon"><i class="fa fa-files-o"></i></a>
+       <!-- /ko -->
+ 
+-
+-      <!-- ko if: $root.collection && $root.collection.getFacetById(id()) -->
+-      <span data-bind="with: $root.collection.getFacetById(id())">
+-        <span data-bind="editable: label, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+-      </span>
+-      <!-- /ko -->
+-      <!-- ko if: typeof $root.collection == 'undefined' || $root.collection.getFacetById(id()) == null -->
+-        <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+-      <!-- /ko -->
++      <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+ 
+       <!-- ko if: widgetType() == 'decision-widget' -->
+         <div class="inline pull-right" data-bind="visible: $root.isEditing() && $root.workflow.getNodeById(id()) && $root.workflow.getNodeById(id()).children().length <= 1 && ! ooziePropertiesExpanded()">
+@@ -973,7 +965,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()">
+-        <select data-bind="options: $root.addActionWorkflows, optionsText: 'name', value: properties.selectedSubWorkflow"></select>
++        <select data-bind="options: $root.addActionWorkflows, optionsText: 'name', optionsValue: 'value', value: properties.workflow"></select>
+       </div>
+     </div>
+ 
+@@ -1494,8 +1486,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="modal-body">
+     <table data-bind="foreach: addActionProperties">
+       <tr>
+-        <td data-bind="text: label" style="width: 1%; padding-right: 10px" class="no-wrap"></td>
+-        
++        <td data-bind="text: label" style="width: 1%; padding-right: 10px" class="no-wrap"></td>        
+         <td>
+           <!-- ko if: type == '' -->
+           <input type="text" data-bind="filechooser: value, attr: { placeholder: help_text }">
+@@ -1506,14 +1497,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <!-- ko if: type == 'textarea' -->
+           <input data-bind="value: value" class="input-xxlarge"/>
+           <!-- /ko -->
++          <!-- ko if: type == 'workflow' -->
++          <select data-bind="options: $root.addActionWorkflows, optionsText: 'name', value: $root.selectedSubWorkflow"></select>
++          <!-- /ko -->
+         </td>
+       </tr>
+     </table>
+ 
+-    <!-- ko if: addActionWorkflows().length > 0 -->
+-      <select data-bind="options: addActionWorkflows, optionsText: 'name', value: selectedSubWorkflow"></select>
+-    <!-- /ko -->
+-
+     <br/>
+     <a class="btn btn-primary disable-feedback" data-bind="click: addActionDemiModalFieldPreview">
+       ${ _('Add') }
+@@ -1617,7 +1607,7 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode });
++  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode }, ${ subworkflows_json | n,unicode });
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+   var shareViewModel = setupSharing("#documentShareModal");
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index c5eae06..dc8e6f1 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -78,7 +78,8 @@ def edit_workflow(request):
+       'workflow_json': json.dumps(workflow_data['workflow']),
+       'credentials_json': json.dumps(credentials.credentials.keys()),
+       'workflow_properties_json': json.dumps(WORKFLOW_NODE_PROPERTIES),
+-      'doc1_id': doc.doc.get().id if doc else -1
++      'doc1_id': doc.doc.get().id if doc else -1,
++      'subworkflows_json': json.dumps(_get_workflows(request.user)) # if has sub?
+   })
+ 
+ 
+@@ -98,7 +99,7 @@ def save_workflow(request):
+     workflow_doc = Document2.objects.create(name=workflow['name'], uuid=workflow['uuid'], type='oozie-workflow2', owner=request.user)
+     Document.objects.link(workflow_doc, owner=workflow_doc.owner, name=workflow_doc.name, description=workflow_doc.description, extra='workflow2')
+ 
+-  subworkflows = [node['properties']['subworkflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
++  subworkflows = [node['properties']['workflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
+   if subworkflows:
+     dependencies = Document2.objects.filter(uuid__in=subworkflows)
+     workflow_doc.dependencies = dependencies
+@@ -109,7 +110,6 @@ def save_workflow(request):
+   workflow_doc.save()
+   
+   workflow_instance = Workflow(document=workflow_doc)
+-  #workflow_instance.check_workspace(request.fs, request.user)
+   
+   response['status'] = 0
+   response['id'] = workflow_doc.id
+@@ -129,12 +129,7 @@ def new_node(request):
+   workflows = []
+ 
+   if node['widgetType'] == 'subworkflow-widget':
+-    workflows = [{
+-        'name': workflow.name,
+-        'owner': workflow.owner.username,
+-        'value': workflow.uuid
+-      } for workflow in Document2.objects.filter(type='oozie-workflow2', owner=request.user)
+-    ]
++    workflows = _get_workflows(request.user)
+     
+   response['status'] = 0
+   response['properties'] = properties 
+@@ -143,6 +138,15 @@ def new_node(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def _get_workflows(user):
++  return [{
++        'name': workflow.name,
++        'owner': workflow.owner.username,
++        'value': workflow.uuid
++      } for workflow in Document2.objects.filter(type='oozie-workflow2', owner=user)
++    ]  
++
++
+ def add_node(request):
+   response = {'status': -1}
+ 
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 0f13a1e..3a1afcd 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -411,7 +411,7 @@ var Workflow = function (vm, workflow) {
+   };
+ }
+ 
+-var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json, workflow_properties_json) {
++var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json, workflow_properties_json, subworkflows_json) {
+   var self = this;
+ 
+   self.isNested = ko.observable(true);
+@@ -454,7 +454,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.depen = ko.observableArray(workflow_json.dependencies);
+ 
+   self.addActionProperties = ko.observableArray([]);
+-  self.addActionWorkflows = ko.observableArray([]);
++  self.addActionWorkflows = ko.observableArray(subworkflows_json);
+   self.selectedSubWorkflow = ko.observable();
+ 
+ 
+-- 
+1.7.9.5
+

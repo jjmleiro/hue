@@ -1,0 +1,73 @@
+From 6896d9d1ce35f4cb2ac5f787c4e41d541a3ab485 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 30 Jan 2015 16:23:32 +0800
+Subject: [PATCH 0725/1173] [spark] Show text result as text and not a table
+
+---
+ apps/beeswax/src/beeswax/data_export.py    |    2 --
+ apps/spark/src/spark/models.py             |    3 +++
+ apps/spark/src/spark/templates/editor.mako |   16 +++++++++++++---
+ 3 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/data_export.py b/apps/beeswax/src/beeswax/data_export.py
+index ca5d56e..cdafb56 100644
+--- a/apps/beeswax/src/beeswax/data_export.py
++++ b/apps/beeswax/src/beeswax/data_export.py
+@@ -14,8 +14,6 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+-#
+-# Handling of data export
+ 
+ import logging
+ import time
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 890a297..8064c7f 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -368,6 +368,9 @@ class SparkApi():
+         msg = ''.join(tb)
+ 
+       raise QueryError(msg)
++    
++  def download(self, notebook, snippet, format):
++    return NotImplementedError()
+ 
+   def cancel(self, notebook, snippet):
+     api = get_spark_api(self.user)
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 3fc689e..3fd76da 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -440,14 +440,24 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           ${ _('Success but empty results.') }
+         </div>
+ 
+-        <div class="row-fluid" data-bind="visible: result.hasSomeResults() && showGrid()" style="max-height: 400px; margin-top: 4px">
+-          <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': !isLeftPanelVisible()}">
++        <!-- ko if: result.hasSomeResults() && result.type() != 'table' -->
++        <div class="row-fluid" style="max-height: 400px; margin-top: 50px">
++          <pre data-bind="text: result.data()[0][1]">            
++          </pre>
++        </div>
++        <!-- /ko -->
++
++        <div class="row-fluid" data-bind="visible: result.hasSomeResults() && result.type() == 'table' && showGrid()" style="max-height: 400px; margin-top: 4px">
++          <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': ! isLeftPanelVisible()}">
+             <ul class="nav nav-list" style="border: none; background-color: #FFF">              
+               <li class="nav-header pointer" data-bind="click: toggleLeftPanel" title="${_('Hide columns')}">${_('columns')}</li>
+               </a>
+             </ul>
+             <ul class="unstyled" data-bind="foreach: result.meta">
+-              <li data-bind="visible: name != ''"><input type="checkbox" checked="checked" data-bind="event: { change: function(){toggleColumn($element, $index());}}" /> <a class="pointer" data-bind="text: $data.name, click: function(){ scrollToColumn($element, $index()); }"></a></li>
++              <li data-bind="visible: name != ''">
++                <input type="checkbox" checked="checked" data-bind="event: { change: function(){toggleColumn($element, $index());}}" />
++                <a class="pointer" data-bind="text: $data.name, click: function(){ scrollToColumn($element, $index()); }"></a>
++              </li>
+             </ul>
+           </div>
+           <div data-bind="css: {'span10': isLeftPanelVisible, 'span12 nomargin': !isLeftPanelVisible()}">
+-- 
+1.7.9.5
+

@@ -1,0 +1,297 @@
+From 82a4332d9a79d5f248eab4066957acf78018bcde Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 11:20:16 -0800
+Subject: [PATCH 0605/1173] [spark] Get sparker-shell integerated into
+ SparkServer
+
+---
+ apps/spark/java/sparker-client.py                  |   87 --------------------
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |    3 +-
+ .../hue/sparker/server/SparkerSession.java         |   23 +++++-
+ apps/spark/spark_server.sh                         |    6 +-
+ apps/spark/sparker-client.py                       |   87 ++++++++++++++++++++
+ apps/spark/sparker-shell                           |    3 +
+ 6 files changed, 115 insertions(+), 94 deletions(-)
+ delete mode 100755 apps/spark/java/sparker-client.py
+ create mode 100755 apps/spark/sparker-client.py
+ create mode 100755 apps/spark/sparker-shell
+
+diff --git a/apps/spark/java/sparker-client.py b/apps/spark/java/sparker-client.py
+deleted file mode 100755
+index 3884073..0000000
+--- a/apps/spark/java/sparker-client.py
++++ /dev/null
+@@ -1,87 +0,0 @@
+-#! /usr/bin/env python
+-
+-import json
+-import httplib
+-
+-sparker_client_default_host = 'localhost'
+-sparker_client_default_port = 8080
+-
+-class SparkerClient:
+-    # Configuration
+-    host = sparker_client_default_host
+-    port = sparker_client_default_port
+-    # State
+-    connection = None
+-    session_id = None
+-    output_cursor = 0
+-    # Constants
+-    POST = 'POST'
+-    GET = 'GET'
+-    DELETE = 'DELETE'
+-    ROOT = '/'
+-    OK = 200
+-    def __init__(self, host=sparker_client_default_host, port=sparker_client_default_port):
+-        self.host = host
+-        self.port = port
+-        self.connection = self.create_connection()
+-        self.session_id = self.create_session()
+-    def http_json(self, method, url, body=''):
+-        self.connection.request(method, url, body)
+-        response = self.connection.getresponse()
+-        if response.status != self.OK:
+-            raise Exception(str(resonse.status) + ' ' + response.reason)
+-        response_text = response.read()
+-        if len(response_text) != 0:
+-            return json.loads(response_text)
+-        return ''
+-    def create_connection(self):
+-        return httplib.HTTPConnection(self.host, self.port)
+-    def create_session(self):
+-        return self.http_json(self.POST, self.ROOT)
+-    def get_sessions(self):
+-        return self.http_json(self.GET, self.ROOT)
+-    def get_session(self):
+-        return self.http_json(self.GET, self.ROOT + self.session_id)
+-    def post_input(self, command):
+-        self.http_json(self.POST, self.ROOT + self.session_id, command)
+-    def get_output(self):
+-        output = self.get_session()[self.output_cursor:]
+-        self.output_cursor += len(output)
+-        return output
+-    def delete_session(self):
+-        self.http_json(self.DELETE, self.ROOT + self.session_id)
+-    def close_connection(self):
+-        self.connection.close()
+-
+-import threading
+-import time
+-import sys
+-
+-class SparkerPoller(threading.Thread):
+-    keep_polling = True
+-    def __init__(self, sparker_client):
+-        threading.Thread.__init__(self)
+-        self.sparker_client = sparker_client
+-    def stop_polling(self):
+-        self.keep_polling = False
+-    def run(self):
+-        while self.keep_polling:
+-            output = self.sparker_client.get_output()
+-            for line in output:
+-                print(line)
+-            time.sleep(1)
+-
+-client = SparkerClient()
+-poller = SparkerPoller(client)
+-poller.start()
+-
+-try:
+-    while True:
+-        line = raw_input()
+-        client.post_input(line)
+-except:
+-    poller.stop_polling()
+-    client.delete_session()
+-    client.close_connection()
+-
+-sys.exit(0)
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+index d1c4416..3ee5c3b 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+@@ -83,7 +83,8 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+       else command(line) match {
+         case Result(false, _)           => false
+         case Result(_, Some(finalLine)) => {
+-          val output: String = outString.getBuffer.toString.substring("scala> ".length)
++          var output: String = outString.getBuffer.toString
++          output = output.substring("scala> ".length + 1, output.length - 1)
+           outString.getBuffer.setLength(0)
+           println(compact(render(Map("type" -> "result", "input" -> finalLine, "output" -> output))))
+           addReplay(finalLine)
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
+index 6587015..32375a4 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerSession.java
+@@ -19,6 +19,8 @@
+ package com.cloudera.hue.sparker.server;
+ 
+ import com.google.common.collect.Lists;
++import org.codehaus.jackson.JsonNode;
++import org.codehaus.jackson.map.ObjectMapper;
+ 
+ import java.io.BufferedReader;
+ import java.io.IOException;
+@@ -42,10 +44,11 @@ public class SparkerSession implements Session {
+ 
+         this.key = key;
+ 
+-        ProcessBuilder pb = new ProcessBuilder("spark-shell")
++        String sparker_home = System.getenv("SPARKER_HOME");
++
++        ProcessBuilder pb = new ProcessBuilder(Lists.newArrayList(sparker_home + "/sparker-shell"))
+                 .redirectInput(ProcessBuilder.Redirect.PIPE)
+-                .redirectOutput(ProcessBuilder.Redirect.PIPE)
+-                .redirectErrorStream(true);
++                .redirectOutput(ProcessBuilder.Redirect.PIPE);
+ 
+         this.process = pb.start();
+ 
+@@ -57,8 +60,20 @@ public class SparkerSession implements Session {
+                 try {
+                     String line;
+ 
++                    ObjectMapper mapper = new ObjectMapper();
++
+                     while ((line = reader.readLine()) != null) {
+-                        outputLines.add(line);
++                        JsonNode node = mapper.readTree(line);
++                        String type = node.get("type").asText();
++                        if (type.equals("ready")) {
++                            outputLines.add("> ");
++                        } else if (type.equals("done")) {
++                            break;
++                        } else  if (type.equals("result")) {
++                            String output = node.get("output").asText();
++                            outputLines.add(output);
++                            outputLines.add("> ");
++                        }
+                     }
+ 
+                     process.waitFor();
+diff --git a/apps/spark/spark_server.sh b/apps/spark/spark_server.sh
+index 6f76c85..34686c3 100755
+--- a/apps/spark/spark_server.sh
++++ b/apps/spark/spark_server.sh
+@@ -72,8 +72,10 @@ SPARK_JAR=$SPARK_ROOT/java/sparker-server/target/sparker-server-3.7.0-SNAPSHOT.j
+ #echo \$HADOOP_CONF_DIR=$HADOOP_CONF_DIR
+ #echo \$HADOOP_MAPRED_HOME=$HADOOP_MAPRED_HOME
+ 
++export SPARKER_HOME=$(dirname $0)
++
+ # Note: I've had trouble running this with just "java -jar" with the classpath
+ # determined with a seemingly appropriate find command.
+ echo CWD=$(pwd)
+-echo Executing java jar $SPARK_JAR "$@"
+-exec java -jar $SPARK_JAR "$@"
++echo Executing java -jar $SPARK_JAR "$@"
++exec java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005 -jar $SPARK_JAR "$@"
+diff --git a/apps/spark/sparker-client.py b/apps/spark/sparker-client.py
+new file mode 100755
+index 0000000..4338d4e
+--- /dev/null
++++ b/apps/spark/sparker-client.py
+@@ -0,0 +1,87 @@
++#! /usr/bin/env python
++
++import json
++import httplib
++
++sparker_client_default_host = 'localhost'
++sparker_client_default_port = 8080
++
++class SparkerClient:
++    # Configuration
++    host = sparker_client_default_host
++    port = sparker_client_default_port
++    # State
++    connection = None
++    session_id = None
++    output_cursor = 0
++    # Constants
++    POST = 'POST'
++    GET = 'GET'
++    DELETE = 'DELETE'
++    ROOT = '/'
++    OK = 200
++    def __init__(self, host=sparker_client_default_host, port=sparker_client_default_port):
++        self.host = host
++        self.port = port
++        self.connection = self.create_connection()
++        self.session_id = self.create_session()
++    def http_json(self, method, url, body=''):
++        self.connection.request(method, url, body)
++        response = self.connection.getresponse()
++        if response.status != self.OK:
++            raise Exception(str(response.status) + ' ' + response.reason)
++        response_text = response.read()
++        if len(response_text) != 0:
++            return json.loads(response_text)
++        return ''
++    def create_connection(self):
++        return httplib.HTTPConnection(self.host, self.port)
++    def create_session(self):
++        return self.http_json(self.POST, self.ROOT)
++    def get_sessions(self):
++        return self.http_json(self.GET, self.ROOT)
++    def get_session(self):
++        return self.http_json(self.GET, self.ROOT + self.session_id)
++    def post_input(self, command):
++        self.http_json(self.POST, self.ROOT + self.session_id, command)
++    def get_output(self):
++        output = self.get_session()[self.output_cursor:]
++        self.output_cursor += len(output)
++        return output
++    def delete_session(self):
++        self.http_json(self.DELETE, self.ROOT + self.session_id)
++    def close_connection(self):
++        self.connection.close()
++
++import threading
++import time
++import sys
++
++class SparkerPoller(threading.Thread):
++    keep_polling = True
++    def __init__(self, sparker_client):
++        threading.Thread.__init__(self)
++        self.sparker_client = sparker_client
++    def stop_polling(self):
++        self.keep_polling = False
++    def run(self):
++        while self.keep_polling:
++            output = self.sparker_client.get_output()
++            for line in output:
++                print(line)
++            time.sleep(1)
++
++client = SparkerClient()
++poller = SparkerPoller(client)
++poller.start()
++
++try:
++    while True:
++        line = raw_input()
++        client.post_input(line)
++except:
++    poller.stop_polling()
++    client.delete_session()
++    client.close_connection()
++
++sys.exit(0)
+diff --git a/apps/spark/sparker-shell b/apps/spark/sparker-shell
+new file mode 100755
+index 0000000..c8a0ca1
+--- /dev/null
++++ b/apps/spark/sparker-shell
+@@ -0,0 +1,3 @@
++#!/bin/bash
++
++exec java -cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" com.cloudera.hue.sparker.repl.Main -usejavacp "$@"
+-- 
+1.7.9.5
+

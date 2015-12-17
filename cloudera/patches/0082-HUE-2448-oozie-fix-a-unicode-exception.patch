@@ -1,0 +1,35 @@
+From 0cc1d67c185a450e6a815475cdd036b5d13aa0d4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 31 Oct 2014 11:44:47 -0700
+Subject: [PATCH 0082/1173] HUE-2448 [oozie]: fix a unicode exception
+
+This can occur if the form error message contains unicode.
+---
+ apps/oozie/src/oozie/views/dashboard.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index f5ab6e3..51a5d07 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -30,7 +30,7 @@ from django.shortcuts import redirect
+ 
+ from desktop.lib.django_util import render, encode_json_for_js
+ from desktop.lib.exceptions_renderable import PopupException
+-from desktop.lib.i18n import smart_str
++from desktop.lib.i18n import smart_str, smart_unicode
+ from desktop.lib.rest.http_client import RestException
+ from desktop.lib.view_util import format_duration_in_millis
+ from desktop.log.access import access_warn
+@@ -554,7 +554,7 @@ def rerun_oozie_coordinator(request, job_id, app_path):
+       request.info(_('Coordinator re-running.'))
+       return redirect(reverse('oozie:list_oozie_coordinator', kwargs={'job_id': job_id}))
+     else:
+-      request.error(_('Invalid submission form: %s' % (rerun_form.errors,)))
++      request.error(_('Invalid submission form: %s') % smart_unicode(rerun_form.errors))
+       return list_oozie_coordinator(request, job_id)
+   else:
+     rerun_form = RerunCoordForm(oozie_coordinator=oozie_coordinator)
+-- 
+1.7.9.5
+

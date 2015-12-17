@@ -1,0 +1,60 @@
+From d7e830e50428563bb7fa35d01e18df7cca9b8e3a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 10 Oct 2014 14:03:19 -0700
+Subject: [PATCH 0200/1173] [core] Set document natural keys as composite
+
+---
+ apps/impala/static/js/impala-dashboard.ko.js |    5 +++--
+ desktop/core/src/desktop/models.py           |    6 +++---
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/apps/impala/static/js/impala-dashboard.ko.js b/apps/impala/static/js/impala-dashboard.ko.js
+index 295d88c..4da81dc 100644
+--- a/apps/impala/static/js/impala-dashboard.ko.js
++++ b/apps/impala/static/js/impala-dashboard.ko.js
+@@ -127,7 +127,8 @@ var Query = function (vm, query) {
+ 
+ var Dashboard = function (vm, dashboard) { 
+   var self = this;
+-  
++
++  self.id = ko.mapping.fromJS(dashboard.id);
+   self.facets = ko.mapping.fromJS(dashboard.facets);
+   self.properties = ko.mapping.fromJS(dashboard.properties);
+ 
+@@ -351,7 +352,7 @@ var ImpalaDashboardViewModel = function (query_json, dashboard_json, initial_jso
+           "layout": ko.mapping.toJSON(self.columns)
+       }, function (data) {
+         if (data.status == 0) {
+-          self.collection.id = data.id;
++          self.dashboard.id(data.id);
+           $(document).trigger("info", data.message);
+           if (window.location.search.indexOf("dashboard") == -1) {
+             window.location.hash = '#dashboard=' + data.id;
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 9b27914..fbb2577 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -589,8 +589,8 @@ class DocumentPermission(models.Model):
+ 
+ 
+ class Document2Manager(models.Manager):
+-  def get_by_natural_key(self, uuid):
+-    return self.get(uuid=uuid)
++  def get_by_natural_key(self, uuid, version, is_history):
++    return self.get(uuid=uuid, version=version, is_history=is_history)
+ 
+ 
+ def uuid_default():
+@@ -618,7 +618,7 @@ class Document2(models.Model):
+   unique_together = ('uuid', 'version', 'is_history')
+   
+   def natural_key(self):
+-    return (self.uuid,)
++    return (self.uuid, self.version, self.is_history)
+   
+   @property
+   def data_dict(self):
+-- 
+1.7.9.5
+

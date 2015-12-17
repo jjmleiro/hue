@@ -1,0 +1,54 @@
+From 17313e7d96351aecb268da14efe94ad3a851f180 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 4 Dec 2014 17:29:46 +0100
+Subject: [PATCH 0557/1173] [spark] Load back saved results
+
+---
+ apps/spark/src/spark/templates/editor.mako |   17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 64b1551..4d74fec 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -850,6 +850,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+   $(document).ready(function () {
+     resizeAssist();
++
+     $(document).on("executeStarted", function (e, snippet) {
+       var _el = $("#snippet_" + snippet.id()).find(".resultTable");
+       $("#snippet_" + snippet.id()).find(".progress").animate({
+@@ -875,8 +876,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           else {
+             _dt = _el.dataTable();
+           }
+-          _dt.fnAddData(options.data)
+-        }, 200);
++          _dt.fnAddData(options.data);
++        }, 100);
+       }
+     });
+ 
+@@ -891,6 +892,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }, 2000);
+       }
+     });
++
++    viewModel.notebooks().forEach(function(notebook){
++      notebook.snippets().forEach(function(snippet){
++        if (snippet.result.data().length > 0) {
++          var _el = $("#snippet_" + snippet.id()).find(".resultTable");
++          window.setTimeout(function () {
++            var _dt = createDatatable(_el, snippet);
++            _dt.fnAddData(snippet.result.data());
++          }, 100);
++        }
++      });
++    });
+   });
+ 
+ </script>
+-- 
+1.7.9.5
+

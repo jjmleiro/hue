@@ -1,0 +1,29 @@
+From e8c86c08c022420a7274d65633a502592f74950f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 23:42:53 +0100
+Subject: [PATCH 0587/1173] [spark] Resize assist on window resize
+
+---
+ apps/spark/src/spark/templates/editor.mako |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 0a38ad1..94affe0 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -1372,6 +1372,12 @@ ${_('Example: SELECT * FROM tablename, or press CTRL + space')}
+       readOnly: true,
+       mode: "text/x-hiveql"
+     });
++
++    var _resizeTimeout = -1;
++    $(window).on("resize", function(){
++      window.clearTimeout(_resizeTimeout);
++      _resizeTimeout = window.setTimeout(resizeAssist, 200);
++    });
+   });
+ 
+ </script>
+-- 
+1.7.9.5
+

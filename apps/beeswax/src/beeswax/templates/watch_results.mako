@@ -71,7 +71,7 @@ ${layout.menubar(section='query')}
     height: 400px;
   }
 </style>
-<link href="/static/ext/css/leaflet.css" rel="stylesheet">
+<link href="${ static('desktop/ext/css/leaflet.css') }" rel="stylesheet">
 
 <div class="container-fluid">
   <div id="expand"><i class="fa fa-chevron-right" style="color: #FFFFFF"></i></div>
@@ -113,6 +113,7 @@ ${layout.menubar(section='query')}
               ${_('Hue stopped as one of your query contains some results.') }
               ${_('Click on') }
               <form action="${ url(app_name + ':watch_query_history', query.id) }?context=${ query.design.get_query_context() }" method="POST">
+                ${ csrf_token(request) | n,unicode }
                 <input type="submit" value="${ _("next") }"/ class="btn btn-primary">
               </form>
               ${_('to continue execution of the remaining statements.') }
@@ -197,7 +198,7 @@ ${layout.menubar(section='query')}
              <div style="text-align: center; padding: 5px; height: 30px">
                <span class="noMore hide"
                      style="color:#999999">${ _('You have reached the last record for this query.') }</span><img
-                     src="/static/art/spinner.gif"
+                     src="${ static('desktop/art/spinner.gif') }"
                      class="spinner"
                      style="display: none;"/>
              </div>
@@ -296,6 +297,7 @@ ${layout.menubar(section='query')}
 <div id="saveAs" class="modal hide fade">
   <form id="saveForm" action="${url(app_name + ':save_results', query.id) }" method="POST"
         class="form form-inline form-padding-fix">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3>${_('Save Query Results')}</h3>
@@ -336,10 +338,10 @@ ${layout.menubar(section='query')}
 </div>
 % endif.resultTable
 
-<script src="/static/ext/js/jquery/plugins/jquery.flot.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/jquery/plugins/jquery.flot.categories.min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/leaflet/leaflet.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/jquery.blueprint.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/jquery/plugins/jquery.flot.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/jquery/plugins/jquery.flot.categories.min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/leaflet/leaflet.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/jquery.blueprint.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 $(document).ready(function () {

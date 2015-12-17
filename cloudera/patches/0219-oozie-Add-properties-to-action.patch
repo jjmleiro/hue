@@ -1,0 +1,51 @@
+From 78e4bd1db1325930805bb3df888d6a443789eb31 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 1 Nov 2014 14:25:40 +0100
+Subject: [PATCH 0219/1173] [oozie] Add properties to action
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   15 ++++++++++++++-
+ apps/oozie/src/oozie/views/editor2.py              |    1 +
+ 2 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 980ba8c..484e9fb 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -274,7 +274,20 @@ ${ dashboard.layout_skeleton() }
+           </button>
+           <br/>
+           ${ _('Job XML') } <input type="text" data-bind="value: properties.job_xml" /></br>
+-          proeperties <input type="text" data-bind="value: properties.properties" /></br>
++          ${ _('Properties') }   
++          <ul data-bind="foreach: properties.properties">
++            <li>
++              <input data-bind="value: name"/>
++              <input data-bind="value: value"/>
++              <a href="#" data-bind="click: function(){ $parent.properties.properties.remove(this); }">
++                <i class="fa fa-minus"></i>
++              </a>
++            </li>
++          </ul>
++          <button data-bind="click: function(){ properties.properties.push({'name': '', 'value': ''}); }">
++            <i class="fa fa-plus"></i>
++          </button>       
++          <br/>          
+           parameters <input type="text" data-bind="value: properties.parameters" /></br>
+           archives <input type="text" data-bind="value: properties.archives" /></br>
+           sla <input type="text" data-bind="value: properties.sla" /></br>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index f560309..e936775 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -178,6 +178,7 @@ def add_node(request):
+       'archives': [],
+       'prepares': [],
+       'job_xml': '',
++      'properties': [],
+   })
+ 
+   response['status'] = 0
+-- 
+1.7.9.5
+

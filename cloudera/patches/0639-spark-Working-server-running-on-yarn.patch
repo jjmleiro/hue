@@ -1,0 +1,461 @@
+From 4df57aef0db3d7733f71e9a95e2084185e510da0 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 22 Dec 2014 15:48:28 -0800
+Subject: [PATCH 0639/1173] [spark] Working server running on yarn
+
+---
+ apps/spark/java/livy-repl/pom.xml                  |    2 +
+ apps/spark/java/livy-yarn/pom.xml                  |   32 ++++++-
+ .../java/livy-yarn/src/main/assembly/dist.xml      |   10 +-
+ .../java/livy-yarn/src/main/bash/run-class.sh      |    2 +
+ .../java/livy-yarn/src/main/scala/Scalatra.scala   |   14 +++
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |   98 ++++++++++----------
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |   32 +++++--
+ .../com/cloudera/hue/livy/yarn/WebServer.scala     |   49 ++++++++++
+ apps/spark/java/pom.xml                            |    2 +-
+ 9 files changed, 173 insertions(+), 68 deletions(-)
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+ create mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
+
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 2915364..ca88cc0 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -56,12 +56,14 @@
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-client</artifactId>
+             <version>${hadoop.version}</version>
++            <scope>provided</scope>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-api</artifactId>
+             <version>${hadoop.version}</version>
++            <scope>provided</scope>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 059e20c..34db3b6 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -28,7 +28,6 @@
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-common</artifactId>
+             <version>${hadoop.version}</version>
+-            <!--
+             <exclusions>
+                 <exclusion>
+                     <groupId>javax.servlet</groupId>
+@@ -44,16 +43,21 @@
+                 </exclusion>
+                 <exclusion>
+                     <groupId>org.slf4j</groupId>
+-                    <artifactId>slf4j-api</artifactId>
++                    <artifactId>slf4j-log4j12</artifactId>
+                 </exclusion>
+             </exclusions>
+-            -->
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.apache.hadoop</groupId>
+             <artifactId>hadoop-yarn-client</artifactId>
+             <version>${hadoop.version}</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>javax.servlet</groupId>
++                    <artifactId>servlet-api</artifactId>
++                </exclusion>
++            </exclusions>
+         </dependency>
+ 
+         <dependency>
+@@ -69,10 +73,28 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>2.3.0</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>org.scala-lang</groupId>
++                    <artifactId>scala-compiler</artifactId>
++                </exclusion>
++            </exclusions>
++        </dependency>
++
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-webapp</artifactId>
++            <version>8.1.14.v20131031</version>
++        </dependency>
++
++        <!--
++        <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+             <artifactId>livy-repl</artifactId>
+             <version>${project.version}</version>
+-            <!--
+             <exclusions>
+                 <exclusion>
+                     <groupId>org.scala-lang</groupId>
+@@ -83,8 +105,8 @@
+                     <artifactId>slf4j-api</artifactId>
+                 </exclusion>
+             </exclusions>
+-            -->
+         </dependency>
++        -->
+ 
+     </dependencies>
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/assembly/dist.xml b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+index 18ff7f7..d52ff8b 100644
+--- a/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
++++ b/apps/spark/java/livy-yarn/src/main/assembly/dist.xml
+@@ -25,10 +25,14 @@
+             <useProjectArtifact>true</useProjectArtifact>
+ 
+             <!--
+-            <excludes>
+-                <exclude></exclude>
+-            </excludes>
++            <includes>
++                <include>com.cloudera.hue.livy:livy-yarn</include>
++                <include>org.slf4j:slf4j-log4j12</include>
++                <include>org.apache.hadoop:hadoop-hdfs</include>
++            </includes>
+             -->
++
++            <useTransitiveFiltering>true</useTransitiveFiltering>
+         </dependencySet>
+     </dependencySets>
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+index 8d3611d..875aae8 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+@@ -36,5 +36,7 @@ function check_and_enable_64_bit_mode {
+ # Check if log4j configuration is specified. If not - set to lib/log4j.xml
+ [[ $JAVA_OPTS != *-Dlog4j.configuration* && -f $DEFAULT_LOG4J_FILE ]] && JAVA_OPTS="$JAVA_OPTS -Dlog4j.configuration=file:$DEFAULT_LOG4J_FILE"
+ 
++JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006"
++
+ echo $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+ exec $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala b/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+new file mode 100644
+index 0000000..8acc01e
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+@@ -0,0 +1,14 @@
++import javax.servlet.ServletContext
++
++import com.cloudera.hue.livy.yarn.WebApp
++import org.scalatra.LifeCycle
++
++class ScalatraBootstrap extends LifeCycle {
++
++  override def init(context: ServletContext): Unit = {
++    context.mount(new WebApp, "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++  }
++}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index c922e25..2262f44 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -1,17 +1,10 @@
+ package com.cloudera.hue.livy.yarn
+ 
+-import org.apache.hadoop.net.NetUtils
+ import org.apache.hadoop.yarn.api.ApplicationConstants
+ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+ import org.apache.hadoop.yarn.client.api.AMRMClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+ import org.apache.hadoop.yarn.util.ConverterUtils
+-import org.eclipse.jetty.server.Server
+-import org.eclipse.jetty.servlet.DefaultServlet
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
+-
+-import scala.concurrent.ExecutionContext
+ 
+ object AppMaster extends Logging {
+ 
+@@ -27,55 +20,58 @@ object AppMaster extends Logging {
+     info("got node manager host: %s" format nodeHostString)
+ 
+     val nodePortString = System.getenv(ApplicationConstants.Environment.NM_PORT.toString)
+-    info("got node manager port: %s" format nodeHostString)
+-
+-    val yarnConfig = new YarnConfiguration
+-    val amRMClient = AMRMClient.createAMRMClient()
+-    amRMClient.init(yarnConfig)
+-    amRMClient.start()
+-
+-    try {
+-      val server = new Server(0)
+-      val context = new WebAppContext()
+-
+-      context.setContextPath("/")
+-      context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-      context.addEventListener(new ScalatraListener)
+-
+-      context.addServlet(classOf[DefaultServlet], "/")
+-
+-      context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+-
+-      server.setHandler(context)
+-
+-      server.start()
+-
+-      // Now that the server is up and running register it with YARN.
+-      val appMasterHostname = NetUtils.getHostname
+-      val appMasterRpcPort = server.getConnectors()(0).getLocalPort
+-      val appMasterTrackingUrl = ""
++    info("got node manager port: %s" format nodePortString)
+ 
+-      info("Starting RPC server on %s:%s" format(appMasterHostname, appMasterRpcPort))
+-      info("Tracking URL: %s" format appMasterTrackingUrl)
+-
+-      val response = amRMClient.registerApplicationMaster(appMasterHostname, appMasterRpcPort, appMasterTrackingUrl)
+-
+-      val maxMem = response.getMaximumResourceCapability.getMemory
+-      info("max mem capacity on this cluster: %s" format maxMem)
++    val yarnConfig = new YarnConfiguration()
++    val service = new AppMasterService(yarnConfig, nodeHostString)
++    service.run()
++  }
+ 
+-      val maxVCores = response.getMaximumResourceCapability.getVirtualCores
+-      info("max vcore capacity on this cluster: %s" format maxMem)
++}
+ 
+-      // Finallay, wait for the web service to shut down.
+-      server.join()
++class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String) extends Logging {
++  val webServer = new WebServer
++  val amRMClient = AMRMClient.createAMRMClient()
++  amRMClient.init(yarnConfig)
+ 
++  def run(): Unit = {
++    webServer.start()
++    try {
++      amRMClient.start()
++
++      try {
++        // Now that the server is up and running register it with YARN.
++        val response = amRMClient.registerApplicationMaster(nodeHostString, webServer.port, "%s:%s" format(nodeHostString, webServer.port))
++
++        val maxMem = response.getMaximumResourceCapability.getMemory
++        info("max mem capacity on this cluster: %s" format maxMem)
++
++        val maxVCores = response.getMaximumResourceCapability.getVirtualCores
++        info("max vcore capacity on this cluster: %s" format maxMem)
++
++        var isShutdown = false
++
++        while (!isShutdown) {
++          try {
++            Thread.sleep(1000)
++          } catch {
++            case e: InterruptedException => {
++              isShutdown = true
++            }
++          }
++        }
++      } finally {
++        val appStatus = FinalApplicationStatus.SUCCEEDED
++        val appMessage = "wee"
++
++        amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
++        amRMClient.stop()
++      }
+     } finally {
+-      val appStatus = FinalApplicationStatus.SUCCEEDED
+-      val appMessage = "wee"
+-
+-      amRMClient.unregisterApplicationMaster(appStatus, appMessage, null)
+-      amRMClient.stop()
++      webServer.stop()
+     }
+   }
+-
+ }
++
++
++
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 03d73eb..d333a1f 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -2,12 +2,10 @@ package com.cloudera.hue.livy.yarn
+ 
+ import org.apache.hadoop.fs.{FileSystem, Path}
+ import org.apache.hadoop.yarn.api.ApplicationConstants
+-import org.apache.hadoop.yarn.api.ApplicationConstants.Environment
+ import org.apache.hadoop.yarn.api.records._
+ import org.apache.hadoop.yarn.client.api.YarnClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+ import org.apache.hadoop.yarn.util.{ConverterUtils, Records}
+-import org.slf4j.LoggerFactory
+ 
+ import scala.collection.JavaConversions._
+ 
+@@ -37,9 +35,9 @@ object Client extends Logging {
+ 
+       info("waiting for job to start")
+ 
+-      job.waitForStatus(Running(), 500) match {
++      job.waitForStatus(Running(), 10000) match {
+         case Some(Running()) => {
+-          info("job started successfully")
++          info("job started successfully on %s:%s" format(job.host, job.rpcPort))
+         }
+         case Some(appStatus) => {
+           warn("unable to start job successfully. job has status %s" format appStatus)
+@@ -49,6 +47,7 @@ object Client extends Logging {
+         }
+       }
+ 
++      /*
+       job.waitForFinish(100000) match {
+         case Some(SuccessfulFinish()) => {
+           info("job finished successfully")
+@@ -60,6 +59,7 @@ object Client extends Logging {
+           info("timed out")
+         }
+       }
++      */
+ 
+     } finally {
+       client.close()
+@@ -69,7 +69,7 @@ object Client extends Logging {
+ 
+ class Client(yarnConf: YarnConfiguration) {
+ 
+-  import Client._
++  import com.cloudera.hue.livy.yarn.Client._
+ 
+   val yarnClient = YarnClient.createYarnClient()
+   yarnClient.init(yarnConf)
+@@ -188,6 +188,16 @@ class Job(client: YarnClient, appId: ApplicationId) {
+     None
+   }
+ 
++  def host: String = {
++    val statusResponse = client.getApplicationReport(appId)
++    statusResponse.getHost
++  }
++
++  def rpcPort: Int = {
++    val statusResponse = client.getApplicationReport(appId)
++    statusResponse.getRpcPort
++  }
++
+   private def getStatus(): ApplicationStatus = {
+     val statusResponse = client.getApplicationReport(appId)
+     convertState(statusResponse.getYarnApplicationState, statusResponse.getFinalApplicationStatus)
+@@ -196,15 +206,21 @@ class Job(client: YarnClient, appId: ApplicationId) {
+   private def convertState(state: YarnApplicationState, status: FinalApplicationStatus): ApplicationStatus = {
+     (state, status) match {
+       case (YarnApplicationState.FINISHED, FinalApplicationStatus.SUCCEEDED) => SuccessfulFinish()
+-      case (YarnApplicationState.KILLED, _) | (YarnApplicationState.FAILED, _) => UnsuccessfulFinish()
+-      case (YarnApplicationState.NEW, _) | (YarnApplicationState.SUBMITTED, _) => New()
+-      case _ => Running()
++      case (YarnApplicationState.FINISHED, _) |
++           (YarnApplicationState.KILLED, _) |
++           (YarnApplicationState.FAILED, _) => UnsuccessfulFinish()
++      case (YarnApplicationState.NEW, _) |
++           (YarnApplicationState.NEW_SAVING, _) |
++           (YarnApplicationState.SUBMITTED, _) => New()
++      case (YarnApplicationState.RUNNING, _) => Running()
++      case (YarnApplicationState.ACCEPTED, _) => Accepted()
+     }
+   }
+ }
+ 
+ trait ApplicationStatus
+ case class New() extends ApplicationStatus
++case class Accepted() extends ApplicationStatus
+ case class Running() extends ApplicationStatus
+ case class SuccessfulFinish() extends ApplicationStatus
+ case class UnsuccessfulFinish() extends ApplicationStatus
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
+new file mode 100644
+index 0000000..e1a6dbe
+--- /dev/null
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
+@@ -0,0 +1,49 @@
++package com.cloudera.hue.livy.yarn
++
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.{DefaultServlet, ServletHolder}
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.ScalatraServlet
++import org.scalatra.servlet.{ScalatraListener, AsyncSupport}
++
++import scala.concurrent.ExecutionContext
++
++class WebServer extends Logging {
++  val server = new Server(0)
++  val context = new WebAppContext()
++  var port = 0
++
++  context.setContextPath("/")
++  context.setResourceBase("src/main/com/cloudera/hue/livy/yarn")
++  context.addEventListener(new ScalatraListener)
++
++  context.addServlet(classOf[DefaultServlet], "/")
++
++  context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
++
++  server.setHandler(context)
++
++  def start() = {
++    //context.setContextPath("/")
++    //context.setResourceBase(getClass.getClassLoader.getResource())
++    server.start()
++    port = server.getConnectors()(0).getLocalPort
++
++    info("Starting RPC server on %s" format port)
++  }
++
++  def stop() = {
++    context.stop()
++    server.stop()
++  }
++}
++
++class WebApp extends ScalatraServlet {
++  get("/") {
++    "hello world"
++  }
++
++  get("/hello") {
++    "hello world2"
++  }
++}
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 971983b..d40c80d 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -55,8 +55,8 @@
+         <!--
+         <module>livy-assembly</module>
+         <module>livy-server</module>
+-        -->
+         <module>livy-repl</module>
++        -->
+         <module>livy-yarn</module>
+     </modules>
+ 
+-- 
+1.7.9.5
+

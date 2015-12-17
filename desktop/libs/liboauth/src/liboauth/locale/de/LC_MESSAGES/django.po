@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2014-05-29 17:10-0700\n"
+"POT-Creation-Date: 2015-05-07 22:59-0700\n"
 "PO-Revision-Date: 2012-11-07 13:08-0800\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: de <LL@li.org>\n"
@@ -109,8 +109,14 @@ msgid "Comma-separated list of whitelisted domains."
 msgstr "Durch Kommas abgetrennte Liste mit Domänen auf der Whitelist."
 
 #: src/liboauth/conf.py:161
-msgid "JSON formatted hash of username simplifications. Example: {\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} converts \"email@sub1.domain.com\" to \"email_S1\""
-msgstr "JSON-formatiertes Hash mit vereinfachten Benutzernamen. Beispiel: {\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} konvertiert \"email@sub1.domain.com\" zu \"email_S1\"."
+msgid ""
+"JSON formatted hash of username simplifications. Example: "
+"{\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} converts "
+"\"email@sub1.domain.com\" to \"email_S1\""
+msgstr ""
+"JSON-formatiertes Hash mit vereinfachten Benutzernamen. Beispiel: "
+"{\"@sub1.domain.com\":\"_S1\", \"@sub2.domain.com\":\"_S2\"} konvertiert "
+"\"email@sub1.domain.com\" zu \"email_S1\"."
 
 #: src/liboauth/views.py:72
 #, python-format
@@ -133,19 +139,19 @@ msgstr "gethue.com besuchen"
 msgid "Fell asleep? Visit us on gethue.com instead!"
 msgstr "Eingeschlafen? Besuchen Sie uns lieber auf gethue.com!"
 
-#: src/liboauth/templates/oauth-login.mako:169
+#: src/liboauth/templates/oauth-login.mako:170
 msgid "Error!"
 msgstr "Fehler!"
 
-#: src/liboauth/templates/oauth-login.mako:169
+#: src/liboauth/templates/oauth-login.mako:170
 msgid "Invalid username or password."
 msgstr "Benutzername oder Kennwort ungültig."
 
-#: src/liboauth/templates/oauth-login.mako:176
+#: src/liboauth/templates/oauth-login.mako:177
 msgid "This is your first time logging in."
 msgstr "Dies ist Ihre erste Anmeldung."
 
-#: src/liboauth/templates/oauth-login.mako:177
+#: src/liboauth/templates/oauth-login.mako:178
 msgid "You will become Hue superuser."
 msgstr "Sie werden Hue-Superuser."
 

@@ -1,0 +1,144 @@
+From abf86e1d25120105fc27a6a84b791223d805d7ce Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 22 Dec 2014 16:35:23 -0800
+Subject: [PATCH 0640/1173] [spark] Get the spark repl to run inside yarn (!)
+
+---
+ .../java/livy-repl/src/main/scala/Scalatra.scala   |    4 ++--
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |    2 +-
+ apps/spark/java/livy-yarn/pom.xml                  |    6 ++++--
+ .../java/livy-yarn/src/main/bash/run-class.sh      |    2 +-
+ .../java/livy-yarn/src/main/scala/Scalatra.scala   |   10 ++++++++--
+ apps/spark/java/pom.xml                            |    2 +-
+ 6 files changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala b/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+index ccffb4b..c835eb3 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+@@ -1,10 +1,10 @@
+ import javax.servlet.ServletContext
+ 
++import com.cloudera.hue.livy.repl.LivyApp
+ import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+-import com.cloudera.hue.livy.repl.webapp.LivyApp
+ import org.scalatra.LifeCycle
+ 
+-class ScalatraBootstrap extends LifeCycle {
++class ScalatraBootstrap2 extends LifeCycle {
+ 
+   //val system = ActorSystem()
+   val sparkInterpreter = new SparkInterpreter
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index 80bf9a7..68e044d 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -1,4 +1,4 @@
+-package com.cloudera.hue.livy.repl.webapp
++package com.cloudera.hue.livy.repl
+ 
+ import akka.util.Timeout
+ import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 34db3b6..7d6bc82 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -72,6 +72,7 @@
+             <version>${scala.version}</version>
+         </dependency>
+ 
++        <!--
+         <dependency>
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra_2.10</artifactId>
+@@ -83,6 +84,7 @@
+                 </exclusion>
+             </exclusions>
+         </dependency>
++        -->
+ 
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+@@ -90,23 +92,23 @@
+             <version>8.1.14.v20131031</version>
+         </dependency>
+ 
+-        <!--
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+             <artifactId>livy-repl</artifactId>
+             <version>${project.version}</version>
+             <exclusions>
++                <!--
+                 <exclusion>
+                     <groupId>org.scala-lang</groupId>
+                     <artifactId>scala-compiler</artifactId>
+                 </exclusion>
++                -->
+                 <exclusion>
+                     <groupId>org.slf4j</groupId>
+                     <artifactId>slf4j-api</artifactId>
+                 </exclusion>
+             </exclusions>
+         </dependency>
+-        -->
+ 
+     </dependencies>
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+index 875aae8..60cf4cf 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+@@ -36,7 +36,7 @@ function check_and_enable_64_bit_mode {
+ # Check if log4j configuration is specified. If not - set to lib/log4j.xml
+ [[ $JAVA_OPTS != *-Dlog4j.configuration* && -f $DEFAULT_LOG4J_FILE ]] && JAVA_OPTS="$JAVA_OPTS -Dlog4j.configuration=file:$DEFAULT_LOG4J_FILE"
+ 
+-JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006"
++JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5006"
+ 
+ echo $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+ exec $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala b/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+index 8acc01e..6a71d88 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+@@ -1,14 +1,20 @@
+ import javax.servlet.ServletContext
+ 
+-import com.cloudera.hue.livy.yarn.WebApp
++import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
++import com.cloudera.hue.livy.repl.LivyApp
+ import org.scalatra.LifeCycle
+ 
+ class ScalatraBootstrap extends LifeCycle {
+ 
++  //val system = ActorSystem()
++  val sparkInterpreter = new SparkInterpreter
++
+   override def init(context: ServletContext): Unit = {
+-    context.mount(new WebApp, "/*")
++    context.mount(new LivyApp(sparkInterpreter), "/*")
+   }
+ 
+   override def destroy(context: ServletContext): Unit = {
++    sparkInterpreter.close()
++    //system.shutdown()
+   }
+ }
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index d40c80d..971983b 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -55,8 +55,8 @@
+         <!--
+         <module>livy-assembly</module>
+         <module>livy-server</module>
+-        <module>livy-repl</module>
+         -->
++        <module>livy-repl</module>
+         <module>livy-yarn</module>
+     </modules>
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,192 @@
+From a05afdab7baf81f757f0caaead353e69b0e5e1c6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 28 Jan 2015 23:26:11 +0800
+Subject: [PATCH 0707/1173] [spark] Print the execution time of a snippet
+
+---
+ apps/spark/src/spark/models.py             |    2 +-
+ apps/spark/src/spark/templates/editor.mako |   48 +++++++++++++++-------------
+ apps/spark/static/js/spark.ko.js           |   29 ++++++++++-------
+ 3 files changed, 44 insertions(+), 35 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index a1e8679..800c8ba 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -250,7 +250,7 @@ class HS2Api():
+ 
+     if (snippet['type'] == 'hive' and beeswax_conf.CLOSE_QUERIES.get()) or (snippet['type'] == 'impala' and impala_conf.CLOSE_QUERIES.get()):
+       db = self._get_db(snippet)
+-  
++
+       handle = self._get_handle(snippet)
+       db.close_operation(handle)
+       return {'status': 'closed'}
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 9234b36..cd07c89 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -109,35 +109,37 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     <a title="${ _('Execute all') }" rel="tooltip" data-placement="bottom" data-bind="click: true, css: {'btn': true}">
+       <i class="fa fa-play"></i>
+     </a>
++    
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+       <i class="fa fa-pencil"></i>
+     </a>
++    
+     &nbsp;&nbsp;&nbsp;
+-    % if user.is_superuser:
+-      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }"
+-          data-bind="click: saveNotebook, css: {'btn': true}">
+-        <i class="fa fa-save"></i>
+-      </button>
++
++    <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }"
++        data-bind="click: saveNotebook, css: {'btn': true}">
++      <i class="fa fa-save"></i>
++    </button>
+       
+-      &nbsp;&nbsp;&nbsp;
++    &nbsp;&nbsp;&nbsp;
+       
+-      <button type="button" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
+-          data-bind="click: newNotebook, css: {'btn': true}">
+-        <i class="fa fa-file-o"></i>
+-      </button>
++    <button type="button" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
++        data-bind="click: newNotebook, css: {'btn': true}">
++      <i class="fa fa-file-o"></i>
++    </button>
+       
+-      <a class="btn" href="${ url('spark:new') }" title="${ _('Brand New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+-        <i class="fa fa-file-o"></i>
+-      </a>
++    <a class="btn" href="${ url('spark:new') }" title="${ _('Brand New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++      <i class="fa fa-file-o"></i>
++    </a>
+             
+-      <button type="button" title="${ _('Open') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
+-          data-bind="click: newNotebook, css: {'btn': true}">
+-        <i class="fa fa-folder-open-o"></i>
+-      </button>      
+-      <a class="btn" href="${ url('spark:notebooks') }" title="${ _('Notebooks') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+-        <i class="fa fa-terminal"></i>
+-      </a>
+-    % endif
++    <button type="button" title="${ _('Open') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("New...") }"
++        data-bind="click: newNotebook, css: {'btn': true}">
++      <i class="fa fa-folder-open-o"></i>
++    </button>      
++    
++    <a class="btn" href="${ url('spark:notebooks') }" title="${ _('Notebooks') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++      <i class="fa fa-terminal"></i>
++    </a>
+   </div>
+ 
+ 
+@@ -375,7 +377,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </div>
+ 
+           <div class="pull-right">
+-            <strong class="muted" data-bind="visible: type() != 'text' && status() == 'available'">Took 1s</strong>
++            <strong class="muted" data-bind="visible: type() != 'text' && status() != 'ready' && status() != 'loading', text: result.executionTime"></strong>
+             
+             &nbsp;
+             
+@@ -994,7 +996,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+   var options = ${ options_json | n,unicode };
+   $.extend(options, {
+-    assistVisible: $.totalStorage("sparkAssistVisible") != null ? $.totalStorage("sparkAssistVisible") : true
++    assistVisible: $.totalStorage("sparkAssistVisible") != null ? $.totalStorage("sparkAssistVisible") : false
+   });
+ 
+   viewModel = new EditorViewModel(${ notebooks_json | n,unicode }, options);
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 8ffbc54..a833113 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -29,7 +29,13 @@ var Result = function (snippet, result) {
+       return item.name != ''
+     });
+   });
+-
++  self.startTime = ko.observable(typeof result.startTime != "undefined" && result.startTime != null ? new Date(result.startTime) : new Date());
++  self.endTime = ko.observable(typeof result.endTime != "undefined" && result.endTime != null ? new Date(result.endTime) : new Date());
++  self.executionTime = ko.computed(function() {
++    return self.endTime().getTime() - self.startTime().getTime();
++  });
++  
++  
+   function isNumericColumn(type) {
+     return $.inArray(type, ['TINYINT_TYPE', 'SMALLINT_TYPE', 'INT_TYPE', 'BIGINT_TYPE', 'FLOAT_TYPE', 'DOUBLE_TYPE', 'DECIMAL_TYPE', 'TIMESTAMP_TYPE', 'DATE_TYPE']) > -1;
+   }
+@@ -39,7 +45,7 @@ var Result = function (snippet, result) {
+   }
+ 
+   function isStringColumn(type) {
+-    return !isNumericColumn(type) && !isDateTimeColumn(type);
++    return ! isNumericColumn(type) && ! isDateTimeColumn(type);
+   }
+ 
+   self.cleanedNumericMeta = ko.computed(function(){
+@@ -82,6 +88,8 @@ var Result = function (snippet, result) {
+     self.data.removeAll();
+     self.logs('');
+     self.errors('');
++    self.startTime(new Date());
++    self.endTime(new Date());
+   };  
+ }
+ 
+@@ -270,6 +278,7 @@ var Snippet = function (vm, notebook, snippet) {
+   };
+   
+   self.create_session = function() {
++	self.status('loading');
+     $.post("/spark/api/create_session", {
+     	notebook: ko.mapping.toJSON(notebook),
+         snippet: ko.mapping.toJSON(self)
+@@ -392,9 +401,10 @@ var Snippet = function (vm, notebook, snippet) {
+           self.getLogs();
+ 
+           if (self.status() == 'running') {
++        	self.result.endTime(new Date());
+         	self.checkStatusTimeout = setTimeout(self.checkStatus, 1000);        	
+           } 
+-          else if (self.status() == 'available') {
++          else if (self.status() == 'available') {        	
+         	self.fetchResult(100);
+         	self.progress(100);
+           }
+@@ -521,8 +531,6 @@ var Notebook = function (vm, notebook) {
+ 	
+ 	if (self.getSession(_snippet.type()) == null) {
+ 	  _snippet.create_session();	  
+-    } else {
+-      _snippet.status('ready');
+     }
+ 
+ 	_snippet.init();
+@@ -567,12 +575,11 @@ var Notebook = function (vm, notebook) {
+   };
+   
+   self.close = function () {
+-    $.post("/spark/api/notebook/close", {
+-        "notebook": ko.mapping.toJSON(self)
+-    }, function (data) {
+-   }).fail(function (xhr, textStatus, errorThrown) {
+-      $(document).trigger("error", xhr.responseText);
+-    });
++	if (self.id() != null) {
++      $.post("/spark/api/notebook/close", {
++          "notebook": ko.mapping.toJSON(self)
++      });
++	}
+   };
+ }
+ 
+-- 
+1.7.9.5
+

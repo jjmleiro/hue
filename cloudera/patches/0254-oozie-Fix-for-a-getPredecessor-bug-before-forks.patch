@@ -1,0 +1,26 @@
+From 491953d38db367d6ec43d1b8b790315328d03a00 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 22:27:58 +0100
+Subject: [PATCH 0254/1173] [oozie] Fix for a getPredecessor bug before forks
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index c7fb0a2..1a9da30 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -676,6 +676,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+             break;
+           }
+         }
++        if (_row != null) {
++          break;
++        }
+         for (var z = 0; z < row.columns().length; z++) {
+           _row = self.traverseColumnForWidget(widget_id, row.columns()[z]);
+           if (_row != null) {
+-- 
+1.7.9.5
+

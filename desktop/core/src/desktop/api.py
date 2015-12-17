@@ -15,17 +15,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import logging
 import json
 import time
 
 from collections import defaultdict
 
-from django.http import HttpResponse
 from django.core.urlresolvers import reverse
+
+from django.utils import html
 from django.utils.translation import ugettext as _
 
+import desktop.conf
+from desktop.lib.django_util import JsonResponse
 from desktop.lib.i18n import force_unicode
 from desktop.models import Document, DocumentTag
 
@@ -35,12 +37,25 @@ LOG = logging.getLogger(__name__)
 
 def _get_docs(user):
   history_tag = DocumentTag.objects.get_history_tag(user)
-  trash_tag = DocumentTag.objects.get_trash_tag(user)
-  docs = itertools.chain(
-      Document.objects.get_docs(user).exclude(tags__in=[trash_tag]).filter(tags__in=[history_tag]).select_related('DocumentTag', 'User', 'DocumentPermission').order_by('-last_modified')[:500],
-      Document.objects.get_docs(user).exclude(tags__in=[history_tag]).select_related('DocumentTag', 'User', 'DocumentPermission').order_by('-last_modified')[:100]
-  )
-  return list(docs)
+
+  query = Document.objects.get_docs(user) \
+      .exclude(tags__in=[history_tag]). \
+      select_related('owner', 'content_type') \
+      .prefetch_related('tags','documentpermission_set')
+
+  # Work around Oracle not supporting SELECT DISTINCT with the CLOB type.
+  if desktop.conf.DATABASE.ENGINE.get() == 'django.db.backends.oracle':
+    query = query.only('id')
+  else:
+    query = query.defer(None)
+
+  docs = query.order_by('-last_modified')[:100]
+
+  if desktop.conf.DATABASE.ENGINE.get() == 'django.db.backends.oracle':
+    ids = [doc.id for doc in docs]
+    return Document.objects.filter(id__in=ids).defer(None)
+  else:
+    return docs
 
 
 def massaged_tags_for_json(docs, user):
@@ -94,37 +109,60 @@ def massaged_tags_for_json(docs, user):
 def massaged_tags(tag, tag_doc_mapping):
   return {
     'id': tag.id,
-    'name': tag.tag,
+    'name': html.conditional_escape(tag.tag),
     'owner': tag.owner.username,
     'docs': [doc.id for doc in tag_doc_mapping[tag]] # Could get with one request groupy
   }
+
+def massage_permissions(document):
+  """
+  Returns the permissions for a given document as a dictionary
+  """
+  read_perms = document.list_permissions(perm='read')
+  write_perms = document.list_permissions(perm='write')
+  return {
+    'perms': {
+        'read': {
+          'users': [{'id': perm_user.id, 'username': perm_user.username} \
+                     for perm_user in read_perms.users.all()],
+          'groups': [{'id': perm_group.id, 'name': perm_group.name} \
+                     for perm_group in read_perms.groups.all()]
+        },
+        'write': {
+          'users': [{'id': perm_user.id, 'username': perm_user.username} \
+                     for perm_user in write_perms.users.all()],
+          'groups': [{'id': perm_group.id, 'name': perm_group.name} \
+                     for perm_group in write_perms.groups.all()]
+        }
+      }
+    }
 
 def massaged_documents_for_json(documents, user):
   """
   var DOCUMENTS_DEFAULTS = {
     '1': {
       'id': 1,
-      'name': 'my query history', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
+      'name': 'my query history', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
     },
     '2': {
       'id': 2,
-      'name': 'my query 2 trashed', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
+      'name': 'my query 2 trashed', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
      },
      '3': {
        'id': 3,
-       'name': 'my query 3 tagged twice', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
+       'name': 'my query 3 tagged twice', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
      'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
      },
     '10': {
       'id': 10,
-      'name': 'my query 3 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
+      'name': 'my query 3 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
      },
     '11': {
       'id': 11,
-      'name': 'my query 4 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
+      'name': 'my query 4 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
      }
   };
@@ -137,61 +175,40 @@ def massaged_documents_for_json(documents, user):
     except:
       # If app of document is disabled
       url = ''
-    read_perms = document.list_permissions(perm='read')
-    write_perms = document.list_permissions(perm='write')
-    docs[document.id] = {
-      'id': document.id,
-      'contentType': document.content_type.name,
-      'icon': document.icon,
-      'name': document.name,
-      'url': url,
-      'description': document.description,
-      'tags': [{'id': tag.id, 'name': tag.tag} for tag in document.tags.all()],
-      'perms': {
-        'read': {
-          'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in read_perms.users.all()],
-          'groups': [{'id': perm_group.id, 'name': perm_group.name} for perm_group in read_perms.groups.all()]
-        },
-        'write': {
-          'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in write_perms.users.all()],
-          'groups': [{'id': perm_group.id, 'name': perm_group.name} for perm_group in write_perms.groups.all()]
-        }
-      },
-      'owner': document.owner.username,
-      'isMine': document.owner == user,
-      'lastModified': document.last_modified.strftime("%x %X"),
-      'lastModifiedInMillis': time.mktime(document.last_modified.timetuple())
-   }
+    docs[document.id] = massage_doc_for_json(document, user, url)
 
   return docs
 
+def get_document(request):
+  if request.method == 'POST':
+    return Http404()
+  elif request.method == 'GET':
+    doc_id = request.GET['id']
+    doc = Document.objects.get(id=doc_id)
+    response = massage_doc_for_json(doc, request.user)
+    return JsonResponse(response)
 
-def massage_doc_for_json(doc, user):
-  read_perms = doc.list_permissions(perm='read')
-  write_perms = doc.list_permissions(perm='write')
-  return {
-      'id': doc.id,
-      'contentType': doc.content_type.name,
-      'icon': doc.icon,
-      'name': doc.name,
-      'url': doc.content_object.get_absolute_url(),
-      'description': doc.description,
-      'tags': [{'id': tag.id, 'name': tag.tag} for tag in doc.tags.all()],
-      'perms': {
-        'read': {
-          'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in read_perms.users.all()],
-          'groups': [{'id': perm_group.id, 'name': perm_group.name} for perm_group in read_perms.groups.all()]
-        },
-        'write': {
-          'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in write_perms.users.all()],
-          'groups': [{'id': perm_group.id, 'name': perm_group.name} for perm_group in write_perms.groups.all()]
-        }
-      },
-      'owner': doc.owner.username,
-      'isMine': doc.owner.username == user.username,
-      'lastModified': doc.last_modified.strftime("%x %X"),
-      'lastModifiedInMillis': time.mktime(doc.last_modified.timetuple())
-    }
+def massage_doc_for_json(document, user, url=''):
+  read_perms = document.list_permissions(perm='read')
+  write_perms = document.list_permissions(perm='write')
+  massaged_doc = {
+    'id': document.id,
+    'contentType': html.conditional_escape(document.content_type.name),
+    'icon': document.icon,
+    'name': html.conditional_escape(document.name),
+    'url': html.conditional_escape(url),
+    'description': html.conditional_escape(document.description),
+    'tags': [{'id': tag.id, 'name': html.conditional_escape(tag.tag)} \
+             for tag in document.tags.all()],
+    'owner': document.owner.username,
+    'isMine': document.owner == user,
+    'lastModified': document.last_modified.strftime("%x %X"),
+    'lastModifiedInMillis': time.mktime(document.last_modified.timetuple())
+  }
+
+  permissions = massage_permissions(document)
+  massaged_doc.update(permissions)
+  return massaged_doc
 
 
 def add_tag(request):
@@ -210,7 +227,7 @@ def add_tag(request):
   else:
     response['message'] = _('POST request only')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def tag(request):
@@ -227,7 +244,7 @@ def tag(request):
   else:
     response['message'] = _('POST request only')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def update_tags(request):
@@ -244,7 +261,7 @@ def update_tags(request):
   else:
     response['message'] = _('POST request only')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def remove_tag(request):
@@ -260,7 +277,7 @@ def remove_tag(request):
   else:
     response['message'] = _('POST request only')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 def update_permissions(request):
@@ -281,4 +298,4 @@ def update_permissions(request):
   else:
     response['message'] = _('POST request only')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)

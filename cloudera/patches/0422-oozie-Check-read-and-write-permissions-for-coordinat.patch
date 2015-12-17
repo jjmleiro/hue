@@ -1,0 +1,413 @@
+From ac89d9916054bf3c21a2c4bece0041830cb2125a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 8 Jan 2015 16:59:27 -0800
+Subject: [PATCH 0422/1173] [oozie] Check read and write permissions for
+ coordinators
+
+---
+ apps/oozie/src/oozie/decorators.py                 |   58 ++++++++--------
+ apps/oozie/src/oozie/models2.py                    |    4 +-
+ .../oozie/templates/editor/coordinator_editor.mako |   70 +++++++++++++-------
+ .../oozie/templates/editor/workflow_editor.mako    |    4 +-
+ apps/oozie/src/oozie/views/editor2.py              |   33 ++++++---
+ apps/oozie/static/js/coordinator-editor.ko.js      |    5 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |    4 +-
+ 7 files changed, 104 insertions(+), 74 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/decorators.py b/apps/oozie/src/oozie/decorators.py
+index dedf9bb..4eb8cf5 100644
+--- a/apps/oozie/src/oozie/decorators.py
++++ b/apps/oozie/src/oozie/decorators.py
+@@ -32,34 +32,28 @@ LOG = logging.getLogger(__name__)
+ 
+ def check_document_access_permission():
+   def inner(view_func):
+-    def decorate(request, *args, **kwargs):
+-      # uuid=request.GET.get('uuid')
+-      
+-      # workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
+-      
+-      wid = {}
++    def decorate(request, *args, **kwargs):      
++      doc_id = {}
+       
+       try:
+-        workflow_id = request.GET.get('workflow')      
+-        if workflow_id:
++        if request.GET.get('workflow'):
++          workflow_id = request.GET.get('workflow')
+           if workflow_id.isdigit():
+-            wid['id'] = workflow_id
++            doc_id['id'] = workflow_id
+           else:
+-            wid['uuid'] = workflow_id
++            doc_id['uuid'] = workflow_id
+         elif request.GET.get('uuid'):
+-          wid['uuid'] = request.GET.get('uuid')
+-
+-        doc2 = Document2.objects.get(type='oozie-workflow2', **wid)          
+-        doc2.doc.get().can_read_or_exception(request.user)
++          doc_id['uuid'] = request.GET.get('uuid')
++        elif request.GET.get('coordinator'):
++          doc_id['id'] = request.GET.get('coordinator')
++        elif 'doc_id' in kwargs:
++          doc_id['id'] = kwargs['doc_id']
++
++        if doc_id:
++          doc2 = Document2.objects.get(**doc_id)          
++          doc2.doc.get().can_read_or_exception(request.user)
+       except Document.DoesNotExist:
+-        raise PopupException(_('Job %(id)s does not exist') % {'id': wid})
+-      
+-      if 'workflow' in kwargs:
+-        job_type = 'workflow'
+-      elif 'coordinator' in kwargs:
+-        job_type = 'coordinator'
+-      else:
+-        job_type = 'bundle'
++        raise PopupException(_('Job %(id)s does not exist') % {'id': doc_id})
+ 
+       return view_func(request, *args, **kwargs)
+     return wraps(view_func)(decorate)
+@@ -69,18 +63,20 @@ def check_document_access_permission():
+ def check_document_modify_permission():
+   def inner(view_func):
+     def decorate(request, *args, **kwargs):
+-      wid = None            
++      doc_id = None            
+       
+-      workflow = json.loads(request.POST.get('workflow', '{}'))
++      job = json.loads(request.POST.get('workflow', '{}'))
++      if not job:
++        job = json.loads(request.POST.get('coordinator', '{}'))
+ 
+-      if workflow.get('id'):
+-        wid = workflow.get('id')
++      if job and job.get('id'):
++        doc_id = job.get('id')
+       
+-      try:
+-        doc2 = Document2.objects.get(id=workflow['id'])
+-        doc2.doc.get().can_write_or_exception(request.user)
+-      except Document.DoesNotExist:
+-        raise PopupException(_('Job %(id)s does not exist') % {'id': wid})
++        try:
++          doc2 = Document2.objects.get(id=job['id'])
++          doc2.doc.get().can_write_or_exception(request.user)
++        except Document.DoesNotExist:
++          raise PopupException(_('Job %(id)s does not exist') % {'id': doc_id})
+ 
+       return view_func(request, *args, **kwargs)
+     return wraps(view_func)(decorate)
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 9a03001..c8a59a7 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1405,7 +1405,7 @@ class Coordinator(Job):
+   @property      
+   def deployment_dir(self):
+     if not self.data['properties'].get('deployment_dir'):
+-      self.data['properties']['deployment_dir'] = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too    
++      self.data['properties']['deployment_dir'] = Job.get_workspace(user)    
+     return self.data['properties']['deployment_dir']
+   
+   def find_parameters(self):
+@@ -1638,7 +1638,7 @@ class Bundle(Job):
+   @property      
+   def deployment_dir(self):
+     if not self.data['properties'].get('deployment_dir'):
+-      self.data['properties']['deployment_dir'] = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too    
++      self.data['properties']['deployment_dir'] = Job.get_workspace(user)    
+     return self.data['properties']['deployment_dir']
+   
+   def find_parameters(self):
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 14d600f..9a15377 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -14,7 +14,7 @@
+ ## See the License for the specific language governing permissions and
+ ## limitations under the License.
+ <%!
+-from desktop.views import commonheader, commonfooter
++from desktop.views import commonheader, commonfooter, commonshare
+ from django.utils.translation import ugettext as _
+ %>
+ 
+@@ -32,35 +32,46 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<div id="editor">
++
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+-    <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
+-      <i class="fa fa-file-code-o"></i>
+-    </a>
+-    &nbsp;&nbsp;&nbsp;
+-    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}, visible: coordinator.id() != null">
+       <i class="fa fa-play"></i>
+     </a>
+-    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
++    <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+       <i class="fa fa-pencil"></i>
+     </a>
++    
+     &nbsp;&nbsp;&nbsp;
+-    % if user.is_superuser:
+-      <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsModal" data-bind="css: {'btn': true}">
+-        <i class="fa fa-cog"></i>
+-      </button>
+-      &nbsp;&nbsp;&nbsp;
+-      <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
+-        <i class="fa fa-save"></i>
+-      </button>
+-      &nbsp;&nbsp;&nbsp;
+-      <a class="btn" href="${ url('oozie:new_coordinator') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+-        <i class="fa fa-file-o"></i>
+-      </a>
+-      <a class="btn" href="${ url('oozie:list_editor_coordinators') }" title="${ _('Coordinators') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
+-        <i class="fa fa-tags"></i>
+-      </a>
+-    % endif
++
++    <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsModal" data-bind="css: {'btn': true}, visible: canEdit">
++      <i class="fa fa-cog"></i>
++    </button>
++    
++    &nbsp;&nbsp;&nbsp;
++
++    <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" 
++        data-bind="click: $root.save, css: {'btn': true}, visible: canEdit">
++      <i class="fa fa-save"></i>
++    </button>
++    
++    <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: openShareModal,
++        attr: {'data-original-title': '${ _("Share") } ' + name},
++        css: {'isShared': isShared(), 'btn': true},
++        visible: coordinator.id() != null && canEdit()">
++      <i class="fa fa-users"></i>
++    </a>    
++    
++    &nbsp;&nbsp;&nbsp;
++
++    <a class="btn" href="${ url('oozie:new_coordinator') }" title="${ _('New') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++      <i class="fa fa-file-o"></i>
++    </a>
++    <a class="btn" href="${ url('oozie:list_editor_coordinators') }" title="${ _('Coordinators') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++      <i class="fa fa-tags"></i>
++    </a>
++
+   </div>
+ 
+   <form class="form-search">
+@@ -300,6 +311,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+ <div id="submit-coord-modal" class="modal hide"></div>
+ 
++
++</div>
++
+ <div id="exposeOverlay"></div>
+ 
+ <link rel="stylesheet" href="/static/ext/css/hue-filetypes.css">
+@@ -310,10 +324,13 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+ ${ dashboard.import_layout() }
+ 
++${ commonshare() | n,unicode }
++
+ <script src="/static/ext/js/bootstrap-editable.min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/js/hue.utils.js"></script>
+ <script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/js/share.vm.js"></script>
+ 
+ ${ dashboard.import_bindings() }
+ 
+@@ -324,8 +341,11 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-  var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode });
+-  ko.applyBindings(viewModel);
++  var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
++  ko.applyBindings(viewModel, $("#editor")[0]);
++
++  var shareViewModel = setupSharing("#documentShareModal");
++  shareViewModel.setDocId(${ doc1_id });
+ 
+   function showChooseWorkflow() {
+     $("#chooseWorkflowDemiModal").modal("show");
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index a1140c5..f3006a9 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -171,7 +171,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: openShareModal,
+         attr: {'data-original-title': '${ _("Share") } ' + name},
+         css: {'isShared': isShared(), 'btn': true},
+-        visible: workflow.id() != null, visible: canEdit">
++        visible: workflow.id() != null && canEdit()">
+       <i class="fa fa-users"></i>
+     </a>
+ 
+@@ -1789,7 +1789,7 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode }, ${ subworkflows_json | n,unicode }, ${ can_edit_job_json | n,unicode }); 
++  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode }, ${ subworkflows_json | n,unicode }, ${ can_edit_json | n,unicode }); 
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+   var shareViewModel = setupSharing("#documentShareModal");
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index da9230b..6bb0320 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -86,8 +86,8 @@ def edit_workflow(request):
+       'credentials_json': json.dumps(credentials.credentials.keys()),
+       'workflow_properties_json': json.dumps(WORKFLOW_NODE_PROPERTIES),
+       'doc1_id': doc.doc.get().id if doc else -1,
+-      'subworkflows_json': json.dumps(_get_workflows(request.user)), # if has sub?
+-      'can_edit_job_json': json.dumps(doc is None or doc.doc.get().is_editable(request.user))
++      'subworkflows_json': json.dumps(_get_workflows(request.user)),
++      'can_edit_json': json.dumps(doc is None or doc.doc.get().is_editable(request.user))
+   })
+ 
+ 
+@@ -99,7 +99,7 @@ def new_workflow(request):
+ def save_workflow(request):
+   response = {'status': -1}
+ 
+-  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
++  workflow = json.loads(request.POST.get('workflow', '{}'))
+   layout = json.loads(request.POST.get('layout', '{}'))
+ 
+   if workflow.get('id'):
+@@ -282,19 +282,21 @@ def _submit_workflow(user, fs, jt, workflow, mapping):
+ 
+ 
+ def list_editor_coordinators(request):
+-  coordinators = [d.content_object for d in Document.objects.available_docs(Document2, request.user).filter(extra='workflow2')]
+-  coordinators = Document2.objects.filter(type='oozie-coordinator2', owner=request.user)
++  coordinators = [d.content_object for d in Document.objects.get_docs(request.user, Document2, extra='coordinator2')]
+ 
+   return render('editor/list_editor_coordinators.mako', request, {
+       'coordinators': coordinators
+   })
+ 
+ 
++@check_document_access_permission()
+ def edit_coordinator(request):
+   coordinator_id = request.GET.get('coordinator')
++  doc = None
+   
+   if coordinator_id:
+-    coordinator = Coordinator(document=Document2.objects.get(id=coordinator_id)) # Todo perms
++    doc = Document2.objects.get(id=coordinator_id)
++    coordinator = Coordinator(document=doc)
+   else:
+     coordinator = Coordinator()
+ 
+@@ -306,10 +308,18 @@ def edit_coordinator(request):
+   except Exception, e:
+     LOG.error(smart_str(e))
+ 
++  workflows = [dict([('uuid', d.content_object.uuid), ('name', d.content_object.name)])
++                                    for d in Document.objects.get_docs(request.user, Document2, extra='workflow2')]
++
++  if coordinator_id and not filter(lambda a: a['uuid'] == coordinator.data['properties']['workflow'], workflows):
++    raise PopupException(_('You don\'t have access to the workflow of this coordinator.'))
++
+   return render('editor/coordinator_editor.mako', request, {
+       'coordinator_json': coordinator.json,
+       'credentials_json': json.dumps(credentials.credentials.keys()),
+-      'workflows_json': json.dumps(list(Document2.objects.filter(type='oozie-workflow2', owner=request.user).values('uuid', 'name'))) # Todo perms
++      'workflows_json': json.dumps(workflows),
++      'doc1_id': doc.doc.get().id if doc else -1,
++      'can_edit_json': json.dumps(doc is None or doc.doc.get().is_editable(request.user))
+   })
+ 
+ 
+@@ -317,15 +327,17 @@ def new_coordinator(request):
+   return edit_coordinator(request)
+ 
+ 
++@check_document_modify_permission()
+ def save_coordinator(request):
+   response = {'status': -1}
+ 
+-  coordinator_data = json.loads(request.POST.get('coordinator', '{}')) # TODO perms
++  coordinator_data = json.loads(request.POST.get('coordinator', '{}'))
+ 
+   if coordinator_data.get('id'):
+     coordinator_doc = Document2.objects.get(id=coordinator_data['id'])
+   else:      
+     coordinator_doc = Document2.objects.create(name=coordinator_data['name'], uuid=coordinator_data['uuid'], type='oozie-coordinator2', owner=request.user)
++    Document.objects.link(coordinator_doc, owner=coordinator_doc.owner, name=coordinator_doc.name, description=coordinator_doc.description, extra='coordinator2')
+ 
+   if coordinator_data['properties']['workflow']:
+     dependencies = Document2.objects.filter(type='oozie-workflow2', uuid=coordinator_data['properties']['workflow'])
+@@ -345,7 +357,7 @@ def save_coordinator(request):
+ def gen_xml_coordinator(request):
+   response = {'status': -1}
+ 
+-  coordinator_dict = json.loads(request.POST.get('coordinator', '{}')) # TODO perms
++  coordinator_dict = json.loads(request.POST.get('coordinator', '{}'))
+ 
+   coordinator = Coordinator(data=coordinator_dict)
+ 
+@@ -355,8 +367,9 @@ def gen_xml_coordinator(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json") 
+ 
+ 
++@check_document_access_permission()
+ def submit_coordinator(request, doc_id):
+-  coordinator = Coordinator(document=Document2.objects.get(id=doc_id)) # Todo perms  
++  coordinator = Coordinator(document=Document2.objects.get(id=doc_id))  
+   ParametersFormSet = formset_factory(ParameterForm, extra=0)
+ 
+   if request.method == 'POST':
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index f4de02a..dd71062 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -75,10 +75,11 @@ var Coordinator = function (vm, coordinator) {
+ }
+ 
+ 
+-var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, workflows_json) {
++var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, workflows_json, can_edit_json) {
+   var self = this;
+ 
+-  self.isEditing = ko.observable(true);
++  self.canEdit = ko.mapping.fromJS(can_edit_json);
++  self.isEditing = ko.observable(true && self.canEdit());
+   self.isEditing.subscribe(function(newVal){
+     $(document).trigger("editingToggled");
+   });
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 1255b3c..3c2f38a 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -445,12 +445,12 @@ var Workflow = function (vm, workflow) {
+   };
+ }
+ 
+-var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json, workflow_properties_json, subworkflows_json, can_edit_job_json) {
++var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json, workflow_properties_json, subworkflows_json, can_edit_json) {
+   var self = this;
+ 
+   self.isNested = ko.observable(true);
+ 
+-  self.canEdit = ko.mapping.fromJS(can_edit_job_json);
++  self.canEdit = ko.mapping.fromJS(can_edit_json);
+   self.isEditing = ko.observable(true && self.canEdit());
+   self.isEditing.subscribe(function (newVal) {
+     $(document).trigger("editingToggled");
+-- 
+1.7.9.5
+

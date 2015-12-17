@@ -1,0 +1,480 @@
+From 01a1c1451b34635b5353d51ce2a0fb7629f7c0e5 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 07:59:24 -0800
+Subject: [PATCH 0643/1173] [spark] Add livy-core, cleanup launching livy-repl
+
+---
+ apps/spark/java/livy-core/pom.xml                  |   49 ++++++++++++++
+ .../main/scala/com/cloudera/hue/livy/Logging.scala |   26 ++++++++
+ apps/spark/java/livy-repl/pom.xml                  |    6 ++
+ .../java/livy-repl/src/main/scala/Scalatra.scala   |   20 ------
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |   23 ++-----
+ .../com/cloudera/hue/livy/repl/WebServer.scala     |   70 ++++++++++++++++++++
+ apps/spark/java/livy-yarn/pom.xml                  |   25 ++-----
+ .../java/livy-yarn/src/main/scala/Scalatra.scala   |   20 ------
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |    4 +-
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    1 +
+ .../scala/com/cloudera/hue/livy/yarn/Logging.scala |   28 --------
+ .../com/cloudera/hue/livy/yarn/WebServer.scala     |   49 --------------
+ apps/spark/java/pom.xml                            |    1 +
+ 13 files changed, 166 insertions(+), 156 deletions(-)
+ create mode 100644 apps/spark/java/livy-core/pom.xml
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Logging.scala
+ delete mode 100644 apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+ delete mode 100644 apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+ delete mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
+ delete mode 100644 apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+new file mode 100644
+index 0000000..db4672c
+--- /dev/null
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -0,0 +1,49 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project xmlns="http://maven.apache.org/POM/4.0.0"
++         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
++    <modelVersion>4.0.0</modelVersion>
++    <parent>
++        <groupId>com.cloudera.hue.livy</groupId>
++        <artifactId>livy-main</artifactId>
++        <relativePath>../pom.xml</relativePath>
++        <version>3.7.0-SNAPSHOT</version>
++    </parent>
++
++    <artifactId>livy-core</artifactId>
++    <packaging>jar</packaging>
++
++    <build>
++        <plugins>
++
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <version>2.15.2</version>
++                <executions>
++                    <execution>
++                        <goals>
++                            <goal>compile</goal>
++                            <goal>testCompile</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++
++        </plugins>
++    </build>
++
++    <reporting>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration>
++            </plugin>
++        </plugins>
++    </reporting>
++
++</project>
++
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Logging.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Logging.scala
+new file mode 100644
+index 0000000..f46bf1e
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/Logging.scala
+@@ -0,0 +1,26 @@
++package com.cloudera.hue.livy
++
++trait Logging {
++  val loggerName = this.getClass.getName
++  lazy val logger = LoggerFactory.getLogger(loggerName)
++
++  def debug(message: => Any) = {
++    if (logger.isDebugEnabled) {
++      logger.debug(message.toString)
++    }
++  }
++
++  def info(message: => Any) = {
++    if (logger.isInfoEnabled) {
++      logger.info(message.toString)
++    }
++  }
++
++  def warn(message: => Any) = {
++    logger.warn(message.toString)
++  }
++
++  def error(message: => Any) = {
++    logger.error(message.toString)
++  }
++}
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 7da304f..ec2d4e9 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -66,6 +66,12 @@
+             <scope>provided</scope>
+         </dependency>
+ 
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-core</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+diff --git a/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala b/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
+deleted file mode 100644
+index c835eb3..0000000
+--- a/apps/spark/java/livy-repl/src/main/scala/Scalatra.scala
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import javax.servlet.ServletContext
+-
+-import com.cloudera.hue.livy.repl.LivyApp
+-import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+-import org.scalatra.LifeCycle
+-
+-class ScalatraBootstrap2 extends LifeCycle {
+-
+-  //val system = ActorSystem()
+-  val sparkInterpreter = new SparkInterpreter
+-
+-  override def init(context: ServletContext): Unit = {
+-    context.mount(new LivyApp(sparkInterpreter), "/*")
+-  }
+-
+-  override def destroy(context: ServletContext): Unit = {
+-    sparkInterpreter.close()
+-    //system.shutdown()
+-  }
+-}
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index 9b3e05c..48ff6ae 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -1,29 +1,14 @@
+ package com.cloudera.hue.livy.repl
+ 
+-import org.eclipse.jetty.server.Server
+-import org.eclipse.jetty.servlet.{ServletHolder, DefaultServlet}
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
+-
+-import scala.concurrent.ExecutionContext
+-
+ object Main {
+   def main(args: Array[String]): Unit = {
+     val port = sys.env.getOrElse("PORT", "8999").toInt
+-    val server = new Server(port)
+-    val context = new WebAppContext()
+-
+-    context.setContextPath("/")
+-    context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-    context.addEventListener(new ScalatraListener)
+-
+-    context.addServlet(classOf[DefaultServlet], "/")
+-
+-    context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+-
+-    server.setHandler(context)
++    val server = new WebServer(port)
++    server.start()
++    server.join()
+ 
+     server.start()
+     server.join()
++    server.stop()
+   }
+ }
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+new file mode 100644
+index 0000000..0d4376d
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+@@ -0,0 +1,70 @@
++package com.cloudera.hue.livy.repl
++
++import javax.servlet.ServletContext
++
++import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.DefaultServlet
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
++import org.scalatra.{LifeCycle, ScalatraServlet}
++
++import scala.concurrent.ExecutionContext
++
++class WebServer(var port: Int) extends Logging {
++  val server = new Server(port)
++  val context = new WebAppContext()
++
++  context.setContextPath("/")
++  context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
++  context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
++  context.addEventListener(new ScalatraListener)
++
++  context.addServlet(classOf[DefaultServlet], "/")
++
++  context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
++
++  server.setHandler(context)
++
++  def start() = {
++    server.start()
++    port = server.getConnectors()(0).getLocalPort
++
++    info("Starting RPC server on %s" format port)
++  }
++
++  def join() = {
++    server.join()
++  }
++
++  def stop() = {
++    context.stop()
++    server.stop()
++  }
++}
++
++class ScalatraBootstrap extends LifeCycle {
++
++  //val system = ActorSystem()
++  val sparkInterpreter = new SparkInterpreter
++
++  override def init(context: ServletContext): Unit = {
++    context.mount(new LivyApp(sparkInterpreter), "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++    sparkInterpreter.close()
++    //system.shutdown()
++  }
++}
++
++class WebApp extends ScalatraServlet {
++  get("/") {
++    "hello world"
++  }
++
++  get("/hello") {
++    "hello world2"
++  }
++}
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index 7d6bc82..94bbf1f 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -72,19 +72,6 @@
+             <version>${scala.version}</version>
+         </dependency>
+ 
+-        <!--
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>2.3.0</version>
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>org.scala-lang</groupId>
+-                    <artifactId>scala-compiler</artifactId>
+-                </exclusion>
+-            </exclusions>
+-        </dependency>
+-        -->
+ 
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
+@@ -94,15 +81,15 @@
+ 
+         <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-core</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
+             <artifactId>livy-repl</artifactId>
+             <version>${project.version}</version>
+             <exclusions>
+-                <!--
+-                <exclusion>
+-                    <groupId>org.scala-lang</groupId>
+-                    <artifactId>scala-compiler</artifactId>
+-                </exclusion>
+-                -->
+                 <exclusion>
+                     <groupId>org.slf4j</groupId>
+                     <artifactId>slf4j-api</artifactId>
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala b/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
+deleted file mode 100644
+index 6a71d88..0000000
+--- a/apps/spark/java/livy-yarn/src/main/scala/Scalatra.scala
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import javax.servlet.ServletContext
+-
+-import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+-import com.cloudera.hue.livy.repl.LivyApp
+-import org.scalatra.LifeCycle
+-
+-class ScalatraBootstrap extends LifeCycle {
+-
+-  //val system = ActorSystem()
+-  val sparkInterpreter = new SparkInterpreter
+-
+-  override def init(context: ServletContext): Unit = {
+-    context.mount(new LivyApp(sparkInterpreter), "/*")
+-  }
+-
+-  override def destroy(context: ServletContext): Unit = {
+-    sparkInterpreter.close()
+-    //system.shutdown()
+-  }
+-}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index 2262f44..0d8d486 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -1,5 +1,7 @@
+ package com.cloudera.hue.livy.yarn
+ 
++import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.repl.WebServer
+ import org.apache.hadoop.yarn.api.ApplicationConstants
+ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+ import org.apache.hadoop.yarn.client.api.AMRMClient
+@@ -30,7 +32,7 @@ object AppMaster extends Logging {
+ }
+ 
+ class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String) extends Logging {
+-  val webServer = new WebServer
++  val webServer = new WebServer(0)
+   val amRMClient = AMRMClient.createAMRMClient()
+   amRMClient.init(yarnConfig)
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index d333a1f..8d1f554 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -1,5 +1,6 @@
+ package com.cloudera.hue.livy.yarn
+ 
++import com.cloudera.hue.livy.Logging
+ import org.apache.hadoop.fs.{FileSystem, Path}
+ import org.apache.hadoop.yarn.api.ApplicationConstants
+ import org.apache.hadoop.yarn.api.records._
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
+deleted file mode 100644
+index 03e4783..0000000
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Logging.scala
++++ /dev/null
+@@ -1,28 +0,0 @@
+-package com.cloudera.hue.livy.yarn
+-
+-import org.slf4j.LoggerFactory
+-
+-trait Logging {
+-  val loggerName = this.getClass.getName
+-  lazy val logger = LoggerFactory.getLogger(loggerName)
+-
+-  def debug(message: => Any) = {
+-    if (logger.isDebugEnabled) {
+-      logger.debug(message.toString)
+-    }
+-  }
+-
+-  def info(message: => Any) = {
+-    if (logger.isInfoEnabled) {
+-      logger.info(message.toString)
+-    }
+-  }
+-
+-  def warn(message: => Any) = {
+-    logger.warn(message.toString)
+-  }
+-
+-  def error(message: => Any) = {
+-    logger.error(message.toString)
+-  }
+-}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
+deleted file mode 100644
+index e1a6dbe..0000000
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/WebServer.scala
++++ /dev/null
+@@ -1,49 +0,0 @@
+-package com.cloudera.hue.livy.yarn
+-
+-import org.eclipse.jetty.server.Server
+-import org.eclipse.jetty.servlet.{DefaultServlet, ServletHolder}
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.ScalatraServlet
+-import org.scalatra.servlet.{ScalatraListener, AsyncSupport}
+-
+-import scala.concurrent.ExecutionContext
+-
+-class WebServer extends Logging {
+-  val server = new Server(0)
+-  val context = new WebAppContext()
+-  var port = 0
+-
+-  context.setContextPath("/")
+-  context.setResourceBase("src/main/com/cloudera/hue/livy/yarn")
+-  context.addEventListener(new ScalatraListener)
+-
+-  context.addServlet(classOf[DefaultServlet], "/")
+-
+-  context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+-
+-  server.setHandler(context)
+-
+-  def start() = {
+-    //context.setContextPath("/")
+-    //context.setResourceBase(getClass.getClassLoader.getResource())
+-    server.start()
+-    port = server.getConnectors()(0).getLocalPort
+-
+-    info("Starting RPC server on %s" format port)
+-  }
+-
+-  def stop() = {
+-    context.stop()
+-    server.stop()
+-  }
+-}
+-
+-class WebApp extends ScalatraServlet {
+-  get("/") {
+-    "hello world"
+-  }
+-
+-  get("/hello") {
+-    "hello world2"
+-  }
+-}
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 971983b..222b861 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -56,6 +56,7 @@
+         <module>livy-assembly</module>
+         <module>livy-server</module>
+         -->
++        <module>livy-core</module>
+         <module>livy-repl</module>
+         <module>livy-yarn</module>
+     </modules>
+-- 
+1.7.9.5
+

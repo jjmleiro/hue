@@ -28,6 +28,7 @@ from django.utils.translation import ugettext as _
   <table class="table table-striped table-condensed sampleTable">
     <thead>
       <tr>
+        <th style="width: 10px"></th>
         % for col in table.cols:
           <th>${ col.name }</th>
         % endfor
@@ -36,8 +37,15 @@ from django.utils.translation import ugettext as _
     <tbody>
       % for i, row in enumerate(sample):
       <tr>
+        <td>${ i }</td>
         % for item in row:
-        <td>${ smart_unicode(item, errors='ignore') }</td>
+        <td>
+          % if item is None:
+            NULL
+          % else:
+            ${ escape(smart_unicode(item, errors='ignore')).replace(' ', '&nbsp;') | n,unicode }
+          % endif
+        </td>
         % endfor
       </tr>
       % endfor

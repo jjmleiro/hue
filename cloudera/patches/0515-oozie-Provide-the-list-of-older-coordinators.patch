@@ -1,0 +1,114 @@
+From a75b9c8f15bbac151e540bcdd39ff059821e8493 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Feb 2015 10:10:28 -0800
+Subject: [PATCH 0515/1173] [oozie] Provide the list of older coordinators
+
+---
+ .../templates/editor/list_editor_coordinators.mako |    7 ++++++-
+ .../templates/editor/list_editor_workflows.mako    |    2 +-
+ apps/oozie/src/oozie/templates/navigation-bar.mako |    2 +-
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   15 +++++++++++++--
+ 5 files changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+index 301ee35..03bb0a2 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_coordinators.mako
+@@ -80,7 +80,12 @@ ${ layout.menubar(section='coordinators', is_editor=True) }
+       <tr>
+         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
+           <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>
+-          <a data-bind="attr: { 'href': '${ url('oozie:edit_coordinator') }?coordinator=' + id() }" data-row-selector="true"></a>
++          <!-- ko if: ! uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:open_old_coordinator') }?coordinator=' + id() }" data-row-selector="true"></a>
++          <!-- /ko -->
++          <!-- ko if: uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:edit_coordinator') }?coordinator=' + id() }" data-row-selector="true"></a>
++          <!-- /ko -->                    
+         </td>
+         <td data-bind="text: name"></td>
+         <td data-bind="text: description"></td>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index 8d7443c..1caaa63 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -82,7 +82,7 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
+           <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>          
+           <!-- ko if: ! uuid() -->
+-            <a data-bind="attr: { 'href': '${ url('oozie:open_old_workflow') }?workflow=' + id() + '&open_old_workflow=true' }" data-row-selector="true"></a>
++            <a data-bind="attr: { 'href': '${ url('oozie:open_old_workflow') }?workflow=' + id() }" data-row-selector="true"></a>
+           <!-- /ko -->
+           <!-- ko if: uuid() -->
+             <a data-bind="attr: { 'href': '${ url('oozie:edit_workflow') }?workflow=' + id() }" data-row-selector="true"></a>
+diff --git a/apps/oozie/src/oozie/templates/navigation-bar.mako b/apps/oozie/src/oozie/templates/navigation-bar.mako
+index cb9c64b..8fd8991 100644
+--- a/apps/oozie/src/oozie/templates/navigation-bar.mako
++++ b/apps/oozie/src/oozie/templates/navigation-bar.mako
+@@ -56,7 +56,7 @@
+ 
+                   % if ENABLE_V2.get():
+                     <li class="inline alert alert-warn" style="margin-left:20px; margin-bottom:0px; margin-top:4px">
+-                      ${ _('This is the old editor, please migrate your workflows to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows')}">${ _('new editor.') }</a>
++                      ${ _('This is the old editor, please migrate your jobs to the ') } <a style="display:inline" href="${url('oozie:list_editor_workflows') if utils.is_selected(section, 'workflows') else url('oozie:list_editor_coordinators') if utils.is_selected(section, 'coordinators') else url('oozie:list_editor_bundles')}">${ _('new editor.') }</a>
+                     </li>
+                   % endif
+                 % endif
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 616bad4..97de6e5 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -92,6 +92,7 @@ urlpatterns += patterns(
+   url(r'^editor/coordinator/save/$', 'save_coordinator', name='save_coordinator'),
+   url(r'^editor/coordinator/submit/(?P<doc_id>\d+)$', 'submit_coordinator', name='editor_submit_coordinator'),
+   url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'),
++  url(r'^editor/coordinator/open_old_coordinator/$', 'open_old_coordinator', name='open_old_coordinator'),
+   
+   url(r'^editor/bundle/list/$', 'list_editor_bundles', name='list_editor_bundles'),
+   url(r'^editor/bundle/edit/$', 'edit_bundle', name='edit_bundle'),
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 3a63d68..609234f 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -38,10 +38,10 @@ from liboozie.submission2 import Submission
+ 
+ from oozie.decorators import check_document_access_permission, check_document_modify_permission
+ from oozie.forms import ParameterForm
+-from oozie.models import Workflow as OlfWorklow, Job
++from oozie.models import Workflow as OlfWorklow, Coordinator as OldCoordinator, Job
+ from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflow_from_hue_3_7,\
+     find_dollar_variables, find_dollar_braced_variables
+-from oozie.views.editor import edit_workflow as old_edit_workflow 
++from oozie.views.editor import edit_workflow as old_edit_workflow, edit_coordinator as old_edit_coordinator
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -374,6 +374,10 @@ def _submit_workflow(user, fs, jt, workflow, mapping):
+ def list_editor_coordinators(request):
+   coordinators = [d.content_object.to_dict() for d in Document.objects.get_docs(request.user, Document2, extra='coordinator2')]
+ 
++  coordinators_v1 = [job.doc.get().to_dict() for job in Document.objects.available(OldCoordinator, request.user)]
++  if coordinators_v1:
++    coordinators.extend(coordinators_v1)
++
+   return render('editor/list_editor_coordinators.mako', request, {
+       'coordinators_json': json.dumps(coordinators, cls=JSONEncoderForHTML)
+   })
+@@ -418,6 +422,13 @@ def new_coordinator(request):
+   return edit_coordinator(request)
+ 
+ 
++def open_old_coordinator(request):
++  doc_id = request.GET.get('coordinator')
++  coordinator_id = Document.objects.get(id=doc_id).object_id
++  
++  return old_edit_coordinator(request, coordinator=coordinator_id)
++
++
+ @check_document_access_permission()
+ def copy_coordinator(request):
+   if request.method != 'POST':
+-- 
+1.7.9.5
+

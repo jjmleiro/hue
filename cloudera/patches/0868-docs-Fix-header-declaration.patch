@@ -1,0 +1,25 @@
+From cb91af9d571288e2e5befafa7653a99279810588 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 20 Feb 2015 10:43:03 -0800
+Subject: [PATCH 0868/1173] [docs] Fix header declaration
+
+---
+ docs/manual.txt |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/docs/manual.txt b/docs/manual.txt
+index 26b94ff..4cf1ead 100644
+--- a/docs/manual.txt
++++ b/docs/manual.txt
+@@ -510,7 +510,7 @@ submit_to::
+ 
+ 
+ Hive Configuration
+-~~~~~~~~~~~~~~~~~~~~~
++~~~~~~~~~~~~~~~~~~
+ 
+ In the `[beeswax]` section of the configuration file, you can
+ _optionally_ specify the following:
+-- 
+1.7.9.5
+

@@ -18,35 +18,15 @@
   from desktop import conf
   from django.utils.translation import ugettext as _
   from desktop.views import commonheader, commonfooter
+  from useradmin.password_policy import is_password_policy_enabled, get_password_hint
 %>
 
 ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
 
-<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
-<style type="text/css">  
-  @font-face {
-    font-family: OpenSansLight;
-    src: url("/static/ext/fonts/isban/OpenSans-Light.ttf");
-  }
-
-  @font-face {
-    font-family: OpenSansRegular;
-    src: url("/static/ext/fonts/isban/OpenSans-Regular.ttf");
-  }
-
-  @font-face {
-    font-family: OpenSansSemiBold;
-    src: url("/static/ext/fonts/isban/OpenSans-Semibold.ttf");
-  }
-
-  @font-face {
-    font-family: OpenSansBold;
-    src: url("/static/ext/fonts/isban/OpenSans-Bold.ttf");
-  }
-
-  body {    
-    font-family: OpenSansRegular;
-    height: 100%;    
+<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
+<style type="text/css">
+  body {
+    background-color: #FFF;
   }
 
   @-webkit-keyframes spinner {
@@ -63,9 +43,20 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 10px;
-    background: url("/static/art/isban/logo-principal-white.png") 50% 2px no-repeat;
-    width: 360px;
-    height: 114px;
+    background: #FFF url("${ static('desktop/art/hue-login-logo-ellie.png') }") 50% 2px no-repeat;
+    width: 130px;
+    height: 130px;
+    -webkit-border-radius: 65px;
+    -moz-border-radius: 65px;
+    border-radius: 65px;
+    border: 1px solid #EEE;
+  }
+
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    #logo {
+      background: #FFF url("${ static('desktop/art/hue-login-logo-ellie@2x.png') }") 50% 2px no-repeat;
+      background-size: 114px 114px;
+    }
   }
 
   #logo.waiting {
@@ -76,13 +67,11 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     -webkit-transform-style: preserve-3d;
   }
 
-  .table-height {
-    height: 385px;
-    overflow:hidden;
-  }
-
-  .login-content {    
-    width: 500px;    
+  .login-content {
+    width: 360px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .input-prepend {
@@ -102,16 +91,16 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   .login-content .input-prepend.error input, .login-content .input-prepend.error .add-on {
-    border-top-color: #444444;
-    border-bottom-color: #444444;
+    border-top-color: #dd4b39;
+    border-bottom-color: #dd4b39;
   }
 
   .login-content .input-prepend.error input {
-    border-right-color: #444444;
+    border-right-color: #dd4b39;
   }
 
   .login-content .input-prepend.error .add-on {
-    border-left-color: #444444;
+    border-left-color: #dd4b39;
   }
 
   .login-content input[type='submit'] {
@@ -152,7 +141,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   .well {
     border: 1px solid #D8D8D8;
     border-radius: 3px 3px 3px 3px;
-    background-color: #EC0000;
+    background-color: #F7F7F7;
   }
 
   .footer {
@@ -164,8 +153,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
   }
 
   h3 {
-    font-family: OpenSansBold;
-    color: #191919;
+    color: #666;
     font-size: 24px;
     font-weight: 400;
     margin-bottom: 20px;
@@ -193,97 +181,85 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
     background-position-x: -17px;
     background-position-y: 10px;
   }
-
-  #tblLogin {
-    margin-top: 80px;    
-  }
-
 </style>
+
 
 <div class="footer"></div>
 
-<table id="tblLogin" width="100%" border="0" cellpadding="0" cellspacing="0">
-  <tr>
-    <td align="right">
-      <div class="login-content center table-height">      
+<div class="container">
+  <div class="row">
+    <div class="login-content center">
+      <div id="logo"></div>
 
-        <form method="POST" action="${action}" class="well">
-          
-          <div id="logo"></div>
+      <form method="POST" action="${action}" class="well">
+        ${ csrf_token(request) | n,unicode }
+        %if first_login_ever:
+          <h3>${_('Create your Hue account')}</h3>
+        %else:
+          <h3>${_('Sign in to continue to Hue')}</h3>
+        %endif
 
-          %if first_login_ever:
-            <h3>${_('Create your Hue account')}</h3>
-          %else:
-            <h3>${_('Sign in to continue to Hue')}</h3>
-          %endif
-
-          %if first_login_ever:
-            <div class="alert alert-block">
-              ${_('Since this is your first time logging in, pick any username and password. Be sure to remember these, as')}
-              <strong>${_('they will become your Hue superuser credentials.')}</strong>.
-            </div>
-          %endif
-
-          <div class="input-prepend
-            % if backend_name == 'OAuthBackend':
-              hide
+        %if first_login_ever:
+          <div class="alert alert-block">
+            ${_('Since this is your first time logging in, pick any username and password. Be sure to remember these, as')}
+            <strong>${_('they will become your Hue superuser credentials.')}</strong>
+            % if is_password_policy_enabled():
+	      <p>${get_password_hint()}</p>
             % endif
-          ">
-            <span class="add-on"><i class="fa fa-user"></i></span>
-            ${ form['username'] | n,unicode }
           </div>
+        %endif
 
-          ${ form['username'].errors | n,unicode }
+        <div class="input-prepend
+          % if backend_name == 'OAuthBackend':
+            hide
+          % endif
+        ">
+          <span class="add-on"><i class="fa fa-user"></i></span>
+          ${ form['username'] | n,unicode }
+        </div>
 
-          <div class="input-prepend
-            % if backend_name in ('AllowAllBackend', 'OAuthBackend'):
-              hide
+        ${ form['username'].errors | n,unicode }
+
+        <div class="input-prepend
+          % if backend_name in ('AllowAllBackend', 'OAuthBackend'):
+            hide
+          % endif
+        ">
+          <span class="add-on"><i class="fa fa-lock"></i></span>
+          ${ form['password'] | n,unicode }
+        </div>
+        ${ form['password'].errors | n,unicode }
+
+        %if active_directory:
+        <div class="input-prepend">
+          <span class="add-on"><i class="fa fa-globe"></i></span>
+          ${ form['server'] | n,unicode }
+        </div>
+        %endif
+
+        %if login_errors and not form['username'].errors and not form['password'].errors:
+          <div class="alert alert-error" style="text-align: center">
+            <strong><i class="fa fa-exclamation-triangle"></i> ${_('Error!')}</strong>
+            % if form.errors:
+              % for error in form.errors:
+               ${ form.errors[error]|unicode,n }
+              % endfor
             % endif
-          ">
-            <span class="add-on"><i class="fa fa-lock"></i></span>
-            ${ form['password'] | n,unicode }
           </div>
-          ${ form['password'].errors | n,unicode }
+        %endif
+        <hr/>
+        %if first_login_ever:
+          <input type="submit" class="btn btn-large btn-primary" value="${_('Create account')}"/>
+        %else:
+          <input type="submit" class="btn btn-large btn-primary" value="${_('Sign in')}"/>
+        %endif
+        <input type="hidden" name="next" value="${next}"/>
+      </form>
+    </div>
+  </div>
+</div>
 
-          %if active_directory:
-          <div class="input-prepend">
-            <span class="add-on"><i class="fa fa-globe"></i></span>
-            ${ form['server'] | n,unicode }
-          </div>
-          %endif
-
-          %if login_errors and not form['username'].errors and not form['password'].errors:
-            <div class="alert alert-error" style="text-align: center">
-              <strong><i class="fa fa-exclamation-triangle"></i> ${_('Error!')}</strong>
-              % if form.errors:
-                % for error in form.errors:
-                 ${ form.errors[error]|unicode,n }
-                % endfor
-              % endif
-            </div>
-          %endif
-          <br/>
-          %if first_login_ever:
-            <br/>
-            <input type="submit" class="btn btn-login" value="${_('Create account')}"/>
-          %else:
-            <br/>
-            <input type="submit" class="btn btn-login" value="${_('Sign in')}"/>
-          %endif
-          <input type="hidden" name="next" value="${next}"/>
-        </form>
-      </div>
-    </td>
-    <td align="left">
-      <div class="table-height">
-        <img src="/static/art/isban/fondo.png" height="100%" width="100%"/>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
-
+<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 <script>
   $(document).ready(function () {
     $("#id_server").chosen({

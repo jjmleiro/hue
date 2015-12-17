@@ -1,0 +1,204 @@
+From 2e0edfb22950185434cbf2af0f4dd557ff8d32a1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 2 Dec 2014 15:14:05 -0600
+Subject: [PATCH 0537/1173] [spark] Cancel a statement
+
+---
+ apps/spark/src/spark/api.py                |   24 ++++++++++++++++++++---
+ apps/spark/src/spark/models.py             |   21 +++++++++++++++-----
+ apps/spark/src/spark/templates/editor.mako |    3 ++-
+ apps/spark/src/spark/urls.py               |    1 +
+ apps/spark/static/js/spark.vm.js           |   29 ++++++++++++++++++++++++----
+ 5 files changed, 65 insertions(+), 13 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index e8b9f4b..81de53a 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -61,7 +61,7 @@ def execute(request):
+     if 'session not found' in message:
+       response['status'] = -2
+     else:
+-      response['error'] = force_unicode(str(e))
++      response['message'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+@@ -80,7 +80,7 @@ def check_status(request):
+     if 'session not found' in message:
+       response['status'] = -2
+     else:
+-      response['error'] = force_unicode(str(e))
++      response['message'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+@@ -99,8 +99,26 @@ def fetch_result(request):
+     if 'session not found' in message:
+       response['status'] = -2
+     else:
+-      response['error'] = force_unicode(str(e))
++      response['message'] = force_unicode(str(e))
+ 
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def cancel_statement(request):
++  response = {'status': -1}
++
++  notebook = json.loads(request.POST.get('notebook', '{}'))
++  snippet = json.loads(request.POST.get('snippet', '{}'))
++
++  try:
++    response['result'] = get_api(request.user, snippet).cancel(notebook, snippet)
++    response['status'] = 0
++  except Exception, e:
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['message'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 36978e4..a1497cc 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -126,7 +126,13 @@ class HS2Api():
+     snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
+     handle = HiveServerQueryHandle(**snippet['result']['handle'])
+     status =  db.get_state(handle)
+-    return {'status': 'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index) else 'finished'}
++
++    return {
++        'status':
++          'running' if status.index in (QueryHistory.STATE.running.index, QueryHistory.STATE.submitted.index)
++          else ('failed' if QueryHistory.STATE.failed.index
++          else 'ready')
++    }
+ 
+   def fetch_result(self, notebook, snippet):
+     db = dbms.get(self.user)
+@@ -148,8 +154,13 @@ class HS2Api():
+   def fetch_result_metadata(self):
+     pass 
+ 
+-  def cancel(self):
+-    pass
++  def cancel(self, notebook, snippet):
++    db = dbms.get(self.user)
++      
++    snippet['result']['handle']['secret'], snippet['result']['handle']['guid'] = HiveServerQueryHandle.get_decoded(snippet['result']['handle']['secret'], snippet['result']['handle']['guid'])
++    handle = HiveServerQueryHandle(**snippet['result']['handle'])
++    db.cancel_operation(handle)
++    return {'status': 'canceled'}    
+ 
+   def get_log(self):
+     pass
+@@ -177,7 +188,7 @@ class SparkApi():  # Pig, DBquery, Phoenix...
+     return {'id': api.submit_statement(session['id'], snippet['statement']).split('cells/')[1]}
+ 
+   def check_status(self, notebook, snippet):
+-    return {'status': 'finished'}
++    return {'status': 'ready'}
+ 
+   def fetch_result(self, notebook, snippet):
+     api = get_spark_api(self.user)
+@@ -195,5 +206,5 @@ class SparkApi():  # Pig, DBquery, Phoenix...
+         } for column in []]
+     }
+ 
+-  def cancel(self):
++  def cancel(self, notebook, snippet):
+     pass
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index f3bf6a9..a7bbe4a 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -201,7 +201,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             </div>
+           </div>
+           <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
+-          <a href="javascript:void(0)" data-bind="click: execute" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
++          <a href="javascript:void(0)" data-bind="click: execute, visible: status() != 'running'" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
++          <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
+         </div>
+       </div>
+ 
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 67bcec9..f7673cc 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -31,6 +31,7 @@ urlpatterns += patterns('spark.api',
+   url(r'^api/execute$', 'execute', name='execute'),
+   url(r'^api/check_status$', 'check_status', name='check_status'),
+   url(r'^api/fetch_result$', 'fetch_result', name='fetch_result'),
++  url(r'^api/cancel_statement', 'cancel_statement', name='cancel_statement'),
+ 
+   url(r'^api/notebook/save$', 'save_notebook', name='save_notebook'),
+   url(r'^api/notebook/open$', 'open_notebook', name='open_notebook'),
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index c77b68e..9905b47 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -149,6 +149,8 @@ var Snippet = function (notebook, snippet) {
+     notebook.snippets.remove(snippet);
+   }
+   
++  self.checkStatusTimeout = null;
++  
+   // init()
+   // checkStatus()
+ 
+@@ -198,16 +200,19 @@ var Snippet = function (notebook, snippet) {
+   };
+ 
+   self.checkStatus = function() {
++	  
+     $.post("/spark/api/check_status", {
+        notebook: ko.mapping.toJSON(notebook),
+        snippet: ko.mapping.toJSON(self)
+ 	  }, function (data) {
+ 	    if (data.status == 0) {
++
+           self.status(data.query_status.status);
+-            
++
+           if (self.status() == 'running') {
+-            setTimeout(self.checkStatus, 1000);            	
+-          } else {
++        	self.checkStatusTimeout = setTimeout(self.checkStatus, 1000);
++          } 
++           else if (self.status() == 'ready') {
+         	self.fetchResult();
+           }
+ 	    } else if (data.status == -2) {
+@@ -246,7 +251,23 @@ var Snippet = function (notebook, snippet) {
+   };
+   
+   self.cancel = function() {
+-
++	if (self.checkStatusTimeout != null) {
++	  clearTimeout(self.checkStatusTimeout);
++	  self.checkStatusTimeout = null;
++	}
++	
++    $.post("/spark/api/cancel_statement", {
++        notebook: ko.mapping.toJSON(notebook),
++        snippet: ko.mapping.toJSON(self)
++ 	  }, function (data) {
++ 	    if (data.status == 0) {
++ 	      self.status('canceled'); 
++ 	    } else {
++ 	      $(document).trigger("error", data.message);
++ 	    }
++ 	}).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
+   };
+ }
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,26 @@
+From 642f1ed8296646e286e108a64b2cef731a5f4eaa Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 18 Dec 2014 18:37:08 -0800
+Subject: [PATCH 0172/1173] [beeswax] Rename TestHiveServer2API test to
+ test_parsing_partition_values
+
+---
+ apps/beeswax/src/beeswax/tests.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index 8546727..e862438 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -1789,7 +1789,7 @@ class MockHiveServerTable(HiveServerTable):
+ 
+ class TestHiveServer2API():
+ 
+-  def test_partition_values(self):
++  def test_parsing_partition_values(self):
+     table = MockHiveServerTable({'path_location': '/my/table'})
+ 
+     value = PartitionValueCompatible(['datehour=2013022516'], table)
+-- 
+1.7.9.5
+

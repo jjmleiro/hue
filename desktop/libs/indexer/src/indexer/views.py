@@ -18,10 +18,9 @@
 import logging
 import json
 
-from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 
-from desktop.lib.django_util import render
+from desktop.lib.django_util import JsonResponse, render
 
 from indexer.management.commands import indexer_setup
 
@@ -31,6 +30,7 @@ LOG = logging.getLogger(__name__)
 
 def collections(request, is_redirect=False):
   return render('collections.mako', request, {})
+
 
 def install_examples(request, is_redirect=False):
   result = {'status': -1, 'message': ''}
@@ -45,4 +45,4 @@ def install_examples(request, is_redirect=False):
       LOG.exception(e)
       result['message'] = str(e)
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)

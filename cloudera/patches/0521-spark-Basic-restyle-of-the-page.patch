@@ -1,0 +1,386 @@
+From 35b9e24f8c8ef77ff0a9c9776570153338adb6af Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sat, 29 Nov 2014 03:51:24 +0100
+Subject: [PATCH 0521/1173] [spark] Basic restyle of the page
+
+---
+ apps/spark/src/spark/templates/editor.mako |  211 ++++++++++++----------------
+ apps/spark/static/css/spark.css            |   22 ++-
+ apps/spark/static/js/spark.vm.js           |   36 ++++-
+ 3 files changed, 138 insertions(+), 131 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 7e32419..479a1e2 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -18,40 +18,42 @@
+   from django.utils.translation import ugettext as _
+ %>
+ 
+-<%namespace name="common" file="common.mako" />
+ 
+-${ commonheader(_('Query'), app_name, user) | n,unicode }
++${ commonheader(_('Query'), app_name, user, "100px") | n,unicode }
+ 
+-${ common.navbar('editor') }
++<div class="card card-toolbar">
++  <div style="float: left; margin-left: 20px">
++    <div class="toolbar-label">${_('WIDGETS')}</div>
++    <div data-bind="css: { 'draggable-widget': true, 'disabled': false }"
++         title="${_('Hive Query')}" rel="tooltip" data-placement="bottom">
++         <a data-bind="style: { cursor: true ? 'move' : 'default' }">
++                       <img src="/beeswax/static/art/icon_beeswax_48.png" class="app-icon" />
++         </a>
++    </div>
++  </div>
++  <div class="clearfix"></div>
++</div>
+ 
+ 
+ <div class="container-fluid">
+   <div class="row-fluid">
+     <div class="span12">
+ 
+-      <div class="card card-home">
+-      
+-        <li>
+-          <ul data-bind="template: { name: 'notebook', foreach: notebooks }"></ul>
+-          
+-           <a href="javascript: void(0)" data-bind="click: newNotebook">
+-             <i class="fa fa-plus" title="${ _('Add') }"></i>
+-           </a>          
+-        </li>
+-      
+-        <div id="snippets"></div>
+-
+-        <div class="question">
+-          ${ _('What would you like to type?') }
+-          <select id="codeMode">
+-            <option value="markdown">Markdown</option>
+-            <option value="text/x-impalaql">Impala</option>
+-            <option value="text/x-hiveql">Hive</option>
+-            <option value="text/x-pig">Pig</option>
+-          </select>
++        <ul class="nav nav-tabs">
++          <!-- ko foreach: notebooks -->
++            <li class="tab-pane" data-bind="css: { active: $parent.selectedNotebook() === $data }">
++              <a href="javascript:void(0)" data-bind="text: id, click: $parent.selectedNotebook.bind(null, $data)"></a>
++            </li>
++          <!-- /ko -->
++          <li class="tab-pane">
++            <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
++          </li>
++        </ul>
++
++        <div class="tab-content" data-bind="foreach: notebooks">
++          <div class="tab-pane" data-bind="css: { active: $parent.selectedNotebook() === $data }, template: { name: 'notebook'}">
++          </div>
+         </div>
+-        <textarea id="mainEditor"></textarea>
+-      </div>
+ 
+     </div>
+   </div>
+@@ -59,36 +61,50 @@ ${ common.navbar('editor') }
+ 
+ 
+ <script type="text/html" id="notebook">
+-  <strong data-bind="text: id"></strong>
+-  <li>
+-    <ul data-bind="template: { name: 'snippet', foreach: snippets }"></ul>
+-  </li>
+-  
+-  <a href="javascript: void(0)" data-bind="click: newSnippet">
+-    <i class="fa fa-plus" title="${ _('Add') }"></i>
+-  </a>
++  <span data-bind="template: { name: 'snippet', foreach: snippets }"></span>
++
++  <div style="margin: 20px">
++    <a href="javascript: void(0)" data-bind="click: newSnippet">
++      <i class="fa fa-plus" title="${ _('Add') }"></i> ${ _('Add a new snippet') }
++    </a>
++  </div>
+ </script>
+ 
+ 
+ <script type="text/html" id="snippet">
+-  <strong data-bind="text: id"></strong>
+-  <strong data-bind="text: type"></strong>
+-  <textarea data-bind="value: statement"></textarea>
+-  
+-  <a href="javascript: void(0)" data-bind="click: execute">
+-    <i class="fa fa-play" title="${ _('Go') }"></i>
+-  </a>
+-  
+-  <strong data-bind="text: ko.mapping.toJSON(result.meta)"></strong>
+-  <li data-bind="foreach: result.data">
+-    <ul data-bind="text: ko.mapping.toJSON($data)"></ul>
+-  </li>  
+-</script>
+ 
++  <div class="snippet">
++    <span class="muted" data-bind="text: id"></span>
++
++    <div class="pull-right">
++      <strong class="muted" data-bind="text: type"></strong>
++    </div>
++    <br/>
++    <br/>
++    <textarea data-bind="value: statement, codemirror: { 'lineNumbers': true, 'matchBrackets': true, 'mode': 'text/x-hiveql', 'enter': execute }"></textarea>
++    <a href="javascript:void(0)" data-bind="click: execute" class="btn codeMirror-overlaybtn">${ _('Go!') }</a>
++
++    <div data-bind="css: klass">
++      <table class="table table-condensed">
++        <thead>
++          <tr data-bind="foreach: result.meta">
++            <th data-bind="text: $data.name"></th>
++          </tr>
++        </thead>
++        <tbody data-bind="foreach: result.data">
++          <tr data-bind="foreach: $data">
++            <td data-bind="text: $data"></td>
++          </tr>
++        </tbody>
++      </table>
++    </div>
++  </div>
++
++</script>
+ 
+ 
+-<textarea id="tempEditor"></textarea>
+ 
++<link rel="stylesheet" href="/static/css/common_dashboard.css">
+ <link rel="stylesheet" href="/static/ext/css/codemirror.css">
+ <link rel="stylesheet" href="/spark/static/css/spark.css">
+ 
+@@ -107,86 +123,41 @@ ${ common.navbar('editor') }
+ 
+ <script type="text/javascript" charset="utf-8">
+ 
++  ko.bindingHandlers.codemirror = {
++    init: function (element, valueAccessor, allBindingsAccessor, viewModel) {
++      var options = $.extend(valueAccessor(), {
++        extraKeys: {
++          "Ctrl-Enter": function () {
++            valueAccessor().enter();
++          }
++        }
++      });
++      var editor = CodeMirror.fromTextArea(element, options);
++      element.editor = editor;
++      editor.setValue(allBindingsAccessor().value());
++      window.setTimeout(function () {
++        editor.refresh();
++      }, 100);
++      editor.setSize("100%", "100px");
++      var wrapperElement = $(editor.getWrapperElement());
++
++      editor.on("change", function () {
++        allBindingsAccessor().value(editor.getValue());
++      });
++
++      ko.utils.domNodeDisposal.addDisposeCallback(element, function () {
++        wrapperElement.remove();
++      });
++    }
++  };
++
+   viewModel = new EditorViewModel(${ notebooks_json | n,unicode });
+   ko.applyBindings(viewModel);
+   viewModel.init();
+ 
+ 
+-  var mainCodeMirror, tempCodeMirror, tempCodeMirrorUpdateFn;
+-
+-
+   $(document).ready(function(){
+ 
+-    $("#codeMode").on("change", function(){
+-      mainCodeMirror.setOption("mode", $("#codeMode").val());
+-    });
+-
+-    function replaceWithEditor(snippet) {
+-      snippet.html("");
+-      snippet.off("click");
+-      $(tempCodeMirror.getWrapperElement()).appendTo(snippet);
+-      $(tempCodeMirror.getWrapperElement()).show();
+-      tempCodeMirror.setOption("mode", snippet.data("mode"));
+-      tempCodeMirror.setValue(snippet.data("source"))
+-      tempCodeMirror.setSize("100%", "50px");
+-      tempCodeMirrorUpdateFn = function(){
+-        var _source = tempCodeMirror.getValue();
+-        snippet.html(markdown.toHTML(_source)).data("source", _source);
+-        snippet.on("click", function(){
+-          replaceWithEditor($(this));
+-        });
+-      }
+-    }
+-
+-    function addSnippet(value, mode) {
+-      var _snippet = $("<div>").addClass("snippet").html(markdown.toHTML(value)).appendTo($("#snippets")).data("source", value).data("mode", mode);
+-      _snippet.on("click", function(){
+-        replaceWithEditor($(this));
+-      });
+-      mainCodeMirror.setValue("");
+-    }
+-
+-    var mainEditor = $("#mainEditor")[0];
+-    var tempEditor = $("#tempEditor")[0];
+-
+-    mainCodeMirror = CodeMirror(function (elt) {
+-      mainEditor.parentNode.replaceChild(elt, mainEditor);
+-    }, {
+-      value: mainEditor.value,
+-      readOnly: false,
+-      lineNumbers: true,
+-      mode: "markdown",
+-      extraKeys: {
+-        "Ctrl-Enter": function () {
+-          addSnippet(mainCodeMirror.getValue(), mainCodeMirror.getOption("mode"));
+-        }
+-      },
+-      onKeyEvent: function (e, s) {
+-        if (s.type == "keyup") {
+-        }
+-      }
+-    });
+-
+-    tempCodeMirror = CodeMirror(function (elt) {
+-      tempEditor.parentNode.replaceChild(elt, tempEditor);
+-    }, {
+-      value: tempEditor.value,
+-      readOnly: false,
+-      lineNumbers: true,
+-      mode: "markdown",
+-      extraKeys: {
+-        "Ctrl-Enter": function () {
+-          tempCodeMirrorUpdateFn();
+-        }
+-      },
+-      onKeyEvent: function (e, s) {
+-        if (s.type == "keyup") {
+-        }
+-      }
+-    });
+-
+-    $(tempCodeMirror.getWrapperElement()).hide();
+-
+   });
+ 
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 48cb313..ca94fe8 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -25,15 +25,11 @@
+   margin: 10px;
+ }
+ 
+-.snippet.sql {
++.results.hive-sql {
+   max-height: 200px;
+   overflow: auto;
+ }
+ 
+-#summernote {
+-  height: 200px;
+-}
+-
+ .codeMirror-overlaybtn {
+   position: absolute;
+   margin-top: -40px;
+@@ -44,4 +40,20 @@
+ 
+ .codeMirror-overlaybtn:hover {
+   opacity: 1;
++}
++
++.nav {
++  margin-bottom: 0;
++}
++
++.nav i {
++  line-height: 20px!important;
++}
++
++.card-toolbar {
++  top: 27px;
++}
++
++.tab-content {
++  background-color: #FFFFFF;
+ }
+\ No newline at end of file
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 3bd356b..ecc136b 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -49,6 +49,9 @@ var Snippet = function (notebook, snippet) {
+   self.type = ko.observable('hive-sql');
+   self.statement = ko.observable('');
+   self.status = ko.observable('finished');
++  self.klass = ko.computed(function(){
++    return 'results '+ self.type();
++  });
+   
+   self.result = new Result(snippet, snippet.result);
+   
+@@ -142,7 +145,7 @@ var Notebook = function (vm, notebook) {
+   self.snippets = ko.observableArray();
+ 
+   self.addSnippet = function(snippet) {
+-	self.snippets.push(new Snippet(self, snippet));
++	  self.snippets.push(new Snippet(self, snippet));
+   }  
+ 
+   self.newSnippet = function() {
+@@ -161,11 +164,31 @@ function EditorViewModel(notebooks) {
+   var self = this;
+ 
+   self.notebooks = ko.observableArray();
+-  
++  self.selectedNotebook = ko.observable();
++
++  self.isEditing = ko.observable(false);
++  self.toggleEditing = function () {
++    self.isEditing(! self.isEditing());
++  };
++
++//  function bareWidgetBuilder(name, type){
++//    return new Widget({
++//      size: 12,
++//      id: UUID(),
++//      name: name,
++//      widgetType: type
++//    });
++//  }
++//
++//  self.draggableHive = ko.observable(bareWidgetBuilder("Hive Query", "hive-widget"));
++
+   self.init = function() {
+-	$.each(notebooks, function(index, notebook) {
+-	  self.loadNotebook(notebook);
+-	});
++    $.each(notebooks, function(index, notebook) {
++      self.loadNotebook(notebook);
++      if (self.selectedNotebook() == null){
++        self.selectedNotebook(self.notebooks()[0]);
++      }
++    });
+   }
+ 
+   self.loadNotebook = function(notebook) {
+@@ -173,7 +196,8 @@ function EditorViewModel(notebooks) {
+   }
+ 
+   self.newNotebook = function() {
+-	self.notebooks.push(new Notebook(self, {}));
++	  self.notebooks.push(new Notebook(self, {}));
++    self.selectedNotebook(self.notebooks()[self.notebooks().length - 1]);
+   }
+   
+   self.save = function() {
+-- 
+1.7.9.5
+

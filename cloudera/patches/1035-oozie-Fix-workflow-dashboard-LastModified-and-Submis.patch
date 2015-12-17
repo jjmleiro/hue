@@ -1,0 +1,72 @@
+From ba326c7f9b18f301a415dbe3f13a16d0bbd73401 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 10 Mar 2015 15:14:01 -0700
+Subject: [PATCH 1035/1173] [oozie] Fix workflow dashboard LastModified and
+ Submission columns
+
+---
+ .../templates/dashboard/list_oozie_workflows.mako  |    6 +++---
+ apps/oozie/src/oozie/views/dashboard.py            |    9 ++++++---
+ 2 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 723ae38..570ea5d 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -165,7 +165,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+   var Workflow = function (wf) {
+     return {
+       id: wf.id,
+-      lastModTime: wf.lastModTime,
++      lastModTimeFormatted: wf.lastModTimeFormatted,
+       lastModTimeInMillis: wf.lastModTimeInMillis,
+       endTime: wf.endTime,
+       endTimeInMillis: wf.endTimeInMillis,
+@@ -376,12 +376,12 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+                 try {
+                   runningTable.fnAddData([
+                     wf.canEdit ? '<div class="hueCheckbox fa" data-row-selector-exclude="true"></div>':'',
+-                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'" data-type="date">' + emptyStringIfNull(wf.lastModTime) + '</span>',
++                    '<span data-sort-value="'+ wf.createdInMillis +'" data-type="date">' + emptyStringIfNull(wf.created) + '</span>',
+                     '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>',
+                     wf.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     wf.user,
+-                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTimeInMillis) + '</span>',
++                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTimeFormatted) + '</span>',
+                     '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
+                     wf.parentUrl == '' ? '' : '<div style="text-align:center"><a href="' + wf.parentUrl + '" style="text-align:center"><img src="' + getParentImage(wf.parentUrl) + '" class="app-icon"/></a></div>'
+                   ]);
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index a99935d..14fb486 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -892,10 +892,13 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+ 
+   for job in oozie_jobs:
+     if not just_sla or (just_sla and job.has_sla) and job.appName != 'pig-app-hue-script':
++      last_modified_time_millis = hasattr(job, 'lastModTime') and job.lastModTime and (time.time() - time.mktime(job.lastModTime)) * 1000 or 0
++      duration_millis = job.endTime and job.startTime and ((time.mktime(job.endTime) - time.mktime(job.startTime)) * 1000) or 0
+       massaged_job = {
+         'id': job.id,
+         'lastModTime': hasattr(job, 'lastModTime') and job.lastModTime and format_time(job.lastModTime) or None,
+-        'lastModTimeInMillis': hasattr(job, 'lastModTime') and job.lastModTime and format_duration_in_millis(time.mktime(job.lastModTime)) or 0,
++        'lastModTimeInMillis': last_modified_time_millis,
++        'lastModTimeFormatted': last_modified_time_millis and format_duration_in_millis(last_modified_time_millis) or None,
+         'kickoffTime': hasattr(job, 'kickoffTime') and job.kickoffTime and format_time(job.kickoffTime) or '',
+         'kickoffTimeInMillis': hasattr(job, 'kickoffTime') and job.kickoffTime and time.mktime(catch_unicode_time(job.kickoffTime)) or 0,
+         'nextMaterializedTime': hasattr(job, 'nextMaterializedTime') and job.nextMaterializedTime and format_time(job.nextMaterializedTime) or '',
+@@ -905,8 +908,8 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+         'endTimeInMillis': job.endTime and time.mktime(job.endTime) or 0,
+         'status': job.status,
+         'isRunning': job.is_running(),
+-        'duration': job.endTime and job.startTime and format_duration_in_millis(( time.mktime(job.endTime) - time.mktime(job.startTime) ) * 1000) or None,
+-        'durationInMillis': job.endTime and job.startTime and ((time.mktime(job.endTime) - time.mktime(job.startTime)) * 1000) or 0,
++        'duration': duration_millis and format_duration_in_millis(duration_millis) or None,
++        'durationInMillis': duration_millis,
+         'appName': job.appName,
+         'progress': job.get_progress(),
+         'user': job.user,
+-- 
+1.7.9.5
+

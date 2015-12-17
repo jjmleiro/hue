@@ -1,0 +1,37 @@
+From bdbb6f3118dc53f522b487194e83df1542c1f33a Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 8 Oct 2014 22:31:09 -0500
+Subject: [PATCH 0013/1173] HUE-2384 [fb] Send to trash root when deleting
+ trash
+
+Updated redirect URL: after emptying trash, users are redirected to trash root directory
+Added home directory to view model
+---
+ .../filebrowser/templates/listdir_components.mako  |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index bf5245b..f1929a9 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -708,6 +708,8 @@ from django.utils.translation import ugettext as _
+       }));
+       self.files.sort(self.filesSorting)
+ 
++      self.homeDir = ko.observable("${home_directory}");
++
+       self.breadcrumbs = ko.observableArray(ko.utils.arrayMap(breadcrumbs, function (breadcrumb) {
+         return new Breadcrumb(breadcrumb);
+       }));
+@@ -1132,7 +1134,7 @@ from django.utils.translation import ugettext as _
+ 
+         hiddenFields($("#purgeTrashForm"), 'path', paths);
+ 
+-        $("#purgeTrashForm").attr("action", "/filebrowser/trash/purge?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
++        $("#purgeTrashForm").attr("action", "/filebrowser/trash/purge?next=${url('filebrowser.views.view', path=urlencode('/'))}" + viewModel.homeDir().slice(1) + "/.Trash");
+ 
+         $("#purgeTrashModal").modal({
+           keyboard:true,
+-- 
+1.7.9.5
+

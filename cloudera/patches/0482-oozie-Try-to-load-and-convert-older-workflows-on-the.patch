@@ -1,0 +1,413 @@
+From 9eda05824470ba75cb70b98fca8a7f0f509f8e8a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 21 Jan 2015 09:39:15 -0800
+Subject: [PATCH 0482/1173] [oozie] Try to load and convert older workflows on
+ the fly
+
+---
+ apps/oozie/src/oozie/decorators.py                 |   16 +++---
+ apps/oozie/src/oozie/models2.py                    |   26 ++++-----
+ .../templates/editor/list_editor_workflows.mako    |    9 +++-
+ .../src/oozie/templates/editor/list_workflows.mako |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |    6 +++
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor.py               |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   57 ++++++++++++++------
+ apps/oozie/static/js/workflow-editor.ko.js         |    3 ++
+ desktop/core/src/desktop/models.py                 |   14 +++++
+ .../core/src/desktop/templates/common_header.mako  |    7 +--
+ desktop/core/static/js/share.vm.js                 |    2 +-
+ 12 files changed, 98 insertions(+), 46 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/decorators.py b/apps/oozie/src/oozie/decorators.py
+index 961f3e4..c104719 100644
+--- a/apps/oozie/src/oozie/decorators.py
++++ b/apps/oozie/src/oozie/decorators.py
+@@ -32,9 +32,9 @@ LOG = logging.getLogger(__name__)
+ 
+ def check_document_access_permission():
+   def inner(view_func):
+-    def decorate(request, *args, **kwargs):      
++    def decorate(request, *args, **kwargs):
+       doc_id = {}
+-      
++
+       try:
+         if request.GET.get('workflow') or request.POST.get('workflow'):
+           workflow_id = request.GET.get('workflow') or request.POST.get('workflow')
+@@ -47,14 +47,14 @@ def check_document_access_permission():
+         elif request.GET.get('coordinator'):
+           doc_id['id'] = request.GET.get('coordinator')
+         elif request.GET.get('bundle'):
+-          doc_id['id'] = request.GET.get('bundle')          
++          doc_id['id'] = request.GET.get('bundle')
+         elif 'doc_id' in kwargs:
+           doc_id['id'] = kwargs['doc_id']
+ 
+         if doc_id:
+-          doc2 = Document2.objects.get(**doc_id)          
++          doc2 = Document2.objects.get(**doc_id)
+           doc2.doc.get().can_read_or_exception(request.user)
+-      except Document.DoesNotExist:
++      except Document2.DoesNotExist:
+         raise PopupException(_('Job %(id)s does not exist') % {'id': doc_id})
+ 
+       return view_func(request, *args, **kwargs)
+@@ -65,8 +65,8 @@ def check_document_access_permission():
+ def check_document_modify_permission():
+   def inner(view_func):
+     def decorate(request, *args, **kwargs):
+-      doc_id = None            
+-      
++      doc_id = None
++
+       job = json.loads(request.POST.get('workflow', '{}'))
+       if not job:
+         job = json.loads(request.POST.get('coordinator', '{}'))
+@@ -75,7 +75,7 @@ def check_document_modify_permission():
+ 
+       if job and job.get('id'):
+         doc_id = job.get('id')
+-      
++
+         try:
+           doc2 = Document2.objects.get(id=job['id'])
+           doc2.doc.get().can_write_or_exception(request.user)
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 61e779d..6d07367 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1184,12 +1184,6 @@ def find_dollar_braced_variables(text):
+   return list(vars) 
+ 
+ 
+-
+-
+-def import_workflows_from_hue_3_7():
+-  return import_workflow_from_hue_3_7(OldWorflows.objects.filter(managed=True).filter(is_trashed=False)[12].get_full_node())
+-
+-
+ def import_workflow_from_hue_3_7(old_wf):
+   """
+   Example of data to transform
+@@ -1234,19 +1228,20 @@ def import_workflow_from_hue_3_7(old_wf):
+   data['workflow']['properties']['description'] = old_wf.description
+   data['workflow']['properties']['sla'] = old_wf.sla
+   data['workflow']['properties']['sla_enabled'] = old_wf.sla_enabled
++  data['workflow']['properties']['imported'] = True
++  data['workflow']['properties']['wf1_id'] = old_wf.id
+       
+   # Layout
+   rows = data['layout'][0]['rows']
+   
+   def _create_layout(nodes, size=12):
+     wf_rows = []
+-    
+-    for node in nodes:      
++
++    for node in nodes:
+       if type(node) == list and len(node) == 1:
+         node = node[0]
+       if type(node) != list:
+-        if node.node_type != 'kill': # No kill widget displayed yet
+-          wf_rows.append({"widgets":[{"size":size, "name": node.name.title(), "id":  uuids[node.id], "widgetType": "%s-widget" % node.node_type, "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span%s" % size, "columns":[]}]})
++        wf_rows.append({"widgets":[{"size":size, "name": node.name.title(), "id":  uuids[node.id], "widgetType": "%s-widget" % node.node_type, "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span%s" % size, "columns":[]}]})
+       else:
+         if node[0].node_type == 'fork':
+           wf_rows.append({"widgets":[{"size":size, "name": 'Fork', "id":  uuids[node[0].id], "widgetType": "%s-widget" % node[0].node_type, "properties":{}, "offset":0, "isLoading":False, "klass":"card card-widget span%s" % size, "columns":[]}]})  
+@@ -1285,7 +1280,7 @@ def import_workflow_from_hue_3_7(old_wf):
+     
+     return wf_rows
+   
+-  wf_rows = _create_layout(old_nodes[1:-1])
++  wf_rows = _create_layout(old_nodes)
+     
+   if wf_rows:
+     data['layout'][0]['rows'] = [data['layout'][0]['rows'][0]] + wf_rows + [data['layout'][0]['rows'][-1]]
+@@ -1296,12 +1291,13 @@ def import_workflow_from_hue_3_7(old_wf):
+     for node in nodes:
+       if type(node) != list:
+         properties = {}
+-        if '%s-widget' % node.node_type in NODES and node.node_type != 'kill-widget':
++        if '%s-widget' % node.node_type in NODES:
+           properties = dict(NODES['%s-widget' % node.node_type].get_fields())
+-        
+-        if node.node_type == 'pig-widget':
++
++        if node.node_type == 'pig':
+           properties['script_path'] = node.script_path
+-          properties['params'] = json.loads(node.params)
++          properties['parameters'] = json.loads(node.params)
++          # [{u'type': u'argument', u'value': u'-param'}, {u'type': u'argument', u'value': u'INPUT=${input}'}, {u'type': u'argument', u'value': u'-param'}, {u'type': u'argument', u'value': u'OUTPUT=${output}'}]
+           properties['files'] = json.loads(node.files)
+           properties['archives'] = json.loads(node.archives)
+           properties['job_properties'] = json.loads(node.archives)          
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+index ac70d6c..8d7443c 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_workflows.mako
+@@ -80,8 +80,13 @@ ${ layout.menubar(section='workflows', is_editor=True) }
+     <tbody data-bind="foreach: { data: jobs }">
+       <tr>
+         <td data-bind="click: $root.handleSelect" class="center" style="cursor: default" data-row-selector-exclude="true">
+-          <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>
+-          <a data-bind="attr: { 'href': '${ url('oozie:edit_workflow') }?workflow=' + id() }" data-row-selector="true"></a>
++          <div data-bind="css: { 'hueCheckbox': true, 'fa': true, 'fa-check': isSelected }" data-row-selector-exclude="true"></div>          
++          <!-- ko if: ! uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:open_old_workflow') }?workflow=' + id() + '&open_old_workflow=true' }" data-row-selector="true"></a>
++          <!-- /ko -->
++          <!-- ko if: uuid() -->
++            <a data-bind="attr: { 'href': '${ url('oozie:edit_workflow') }?workflow=' + id() }" data-row-selector="true"></a>
++          <!-- /ko -->
+         </td>
+         <td data-bind="text: name"></td>
+         <td data-bind="text: description"></td>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_workflows.mako
+index 53629f5..64733c7 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_workflows.mako
+@@ -104,7 +104,7 @@ ${ layout.menubar(section='workflows') }
+           </td>
+           <td>${ workflow.description }</td>
+ 
+-          <td nowrap="nowrap" data-sort-value="${py_time.mktime(workflow.last_modified.timetuple())}">${ utils.format_date(workflow.last_modified) }</td>
++          <td nowrap="nowrap" data-sort-value="${ py_time.mktime(workflow.last_modified.timetuple()) }">${ utils.format_date(workflow.last_modified) }</td>
+           <td><span class="badge badge-info">${ workflow.actions.count() }</span></td>
+           <td>
+             <span class="label label-info">${ workflow.status }</span>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 4b57744..3b9f21a 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -188,6 +188,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     </a>
+   </div>
+ 
++
+   <form class="form-search">
+     <div class="inline object-name">
+       <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+@@ -195,6 +196,11 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <div class="inline object-description">
+       <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_('Add a description...')}'}"></span>
+     </div>
++    
++<div class="inline alert alert-warn" style="margin-left:200px" data-bind="visible: $root.workflow.properties.imported">
++    ${ _('This workflow was imported from an old Hue version, save it to create a copy in the new format or') }
++    <a data-bind="attr: { href: '/oozie/edit_workflow/' + $root.workflow.properties.wf1_id() }">${ _('open it in the old editor.') }</a>
++  </div>    
+   </form>
+ </div>
+ 
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 68554dd..616bad4 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -82,6 +82,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/parameters/$', 'workflow_parameters', name='workflow_parameters'),
+   url(r'^editor/workflow/action/parameters/$', 'action_parameters', name='action_parameters'),
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'),
++  url(r'^editor/workflow/open_old_workflow/$', 'open_old_workflow', name='open_old_workflow'),
+   
+   url(r'^editor/coordinator/list/$', 'list_editor_coordinators', name='list_editor_coordinators'),
+   url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
+diff --git a/apps/oozie/src/oozie/views/editor.py b/apps/oozie/src/oozie/views/editor.py
+index 86d4c0e..ea37597 100644
+--- a/apps/oozie/src/oozie/views/editor.py
++++ b/apps/oozie/src/oozie/views/editor.py
+@@ -253,6 +253,7 @@ def export_workflow(request, workflow):
+   response.write(zip_file.getvalue())
+   return response
+ 
++
+ @check_job_access_permission()
+ def edit_workflow(request, workflow):
+   history = History.objects.filter(submitter=request.user, job=workflow).order_by('-submission_date')
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 0ef226f..c615386 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -38,8 +38,10 @@ from liboozie.submission2 import Submission
+ 
+ from oozie.decorators import check_document_access_permission, check_document_modify_permission
+ from oozie.forms import ParameterForm
+-from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflows_from_hue_3_7,\
++from oozie.models import Workflow as OlfWorklow
++from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflow_from_hue_3_7,\
+     find_dollar_variables, find_dollar_braced_variables
++from oozie.views.editor import edit_workflow as old_edit_workflow 
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -49,29 +51,43 @@ LOG = logging.getLogger(__name__)
+ def list_editor_workflows(request):  
+   workflows = [d.content_object.to_dict() for d in Document.objects.get_docs(request.user, Document2, extra='workflow2')]
+ 
++  workflows_v1 = [job.doc.get().to_dict() for job in Document.objects.available(OlfWorklow, request.user) if job.managed]
++  if workflows_v1:
++    workflows.extend(workflows_v1)
++  
+   return render('editor/list_editor_workflows.mako', request, {
+       'workflows_json': json.dumps(workflows, cls=JSONEncoderForHTML)
+   })
+ 
+ 
++def open_old_workflow(request):
++  doc_id = request.GET.get('workflow')
++  workflow = Document.objects.get(id=doc_id).content_object.get_full_node()
++  
++  try:
++    _workflow = import_workflow_from_hue_3_7(workflow)
++    return _edit_workflow(request, None, _workflow)
++  except Exception, e:
++    LOG.warn(smart_str(e))
++    return old_edit_workflow(request, workflow=workflow.id)
++
++
+ @check_document_access_permission()
+ def edit_workflow(request):
+   workflow_id = request.GET.get('workflow')
+   
+-  if workflow_id:
+-    wid = {}
+-    if workflow_id.isdigit():
+-      wid['id'] = workflow_id
+-    else:
+-      wid['uuid'] = workflow_id
+-    doc = Document2.objects.get(type='oozie-workflow2', **wid)
+-    workflow = Workflow(document=doc)
++  wid = {}
++  if workflow_id.isdigit():
++    wid['id'] = workflow_id
+   else:
+-    doc = None
+-    workflow = Workflow()
+-    workflow.set_workspace(request.user)
+-    workflow.check_workspace(request.fs, request.user)
+-  
++    wid['uuid'] = workflow_id
++  doc = Document2.objects.get(type='oozie-workflow2', **wid)
++  workflow = Workflow(document=doc)
++
++  return _edit_workflow(request, doc, workflow)
++
++
++def _edit_workflow(request, doc, workflow):
+   workflow_data = workflow.get_data()
+ 
+   api = get_oozie(request.user)
+@@ -94,7 +110,12 @@ def edit_workflow(request):
+ 
+ 
+ def new_workflow(request):
+-  return edit_workflow(request)
++  doc = None
++  workflow = Workflow()
++  workflow.set_workspace(request.user)
++  workflow.check_workspace(request.fs, request.user)
++      
++  return _edit_workflow(request, doc, workflow)
+ 
+ 
+ def delete_job(request):
+@@ -164,7 +185,7 @@ def save_workflow(request):
+   if workflow.get('id'):
+     workflow_doc = Document2.objects.get(id=workflow['id'])
+   else:      
+-    workflow_doc = Document2.objects.create(name=workflow['name'], uuid=workflow['uuid'], type='oozie-workflow2', owner=request.user)
++    workflow_doc = Document2.objects.create(name=workflow['name'], uuid=workflow['uuid'], type='oozie-workflow2', owner=request.user, description=workflow['properties']['description'])
+     Document.objects.link(workflow_doc, owner=workflow_doc.owner, name=workflow_doc.name, description=workflow_doc.description, extra='workflow2')
+ 
+   subworkflows = [node['properties']['workflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
+@@ -172,6 +193,10 @@ def save_workflow(request):
+     dependencies = Document2.objects.filter(uuid__in=subworkflows)
+     workflow_doc.dependencies = dependencies
+ 
++  if workflow['properties'].get('imported'): # Old workflow format
++    workflow['properties']['imported'] = False
++    response['url'] = reverse('oozie:edit_workflow') + '?workflow=' + str(workflow_doc.id)
++
+   workflow_doc.update_data({'workflow': workflow})
+   workflow_doc.update_data({'layout': layout})
+   workflow_doc.name = workflow['name']
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 3f7c52d..87cfd18 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -1054,6 +1054,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       "workflow": ko.mapping.toJSON(self.workflow)
+     }, function (data) {
+       if (data.status == 0) {
++    	if (data.url) { 
++          window.location.replace(data.url);
++    	}
+     	if (self.workflow.id() == null) {
+     	  shareViewModel.setDocId(data.doc1_id);
+     	}
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index b43f495..9816f29 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -499,6 +499,20 @@ class Document(models.Model):
+   def list_permissions(self, perm='read'):
+     return DocumentPermission.objects.list(document=self, perm=perm)
+ 
++  def to_dict(self):
++    return {
++      'owner': self.owner.username,
++      'name': self.name,
++      'description': self.description,
++      'uuid': None,
++      'id': self.id,
++      'doc1_id': self.id,
++      'type': str(self.content_type),
++      'last_modified': self.last_modified.strftime(UTC_TIME_FORMAT),
++      'last_modified_ts': calendar.timegm(self.last_modified.utctimetuple()),
++      'isSelected': False
++    }
++
+ 
+ class DocumentPermissionManager(models.Manager):
+ 
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 2ea2df1..1eee041 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -422,6 +422,8 @@ from django.utils.translation import ugettext as _
+                <li><a href="${url('oozie:list_oozie_bundles')}"><img src="/oozie/static/art/icon_oozie_bundle_48.png" class="app-icon" /> ${_('Bundles')}</a></li>
+              </ul>
+            </li>
++           <% from oozie.conf import ENABLE_V2 %>
++           % if not ENABLE_V2.get():
+            <li class="dropdown-submenu">
+              <a href="${ url('oozie:list_workflows') }"><img src="/oozie/static/art/icon_oozie_editor_48.png" class="app-icon" /> ${_('Editors')}</a>
+              <ul class="dropdown-menu">
+@@ -430,10 +432,9 @@ from django.utils.translation import ugettext as _
+                <li><a href="${url('oozie:list_bundles')}"><img src="/oozie/static/art/icon_oozie_bundle_48.png" class="app-icon" /> ${_('Bundles')}</a></li>
+              </ul>
+            </li>
+-           <% from oozie.conf import ENABLE_V2 %>
+-           % if ENABLE_V2.get():
++           % else:
+            <li class="dropdown-submenu">
+-             <a href="${ url('oozie:list_editor_workflows') }"><img src="/oozie/static/art/icon_oozie_editor_48.png" class="app-icon" /> ${_('Editors 2')}</a>
++             <a href="${ url('oozie:list_editor_workflows') }"><img src="/oozie/static/art/icon_oozie_editor_48.png" class="app-icon" /> ${_('Editors')}</a>
+              <ul class="dropdown-menu">
+                <li><a href="${url('oozie:list_editor_workflows')}"><img src="/oozie/static/art/icon_oozie_workflow_48.png" class="app-icon"/> ${_('Workflows')}</a></li>
+                <li><a href="${url('oozie:list_editor_coordinators')}"><img src="/oozie/static/art/icon_oozie_coordinator_48.png" class="app-icon" /> ${_('Coordinators')}</a></li>
+diff --git a/desktop/core/static/js/share.vm.js b/desktop/core/static/js/share.vm.js
+index a305a6c..1dc8191 100644
+--- a/desktop/core/static/js/share.vm.js
++++ b/desktop/core/static/js/share.vm.js
+@@ -69,7 +69,7 @@ function prettifyUsername(userId) {
+ }
+ 
+ function initSharing(id, updateFunc) {
+-  if(!updateFunc) {
++  if(! updateFunc) {
+     updateFunc = function () {}
+   }
+   shareViewModel = new ShareViewModel(updateFunc);
+-- 
+1.7.9.5
+

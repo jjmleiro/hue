@@ -1,0 +1,56 @@
+From 595174f866937f7255b324a3f0c4d4936559a4f3 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 29 Dec 2014 11:28:33 +0100
+Subject: [PATCH 0176/1173] HUE-2506 [search] Marker map does not display with
+ HTML widget
+
+Changed latitude and longitude retrieval transform function
+---
+ apps/search/src/search/templates/search.mako |   20 +++++++++-----------
+ 1 file changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index cb1dbfc..f8c972a 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -1092,7 +1092,7 @@ ${ dashboard.layout_skeleton() }
+       <select data-bind="options: $root.collection.template.fieldsNames, value: $root.collection.template.leafletmap.labelField, optionsCaption: '${ _('Choose...') }'"></select>
+     </div>
+ 
+-    <div data-bind="leafletMapChart: {visible: ! $root.isRetrievingResults() && $root.collection.template.leafletmapOn(), datum: {counts: $root.results()},
++    <div data-bind="leafletMapChart: {visible: ! $root.isRetrievingResults() && $root.collection.template.leafletmapOn(), datum: {counts: $root.response()},
+       transformer: leafletMapChartDataTransformer,
+       onComplete: function(){ var widget = viewModel.getWidgetById(id); if (widget != null) {widget.isLoading(false)};} }">
+     </div>
+@@ -1517,20 +1517,18 @@ function mapChartDataTransformer(data) {
+ 
+ function leafletMapChartDataTransformer(data) {
+   var _data = [];
+-
+-  data.counts.forEach(function(record){
+-    if (record.leafletmap) {
++  if (!$.isEmptyObject(data.counts) && data.counts.response.docs && viewModel.collection.template.leafletmap.latitudeField() != "" && viewModel.collection.template.leafletmap.longitudeField() != "") {
++    data.counts.response.docs.forEach(function (record) {
+       var _obj = {
+-        lat: record.leafletmap.latitude,
+-        lng: record.leafletmap.longitude
++        lat: record[viewModel.collection.template.leafletmap.latitudeField()],
++        lng: record[viewModel.collection.template.leafletmap.longitudeField()]
+       }
+-      if (record.leafletmap.label != null && record.leafletmap.label != ""){
+-        _obj.label = record.leafletmap.label;
++      if (viewModel.collection.template.leafletmap.labelField() != "") {
++        _obj.label = record[viewModel.collection.template.leafletmap.labelField()];
+       }
+       _data.push(_obj);
+-    }
+-  });
+-
++    });
++  }
+   return _data;
+ }
+ 
+-- 
+1.7.9.5
+

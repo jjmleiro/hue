@@ -1,14 +1,14 @@
 # Translations template for Hue.
-# Copyright (C) 2012 Cloudera, Inc
+# Copyright (C) 2015 Cloudera, Inc
 # This file is distributed under the same license as the Hue project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2012.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
 #
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: Hue VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2012-09-11 13:35-0700\n"
+"POT-Creation-Date: 2015-05-07 23:00-0700\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,19 +17,710 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 0.9.6\n"
 
-#: src/about/templates/index.mako:20
-msgid "About Hue"
+#: src/search/conf.py:25
+msgid "URL of the Solr Server."
 msgstr ""
 
-#: src/about/templates/index.mako:25
-msgid "Configuration"
+#: src/search/conf.py:30
+msgid "Query sent when no term is entered."
 msgstr ""
 
-#: src/about/templates/index.mako:26
-msgid "Check for misconfiguration"
+#: src/search/conf.py:35
+msgid "Whether Solr requires client to perform Kerberos authentication."
 msgstr ""
 
-#: src/about/templates/index.mako:27
-msgid "Server Logs"
+#: src/search/decorators.py:42 src/search/views.py:56
+msgid "Dashboard does not exist or you don't have the permission to access it."
+msgstr ""
+
+#: src/search/decorators.py:59
+msgid "Permission denied. You are not an Administrator."
+msgstr ""
+
+#: src/search/models.py:233
+msgid "Solr index name pointing to"
+msgstr ""
+
+#: src/search/models.py:234
+msgid "Friendlier name in UI"
+msgstr ""
+
+#: src/search/models.py:236
+msgid "Collection with cores data"
+msgstr ""
+
+#: src/search/models.py:236
+msgid "Solr json"
+msgstr ""
+
+#: src/search/models.py:238
+msgid "Properties"
+msgstr ""
+
+#: src/search/models.py:239
+msgid "Hue properties (e.g. results by pages number)"
+msgstr ""
+
+#: src/search/models.py:246 src/search/templates/admin_collections.mako:83
+msgid "Owner"
+msgstr ""
+
+#: src/search/models.py:246
+msgid "User who created the job."
+msgstr ""
+
+#: src/search/models.py:595
+msgid ""
+"The Solr schema requires an id field for performing the result "
+"highlighting"
+msgstr ""
+
+#: src/search/search_controller.py:72
+msgid " (Copy)"
+msgstr ""
+
+#: src/search/views.py:139
+msgid "Error while accessing Solr"
+msgstr ""
+
+#: src/search/views.py:143 src/search/views.py:175
+msgid "There is no collection to search."
+msgstr ""
+
+#: src/search/views.py:173
+msgid "Page saved !"
+msgstr ""
+
+#: src/search/views.py:195
+#, python-format
+msgid "Could not download search results: %s"
+msgstr ""
+
+#: src/search/views.py:229 src/search/views.py:243
+msgid "POST request required."
+msgstr ""
+
+#: src/search/views.py:308
+msgid "No document was returned by Solr."
+msgstr ""
+
+#: src/search/views.py:310
+msgid "This document does not have any index id."
+msgstr ""
+
+#: src/search/views.py:339 src/search/views.py:371
+#: src/search/templates/search.mako:1262
+msgid "This field does not support stats"
+msgstr ""
+
+#: src/search/views.py:557
+msgid "You must be a superuser."
+msgstr ""
+
+#: src/search/views.py:560
+msgid "A POST request is required."
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:25
+#: src/search/templates/no_collections.mako:24
+#: src/search/templates/search.mako:24 src/search/templates/search.mako:84
+msgid "Search"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:33
+msgid "Indexes"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:37
+#: src/search/templates/search.mako:66
+msgid "Dashboards"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:44
+msgid "Filter dashboards..."
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:48
+msgid "Copy"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:49
+msgid "Delete"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:53
+msgid "Create a new dashboard"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:53
+msgid "Create"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:61
+msgid "There are currently no dashboards defined."
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:62
+msgid "Click here to add"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:62
+msgid "one or more."
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:81
+msgid "Name"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:82
+msgid "Solr Index"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:84
+msgid "Shared"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:92
+msgid "Click to edit"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:93
+msgid "Click to edit the index"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:116
+msgid "Confirm Delete"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:119
+msgid "Are you sure you want to delete the selected dashboards?"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:122
+msgid "No"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:123
+msgid "Yes"
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:177
+msgid "Dashboard(s) deleted successfully."
+msgstr ""
+
+#: src/search/templates/admin_collections.mako:181
+msgid "Dashboard(s) copied successfully."
+msgstr ""
+
+#: src/search/templates/macros.mako:197
+#, python-format
+msgid "Retweeted %s times"
+msgstr ""
+
+#: src/search/templates/macros.mako:207
+msgid "Reply"
+msgstr ""
+
+#: src/search/templates/macros.mako:213
+msgid "Retweet"
+msgstr ""
+
+#: src/search/templates/no_collections.mako:46
+msgid "It seems there is nothing to search on ..."
+msgstr ""
+
+#: src/search/templates/no_collections.mako:49
+msgid "... First create a search dashboard with "
+msgstr ""
+
+#: src/search/templates/no_collections.mako:51
+msgid "Dashboard"
+msgstr ""
+
+#: src/search/templates/no_collections.mako:55
+msgid "... or create a search index with "
+msgstr ""
+
+#: src/search/templates/no_collections.mako:57
+msgid "Indexer"
+msgstr ""
+
+#: src/search/templates/search.mako:34
+msgid "Increment"
+msgstr ""
+
+#: src/search/templates/search.mako:40
+msgid "Edit"
+msgstr ""
+
+#: src/search/templates/search.mako:44
+msgid "Save"
+msgstr ""
+
+#: src/search/templates/search.mako:44
+msgid "Saving..."
+msgstr ""
+
+#: src/search/templates/search.mako:48 src/search/templates/search.mako:254
+msgid "Settings"
+msgstr ""
+
+#: src/search/templates/search.mako:57
+msgid "Share"
+msgstr ""
+
+#: src/search/templates/search.mako:63
+msgid "New"
+msgstr ""
+
+#: src/search/templates/search.mako:72
+msgid "Select a search index"
+msgstr ""
+
+#: src/search/templates/search.mako:77
+msgid "Show cores"
+msgstr ""
+
+#: src/search/templates/search.mako:112
+msgid "Grid"
+msgstr ""
+
+#: src/search/templates/search.mako:128 src/search/templates/search.mako:573
+msgid "HTML"
+msgstr ""
+
+#: src/search/templates/search.mako:137
+msgid "Filter Bar"
+msgstr ""
+
+#: src/search/templates/search.mako:147
+msgid "Marker Map"
+msgstr ""
+
+#: src/search/templates/search.mako:159
+msgid "Text Facet"
+msgstr ""
+
+#: src/search/templates/search.mako:168
+msgid "Pie Chart"
+msgstr ""
+
+#: src/search/templates/search.mako:177
+msgid "Bar Chart"
+msgstr ""
+
+#: src/search/templates/search.mako:186
+msgid "Line Chart"
+msgstr ""
+
+#: src/search/templates/search.mako:195
+msgid "Tree"
+msgstr ""
+
+#: src/search/templates/search.mako:204
+msgid "Heatmap"
+msgstr ""
+
+#: src/search/templates/search.mako:213
+msgid "Timeline"
+msgstr ""
+
+#: src/search/templates/search.mako:222
+msgid "Gradient Map"
+msgstr ""
+
+#: src/search/templates/search.mako:234
+msgid "This is an empty widget."
+msgstr ""
+
+#: src/search/templates/search.mako:242 src/search/templates/search.mako:1202
+msgid "Label"
+msgstr ""
+
+#: src/search/templates/search.mako:258
+msgid "Type"
+msgstr ""
+
+#: src/search/templates/search.mako:259
+msgid "Toggle how to group the values"
+msgstr ""
+
+#: src/search/templates/search.mako:261
+msgid "range"
+msgstr ""
+
+#: src/search/templates/search.mako:262
+msgid "range & up"
+msgstr ""
+
+#: src/search/templates/search.mako:263
+msgid "field"
+msgstr ""
+
+#: src/search/templates/search.mako:268 src/search/templates/search.mako:575
+msgid "Sorting"
+msgstr ""
+
+#: src/search/templates/search.mako:269
+msgid "Toggle sort order"
+msgstr ""
+
+#: src/search/templates/search.mako:271
+msgid "descending"
+msgstr ""
+
+#: src/search/templates/search.mako:272
+msgid "ascending"
+msgstr ""
+
+#: src/search/templates/search.mako:280 src/search/templates/search.mako:310
+#: src/search/templates/search.mako:350 src/search/templates/search.mako:931
+#: src/search/templates/search.mako:1000 src/search/templates/search.mako:1142
+msgid "Limit"
+msgstr ""
+
+#: src/search/templates/search.mako:289 src/search/templates/search.mako:359
+#: src/search/templates/search.mako:940 src/search/templates/search.mako:1008
+#: src/search/templates/search.mako:1151
+msgid "Min Count"
+msgstr ""
+
+#: src/search/templates/search.mako:321
+msgid "Scope"
+msgstr ""
+
+#: src/search/templates/search.mako:324
+msgid "World"
+msgstr ""
+
+#: src/search/templates/search.mako:325
+msgid "USA"
+msgstr ""
+
+#: src/search/templates/search.mako:335
+msgid "Add a dimension"
+msgstr ""
+
+#: src/search/templates/search.mako:341
+msgid "Field"
+msgstr ""
+
+#: src/search/templates/search.mako:343 src/search/templates/search.mako:1195
+#: src/search/templates/search.mako:1199 src/search/templates/search.mako:1203
+msgid "Choose..."
+msgstr ""
+
+#: src/search/templates/search.mako:392 src/search/templates/search.mako:427
+#: src/search/templates/search.mako:445 src/search/templates/search.mako:1245
+msgid "Exclude this value"
+msgstr ""
+
+#: src/search/templates/search.mako:405
+msgid "Show more..."
+msgstr ""
+
+#: src/search/templates/search.mako:410
+msgid "Show more"
+msgstr ""
+
+#: src/search/templates/search.mako:414
+msgid "less..."
+msgstr ""
+
+#: src/search/templates/search.mako:477 src/search/templates/search.mako:1329
+msgid "Filter fields"
+msgstr ""
+
+#: src/search/templates/search.mako:480
+msgid "All"
+msgstr ""
+
+#: src/search/templates/search.mako:480
+msgid "Current"
+msgstr ""
+
+#: src/search/templates/search.mako:488
+msgid "Field Name"
+msgstr ""
+
+#: src/search/templates/search.mako:494
+msgid "Click to analyse field"
+msgstr ""
+
+#: src/search/templates/search.mako:511 src/search/templates/search.mako:665
+msgid "Your search did not match any documents."
+msgstr ""
+
+#: src/search/templates/search.mako:572
+msgid "Editor"
+msgstr ""
+
+#: src/search/templates/search.mako:574
+msgid "CSS & JS"
+msgstr ""
+
+#: src/search/templates/search.mako:586 src/search/templates/search.mako:620
+msgid "Available Fields"
+msgstr ""
+
+#: src/search/templates/search.mako:588 src/search/templates/search.mako:622
+msgid "Click on this button to add the field"
+msgstr ""
+
+#: src/search/templates/search.mako:592 src/search/templates/search.mako:626
+msgid "Available Functions"
+msgstr ""
+
+#: src/search/templates/search.mako:594
+msgid "Formats date or timestamp in DD-MM-YYYY"
+msgstr ""
+
+#: src/search/templates/search.mako:595
+msgid "Formats date or timestamp in HH:mm:ss"
+msgstr ""
+
+#: src/search/templates/search.mako:596
+msgid "Formats date or timestamp in DD-MM-YYYY HH:mm:ss"
+msgstr ""
+
+#: src/search/templates/search.mako:597 src/search/templates/search.mako:631
+msgid "Formats a date in the full format"
+msgstr ""
+
+#: src/search/templates/search.mako:598 src/search/templates/search.mako:632
+msgid "Formats a date as a Unix timestamp"
+msgstr ""
+
+#: src/search/templates/search.mako:599
+msgid "Formats a Unix timestamp as Ns, Nmin, Ndays... ago"
+msgstr ""
+
+#: src/search/templates/search.mako:600 src/search/templates/search.mako:634
+msgid "Downloads and embed the file in the browser"
+msgstr ""
+
+#: src/search/templates/search.mako:601 src/search/templates/search.mako:635
+msgid "Downloads the linked file"
+msgstr ""
+
+#: src/search/templates/search.mako:602 src/search/templates/search.mako:636
+msgid "Preview file in File Browser"
+msgstr ""
+
+#: src/search/templates/search.mako:603 src/search/templates/search.mako:637
+msgid "Truncate a value after 100 characters"
+msgstr ""
+
+#: src/search/templates/search.mako:604 src/search/templates/search.mako:638
+msgid "Truncate a value after 250 characters"
+msgstr ""
+
+#: src/search/templates/search.mako:605 src/search/templates/search.mako:639
+msgid "Truncate a value after 500 characters"
+msgstr ""
+
+#: src/search/templates/search.mako:607 src/search/templates/search.mako:641
+msgid "Click on this button to add the function"
+msgstr ""
+
+#: src/search/templates/search.mako:628
+msgid "Formats a date in the DD-MM-YYYY format"
+msgstr ""
+
+#: src/search/templates/search.mako:629
+msgid "Formats a date in the HH:mm:ss format"
+msgstr ""
+
+#: src/search/templates/search.mako:630
+msgid "Formats a date in the DD-MM-YYYY HH:mm:ss format"
+msgstr ""
+
+#: src/search/templates/search.mako:633
+msgid "Shows the relative time"
+msgstr ""
+
+#: src/search/templates/search.mako:696
+msgid "Click to sort"
+msgstr ""
+
+#: src/search/templates/search.mako:720
+msgid "Download first rows as JSON"
+msgstr ""
+
+#: src/search/templates/search.mako:721
+msgid "Download first rows as CSV"
+msgstr ""
+
+#: src/search/templates/search.mako:722
+msgid "Download first rows as XLS"
+msgstr ""
+
+#: src/search/templates/search.mako:728
+msgid "Previous"
+msgstr ""
+
+#: src/search/templates/search.mako:736
+msgid "Showing"
+msgstr ""
+
+#: src/search/templates/search.mako:738 src/search/templates/search.mako:1084
+#: src/search/templates/search.mako:1101
+msgid "to"
+msgstr ""
+
+#: src/search/templates/search.mako:740
+msgid "of"
+msgstr ""
+
+#: src/search/templates/search.mako:742
+msgid " results"
+msgstr ""
+
+#: src/search/templates/search.mako:745
+msgid "Show"
+msgstr ""
+
+#: src/search/templates/search.mako:749
+msgid "results per page"
+msgstr ""
+
+#: src/search/templates/search.mako:752
+msgid "Next"
+msgstr ""
+
+#: src/search/templates/search.mako:778
+msgid "Interval"
+msgstr ""
+
+#: src/search/templates/search.mako:784 src/search/templates/search.mako:818
+#: src/search/templates/search.mako:857
+msgid "Zoom"
+msgstr ""
+
+#: src/search/templates/search.mako:785 src/search/templates/search.mako:819
+#: src/search/templates/search.mako:858
+msgid "reset"
+msgstr ""
+
+#: src/search/templates/search.mako:786
+msgid "Group by"
+msgstr ""
+
+#: src/search/templates/search.mako:915
+msgid "Selected dimensions"
+msgstr ""
+
+#: src/search/templates/search.mako:953
+msgid "Click to zoom, double click to select"
+msgstr ""
+
+#: src/search/templates/search.mako:984 src/search/templates/search.mako:1126
+msgid "Selected dimension"
+msgstr ""
+
+#: src/search/templates/search.mako:1043
+msgid "There are currently no filters applied."
+msgstr ""
+
+#: src/search/templates/search.mako:1055 src/search/templates/search.mako:1078
+msgid "selected"
+msgstr ""
+
+#: src/search/templates/search.mako:1060 src/search/templates/search.mako:1096
+msgid "excluded"
+msgstr ""
+
+#: src/search/templates/search.mako:1083 src/search/templates/search.mako:1100
+msgid "from"
+msgstr ""
+
+#: src/search/templates/search.mako:1088
+msgid "Until"
+msgstr ""
+
+#: src/search/templates/search.mako:1194
+msgid "Latitude"
+msgstr ""
+
+#: src/search/templates/search.mako:1198
+msgid "Longitude"
+msgstr ""
+
+#: src/search/templates/search.mako:1223
+msgid "Prefix filter..."
+msgstr ""
+
+#: src/search/templates/search.mako:1224
+msgid "Field name..."
+msgstr ""
+
+#: src/search/templates/search.mako:1227
+msgid "Terms"
+msgstr ""
+
+#: src/search/templates/search.mako:1228
+msgid "Stats"
+msgstr ""
+
+#: src/search/templates/search.mako:1236
+msgid "There are no terms to be shown"
+msgstr ""
+
+#: src/search/templates/search.mako:1242
+msgid "Select this value"
+msgstr ""
+
+#: src/search/templates/search.mako:1263
+msgid "There are no stats to be shown"
+msgstr ""
+
+#: src/search/templates/search.mako:1281
+msgid "Not available"
+msgstr ""
+
+#: src/search/templates/search.mako:1313
+msgid "Share this dashboard"
+msgstr ""
+
+#: src/search/templates/search.mako:1316
+msgid "The following URL will show the current dashboard and the applied filters."
+msgstr ""
+
+#: src/search/templates/search.mako:1320
+msgid "Close"
+msgstr ""
+
+#: src/search/templates/search.mako:1340
+msgid "There are no fields matching your search term."
+msgstr ""
+
+#: src/search/templates/search.mako:1351
+msgid "Solr index"
+msgstr ""
+
+#: src/search/templates/search.mako:1357
+msgid "Visible to everybody"
+msgstr ""
+
+#: src/search/templates/search.mako:1366
+msgid " field analysis"
+msgstr ""
+
+#: src/search/templates/search.mako:1502
+msgid "Total"
+msgstr ""
+
+#: src/search/templates/search.mako:1768
+msgid "The current collection must be saved to be shared."
+msgstr ""
+
+#: src/search/templates/search.mako:1791
+msgid "The current collection cannot be shared."
+msgstr ""
+
+#: src/search/templates/search.mako:1917
+msgid ""
+"Result highlighting is unavailable: the collection does not have an index"
+" field"
 msgstr ""
 

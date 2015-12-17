@@ -108,6 +108,7 @@ ${layout.menubar(section='saved queries')}
 
 <div id="deleteQuery" class="modal hide fade">
   <form id="deleteQueryForm" action="${ url(app_name + ':delete_design') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <input type="hidden" name="skipTrash" id="skipTrash" value="true"/>
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
@@ -123,7 +124,7 @@ ${layout.menubar(section='saved queries')}
   </form>
 </div>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {

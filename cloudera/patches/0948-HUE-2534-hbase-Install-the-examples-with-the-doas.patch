@@ -1,0 +1,61 @@
+From 97695b993aec8f8235b216668e8259457f941f86 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Feb 2015 12:05:06 -0800
+Subject: [PATCH 0948/1173] HUE-2534 [hbase] Install the examples with the
+ doas
+
+---
+ apps/hbase/src/hbase/api.py                        |    2 +-
+ .../src/hbase/management/commands/hbase_setup.py   |    7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/apps/hbase/src/hbase/api.py b/apps/hbase/src/hbase/api.py
+index ed71d8c..f924ba1 100644
+--- a/apps/hbase/src/hbase/api.py
++++ b/apps/hbase/src/hbase/api.py
+@@ -95,7 +95,7 @@ class HbaseApi(object):
+                                   service_name="Hue HBase Thrift Client for %s" % name,
+                                   kerberos_principal=_security['kerberos_principal_short_name'],
+                                   use_sasl=_security['use_sasl'],
+-                                  timeout_seconds=None,
++                                  timeout_seconds=30,
+                                   transport=conf.THRIFT_TRANSPORT.get(),
+                                   transport_mode=conf.TRANSPORT_MODE.get(),
+                                   http_url=\
+diff --git a/apps/hbase/src/hbase/management/commands/hbase_setup.py b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+index 199e358..3c6e303 100644
+--- a/apps/hbase/src/hbase/management/commands/hbase_setup.py
++++ b/apps/hbase/src/hbase/management/commands/hbase_setup.py
+@@ -17,8 +17,11 @@
+ 
+ import logging
+ import os
++import pwd
++
+ from datetime import datetime, timedelta
+ 
++from django.contrib.auth.models import User
+ from django.core.management.base import NoArgsCommand
+ from django.utils.translation import ugettext as _
+ 
+@@ -27,6 +30,7 @@ from desktop.lib.paths import get_apps_root
+ from hbased.ttypes import AlreadyExists
+ from hbase.api import HbaseApi
+ 
++
+ LOG = logging.getLogger(__name__)
+ 
+ 
+@@ -34,7 +38,8 @@ class Command(NoArgsCommand):
+   help = 'Create and fill some demo tables in the first configured cluster.'
+ 
+   def handle_noargs(self, **options):
+-    api = HbaseApi()
++    user = User.objects.get(username=pwd.getpwuid(os.getuid()).pw_name)
++    api = HbaseApi(user=user)
+     cluster_name = api.getClusters()[0]['name'] # Currently pick first configured cluster
+ 
+     # Check connectivity
+-- 
+1.7.9.5
+

@@ -1,0 +1,79 @@
+From 3a1b2d9f6d92f95dc6546bf8846be5d64759af5d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 15 Oct 2014 20:15:28 -0700
+Subject: [PATCH 0060/1173] Wrap some lines to 80 characters
+
+---
+ desktop/core/src/desktop/api.py    |   24 ++++++++++++++++++++----
+ desktop/core/src/desktop/models.py |    6 +++++-
+ 2 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index 15fce60..d0e4d3b 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -39,8 +39,23 @@ def _get_docs(user):
+   history_tag = DocumentTag.objects.get_history_tag(user)
+   trash_tag = DocumentTag.objects.get_trash_tag(user)
+   docs = itertools.chain(
+-      Document.objects.get_docs(user).exclude(tags__in=[trash_tag]).filter(tags__in=[history_tag]).select_related('DocumentTag', 'User', 'DocumentPermission').order_by('-last_modified')[:500],
+-      Document.objects.get_docs(user).exclude(tags__in=[history_tag]).select_related('DocumentTag', 'User', 'DocumentPermission').order_by('-last_modified')[:100]
++      Document.objects.get_docs(user)
++        .exclude(tags__in=[trash_tag])
++        .filter(tags__in=[history_tag])
++        .select_related(
++          'DocumentTag',
++          'User',
++          'DocumentPermission',
++        )
++        .order_by('-last_modified')[:500],
++      Document.objects.get_docs(user)
++        .exclude(tags__in=[history_tag])
++        .select_related(
++          'DocumentTag',
++          'User',
++          'DocumentPermission',
++        )
++        .order_by('-last_modified')[:100]
+   )
+   return list(docs)
+ 
+@@ -152,7 +167,8 @@ def massaged_documents_for_json(documents, user):
+                for tag in document.tags.all()],
+       'perms': {
+         'read': {
+-          'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in read_perms.users.all()],
++          'users': [{'id': perm_user.id, 'username': perm_user.username} \
++                    for perm_user in read_perms.users.all()],
+           'groups': [{'id': perm_group.id, 'name': perm_group.name} \
+                      for perm_group in read_perms.groups.all()]
+         },
+@@ -165,7 +181,7 @@ def massaged_documents_for_json(documents, user):
+       'isMine': document.owner == user,
+       'lastModified': document.last_modified.strftime("%x %X"),
+       'lastModifiedInMillis': time.mktime(document.last_modified.timetuple())
+-   }
++    }
+ 
+   return docs
+ 
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 2f07617..11b2feb 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -165,7 +165,11 @@ class DocumentTag(models.Model):
+ class DocumentManager(models.Manager):
+ 
+   def documents(self, user):
+-    return Document.objects.filter(Q(owner=user) | Q(documentpermission__users=user) | Q(documentpermission__groups__in=user.groups.all())).defer('description', 'extra').distinct()
++    return Document.objects.filter(
++        Q(owner=user) |
++        Q(documentpermission__users=user) |
++        Q(documentpermission__groups__in=user.groups.all())
++    ).defer('description', 'extra').distinct()
+ 
+   def get_docs(self, user, model_class=None, extra=None):
+     docs = Document.objects.documents(user).exclude(name='pig-app-hue-script')
+-- 
+1.7.9.5
+

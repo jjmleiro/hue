@@ -15,11 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+import inspect
 import json
+import logging
 import os.path
 import re
 import tempfile
+
 import kerberos
 
 from datetime import datetime
@@ -34,11 +36,11 @@ from django.http import HttpResponseNotAllowed
 from django.core.urlresolvers import resolve
 from django.http import HttpResponseRedirect, HttpResponse
 from django.utils.translation import ugettext as _
-from django.utils.http import urlquote
+from django.utils.http import urlquote, is_safe_url
 from django.utils.encoding import iri_to_uri
 import django.views.static
-import django.views.generic.simple
 
+import desktop.views
 import desktop.conf
 from desktop.context_processors import get_app_name
 from desktop.lib import apputil, i18n
@@ -59,7 +61,7 @@ MIDDLEWARE_HEADER = "X-Hue-Middleware-Response"
 # (see LoginAndPermissionMiddleware)
 DJANGO_VIEW_AUTH_WHITELIST = [
   django.views.static.serve,
-  django.views.generic.simple.redirect_to,
+  desktop.views.is_alive,
 ]
 
 
@@ -72,6 +74,7 @@ class AjaxMiddleware(object):
   def process_request(self, request):
     request.ajax = request.is_ajax() or request.REQUEST.get("format", "") == "json"
     return None
+
 
 class ExceptionMiddleware(object):
   """
@@ -100,28 +103,6 @@ class ExceptionMiddleware(object):
 
     return None
 
-class JFrameMiddleware(object):
-  """
-  Updates JFrame headers to update path and push flash messages into headers.
-  """
-  def process_response(self, request, response):
-    path = request.path
-    if request.GET:
-      get_params = request.GET.copy()
-      if "noCache" in get_params:
-        del get_params["noCache"]
-      query_string = get_params.urlencode()
-      if query_string:
-        path = request.path + "?" + query_string
-    response['X-Hue-JFrame-Path'] = iri_to_uri(path)
-    if response.status_code == 200:
-      if is_jframe_request(request):
-        if hasattr(request, "flash"):
-          flashes = request.flash.get()
-          if flashes:
-            response['X-Hue-Flash-Messages'] = json.dumps(flashes)
-
-    return response
 
 class ClusterMiddleware(object):
   """
@@ -184,7 +165,7 @@ class AppSpecificMiddleware(object):
   def augment_request_with_app(cls, request, view_func):
     """ Stuff the app into the request for use in later-stage middleware """
     if not hasattr(request, "_desktop_app"):
-      module = apputil.getmodule_wrapper(view_func)
+      module = inspect.getmodule(view_func)
       request._desktop_app = apputil.get_app_for_module(module)
       if not request._desktop_app and not module.__name__.startswith('django.'):
         logging.debug("no app for view func: %s in %s" % (view_func, module))
@@ -277,6 +258,7 @@ class AppSpecificMiddleware(object):
       if hasattr(mw_instance, 'process_exception'):
         result['exception'].insert(0, mw_instance.process_exception)
     return result
+
 
 class LoginAndPermissionMiddleware(object):
   """
@@ -383,56 +365,6 @@ class AuditLoggingMiddleware(object):
     return response
 
 
-class SessionOverPostMiddleware(object):
-  """
-  Django puts session info in cookies, which is reasonable.
-  Unfortunately, the plugin we use for file-uploading
-  doesn't forward the cookies, though it can do so over
-  POST.  So we push the POST data back in.
-
-  This is the issue discussed at
-  http://www.stereoplex.com/two-voices/cookieless-django-sessions-and-authentication-without-cookies
-  and
-  http://digitarald.de/forums/topic.php?id=20
-
-  The author of fancyupload says (http://digitarald.de/project/fancyupload/):
-    Flash-request forgets cookies and session ID
-
-    See option appendCookieData. Flash FileReference is not an intelligent
-    upload class, the request will not have the browser cookies, Flash saves
-    his own cookies. When you have sessions, append them as get-data to the the
-    URL (e.g. "upload.php?SESSID=123456789abcdef"). Of course your session-name
-    can be different.
-
-  and, indeed, folks are whining about it: http://bugs.adobe.com/jira/browse/FP-78
-
-  There seem to be some other solutions:
-  http://robrosenbaum.com/flash/using-flash-upload-with-php-symfony/
-  and it may or may not be browser and plugin-dependent.
-
-  In the meanwhile, this is pretty straight-forward.
-  """
-  def process_request(self, request):
-    cookie_key = settings.SESSION_COOKIE_NAME
-    if cookie_key not in request.COOKIES and cookie_key in request.POST:
-      request.COOKIES[cookie_key] = request.POST[cookie_key]
-      del request.POST[cookie_key]
-
-
-class DatabaseLoggingMiddleware(object):
-  """
-  If configured, logs database queries for every request.
-  """
-  DATABASE_LOG = logging.getLogger("desktop.middleware.DatabaseLoggingMiddleware")
-  def process_response(self, request, response):
-    if desktop.conf.DATABASE_LOGGING.get():
-      if self.DATABASE_LOG.isEnabledFor(logging.INFO):
-          # This only exists if desktop.settings.DEBUG is true, hence the use of getattr
-          for query in getattr(django.db.connection, "queries", []):
-            self.DATABASE_LOG.info("(%s) %s" % (query["time"], query["sql"]))
-    return response
-
-
 try:
   import tidylib
   _has_tidylib = True
@@ -535,6 +467,7 @@ class HtmlValidationMiddleware(object):
     return not request.is_ajax() and \
         'html' in response['Content-Type'] and \
         200 <= response.status_code < 300
+
 
 class SpnegoMiddleware(object):
   """
@@ -671,8 +604,14 @@ class EnsureSafeRedirectURLMiddleware(object):
   Middleware to white list configured redirect URLs.
   """
   def process_response(self, request, response):
-    if response.status_code == 302:
-      if any([regexp.match(response['Location']) for regexp in desktop.conf.REDIRECT_WHITELIST.get()]):
+    if response.status_code in (301, 302, 303, 305, 307, 308) and response.get('Location'):
+      redirection_patterns = desktop.conf.REDIRECT_WHITELIST.get()
+      location = response['Location']
+
+      if any(regexp.match(location) for regexp in redirection_patterns):
+        return response
+
+      if is_safe_url(location, request.get_host()):
         return response
 
       response = render("error.mako", request, dict(error=_('Redirect to %s is not allowed.') % response['Location']))

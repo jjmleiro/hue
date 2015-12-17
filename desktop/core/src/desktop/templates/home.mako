@@ -14,7 +14,7 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 <%!
-  from desktop.views import commonheader, commonfooter
+  from desktop.views import commonheader, commonfooter, commonshare
   from django.utils.translation import ugettext as _
 %>
 
@@ -67,10 +67,6 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     margin-bottom: 6px;
   }
 
-  .trash-share, .share-link {
-    cursor: pointer;
-  }
-
   .white {
     padding: 9px 18px;
     margin-top: 1px;
@@ -81,17 +77,6 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     text-overflow: ellipsis;
   }
 
-  .baseShared {
-    color: #999;
-  }
-
-  .isShared {
-    color: #338bb8!important;
-  }
-
-  #documentShareModal .modal-body {
-    overflow-y: initial;
-  }
 
 </style>
 
@@ -102,7 +87,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
         <ul class="nav">
           <li class="currentApp">
             <a href="${ url('desktop.views.home') }">
-              <img src="/static/art/home.png" class="app-icon" />
+              <img src="${ static('desktop/art/home.png') }" class="app-icon" />
               ${ _('My documents') }
             </a>
            </li>
@@ -112,7 +97,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
   </div>
 </div>
 
-<div class="container-fluid">
+<div id='documentList' class="container-fluid">
   <div class="row-fluid">
     <div class="span2">
       <div class="sidebar-nav">
@@ -122,31 +107,29 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
               <a href="#" data-toggle="dropdown"><i class="fa fa-plus-circle"></i> ${_('New document')}</a>
               <ul class="dropdown-menu" role="menu">
                 % if 'beeswax' in apps:
-                <li><a href="${ url('beeswax:index') }"><img src="${ apps['beeswax'].icon_path }" class="app-icon"/> ${_('Hive Query')}</a></li>
+                  <li><a href="${ url('beeswax:index') }"><img src="${ static(apps['beeswax'].icon_path) }" class="app-icon"/> ${_('Hive Query')}</a></li>
                 % endif
                 % if 'impala' in apps:
-                <li><a href="${ url('impala:index') }"><img src="${ apps['impala'].icon_path }" class="app-icon"/> ${_('Impala Query')}</a></li>
+                  <li><a href="${ url('impala:index') }"><img src="${ static(apps['impala'].icon_path) }" class="app-icon"/> ${_('Impala Query')}</a></li>
                 % endif
                 % if 'pig' in apps:
-                <li><a href="${ url('beeswax:index') }"><img src="${ apps['pig'].icon_path }" class="app-icon"/> ${_('Pig Script')}</a></li>
+                  <li><a href="${ url('pig:index') }"><img src="${ static(apps['pig'].icon_path) }" class="app-icon"/> ${_('Pig Script')}</a></li>
                 % endif
                 % if 'spark' in apps:
-                <li><a href="${ url('spark:index') }"><img src="${ apps['spark'].icon_path }" class="app-icon"/> ${_('Spark Job')}</a></li>
+                  <li><a href="${ url('spark:index') }"><img src="${ static(apps['spark'].icon_path) }" class="app-icon"/> ${_('Spark Job')}</a></li>
                 % endif
                 % if 'oozie' in apps:
                 <li class="dropdown-submenu">
-                  <a href="#"><img src="${ apps['oozie'].icon_path }" class="app-icon"/> ${_('Oozie Scheduler')}</a>
+                  <a href="#"><img src="${ static(apps['oozie'].icon_path) }" class="app-icon"/> ${_('Oozie Scheduler')}</a>
                   <ul class="dropdown-menu">
-                    <li><a href="${ url('oozie:create_workflow') }"><img src="/oozie/static/art/icon_oozie_workflow_48.png" class="app-icon"/> ${_('Workflow')}</a></li>
-                    <li><a href="${ url('oozie:create_coordinator') }"><img src="/oozie/static/art/icon_oozie_coordinator_48.png" class="app-icon"/> ${_('Coordinator')}</a></li>
-                    <li><a href="${ url('oozie:create_bundle') }"><img src="/oozie/static/art/icon_oozie_bundle_48.png" class="app-icon"/> ${_('Bundle')}</a></li>
+                    <li><a href="${ url('oozie:create_workflow') }"><img src="${ static('oozie/art/icon_oozie_workflow_48.png') }" class="app-icon"/> ${_('Workflow')}</a></li>
+                    <li><a href="${ url('oozie:create_coordinator') }"><img src="${ static('oozie/art/icon_oozie_coordinator_48.png') }" class="app-icon"/> ${_('Coordinator')}</a></li>
+                    <li><a href="${ url('oozie:create_bundle') }"><img src="${ static('oozie/art/icon_oozie_bundle_48.png') }" class="app-icon"/> ${_('Bundle')}</a></li>
                   </ul>
                 </li>
                 % endif
               </ul>
            </li>
-           <!-- ko template: { name: 'tag-template', data: history } -->
-           <!-- /ko -->
            <!-- ko template: { name: 'tag-template', data: trash } -->
            <!-- /ko -->
            <li class="nav-header tag-mine-header">
@@ -223,13 +206,40 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     </div>
 
   </div>
+
+
+
+  <div id="documentMoveModal" class="modal fade">
+    <div class="modal-header">
+        <a href="#" class="close" data-dismiss="modal">&times;</a>
+        <h3>${_('Move to a project')}</h3>
+    </div>
+    <div class="modal-body">
+        <p>
+          ${_('Select the project you want to move this document to')}
+          <ul class="unstyled">
+            <!-- ko foreach: myTags -->
+              <li>
+                <a href="javascript:void(0)" style="padding-left: 4px" data-bind="click: moveDocFinal">
+                  <i class="fa fa-tag"></i> <span data-bind="text: name"></span>
+                </a>
+              </li>
+            <!-- /ko -->
+          </ul>
+        </p>
+    </div>
+    <div class="modal-footer">
+        <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
+    </div>
+</div>
+
 </div>
 
 
 <script type="text/html" id="tag-template">
   <li data-bind="click: $root.filterDocs, css: {'active': $root.selectedTag().id == id}">
     <a href="javascript:void(0)" style="padding-right: 4px">
-      <i data-bind="css: {'fa': true, 'fa-trash-o':name() == 'trash', 'fa-clock-o': name() == 'history', 'fa-tag': name() != 'trash' && name() != 'history'}"></i> <span data-bind="text: name"></span>
+      <i data-bind="css: {'fa': true, 'fa-trash-o':name() == 'trash', 'fa-clock-o': name() == 'history', 'fa-tag': name() != 'trash' && name() != 'history'}"></i> <span data-bind="html: name"></span>
       <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
     </a>
   </li>
@@ -242,7 +252,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
   <!-- ko foreach: projects-->
   <li data-bind="click: $root.filterDocs, css: {'active': $root.selectedTag().id == id}">
     <a href="javascript:void(0)" style="padding-right: 4px">
-      &nbsp;&nbsp;&nbsp;<i class="fa fa-tag"></i> <span data-bind="text: name"></span> <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
+      &nbsp;&nbsp;&nbsp;<i class="fa fa-tag"></i> <span data-bind="html: name"></span> <span class="badge pull-right tag-counter" data-bind="text: docs().length"></span>
     </a>
   </li>
   <!-- /ko -->
@@ -251,20 +261,20 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
 <script type="text/html" id="document-template">
   <tr>
     <td style="width: 26px"><img data-bind="attr: { src: icon }" class="app-icon"></td>
-    <td><a data-bind="attr: { href: url }, text: name"></a></td>
-    <td data-bind="text: description"></td>
+    <td><a data-bind="attr: { href: url }, html: name"></a></td>
+    <td data-bind="html: description"></td>
     <td data-bind="text: lastModified"></td>
     <td style="text-align: center; white-space: nowrap">
       <a href="javascript:void(0)" rel="tooltip" data-placement="left" data-bind="click: moveDoc, attr: {'data-original-title': '${ _("Change project for") } '+name}" style="padding-left:8px; padding-right: 8px">
         <span data-bind="foreach: tags">
           <!-- ko if: name != 'trash'-->
-          <span class="badge" data-bind="text: name"></span>
+          <span class="badge" data-bind="html: name"></span>
           <!-- /ko -->
         </span>
       </a>
     </td>
     <td style="width: 40px; text-align: center">
-      <a class="share-link" rel="tooltip" data-placement="left" style="padding-left:10px; padding-right: 10px" data-bind="click: shareDoc, attr: {'data-original-title': '${ _("Share") } '+name}, visible: isMine , css: {'baseShared': true, 'isShared': perms.read.users.length + perms.read.groups.length > 0}">
+      <a class="share-link" rel="tooltip" data-placement="left" style="padding-left:10px; padding-right: 10px" data-bind="click: shareDoc, attr: {'data-original-title': '${ _("Share") } '+name}, visible: isMine , css: {'baseShared': true, 'isShared': perms.read.users.length + perms.read.groups.length + perms.write.users.length + perms.write.groups.length > 0}">
         <i class="fa fa-users"></i>
       </a>
       <i class="fa fa-ban" style="padding-left:8px; padding-right: 8px" data-bind="visible: !isMine"></i>
@@ -302,175 +312,30 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     </div>
     <div class="modal-footer">
         <a class="btn" data-dismiss="modal">${_('No')}</a>
-        <a data-bind="click: removeTagFinal" class="btn btn-danger">${_('Yes')}</a>
+        <a id="tagRemoveBtn" class="pointer btn btn-danger disable-feedback">${_('Yes')}</a>
     </div>
 </div>
 
-<div id="documentMoveModal" class="modal hide fade">
-    <div class="modal-header">
-        <a href="#" class="close" data-dismiss="modal">&times;</a>
-        <h3>${_('Move to a project')}</h3>
-    </div>
-    <div class="modal-body">
-        <p>
-          ${_('Select the project you want to move this document to')}
-          <ul class="unstyled">
-            <!-- ko foreach: myTags -->
-              <li>
-                <a href="javascript:void(0)" style="padding-left: 4px" data-bind="click: moveDocFinal">
-                  <i class="fa fa-tag"></i> <span data-bind="text: name"></span>
-                </a>
-              </li>
-            <!-- /ko -->
-          </ul>
-        </p>
-    </div>
-    <div class="modal-footer">
-        <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
-    </div>
-</div>
-
-
-<div id="documentShareModal" class="modal hide fade">
-  <div class="modal-header">
-    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-    <h3>${_('Sharing settings')}</h3>
-  </div>
-  <div class="modal-body">
-    <p>
-      <div class="row-fluid">
-        <div class="span6">
-          <h4 class="muted" style="margin-top:0px">${_('Read')}</h4>
-          <div data-bind="visible: (selectedDoc().perms.read.users.length == 0 && selectedDoc().perms.read.groups.length == 0)">${_('The document is not shared for read.')}</div>
-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.users">
-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserReadShare"> <i class="fa fa-times"></i></li>
-          </ul>
-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.read.groups">
-            <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupReadShare"> <i class="fa fa-times"></i></li>
-          </ul>
-        </div>
-
-        <div class="span6">
-          <h4 class="muted" style="margin-top:0px">${_('Read and Modify')}</h4>
-          <div data-bind="visible: (selectedDoc().perms.write.users.length == 0 && selectedDoc().perms.write.groups.length == 0)">${_('The document is not shared for read and modify.')}</div>
-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.users">
-            <li><span class="badge badge-info badge-left"><i class="fa fa-user"></i> <span data-bind="text: prettifyUsername(id)"></span></span><span class="badge badge-right trash-share" data-bind="click: removeUserWriteShare"> <i class="fa fa-times"></i></li>
-          </ul>
-          <ul class="unstyled airy" data-bind="foreach: selectedDoc().perms.write.groups">
-            <li><span class="badge badge-info badge-left"><i class="fa fa-users"></i> ${ _('Group') } &quot;<span data-bind="text: name"></span>&quot;</span><span class="badge badge-right trash-share" data-bind="click: removeGroupWriteShare"> <i class="fa fa-times"></i></li>
-          </ul>
-        </div>
-
-      </div>
-      <div class="clearfix"></div>
-      <div style="margin-top: 20px">
-        <div class="input-append">
-          <input id="documentShareTypeahead" type="text" style="width: 460px" placeholder="${_('You can type a username or a group')}">
-          <div class="btn-group">
-            <a id="documentShareAddBtn" class="btn"><i class="fa fa-plus-circle"></i> <span data-bind="text: selectedPermLabel"></span></a>
-            <a class="btn dropdown-toggle" data-toggle="dropdown">
-              <span class="caret"></span>
-            </a>
-            <ul class="dropdown-menu">
-              <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'read')" href="javascript:void(0)">${ _('Read') }</a></li>
-              <li><a data-bind="click: changeDocumentSharePerm.bind(null, 'write')" href="javascript:void(0)">${ _('Read and Modify') }</a></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </p>
-  </div>
-  <div class="modal-footer">
-    <a href="#" data-dismiss="modal" class="btn btn-primary disable-feedback disable-enter">${_('Done')}</a>
-  </div>
-</div>
-
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/js/home.vm.js"></script>
-
+${ commonshare() | n,unicode }
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout.mapping-2.3.2.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/js/home.vm.js') }"></script>
+<script src="${ static('desktop/js/share.vm.js') }"></script>
 
 <script type="text/javascript" charset="utf-8">
-  var viewModel, JSON_USERS_GROUPS;
+  var viewModel, shareViewModel, JSON_USERS_GROUPS;
 
   var JSON_TAGS = ${ json_tags | n,unicode };
   var JSON_DOCS = ${ json_documents | n,unicode };
 
-  function prettifyUsername(userId) {
-    var _user = null;
-    for (var i = 0; i < JSON_USERS_GROUPS.users.length; i++) {
-      if (JSON_USERS_GROUPS.users[i].id == userId) {
-        _user = JSON_USERS_GROUPS.users[i];
-      }
-    }
-    if (_user != null) {
-      return (_user.first_name != "" ? _user.first_name + " " : "") + (_user.last_name != "" ? _user.last_name + " " : "") + ((_user.first_name != "" || _user.last_name != "") ? "(" : "") + _user.username + ((_user.first_name != "" || _user.last_name != "") ? ")" : "");
-    }
-    return "";
-  }
-
   $(document).ready(function () {
     viewModel = new HomeViewModel(JSON_TAGS, JSON_DOCS);
-    ko.applyBindings(viewModel);
+    ko.applyBindings(viewModel, $('#documentList')[0]);
+
+    shareViewModel = initSharing("#documentShareModal", viewModel.updateDoc);
 
     var selectedUserOrGroup, map, dropdown = null;
-    $.getJSON('/desktop/api/users/autocomplete', function (data) {
-      JSON_USERS_GROUPS = data;
-      dropdown = [];
-      map = {};
-
-      $.each(JSON_USERS_GROUPS.users, function (i, user) {
-        var _display = prettifyUsername(user.id);
-        map[_display] = user;
-        dropdown.push(_display);
-      });
-
-      $.each(JSON_USERS_GROUPS.groups, function (i, group) {
-        map[group.name] = group;
-        dropdown.push(group.name);
-      });
-
-      $("#documentShareTypeahead").typeahead({
-        source: function (query, process) {
-          process(dropdown);
-        },
-        matcher: function (item) {
-          if (item.toLowerCase().indexOf(this.query.trim().toLowerCase()) != -1) {
-            return true;
-          }
-        },
-        sorter: function (items) {
-          return items.sort();
-        },
-        highlighter: function (item) {
-          var _icon = "fa";
-          var _display = "";
-          if (map[item].hasOwnProperty("username")) {
-            _icon += " fa-user";
-          }
-          else {
-            _icon += " fa-users";
-          }
-          var regex = new RegExp('(' + this.query + ')', 'gi');
-          return "<i class='" + _icon + "'></i> " + item.replace(regex, "<strong>$1</strong>");
-        },
-        updater: function (item) {
-          selectedUserOrGroup = map[item];
-          return item;
-        }
-      });
-
-      $("#documentShareTypeahead").on("keyup", function (e) {
-        var _code = (e.keyCode ? e.keyCode : e.which);
-        if (_code == 13) {
-          handleTypeaheadSelection();
-        }
-      });
-
-
-    });
-
 
     viewModel.selectedTag.subscribe(function (value) {
       $("#searchInput").val("");
@@ -516,6 +381,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
       $.post("/desktop/api/tag/add_tag", {
         name: tag_name
       },function (data) {
+        data.name = hue.htmlEncode(data.name);
         viewModel.createTag(data);
         $("#tagsNew").val("");
         $(document).trigger("info", "${_('Project created')}");
@@ -525,24 +391,9 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
       });
     });
 
-    $("#documentShareAddBtn").on("click", function () {
-      handleTypeaheadSelection();
+    $("#tagRemoveBtn").on("click", function(){
+      removeTagFinal();
     });
-
-    function handleTypeaheadSelection() {
-      if (selectedUserOrGroup != null) {
-        if (selectedUserOrGroup.hasOwnProperty("username")) {
-          viewModel.selectedDoc().perms[viewModel.selectedPerm()].users.push(selectedUserOrGroup);
-        }
-        else {
-          viewModel.selectedDoc().perms[viewModel.selectedPerm()].groups.push(selectedUserOrGroup);
-        }
-        viewModel.selectedDoc.valueHasMutated();
-        shareDocFinal();
-      }
-      selectedUserOrGroup = null;
-      $("#documentShareTypeahead").val("");
-    }
 
     $("a[rel='tooltip']").tooltip();
 
@@ -576,15 +427,20 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     });
   }
 
+  function shareDoc(doc) {
+    shareViewModel.selectedDoc(doc);
+    openShareModal();
+  }
+
   function moveDoc(doc) {
-    viewModel.selectedDoc(doc);
+    shareViewModel.selectedDoc(doc);
     $("#documentMoveModal").modal("show");
   }
 
   function moveDocFinal(tag) {
     $.post("/desktop/api/doc/update_tags", {
       data: JSON.stringify({
-        doc_id: viewModel.selectedDoc().id,
+        doc_id: shareViewModel.selectedDoc().id,
         tag_ids: [tag.id()]
       })
     }, function (response) {
@@ -601,97 +457,6 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
     })
   }
 
-  function shareDoc(doc) {
-    viewModel.selectedDoc(doc);
-    $("#documentShareModal").modal("show");
-  }
-
-  function removeUserReadShare(user) {
-    $(viewModel.selectedDoc().perms.read.users).each(function (cnt, item) {
-      if (item.id == user.id) {
-        viewModel.selectedDoc().perms.read.users.splice(cnt, 1);
-      }
-    });
-    viewModel.selectedDoc.valueHasMutated();
-    shareDocFinal();
-  }
-
-  function removeUserWriteShare(user) {
-    $(viewModel.selectedDoc().perms.write.users).each(function (cnt, item) {
-      if (item.id == user.id) {
-        viewModel.selectedDoc().perms.write.users.splice(cnt, 1);
-      }
-    });
-    viewModel.selectedDoc.valueHasMutated();
-    shareDocFinal();
-  }
-
-  function removeGroupReadShare(group) {
-    $(viewModel.selectedDoc().perms.read.groups).each(function (cnt, item) {
-      if (item.id == group.id) {
-        viewModel.selectedDoc().perms.read.groups.splice(cnt, 1);
-      }
-    });
-    viewModel.selectedDoc.valueHasMutated();
-    shareDocFinal();
-  }
-
-  function removeGroupWriteShare(group) {
-    $(viewModel.selectedDoc().perms.write.groups).each(function (cnt, item) {
-      if (item.id == group.id) {
-        viewModel.selectedDoc().perms.write.groups.splice(cnt, 1);
-      }
-    });
-    viewModel.selectedDoc.valueHasMutated();
-    shareDocFinal();
-  }
-
-  function changeDocumentSharePerm(perm) {
-    viewModel.selectedPerm(perm);
-  }
-
-  function shareDocFinal() {
-    var _postPerms = {
-      read: {
-        user_ids: [],
-        group_ids: []
-      },
-      write: {
-        user_ids: [],
-        group_ids: []
-      }
-    }
-
-    $(viewModel.selectedDoc().perms.read.users).each(function (cnt, item) {
-      _postPerms.read.user_ids.push(item.id);
-    });
-
-    $(viewModel.selectedDoc().perms.read.groups).each(function (cnt, item) {
-      _postPerms.read.group_ids.push(item.id);
-    });
-
-    $(viewModel.selectedDoc().perms.write.users).each(function (cnt, item) {
-      _postPerms.write.user_ids.push(item.id);
-    });
-
-    $(viewModel.selectedDoc().perms.write.groups).each(function (cnt, item) {
-      _postPerms.write.group_ids.push(item.id);
-    });
-
-    $.post("/desktop/api/doc/update_permissions", {
-      doc_id: viewModel.selectedDoc().id,
-      data: JSON.stringify(_postPerms)
-    }, function (response) {
-      if (response != null) {
-        if (response.status != 0) {
-          $(document).trigger("error", "${_("There was an error processing your action: ")}" + response.message);
-        }
-        else {
-          viewModel.updateDoc(response.doc);
-        }
-      }
-    });
-  }
 </script>
 
 
@@ -701,7 +466,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
   }
 </style>
 
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 $(document).ready(function(){
@@ -742,7 +507,7 @@ $(document).ready(function(){
       $("#jHueTourFlag").click();
       $("#jHueTourModal").modal("hide");
     });
-  } 
+  }
 });
 </script>
 

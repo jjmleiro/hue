@@ -1,0 +1,145 @@
+From 4c8f556e24ce4f8431b923c84ce321c3143275a0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 3 Nov 2014 12:25:11 +0000
+Subject: [PATCH 0224/1173] [oozie] Adding workflow Hadoop properties settings
+
+---
+ apps/oozie/src/oozie/models2.py                    |   22 +++++++++++------
+ .../oozie/templates/editor/workflow_editor.mako    |   25 ++++++++++++++++++--
+ apps/oozie/src/oozie/views/editor2.py              |    6 ++++-
+ desktop/libs/liboozie/src/liboozie/credentials.py  |    5 +++-
+ 4 files changed, 47 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index cba7128..90cca18 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -62,11 +62,19 @@ class Workflow():
+                  "klass":"card card-home card-column span12"}              
+           ],
+           'workflow': workflow if workflow is not None else {
+-               "id": None,"uuid":"549e2697-97cf-f931-2ce4-83dfdd03b7e7","name":"My Workflow",
+-               "properties":{"job_xml":"","sla_enabled":False,"schema_version":"uri:oozie:workflow:0.4","sla_workflow_enabled":False,"credentials":[],"properties":{}},
+-               "nodes":[{"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
+-                        {"id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a","name":"End","type":"end-widget","properties":{},"children":[]}
+-               ]
++              "id": None,"uuid":"549e2697-97cf-f931-2ce4-83dfdd03b7e7","name":"My Workflow",
++              "properties": {
++                    "job_xml": "",
++                    "sla_enabled": False,
++                    "schema_version": "uri:oozie:workflow:0.4",
++                    "sla_workflow_enabled": False,
++                    "credentials": [],
++                    "properties": []
++              },
++              "nodes":[
++                  {"id":"3f107997-04cc-8733-60a9-a4bb62cebffc","name":"Start","type":"start-widget","properties":{},"children":[{'to': '33430f0f-ebfa-c3ec-f237-3e77efa03d0a'}]},            
++                  {"id":"33430f0f-ebfa-c3ec-f237-3e77efa03d0a","name":"End","type":"end-widget","properties":{},"children":[]}
++              ]
+           }
+       })
+       
+@@ -101,6 +109,8 @@ class Workflow():
+     if 'properties' not in _data['workflow']:
+       _data['workflow']['properties'] = {}
+       
++    if 'properties' not in _data['workflow']['properties']:
++      _data['workflow']['properties']['properties'] = []      
+     if 'deployment_dir' not in _data['workflow']['properties']:
+       default_dir = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too
+       _data['workflow']['properties']['deployment_dir'] = default_dir
+@@ -118,8 +128,6 @@ class Workflow():
+       _data['workflow']['properties']['schema_version'] = 'uri:oozie:workflow:0.4'
+     if 'job_xml' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['job_xml'] = ''
+-    if 'properties' not in _data['workflow']['properties']:
+-      _data['workflow']['properties']['properties'] = {}
+ 
+     if 'credentials' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['credentials'] = []
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index ae2700b..60ad987 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -190,7 +190,8 @@ ${ dashboard.layout_skeleton() }
+     ${ _('Delete') } <i class="fa fa-plus"></i>
+   </button>
+   <br/>
+-  ${ _('Job XML') } <input type="text" data-bind="value: properties.job_xml" /></br>
++  ${ _('Job XML') } <input type="text" data-bind="value: properties.job_xml" />
++  <br/>
+   ${ _('Properties') }
+   <ul data-bind="foreach: properties.properties">
+     <li>
+@@ -307,7 +308,8 @@ ${ dashboard.layout_skeleton() }
+         </div>
+         <div class="tab-pane" id="properties">
+           <span data-bind="template: { name: 'common-action-properties' }"></span>
+-
++          <br/>
++          <br/>
+           ${ _('Parameters') }
+           <ul data-bind="foreach: properties.parameters">
+             <li>
+@@ -515,6 +517,25 @@ ${ dashboard.layout_skeleton() }
+       ${_("Workspace")}
+       <input data-bind="value: $root.workflow.properties.deployment_dir"/>
+ 
++	  <br/>
++	  ${ _('Hadoop Properties') }
++	  <ul data-bind="foreach: $root.workflow.properties.properties">
++	    <li>
++	      <input data-bind="value: name"/>
++	      <input data-bind="value: value"/>
++	      <a href="#" data-bind="click: function(){ $root.workflow.properties.properties.remove(this); }">
++	        <i class="fa fa-minus"></i>
++	      </a>
++	    </li>
++	  </ul>
++	  <button data-bind="click: function(){ $root.workflow.properties.properties.push({'name': '', 'value': ''}); }">
++	    <i class="fa fa-plus"></i>
++	  </button>
++
++      <br/>
++      ${_("Job XML")}
++      <input data-bind="value: $root.workflow.properties.job_xml"/>
++
+     </div>
+   </div>
+ </div>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index beb6426..1908f44 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -63,7 +63,11 @@ def edit_workflow(request):
+ 
+   api = get_oozie(request.user)
+   credentials = Credentials()
+-  credentials.fetch(api)
++  
++  try:  
++    credentials.fetch(api)
++  except Exception, e:
++    LOG.error(smart_str(e))
+ 
+   return render('editor/workflow_editor.mako', request, {
+       'layout_json': json.dumps(workflow_data['layout']),
+diff --git a/desktop/libs/liboozie/src/liboozie/credentials.py b/desktop/libs/liboozie/src/liboozie/credentials.py
+index 63820f4..60841d8 100644
+--- a/desktop/libs/liboozie/src/liboozie/credentials.py
++++ b/desktop/libs/liboozie/src/liboozie/credentials.py
+@@ -31,7 +31,10 @@ class Credentials(object):
+   }
+ 
+   def __init__(self, credentials=None):
+-    self.credentials = credentials
++    if credentials is None:
++      self.credentials = {}
++    else:
++      self.credentials = credentials
+ 
+   def fetch(self, oozie_api):
+     configuration = oozie_api.get_configuration()
+-- 
+1.7.9.5
+

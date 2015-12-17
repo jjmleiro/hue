@@ -1,0 +1,314 @@
+From 4f0512f89792d5526c5a3bd90e0e1bb89e8cadf5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Feb 2015 16:38:45 -0800
+Subject: [PATCH 0888/1173] HUE-1350 [search] Introduce value and up facet
+
+---
+ apps/search/src/search/models.py             |   42 +++++++++++++----
+ apps/search/src/search/templates/search.mako |   45 ++++++++++++++----
+ apps/search/static/js/search.ko.js           |   65 +++++++++++++++++++++++++-
+ desktop/libs/libsolr/src/libsolr/api.py      |    6 ++-
+ 4 files changed, 138 insertions(+), 20 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 824ed63..c4120ce 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -438,17 +438,44 @@ def range_pair(cat, fq_filter, iterable, end, collection_facet):
+   # e.g. counts":["0",17430,"1000",1949,"2000",671,"3000",404,"4000",243,"5000",165],"gap":1000,"start":0,"end":6000}
+   pairs = []
+   selected_values = [f['value'] for f in fq_filter]
+-  is_single_unit_gap = re.match('^[\+\-]?1[A-Za-z]*$', str(collection_facet['properties']['gap']))
++  is_single_unit_gap = re.match('^[\+\-]?1[A-Za-z]*$', str(collection_facet['properties']['gap'])) is not None
++  is_up = collection_facet['properties']['sort'] == 'asc'
++
++  if collection_facet['properties']['sort'] == 'asc' and collection_facet['type'] == 'range-up':
++    prev = None
++    n = []
++    for e in iterable:
++      if prev is not None:
++        n.append(e)
++        n.append(prev)
++        prev = None
++      else:
++        prev = e
++    iterable = n
++    iterable.reverse()
++
+   a, to = itertools.tee(iterable)
+   next(to, None)
++  counts = iterable[1::2]
++  total_counts = 0
++
+   for element in a:
+     next(to, None)
+     to_value = next(to, end)
++    count = next(a)
++    total_counts += counts.pop(0)
++
+     pairs.append({
+-        'field': cat, 'from': element, 'value': next(a), 'to': to_value, 'selected': element in selected_values,
++        'field': cat, 'from': element, 'value': count, 'to': to_value, 'selected': element in selected_values,
+         'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element]),
+-        'label': element if is_single_unit_gap else '%s - %s' % (element, to_value)
++        'is_single_unit_gap': is_single_unit_gap,
++        'total_counts': total_counts,
++        'is_up': is_up
+     })
++
++  if collection_facet['properties']['sort'] == 'asc' and collection_facet['type'] != 'range-up':
++    pairs.reverse()
++
+   return pairs
+ 
+ 
+@@ -477,17 +504,14 @@ def augment_solr_response(response, collection, query):
+           'type': category,
+           'label': collection_facet['label'],
+           'counts': counts,
+-          # add total result count?
+         }
+         normalized_facets.append(facet)
+-      elif category == 'range' and response['facet_counts']['facet_ranges']:
++      elif (category == 'range' or category == 'range-up') and response['facet_counts']['facet_ranges']:
+         name = facet['field']
+         collection_facet = get_facet_field(category, name, collection['facets'])
+         counts = response['facet_counts']['facet_ranges'][name]['counts']
+         end = response['facet_counts']['facet_ranges'][name]['end']
+-        counts = range_pair(name, selected_values.get((facet['id'], name, 'range'), []), counts, end, collection_facet)
+-        if collection_facet['properties']['sort'] == 'asc':
+-          counts.reverse()
++        counts = range_pair(name, selected_values.get((facet['id'], name, category), []), counts, end, collection_facet)
+         facet = {
+           'id': collection_facet['id'],
+           'field': name,
+@@ -554,7 +578,7 @@ def augment_solr_response(response, collection, query):
+             for field, hls in highlighting.iteritems():
+               _hls = [escape(smart_unicode(hl, errors='replace')).replace('&lt;em&gt;', '<em>').replace('&lt;/em&gt;', '</em>') for hl in hls]
+               escaped_highlighting[field] = _hls
+-  
++
+             doc.update(escaped_highlighting)
+     else:
+       response['warning'] = _("The Solr schema requires an id field for performing the result highlighting")
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index a5a724c..adaa3bb 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -234,9 +234,10 @@ ${ dashboard.layout_skeleton() }
+ 
+     <div class="facet-field-cnt" data-bind="visible: properties.canRange">
+       <span class="facet-field-label facet-field-label-fixed-width">${ _('Type') }</span>
+-      <a href="javascript: void(0)" title="${ _('Toggle range or field facet') }" data-bind="click: $root.collection.toggleRangeFacet" data-loading-text="...">
+-        <i class="fa" data-bind="css: { 'fa-arrows-h': type() == 'range', 'fa-circle': type() == 'field' }, attr: { title: type() == 'range' ? 'Range' : 'Term' }"></i>
++      <a href="javascript: void(0)" title="${ _('Toggle how to group the values') }" data-bind="click: $root.collection.toggleRangeFacet" data-loading-text="...">
++        <i class="fa" data-bind="css: { 'fa-arrows-h': type() == 'range', 'fa-circle': type() == 'field', 'fa-level-up': type() == 'range-up' }, attr: { title: type() == 'field' ? 'Range' : type() == 'range-up' ? 'Range and up' : 'Term' }"></i>
+         <span data-bind="visible: type() == 'range'">${_('range')}</span>
++        <span data-bind="visible: type() == 'range-up'">${_('range & up')}</span>
+         <span data-bind="visible: type() == 'field'">${_('field')}</span>
+       </a>
+     </div>
+@@ -271,7 +272,7 @@ ${ dashboard.layout_skeleton() }
+       </div>
+     <!-- /ko -->
+ 
+-    <!-- ko if: type() == 'range' -->
++    <!-- ko if: type() == 'range' || type() == 'range-up' -->
+       <!-- ko ifnot: properties.isDate() -->
+         <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.initial_gap, min: properties.initial_start, max: properties.initial_end}"></div>
+       <!-- /ko -->
+@@ -346,7 +347,7 @@ ${ dashboard.layout_skeleton() }
+       </span>
+     </div>
+     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+-      <!-- ko if: type() != 'range' -->
++      <!-- ko if: type() == 'field' -->
+         <div data-bind="foreach: $parent.counts">
+           <div class="trigger-exclude">
+               <!-- ko if: $index() < $parent.properties.limit() -->
+@@ -386,13 +387,31 @@ ${ dashboard.layout_skeleton() }
+         <div data-bind="foreach: $parent.counts">
+           <div class="trigger-exclude">
+               <!-- ko if: ! selected -->
+-                <a class="pointer" data-bind="text: $data.label, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
++                <a class="pointer" data-bind="text: $data.is_single_unit_gap ? $data.from : $data.from + ' - ' + $data.to, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
+                 <span class="pointer counter" data-bind="text: ' (' + $data.value + ')', click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></span>
+                 <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
+               <!-- /ko -->
+               <!-- ko if: selected -->
+                 <span class="pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }">
+-                  <strong data-bind="text: $data.label"></strong>
++                  <strong data-bind="text: $data.is_single_unit_gap ? $data.from : $data.from + ' - ' + $data.to"></strong>
++                  <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
++                  <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
++                </span>
++              <!-- /ko -->
++          </div>
++        </div>
++      <!-- /ko -->
++      <!-- ko if: type() == 'range-up' -->
++        <div data-bind="foreach: $parent.counts">
++          <div class="trigger-exclude">
++              <!-- ko if: ! selected -->
++                <a class="pointer" data-bind="text: $data.from + ($data.is_up ? ' & Up' : ' & Less'), click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }"></a>
++                <span class="pointer counter" data-bind="text: ' (' + $data.total_counts + ')', click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }"></span>
++                <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true, is_up: $data.is_up}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
++              <!-- /ko -->
++              <!-- ko if: selected -->
++                <span class="pointer" data-bind="click: function(){ $root.query.selectRangeUpFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, is_up: $data.is_up}) }">
++                  <strong data-bind="text: $data.from + ($data.is_up ? ' & Up' : ' & Less')"></strong>
+                   <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
+                   <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
+                 </span>
+@@ -1011,7 +1030,7 @@ ${ dashboard.layout_skeleton() }
+     </div>
+     <!-- /ko -->
+ 
+-    <!-- ko if: $data.type() == 'range' -->
++    <!-- ko if: $data.type() == 'range' || $data.type() == 'range-up' -->
+     <div class="filter-box">
+       <div class="title">
+         <a href="javascript:void(0)" class="pull-right" data-bind="click: function(){ chartsUpdatingState(); $root.query.removeFilter($data); $root.search() }">
+@@ -1025,8 +1044,16 @@ ${ dashboard.layout_skeleton() }
+         <span data-bind="foreach: $data.properties" style="font-weight: normal">
+           <!-- ko if: $.grep($parent.filter(), function(f) { return f.value() == $data.from() && ! f.exclude() }).length > 0 -->
+           <span class="label label-info">
+-            <strong>${_('from')}</strong> <span data-bind="text: $data.from"></span>
+-            <strong>${_('to')}</strong> <span data-bind="text: $data.to"></span>
++            <!-- ko if: $parent.type() == 'range' -->
++              <strong>${_('from')}</strong> <span data-bind="text: $data.from"></span>
++              <strong>${_('to')}</strong> <span data-bind="text: $data.to"></span>
++            <!-- /ko -->
++
++            <!-- ko if: $parent.type() == 'range-up' -->
++              <strong data-bind="visible: ! $parent.is_up()">${ _('Until') }</strong>
++              <span data-bind="text: $data.from"></span>
++              <strong data-bind="visible: $parent.is_up()"> & Up</strong>
++            <!-- /ko -->
+           </span>
+           <!-- /ko -->
+         </span>
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index d8c8981..d8d8905 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -159,7 +159,7 @@ var Query = function (vm, query) {
+     _toggleSingleTermFacet(data, false);
+   }
+   self.removeSingleTermFacet = function(data) {
+-	_toggleSingleTermFacet(data, true);
++  _toggleSingleTermFacet(data, true);
+   }
+ 
+   self.selectRangeFacet = function (data) {
+@@ -201,6 +201,63 @@ var Query = function (vm, query) {
+     }
+   };
+ 
++  self.selectRangeUpFacet = function (data) {
++    if (data.force != undefined) {
++      self.removeFilter(ko.mapping.fromJS({'id': data.widget_id, 'dontZoomOut': true}));
++    }
++
++    var fq = self.getFacetFilter(data.widget_id);
++
++    if (fq == null) {
++      self.fqs.push(ko.mapping.fromJS({
++          'id': data.widget_id,
++          'field': data.cat,
++          'filter': [{'exclude': data.exclude ? true : false, 'value': data.from}],
++          'properties': [{'from': data.from, 'to': data.to}],
++          'type': 'range-up',
++          'is_up': data.is_up
++      }));
++    } else {
++      var f = $.grep(fq.filter(), function(f) { return f.value() == data.from; });
++
++      if (f.length > 0) { // Unselect
++        var excludeToRemove = f[0].exclude();
++        var select = false;
++      } else {
++        var excludeToRemove = data.exclude ? true : false;
++        var select = true;
++      }
++
++      var toRemove = []
++      $.each(fq.filter(), function(index, filter) {
++        if (filter.exclude() == excludeToRemove) {
++          toRemove.push(filter.value());
++          fq.filter.remove(filter);
++        }
++      });
++
++      $.each(fq.properties(), function(index, prop) {
++        if (toRemove.indexOf(prop.from()) != -1) {
++          fq.properties.remove(prop);
++        }
++      })
++
++      if (select) {
++        fq.filter.push(ko.mapping.fromJS({'exclude': data.exclude ? true : false, 'value': data.from}));
++        fq.properties.push(ko.mapping.fromJS({'from': data.from, 'to': data.to}));
++      }
++
++      if (fq.filter().length == 0) {
++        self.removeFilter(ko.mapping.fromJS({'id': data.widget_id}));
++      }
++    }
++
++    self.start(0);
++    if (data.no_refresh == undefined) {
++      vm.search();
++    }
++  };
++
+   function getFilterByField(field) {
+     var _fq = null;
+     $.each(self.fqs(), function (index, fq) {
+@@ -722,6 +779,10 @@ var Collection = function (vm, collection) {
+       facet_field.properties.sort('desc');
+     }
+ 
++    if (facet_field.type() == 'range-up') {
++      vm.query.removeFilter(ko.mapping.fromJS({'id': facet_field.id})); // Reset filter query
++    }
++
+     $(event.target).button('loading');
+     vm.search();
+   };
+@@ -732,6 +793,8 @@ var Collection = function (vm, collection) {
+     if (facet_field.type() == 'field') {
+        facet_field.type('range');
+      } else if (facet_field.type() == 'range') {
++       facet_field.type('range-up')
++     } else if (facet_field.type() == 'range-up') {
+        facet_field.type('field')
+      }
+ 
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 832de60..b5815c6 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -87,6 +87,10 @@ class SolrApi(object):
+       elif fq['type'] == 'range':
+         params += (('fq', '{!tag=%s}' % fq['field'] + ' '.join([urllib.unquote(
+                     utf_quoter('%s%s:[%s TO %s}' % ('-' if field['exclude'] else '', fq['field'], f['from'], f['to']))) for field, f in zip(fq['filter'], fq['properties'])])),)
++      elif fq['type'] == 'range-up':
++        params += (('fq', '{!tag=%s}' % fq['field'] + ' '.join([urllib.unquote(
++                    utf_quoter('%s%s:[%s TO %s]' % ('-' if field['exclude'] else '', fq['field'], f['from'] if fq['is_up'] else '*', '*' if fq['is_up'] else f['from'])))
++                                                          for field, f in zip(fq['filter'], fq['properties'])])),)
+     return params
+ 
+   def query(self, collection, query):
+@@ -121,7 +125,7 @@ class SolrApi(object):
+       for facet in collection['facets']:
+         if facet['type'] == 'query':
+           params += (('facet.query', '%s' % facet['field']),)
+-        elif facet['type'] == 'range':
++        elif facet['type'] == 'range' or facet['type'] == 'range-up':
+           params += tuple([
+              ('facet.range', '{!ex=%s}%s' % (facet['field'], facet['field'])),
+              ('f.%s.facet.range.start' % facet['field'], facet['properties']['start']),
+-- 
+1.7.9.5
+

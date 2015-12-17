@@ -14,8 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# Handling of data export
 
 import logging
 import time
@@ -80,6 +78,7 @@ def HS2DataAdapter(handle, db, max_rows=0, start_over=True):
 
   num_rows_seen = 0
   limit_rows = max_rows > -1
+
   while results is not None:
     data = []
     for row in results.rows():

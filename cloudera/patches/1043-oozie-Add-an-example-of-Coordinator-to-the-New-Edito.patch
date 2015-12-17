@@ -1,0 +1,276 @@
+From f2a3334f73b330e3e31860a974e72e26e8dcc597 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 11 Mar 2015 14:46:55 -0700
+Subject: [PATCH 1043/1173] [oozie] Add an example of Coordinator to the New
+ Editor
+
+---
+ .../src/oozie/fixtures/initial_oozie_examples.json |   31 +++++++-
+ apps/oozie/src/oozie/models2.py                    |    4 +-
+ .../templates/editor2/coordinator_editor.mako      |   77 +++++++++++---------
+ .../templates/editor2/gen/coordinator.xml.mako     |    2 +-
+ apps/oozie/src/oozie/utils.py                      |    8 +-
+ desktop/core/src/desktop/models.py                 |    2 +
+ 6 files changed, 82 insertions(+), 42 deletions(-)
+ create mode 100644 apps/oozie/examples/coordinators/daily-copy/empty
+
+diff --git a/apps/oozie/examples/coordinators/daily-copy/empty b/apps/oozie/examples/coordinators/daily-copy/empty
+new file mode 100644
+index 0000000..e69de29
+diff --git a/apps/oozie/src/oozie/fixtures/initial_oozie_examples.json b/apps/oozie/src/oozie/fixtures/initial_oozie_examples.json
+index eb3df3c..ac47bd2 100644
+--- a/apps/oozie/src/oozie/fixtures/initial_oozie_examples.json
++++ b/apps/oozie/src/oozie/fixtures/initial_oozie_examples.json
+@@ -15,8 +15,8 @@
+       "sample"
+     ],
+     "dependencies": [],
+-    "data": "{\"layout\": [{\"oozieRows\": [{\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Spark\", \"widgetType\": \"spark-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"size\": 12}], \"id\": \"aa5b3738-38ee-9975-fdef-a0e91ffa45b1\", \"columns\": []}], \"rows\": [{\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Start\", \"widgetType\": \"start-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"size\": 12}], \"id\": \"70913349-1e56-9b10-0938-70b908077c05\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Spark\", \"widgetType\": \"spark-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"size\": 12}], \"id\": \"aa5b3738-38ee-9975-fdef-a0e91ffa45b1\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"End\", \"widgetType\": \"end-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"size\": 12}], \"id\": \"60da4cd8-2f75-776a-589a-4f06b0f4d695\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Kill\", \"widgetType\": \"kill-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"size\": 12}], \"id\": \"22b45c61-413a-fc56-02e5-21d2f50882bd\", \"columns\": []}], \"oozieEndRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"End\", \"widgetType\": \"end-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"size\": 12}], \"id\": \"60da4cd8-2f75-776a-589a-4f06b0f4d695\", \"columns\": []}, \"oozieKillRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Kill\", \"widgetType\": \"kill-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"size\": 12}], \"id\": \"22b45c61-413a-fc56-02e5-21d2f50882bd\", \"columns\": []}, \"enableOozieDropOnAfter\": true, \"oozieStartRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Start\", \"widgetType\": \"start-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"size\": 12}], \"id\": \"70913349-1e56-9b10-0938-70b908077c05\", \"columns\": []}, \"klass\": \"card card-home card-column span12\", \"enableOozieDropOnBefore\": true, \"drops\": [\"temp\"], \"id\": \"1e9fc64a-7838-2e9d-1689-31b1c6410399\", \"size\": 12}], \"workflow\": {\"properties\": {\"job_xml\": \"\", \"description\": \"\", \"wf1_id\": null, \"sla_enabled\": false, \"deployment_dir\": \"/user/hue/oozie/workspaces/workflows/spark-scala\", \"schema_version\": \"uri:oozie:workflow:0.5\", \"properties\": [], \"sla_workflow_enabled\": false, \"show_arrows\": true, \"credentials\": [], \"parameters\": [{\"name\": \"oozie.use.system.libpath\", \"value\": true}], \"sla\": [{\"value\": false, \"key\": \"enabled\"}, {\"value\": \"${nominal_time}\", \"key\": \"nominal-time\"}, {\"value\": \"\", \"key\": \"should-start\"}, {\"value\": \"${30 * MINUTES}\", \"key\": \"should-end\"}, {\"value\": \"\", \"key\": \"max-duration\"}, {\"value\": \"\", \"key\": \"alert-events\"}, {\"value\": \"\", \"key\": \"alert-contact\"}, {\"value\": \"\", \"key\": \"notification-msg\"}, {\"value\": \"\", \"key\": \"upstream-apps\"}]}, \"name\": \"Spark\", \"versions\": [\"uri:oozie:workflow:0.4\", \"uri:oozie:workflow:0.4.5\", \"uri:oozie:workflow:0.5\"], \"isDirty\": false, \"movedNode\": null, \"linkMapping\": {\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\": [], \"3f107997-04cc-8733-60a9-a4bb62cebffc\": [\"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"], \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\": [\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\"], \"17c9c895-5a16-7443-bb81-f34b30b21548\": []}, \"nodeIds\": [\"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"], \"nodes\": [{\"properties\": {}, \"name\": \"Start\", \"children\": [{\"to\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"}], \"actionParametersFetched\": false, \"type\": \"start-widget\", \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"actionParameters\": []}, {\"properties\": {}, \"name\": \"End\", \"children\": [], \"actionParametersFetched\": false, \"type\": \"end-widget\", \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"actionParameters\": []}, {\"properties\": {\"message\": \"Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]\"}, \"name\": \"Kill\", \"children\": [], \"actionParametersFetched\": false, \"type\": \"kill-widget\", \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"actionParameters\": []}, {\"properties\": {\"job_xml\": [], \"app_name\": \"MySpark\", \"spark_opts\": \"\", \"class\": \"org.apache.oozie.example.SparkFileCopy\", \"job_properties\": [], \"spark_arguments\": [{\"value\": \"/user/hue/oozie/workspaces/data/sonnets.txt\"}, {\"value\": \"sonnets.txt\"}], \"spark_master\": \"local[*]\", \"mode\": \"client\", \"prepares\": [], \"jars\": \"lib/oozie-examples.jar\", \"sla\": [{\"value\": false, \"key\": \"enabled\"}, {\"value\": \"${nominal_time}\", \"key\": \"nominal-time\"}, {\"value\": \"\", \"key\": \"should-start\"}, {\"value\": \"${30 * MINUTES}\", \"key\": \"should-end\"}, {\"value\": \"\", \"key\": \"max-duration\"}, {\"value\": \"\", \"key\": \"alert-events\"}, {\"value\": \"\", \"key\": \"alert-contact\"}, {\"value\": \"\", \"key\": \"notification-msg\"}, {\"value\": \"\", \"key\": \"upstream-apps\"}]}, \"name\": \"spark-d909\", \"children\": [{\"to\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\"}, {\"error\": \"17c9c895-5a16-7443-bb81-f34b30b21548\"}], \"actionParametersFetched\": false, \"type\": \"spark-widget\", \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"actionParameters\": []}], \"id\": 16, \"nodeNamesMapping\": {\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\": \"End\", \"3f107997-04cc-8733-60a9-a4bb62cebffc\": \"Start\", \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\": \"spark-d909\", \"17c9c895-5a16-7443-bb81-f34b30b21548\": \"Kill\"}, \"uuid\": \"2d667ab2-70f9-c2bf-0726-abe84fa7130d\"}}",
+-    "name": "Spark Jar"
++    "data": "{\"layout\": [{\"oozieRows\": [{\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Spark\", \"widgetType\": \"spark-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"size\": 12}], \"id\": \"d078a9c7-96dc-293d-8fb7-d5fa74f57a24\", \"columns\": []}], \"rows\": [{\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Start\", \"widgetType\": \"start-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"size\": 12}], \"id\": \"e4e4f7c5-939e-e60e-d6a0-380a0b58ff3b\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Spark\", \"widgetType\": \"spark-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"size\": 12}], \"id\": \"d078a9c7-96dc-293d-8fb7-d5fa74f57a24\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"End\", \"widgetType\": \"end-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"size\": 12}], \"id\": \"73a5f080-76d0-2f8a-49fc-bf5c75e2a7c1\", \"columns\": []}, {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Kill\", \"widgetType\": \"kill-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"size\": 12}], \"id\": \"fb5c57ae-85eb-e519-6b95-370d532fa757\", \"columns\": []}], \"oozieEndRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"End\", \"widgetType\": \"end-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"size\": 12}], \"id\": \"73a5f080-76d0-2f8a-49fc-bf5c75e2a7c1\", \"columns\": []}, \"oozieKillRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Kill\", \"widgetType\": \"kill-widget\", \"oozieMovable\": true, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"size\": 12}], \"id\": \"fb5c57ae-85eb-e519-6b95-370d532fa757\", \"columns\": []}, \"enableOozieDropOnAfter\": true, \"oozieStartRow\": {\"enableOozieDropOnBefore\": true, \"enableOozieDropOnSide\": true, \"enableOozieDrop\": false, \"widgets\": [{\"status\": \"\", \"logsURL\": \"\", \"name\": \"Start\", \"widgetType\": \"start-widget\", \"oozieMovable\": false, \"ooziePropertiesExpanded\": false, \"properties\": {}, \"isLoading\": true, \"offset\": 0, \"actionURL\": \"\", \"progress\": 0, \"klass\": \"card card-widget span12\", \"oozieExpanded\": false, \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"size\": 12}], \"id\": \"e4e4f7c5-939e-e60e-d6a0-380a0b58ff3b\", \"columns\": []}, \"klass\": \"card card-home card-column span12\", \"enableOozieDropOnBefore\": true, \"drops\": [\"temp\"], \"id\": \"c844d341-c306-aab2-3a23-bc00d7fe76dc\", \"size\": 12}], \"workflow\": {\"properties\": {\"job_xml\": \"\", \"description\": \"\", \"wf1_id\": null, \"sla_enabled\": false, \"deployment_dir\": \"/user/hue/oozie/workspaces/workflows/spark-scala\", \"schema_version\": \"uri:oozie:workflow:0.5\", \"properties\": [], \"sla_workflow_enabled\": false, \"show_arrows\": true, \"credentials\": [], \"parameters\": [{\"name\": \"oozie.use.system.libpath\", \"value\": true}, {\"name\": \"input\", \"value\": \"/user/hue/oozie/workspaces/data/sonnets.txt\"}, {\"name\": \"output\", \"value\": \"here\"}], \"sla\": [{\"value\": false, \"key\": \"enabled\"}, {\"value\": \"${nominal_time}\", \"key\": \"nominal-time\"}, {\"value\": \"\", \"key\": \"should-start\"}, {\"value\": \"${30 * MINUTES}\", \"key\": \"should-end\"}, {\"value\": \"\", \"key\": \"max-duration\"}, {\"value\": \"\", \"key\": \"alert-events\"}, {\"value\": \"\", \"key\": \"alert-contact\"}, {\"value\": \"\", \"key\": \"notification-msg\"}, {\"value\": \"\", \"key\": \"upstream-apps\"}]}, \"name\": \"Spark\", \"versions\": [\"uri:oozie:workflow:0.4\", \"uri:oozie:workflow:0.4.5\", \"uri:oozie:workflow:0.5\"], \"isDirty\": true, \"movedNode\": null, \"linkMapping\": {\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\": [], \"3f107997-04cc-8733-60a9-a4bb62cebffc\": [\"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"], \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\": [\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\"], \"17c9c895-5a16-7443-bb81-f34b30b21548\": []}, \"nodeIds\": [\"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"], \"nodes\": [{\"properties\": {}, \"name\": \"Start\", \"children\": [{\"to\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\"}], \"actionParametersFetched\": false, \"type\": \"start-widget\", \"id\": \"3f107997-04cc-8733-60a9-a4bb62cebffc\", \"actionParameters\": []}, {\"properties\": {}, \"name\": \"End\", \"children\": [], \"actionParametersFetched\": false, \"type\": \"end-widget\", \"id\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\", \"actionParameters\": []}, {\"properties\": {\"message\": \"Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]\"}, \"name\": \"Kill\", \"children\": [], \"actionParametersFetched\": false, \"type\": \"kill-widget\", \"id\": \"17c9c895-5a16-7443-bb81-f34b30b21548\", \"actionParameters\": []}, {\"properties\": {\"job_xml\": [], \"app_name\": \"MySpark\", \"spark_opts\": \"\", \"class\": \"org.apache.oozie.example.SparkFileCopy\", \"job_properties\": [], \"spark_arguments\": [{\"value\": \"${input}\"}, {\"value\": \"${output}\"}], \"spark_master\": \"local[*]\", \"mode\": \"client\", \"prepares\": [], \"jars\": \"lib/oozie-examples.jar\", \"sla\": [{\"value\": false, \"key\": \"enabled\"}, {\"value\": \"${nominal_time}\", \"key\": \"nominal-time\"}, {\"value\": \"\", \"key\": \"should-start\"}, {\"value\": \"${30 * MINUTES}\", \"key\": \"should-end\"}, {\"value\": \"\", \"key\": \"max-duration\"}, {\"value\": \"\", \"key\": \"alert-events\"}, {\"value\": \"\", \"key\": \"alert-contact\"}, {\"value\": \"\", \"key\": \"notification-msg\"}, {\"value\": \"\", \"key\": \"upstream-apps\"}]}, \"name\": \"spark-d909\", \"children\": [{\"to\": \"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\"}, {\"error\": \"17c9c895-5a16-7443-bb81-f34b30b21548\"}], \"actionParametersFetched\": false, \"type\": \"spark-widget\", \"id\": \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\", \"actionParameters\": []}], \"id\": 50000, \"nodeNamesMapping\": {\"33430f0f-ebfa-c3ec-f237-3e77efa03d0a\": \"End\", \"3f107997-04cc-8733-60a9-a4bb62cebffc\": \"Start\", \"d909ca7e-b1d9-f8f3-9b57-cddf9a8e75a7\": \"spark-d909\", \"17c9c895-5a16-7443-bb81-f34b30b21548\": \"Kill\"}, \"uuid\": \"2d667ab2-70f9-c2bf-0726-abe84fa7130d\"}}",
++    "name": "Spark"
+   }
+ }
+ ,
+@@ -40,4 +40,31 @@
+     "name": "Hive SQL"
+   }
+ }
++,
++{
++  "pk": 50003,
++  "model": "desktop.document2",
++  "fields": {
++    "uuid": "1d1a9eec-d969-4cd6-c3c4-cb5b78f52f38",
++    "extra": "",
++    "type": "oozie-coordinator2",
++    "description": "Copy everyday from files with a Spark job",
++    "tags": [],
++    "is_history": false,
++    "last_modified": "2015-03-11T13:56:22.639",
++    "version": 1,
++    "owner": [
++      "sample"
++    ],
++    "dependencies": [
++      [
++        "2d667ab2-70f9-c2bf-0726-abe84fa7130d",
++        1,
++        false
++      ]
++    ],
++    "data": "{\"end_date\": {\"name\": \"end_date\", \"value\": \"2013-06-05T00:00Z\"}, \"variables\": [{\"shared_dataset_uuid\": \"\", \"is_advanced_start_instance\": false, \"show_advanced\": false, \"start_instance\": \"0\", \"timezone\": \"America/Los_Angeles\", \"end_instance\": \"0\", \"same_timezone\": true, \"uuid\": \"a96e02cd-70b3-5faf-1633-963d4251ce23\", \"frequency_number\": \"1\", \"dataset_variable\": \"/user/hue/oozie/workspaces/data/${YEAR}${MONTH}${DAY}\", \"start\": \"2015-03-11T20:51:48.374Z\", \"same_frequency\": true, \"advanced_start_instance\": \"${coord:current(0)}\", \"advanced_end_instance\": \"${coord:current(0)}\", \"instance_choice\": \"default\", \"dataset_type\": \"input_path\", \"use_done_flag\": false, \"done_flag\": \"_SUCCESS\", \"same_start\": true, \"frequency_unit\": \"days\", \"workflow_variable\": \"input\", \"is_advanced_end_instance\": false}, {\"shared_dataset_uuid\": \"\", \"is_advanced_start_instance\": false, \"show_advanced\": false, \"start_instance\": \"0\", \"timezone\": \"America/Los_Angeles\", \"end_instance\": \"0\", \"same_timezone\": true, \"uuid\": \"3748a9a6-5889-af8a-41a7-100d85a6d5be\", \"frequency_number\": \"1\", \"dataset_variable\": \"output/${YEAR}${MONTH}${DAY}\", \"start\": \"2015-03-11T20:51:48.421Z\", \"same_frequency\": true, \"advanced_start_instance\": \"${coord:current(0)}\", \"advanced_end_instance\": \"${coord:current(0)}\", \"instance_choice\": \"default\", \"dataset_type\": \"output_path\", \"use_done_flag\": false, \"done_flag\": \"_SUCCESS\", \"same_start\": true, \"frequency_unit\": \"days\", \"workflow_variable\": \"output\", \"is_advanced_end_instance\": false}], \"isDirty\": true, \"showAdvancedFrequencyUI\": true, \"variablesUI\": [\"parameter\", \"input_path\", \"output_path\"], \"workflowParameters\": [{\"name\": \"input\", \"value\": \"/user/hue/oozie/workspaces/data/sonnets.txt\"}, {\"name\": \"output\", \"value\": \"here\"}], \"properties\": {\"job_xml\": \"\", \"end\": \"${end_date}\", \"parameters\": [{\"name\": \"oozie.use.system.libpath\", \"value\": true}, {\"name\": \"start_date\", \"value\": \"2013-06-01T00:00Z\"}, {\"name\": \"end_date\", \"value\": \"2013-06-05T00:00Z\"}], \"frequency_number\": 1, \"sla_enabled\": false, \"deployment_dir\": \"/user/hue/oozie/workspaces/coordinators/daily-copy\", \"cron_frequency\": \"0 0 * * *\", \"frequency_unit\": \"days\", \"workflow\": \"2d667ab2-70f9-c2bf-0726-abe84fa7130d\", \"cron_advanced\": false, \"start\": \"${start_date}\", \"sla_workflow_enabled\": false, \"schema_version\": \"uri:oozie:coordinator:0.2\", \"timeout\": null, \"timezone\": \"America/Los_Angeles\", \"credentials\": [], \"execution\": \"FIFO\", \"sla\": [{\"key\": \"enabled\", \"value\": false}, {\"key\": \"nominal-time\", \"value\": \"${nominal_time}\"}, {\"key\": \"should-start\", \"value\": \"\"}, {\"key\": \"should-end\", \"value\": \"${30 * MINUTES}\"}, {\"key\": \"max-duration\", \"value\": \"\"}, {\"key\": \"alert-events\", \"value\": \"\"}, {\"key\": \"alert-contact\", \"value\": \"\"}, {\"key\": \"notification-msg\", \"value\": \"\"}, {\"key\": \"upstream-apps\", \"value\": \"\"}]}, \"uuid\": \"1d1a9eec-d969-4cd6-c3c4-cb5b78f52f38\", \"name\": \"My Coordinator\", \"id\": 50003, \"start_date\": {\"name\": \"start_date\", \"value\": \"2013-06-01T14:52:00\"}}",
++    "name": "My Coordinator"
++  }
++}
+ ]
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 167f591..2e337c5 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1619,11 +1619,11 @@ class Coordinator(Job):
+ 
+     start_date = filter(lambda a: a['name'] == 'start_date', self._data['properties']['parameters'])
+     if start_date and type(start_date[0]['value']) == datetime:
+-      start_date[0]['value'] = start_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%S')
++      start_date[0]['value'] = start_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%SZ')
+ 
+     end_date = filter(lambda a: a['name'] == 'end_date', self._data['properties']['parameters'])
+     if end_date and type(end_date[0]['value']) == datetime:
+-      end_date[0]['value'] = end_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%S')
++      end_date[0]['value'] = end_date[0]['value'].strftime('%Y-%m-%dT%H:%M:%SZ')
+ 
+     return _data
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 042603b..c740beb 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -41,13 +41,13 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   <div class="pull-right" style="padding-right:50px">
+ 
+     <span data-bind="visible: coordinator.isDirty() || coordinator.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
+-    
++
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': coordinator.isDirty()}, visible: coordinator.id() != null">
+       <i class="fa fa-play"></i>
+     </a>
+-    
++
+     &nbsp;&nbsp;&nbsp;
+-    
++
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}, visible: canEdit">
+       <i class="fa fa-pencil"></i>
+     </a>
+@@ -123,32 +123,41 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+         <div class="card-body">
+ 
+-        <form class="form-horizontal">
+-          <div class="control-group" data-bind="visible: ! coordinator.properties.cron_advanced()">
+-            <div class="controls" id="jqCron-container">
+-              <div id="jqCron-instance" style="margin-top: 5px; display: inline-block"></div>
+-            </div>
+-          </div>
+-          <div class="control-group" data-bind="visible: coordinator.properties.cron_advanced">
+-            <label class="control-label">${ _('Crontab') }</label>
+-            <div class="controls">
+-              <input id="coord-frequency" type="text" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency"/>
+-              <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.2.0/org/quartz/CronExpression.html" target="_blank">
+-                <i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i></a>
+-              </span>
++          <div class="row-fluid">
++            <div class="span6">
++              <form class="form-horizontal">
++                <div class="control-group" data-bind="visible: ! coordinator.properties.cron_advanced()">
++                  <div class="controls" id="jqCron-container">
++                    <div id="jqCron-instance" style="margin-top: 5px; display: inline-block"></div>
++                  </div>
++                </div>
++                <div class="control-group" data-bind="visible: coordinator.properties.cron_advanced">
++                  <label class="control-label">${ _('Crontab') }</label>
++                  <div class="controls">
++                    <input id="coord-frequency" type="text" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency"/>
++                    <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.2.0/org/quartz/CronExpression.html" target="_blank">
++                      <i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i></a>
++                    </span>
++                  </div>
++                </div>
++                <div class="control-group" style="margin-bottom: 0">
++                  <label class="control-label"></label>
++                  <div class="controls">
++                    <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
++                      <i class="fa fa-sliders"></i> <span data-bind="visible: ! coordinator.showAdvancedFrequencyUI()">${ _('Options') }</span>
++                      <span data-bind="visible: coordinator.showAdvancedFrequencyUI">${ _('Hide') }</span>
++                    </a>
++                  </div>
++                </div>
++             </form>
+             </div>
+-          </div>
+-          <div class="control-group" style="margin-bottom: 0">
+-            <label class="control-label"></label>
+-            <div class="controls">
+-            <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
+-              <i class="fa fa-sliders"></i> <span data-bind="visible: ! coordinator.showAdvancedFrequencyUI()">${ _('Options') }</span>
+-              <span data-bind="visible: coordinator.showAdvancedFrequencyUI">${ _('Hide') }</span>
+-            </a>
++
++            <div class="span6">
++              <div class="alert alert-warning span8">
++                ${ _('UTC time only. (e.g. if you want 10pm PST (UTC+8) set it 8 hours later to 6am the next day.') }
++              </div>
+             </div>
+           </div>
+-        </form>
+-
+ 
+           <div data-bind="visible: coordinator.showAdvancedFrequencyUI">
+             <form class="form-horizontal">
+@@ -247,13 +256,13 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   <!-- /ko -->
+                 </ul>
+               </div>
+-              
++
+               &nbsp;&nbsp;
+-              
++
+               <span data-bind="visible: $root.isEditing">
+                 <input type="text" class="filechooser-input dataset-input" data-bind="value: dataset_variable, filechooser: dataset_variable, attr: { placeholder:
+-                  dataset_type() == 'input_path' ? '${ _("Required data path dependency to start the worklow") }' : 
+-                  dataset_type() == 'output_path' ? '${ _("Data path created by the workflow") }' : 
++                  dataset_type() == 'input_path' ? '${ _("Required data path dependency to start the worklow") }' :
++                  dataset_type() == 'output_path' ? '${ _("Data path created by the workflow") }' :
+                   '${ _("e.g. 1, 2, 3, /data/logs, coord:nominalTime()") }' },
+                   valueUpdate: 'afterkeydown', typeahead: { target: dataset_variable, source: datasetTypeaheadSource, triggerOnFocus: true, multipleValues: true, multipleValuesSeparator: '/', multipleValuesExtractor: '/' }" style="margin-bottom:0; width: 380px" />
+               </span>
+@@ -269,7 +278,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                 <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
+                   <i class="fa fa-sliders"></i>
+                 </a>
+-                
++
+                 <span style="padding-left:100px">
+                   <span data-bind="visible: dataset_variable().length == 0">
+                     e.g. /data/${'$'}{YEAR}/${'$'}{MONTH}/${'$'}{DAY}
+@@ -309,14 +318,14 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                           <option value="months">Months</option>
+                         </select>
+                       </div>
+-                    </div>                  
++                    </div>
+                     <div class="control-group">
+                       <label class="control-label">${ _('Same start') }</label>
+                       <div class="controls">
+                         <input type="checkbox" data-bind="checked: same_start, style: {'margin-top': same_start() ? '9px' : '-1px'}" />
+                         <input type="text" data-bind="value: start, visible: ! same_start()"/>
+                       </div>
+-                    </div>                  
++                    </div>
+                     <div class="control-group">
+                       <label class="control-label">${ _('Same timezone') }</label>
+                       <div class="controls">
+@@ -446,7 +455,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+       <h4>${ _('Concurrency') }</h4>
+       <select data-bind="options: availableSettings, optionsCaption: '${ _("Default") }', value: coordinator.properties.concurrency"></select>
+-      
++
+       <h4>${ _('Execution') }</h4>
+       <select data-bind="value: coordinator.properties.execution">
+ 		<option value="FIFO">${ _("FIFO (oldest first)") }</option>
+diff --git a/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
+index adf95e6..ac2578d 100644
+--- a/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor2/gen/coordinator.xml.mako
+@@ -82,7 +82,7 @@
+     % for dataset in coord.datasets:
+     <dataset name="${ dataset.data['name'] }" frequency="${ dataset.frequency }"
+              initial-instance="${ dataset.start_utc }" timezone="${ dataset.timezone }">
+-      <uri-template>${ smart_path(dataset.data['dataset_variable'], mapping) }</uri-template>
++      <uri-template>${ smart_path(dataset.data['dataset_variable'], mapping, is_coordinator=True) }</uri-template>
+       % if dataset.data['use_done_flag']:
+       <done-flag>${ dataset.data['done_flag'] }</done-flag>
+       % else:
+diff --git a/apps/oozie/src/oozie/utils.py b/apps/oozie/src/oozie/utils.py
+index 9c15f57..fc38a0e 100644
+--- a/apps/oozie/src/oozie/utils.py
++++ b/apps/oozie/src/oozie/utils.py
+@@ -93,14 +93,16 @@ def workflow_to_dict(workflow):
+   return workflow_dict
+ 
+ 
+-def smart_path(path, mapping):
++def smart_path(path, mapping, is_coordinator=False):
+   # Try to prepend home_dir and FS scheme if needed.
+   # If path starts by a parameter try to get its value from the list of parameters submitted by the user or the coordinator.
+   # This dynamic checking enable the use of <prepares> statements in a workflow scheduled manually of by a coordinator.
+   # The logic is a bit complicated but Oozie is not consistent with data paths, prepare, coordinator paths and Fs action.
+-
+   if not path.startswith('$') and not path.startswith('/') and not urlparse.urlsplit(path).scheme:
+-    path = '/user/%(username)s/%(path)s' % {'username': '${wf:user()}', 'path': path}
++    path = '/user/%(username)s/%(path)s' % {
++        'username': '${coord:user()}' if is_coordinator else '${wf:user()}',
++        'path': path
++    }
+ 
+   if path.startswith('$'):
+     variables = find_variables(path)
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index a3e9236..2e91a1b 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -335,6 +335,8 @@ class DocumentManager(models.Manager):
+           if not job.doc.exists():
+             if job.type == 'oozie-workflow2':
+               extra = 'workflow2'
++            elif job.type == 'oozie-coordinator2':
++              extra = 'coordinator2'
+             else:
+               extra = ''
+             doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description, extra=extra)
+-- 
+1.7.9.5
+

@@ -19,11 +19,11 @@ import json
 import logging
 
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse
 from django.utils.translation import ugettext as _
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from desktop.lib.django_util import render
+from desktop.lib.django_util import JsonResponse, render
 from desktop.lib.exceptions_renderable import PopupException
 from desktop.lib.rest.http_client import RestException
 from desktop.models import Document
@@ -39,15 +39,21 @@ from pig.models import get_workflow_output, hdfs_link, PigScript,\
 
 LOG = logging.getLogger(__name__)
 
-
+@ensure_csrf_cookie
 def app(request):
+  autocomplete_base_url = ''
+  try:
+    autocomplete_base_url = reverse('beeswax:api_autocomplete_databases', kwargs={})
+  except:
+    pass
+  
   return render('app.mako', request, {
-    'autocomplete_base_url': reverse('beeswax:api_autocomplete_databases', kwargs={}),
+    'autocomplete_base_url': autocomplete_base_url,
   })
 
 
 def scripts(request):
-  return HttpResponse(json.dumps(get_scripts(request.user, is_design=True)), mimetype="application/json")
+  return JsonResponse(get_scripts(request.user, is_design=True), safe=False)
 
 
 @show_oozie_error
@@ -58,7 +64,7 @@ def dashboard(request):
   hue_jobs = Document.objects.available(PigScript, request.user, with_history=True)
   massaged_jobs = pig_api.massaged_jobs_for_json(request, jobs, hue_jobs)
 
-  return HttpResponse(json.dumps(massaged_jobs), mimetype="application/json")
+  return JsonResponse(massaged_jobs, safe=False)
 
 
 def save(request):
@@ -80,9 +86,10 @@ def save(request):
 
   response = {
     'id': pig_script.id,
+    'docId': pig_script.doc.get().id
   }
 
-  return HttpResponse(json.dumps(response), content_type="text/plain")
+  return JsonResponse(response, content_type="text/plain")
 
 
 @show_oozie_error
@@ -133,7 +140,7 @@ def run(request):
     'watchUrl': reverse('pig:watch', kwargs={'job_id': oozie_id}) + '?format=python'
   }
 
-  return HttpResponse(json.dumps(response), content_type="text/plain")
+  return JsonResponse(response, content_type="text/plain")
 
 
 def copy(request):
@@ -167,6 +174,7 @@ def copy(request):
 
   response = {
     'id': script_copy.id,
+    'docId': copy_doc.id,
     'name': name,
     'script': script,
     'parameters': parameters,
@@ -174,7 +182,7 @@ def copy(request):
     'hadoopProperties': hadoopProperties
   }
 
-  return HttpResponse(json.dumps(response), content_type="text/plain")
+  return JsonResponse(response, content_type="text/plain")
 
 
 def delete(request):
@@ -196,7 +204,7 @@ def delete(request):
     'ids': ids,
   }
 
-  return HttpResponse(json.dumps(response), content_type="text/plain")
+  return JsonResponse(response, content_type="text/plain")
 
 
 @show_oozie_error
@@ -222,7 +230,7 @@ def watch(request, job_id):
     'output': hdfs_link(output)
   }
 
-  return HttpResponse(json.dumps(response), content_type="text/plain")
+  return JsonResponse(response, content_type="text/plain")
 
 
 def install_examples(request):
@@ -238,4 +246,4 @@ def install_examples(request):
       LOG.exception(e)
       result['message'] = str(e)
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)

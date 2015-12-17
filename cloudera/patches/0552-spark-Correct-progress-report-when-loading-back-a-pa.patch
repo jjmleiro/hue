@@ -1,0 +1,26 @@
+From 72285c7f1d7881db91e48c5a70adf5582d6c8234 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 3 Dec 2014 22:16:14 -0600
+Subject: [PATCH 0552/1173] [spark] Correct progress report when loading back
+ a page
+
+---
+ apps/spark/src/spark/api.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 03f9958..7ceb66c 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -152,7 +152,7 @@ def get_logs(request):
+   try:
+     db = get_api(request.user, snippet)
+     response['logs'] = db.get_log(snippet)
+-    response['progress'] = db._progress(snippet, response['logs'])
++    response['progress'] = db._progress(snippet, response['logs']) if snippet['status'] != 'available' else 100
+     response['status'] = 0
+   except Exception, e:
+     message = force_unicode(str(e))
+-- 
+1.7.9.5
+

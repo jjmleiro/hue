@@ -1,0 +1,88 @@
+From e7e22e7c8a46c3730e1dc6253358112156bfddc2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 26 Feb 2015 13:57:23 -0800
+Subject: [PATCH 0945/1173] [zookeeper] Adding parameter for specifying
+ zookeeper principal name
+
+---
+ apps/zookeeper/src/zookeeper/conf.py        |    6 ++++++
+ desktop/conf.dist/hue.ini                   |    5 ++++-
+ desktop/conf/pseudo-distributed.ini.tmpl    |    5 ++++-
+ desktop/libs/libsentry/src/libsentry/api.py |    6 ++++--
+ 4 files changed, 18 insertions(+), 4 deletions(-)
+
+diff --git a/apps/zookeeper/src/zookeeper/conf.py b/apps/zookeeper/src/zookeeper/conf.py
+index 3e80649..a57c0bc 100644
+--- a/apps/zookeeper/src/zookeeper/conf.py
++++ b/apps/zookeeper/src/zookeeper/conf.py
+@@ -43,6 +43,12 @@ CLUSTERS = UnspecifiedConfigSection(
+           default="http://localhost:9998",
+           type=str,
+       ),
++      PRINCIPAL_NAME=Config(
++          "principal_name",
++          help="Name of Kerberos principal when using security",
++          default="zookeeper",
++          type=str,
++      ),
+     )
+   )
+ )
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index b0d4189..3e7fbf3 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -1007,9 +1007,12 @@
+       # e.g. localhost:2181,localhost:2182,localhost:2183
+       ## host_ports=localhost:2181
+ 
+-      # The URL of the REST contrib service (required for znode browsing)
++      # The URL of the REST contrib service (required for znode browsing).
+       ## rest_url=http://localhost:9998
+ 
++      # Name of Kerberos principal when using security.
++      ## principal_name=zookeeper
++
+ 
+ ###########################################################################
+ # Settings to configure the Spark application.
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 6dbc021..552bafc 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -1012,9 +1012,12 @@
+       # e.g. localhost:2181,localhost:2182,localhost:2183
+       ## host_ports=localhost:2181
+ 
+-      # The URL of the REST contrib service (required for znode browsing)
++      # The URL of the REST contrib service (required for znode browsing).
+       ## rest_url=http://localhost:9998
+ 
++      # Name of Kerberos principal when using security.
++      ## principal_name=zookeeper
++
+ 
+ ###########################################################################
+ # Settings to configure the Spark application.
+diff --git a/desktop/libs/libsentry/src/libsentry/api.py b/desktop/libs/libsentry/src/libsentry/api.py
+index d154e26..bf02197 100644
+--- a/desktop/libs/libsentry/src/libsentry/api.py
++++ b/desktop/libs/libsentry/src/libsentry/api.py
+@@ -251,10 +251,12 @@ def _get_server_properties():
+ 
+     try:
+       if _api_cache is None:
+-        zk = KazooClient(hosts=get_sentry_server_ha_zookeeper_quorum(), read_only=True) #TODO hardcoded principal name
++        zk = KazooClient(hosts=get_sentry_server_ha_zookeeper_quorum(), read_only=True)
+ 
+         if get_sentry_server_ha_has_security():
+-          pass #TODO zk.add_kerb
++          # TODO zk.add_kerb
++          # TODO get principal name PRINCIPAL_NAME.get()
++          from zookeeper.conf import PRINCIPAL_NAME
+ 
+         zk.start()
+ 
+-- 
+1.7.9.5
+

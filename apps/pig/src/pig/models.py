@@ -65,7 +65,7 @@ class PigScript(Document):
     for attr in PigScript._ATTRIBUTES:
       if attrs.get(attr) is not None:
         data_dict[attr] = attrs[attr]
-        
+
     if 'name' in attrs:
       self.doc.update(name=attrs['name'])
 
@@ -81,18 +81,25 @@ class PigScript(Document):
   @property
   def use_hcatalog(self):
     script = self.dict['script']
-    return 'org.apache.hcatalog.pig.HCatStorer' in script or 'org.apache.hcatalog.pig.HCatLoader' in script
-
+    return ('org.apache.hcatalog.pig.HCatStorer' in script or 'org.apache.hcatalog.pig.HCatLoader' in script) or \
+        ('org.apache.hive.hcatalog.pig.HCatLoader' in script or 'org.apache.hive.hcatalog.pig.HCatStorer' in script) # New classes
 
 def create_or_update_script(id, name, script, user, parameters, resources, hadoopProperties, is_design=True):
   try:
     pig_script = PigScript.objects.get(id=id)
+    if id == '1100713': # Special case for the Example, just create an history
+      is_design = False
+      raise PigScript.DoesNotExist()
     pig_script.doc.get().can_write_or_exception(user)
   except PigScript.DoesNotExist:
     pig_script = PigScript.objects.create(owner=user, is_design=is_design)
     Doc.objects.link(pig_script, owner=pig_script.owner, name=name)
     if not is_design:
       pig_script.doc.get().add_to_history()
+
+  # A user decided eventually to save an unsaved script after execution:
+  if is_design and pig_script.doc.get().is_historic():
+    pig_script.doc.get().remove_from_history()
 
   pig_script.update_from_dict({
       'name': name,
@@ -106,7 +113,7 @@ def create_or_update_script(id, name, script, user, parameters, resources, hadoo
 
 
 def get_scripts(user, is_design=None):
-  scripts = []  
+  scripts = []
   data = Doc.objects.available(PigScript, user)
 
   if is_design is not None:
@@ -116,6 +123,7 @@ def get_scripts(user, is_design=None):
     data = script.dict
     massaged_script = {
       'id': script.id,
+      'docId': script.doc.get().id,
       'name': data['name'],
       'script': data['script'],
       'parameters': data['parameters'],

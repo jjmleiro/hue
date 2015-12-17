@@ -1,0 +1,33 @@
+From 5900e5909bd60c45c46605ade9bb32ed3d4eb811 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 15 Jan 2015 19:15:30 -0800
+Subject: [PATCH 0790/1173] HUE-2436 [desktop] Remove reference to deprecated
+ django.views.generic.simple.redirect_to
+
+---
+ desktop/core/src/desktop/middleware.py |    2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 588c9d2..aae4de6 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -37,7 +37,6 @@ from django.utils.translation import ugettext as _
+ from django.utils.http import urlquote
+ from django.utils.encoding import iri_to_uri
+ import django.views.static
+-import django.views.generic.simple
+ 
+ import desktop.views
+ import desktop.conf
+@@ -60,7 +59,6 @@ MIDDLEWARE_HEADER = "X-Hue-Middleware-Response"
+ # (see LoginAndPermissionMiddleware)
+ DJANGO_VIEW_AUTH_WHITELIST = [
+   django.views.static.serve,
+-  django.views.generic.simple.redirect_to,
+   desktop.views.is_alive,
+ ]
+ 
+-- 
+1.7.9.5
+

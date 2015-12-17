@@ -1,0 +1,161 @@
+From e6f15df899361079ac0ff718a7aab136e2025fe4 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 16 Oct 2014 18:02:52 +0200
+Subject: [PATCH 0051/1173] HUE-2402 [fb] Prettify uploading snippet
+
+Cleaned it up visually and made it scrollable
+---
+ .../filebrowser/static/css/listdir_components.css  |   40 +++++++++++---------
+ .../filebrowser/templates/listdir_components.mako  |   30 ++++++++++-----
+ desktop/core/static/css/hue3.css                   |    4 ++
+ 3 files changed, 47 insertions(+), 27 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/static/css/listdir_components.css b/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
+index c994b49..279e272 100644
+--- a/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
++++ b/apps/filebrowser/src/filebrowser/static/css/listdir_components.css
+@@ -45,20 +45,7 @@
+   padding: 0px;
+   position: fixed;
+   width: 100%;
+-}
+-
+-.pagination {
+-  background-color: #f5f5f5;
+-  border-top: 1px solid #e3e3e3;
+-  bottom: 0;
+-  -webkit-box-shadow: 0px 1px 3px rgba(50, 50, 50, 0.1);
+-  -moz-box-shadow: 0px 1px 3px rgba(50, 50, 50, 0.1);
+-  box-shadow: 0px 1px 3px rgba(50, 50, 50, 0.1);
+-  left: 0;
+-  margin: 0;
+-  padding: 0px;
+-  position: fixed;
+-  width: 100%;
++  z-index: 1001;
+ }
+ 
+ .pagination p {
+@@ -122,13 +109,18 @@
+ }
+ 
+ .uploadstatus {
+-  border-top: 3px solid #338bb8;
++  border: 1px solid #d8d8d8;
+   border-bottom: none;
+-  bottom: 4px;
+-  left: 0;
++  bottom: 53px;
++  right: 60px;
+   margin: 0;
+   position: fixed;
+-  width: 100%;
++  width: 560px;
++}
++
++.scrollable-uploadstatus {
++  max-height: 170px;
++  overflow-y: auto;
+ }
+ 
+ .uploadstatusbar {
+@@ -147,6 +139,17 @@
+   width: 30%;
+ }
+ 
++.progress-row {
++  margin-top: 7px;
++}
++
++.progress-row-bar {
++  height: 1px;
++  background-color: #338BB8;
++  width: 0;
++  margin-top: 3px;
++}
++
+ .history {
+   padding: 0 10px 8px 0;
+   top: 10px;
+@@ -174,6 +177,7 @@
+   left: inherit;
+   right: 0;
+ }
++
+ .hoverMsg {
+   background: #000;
+   height: 100%;
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 709be69..1277da3 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -435,12 +435,15 @@ from django.utils.translation import ugettext as _
+ 
+   <div id="submit-wf-modal" class="modal hide"></div>
+ 
+-  <div id="progressStatus" class="uploadstatus alert alert-info hide">
+-    <div class="updateStatus"> </div>
++  <div id="progressStatus" class="uploadstatus well hide">
++    <h4>${ _('Upload progress') }</h4>
++    <div id="progressStatusBar" class="hide progress active">
++      <div class="bar"></div>
++    </div>
++    <div id="progressStatusContent" class="scrollable-uploadstatus">
++      <div class="updateStatus"> </div>
++    </div>
+   <div>
+-  <div id="progressStatusBar" class="uploadstatusbar hide">
+-    <div></div>
+-  </div>
+ </div>
+ 
+   <script id="fileTemplate" type="text/html">
+@@ -1434,8 +1437,16 @@ from django.utils.translation import ugettext as _
+             },
+             autoDiscover: false,
+             maxFilesize: 5000000,
+-            previewsContainer: '#progressStatus',
+-            previewTemplate: '<div class="row">\n <span class="offset4 span3 break-word"><strong data-dz-name></strong></span>\n <span class="span2">File size: <strong data-dz-size></strong></span>\n <span class="span3">Percent complete: <strong data-dz-uploadprogress></strong></span>\n <span class="span1"><a href="javascript:undefined;" title="Cancel upload" data-dz-remove><i class="fa fa-times"></i></a></span>\n </div>',
++            previewsContainer: '#progressStatusContent',
++            previewTemplate: '<div class="progress-row">' +
++                '<span class="break-word" data-dz-name></span>' +
++                '<div class="pull-right">' +
++                '<span class="muted" data-dz-size></span>&nbsp;&nbsp;' +
++                '<span data-dz-remove><a href="javascript:undefined;" title="${ _('Cancel upload') }"><i class="fa fa-fw fa-times"></i></a></span>' +
++                '<span style="display: none" data-dz-uploaded><i class="fa fa-fw fa-check muted"></i></span>' +
++                '</div>' +
++                '<div class="progress-row-bar" data-dz-uploadprogress></div>' +
++                '</div>',
+             drop: function (e) {
+               $('.hoverMsg').addClass('hide');
+ 
+@@ -1449,9 +1460,10 @@ from django.utils.translation import ugettext as _
+             uploadprogress: function (file, progress) {
+               $("[data-dz-name]").each(function (cnt, item) {
+                 if ($(item).text() === file.name) {
+-                  $(item).parents(".row").find("[data-dz-uploadprogress]").html(progress.toFixed() + "%");
++                  $(item).parents(".progress-row").find("[data-dz-uploadprogress]").width(progress.toFixed() + "%");
+                   if (progress.toFixed() === "100"){
+-                    $(item).parents(".row").find("[data-dz-remove]").hide();
++                    $(item).parents(".progress-row").find("[data-dz-remove]").hide();
++                    $(item).parents(".progress-row").find("[data-dz-uploaded]").show();
+                   }
+                 }
+               });
+diff --git a/desktop/core/static/css/hue3.css b/desktop/core/static/css/hue3.css
+index 53d0166..680594d 100644
+--- a/desktop/core/static/css/hue3.css
++++ b/desktop/core/static/css/hue3.css
+@@ -1893,4 +1893,8 @@ form.form-inline .modal-header .close {
+ 
+ .margin-right-30 {
+   margin-right: 30px;
++}
++
++.progress .bar {
++  background-color: #338BB8;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

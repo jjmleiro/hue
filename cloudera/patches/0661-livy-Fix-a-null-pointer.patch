@@ -1,0 +1,51 @@
+From 66d3c11bb0cb3ca1662cabd805b77c28721fb5f2 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 23 Jan 2015 17:25:51 -0800
+Subject: [PATCH 0661/1173] [livy] Fix a null pointer
+
+---
+ apps/spark/java/livy-server/pom.xml                |    6 ------
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |    4 ++--
+ 2 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index fe7be12..26fd96f 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -71,12 +71,6 @@
+         </dependency>
+ 
+         <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-databind</artifactId>
+-            <version>2.4.4</version>
+-        </dependency>
+-
+-        <dependency>
+             <groupId>com.google.guava</groupId>
+             <artifactId>guava</artifactId>
+             <version>11.0.2</version>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index d9ad3cf..ce131b5 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -48,14 +48,14 @@ class ScalatraBootstrap extends LifeCycle {
+   var sessionManager: SessionManager = null
+ 
+   override def init(context: ServletContext): Unit = {
+-    context.mount(new WebApp(sessionManager), "/*")
+-
+     val sessionFactory = context.getInitParameter(Main.SESSION_KIND) match {
+       case Main.PROCESS_SESSION => new ProcessSessionFactory
+       case Main.YARN_SESSION => new YarnSessionFactory
+     }
+ 
+     sessionManager = new SessionManager(sessionFactory)
++
++    context.mount(new WebApp(sessionManager), "/*")
+   }
+ 
+   override def destroy(context: ServletContext): Unit = {
+-- 
+1.7.9.5
+

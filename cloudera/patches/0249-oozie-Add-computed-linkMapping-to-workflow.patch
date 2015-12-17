@@ -1,0 +1,38 @@
+From 36c1308f4adbec489e515da67f865645192c72fb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 5 Nov 2014 11:40:30 +0000
+Subject: [PATCH 0249/1173] [oozie] Add computed linkMapping to workflow
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index fc387a9..7dfcca8 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -143,6 +143,21 @@ var Workflow = function (vm, workflow) {
+ 
+   self.properties = ko.mapping.fromJS(typeof workflow.properties != "undefined" && workflow.properties != null ? workflow.properties : {});
+   self.nodes = ko.observableArray([]);
++  
++  self.linkMapping = ko.computed(function() {
++	var mapping = {};
++    $.each(self.nodes(), function(index, node) {
++      var links = []
++      $.each(node.children(), function(index, link) {
++        if ('to' in link) {
++          links.push(link['to']);
++        }
++      });
++      mapping[node.id()] = links
++    });
++
++    return mapping;
++  });
+ 
+   self.loadNodes = function(workflow) {
+     var nodes = []
+-- 
+1.7.9.5
+

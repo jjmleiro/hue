@@ -1,0 +1,1422 @@
+From f3c7323ad782f06537be5b66955c03bb0581c2c2 Mon Sep 17 00:00:00 2001
+From: Abraham Elmahrek <abe@apache.org>
+Date: Tue, 10 Feb 2015 16:45:53 -0800
+Subject: [PATCH 0781/1173] [sqoop] Upgrade to Sqoop 1.99.4 API
+
+---
+ apps/sqoop/src/sqoop/api/link.py          |   10 +-
+ apps/sqoop/src/sqoop/client/base.py       |   58 ++++---
+ apps/sqoop/src/sqoop/client/config.py     |    5 +-
+ apps/sqoop/src/sqoop/client/exception.py  |   17 +-
+ apps/sqoop/src/sqoop/client/job.py        |   22 ---
+ apps/sqoop/src/sqoop/client/link.py       |   20 +--
+ apps/sqoop/src/sqoop/client/submission.py |    2 +-
+ apps/sqoop/src/sqoop/templates/app.mako   |  247 ++++++++++++++++-------------
+ apps/sqoop/src/sqoop/urls.py              |    4 +-
+ apps/sqoop/static/js/sqoop.connectors.js  |    5 +-
+ apps/sqoop/static/js/sqoop.jobs.js        |   90 +++++++++--
+ apps/sqoop/static/js/sqoop.js             |  223 ++++++++++++++------------
+ apps/sqoop/static/js/sqoop.links.js       |   88 ++++++++--
+ 13 files changed, 470 insertions(+), 321 deletions(-)
+
+diff --git a/apps/sqoop/src/sqoop/api/link.py b/apps/sqoop/src/sqoop/api/link.py
+index 2d1fcaf..dfcf726 100644
+--- a/apps/sqoop/src/sqoop/api/link.py
++++ b/apps/sqoop/src/sqoop/api/link.py
+@@ -27,7 +27,7 @@ from django.utils.encoding import smart_str
+ from django.utils.translation import ugettext as _
+ 
+ from sqoop import client, conf
+-from sqoop.client.link import SqoopLinkException
++from sqoop.client.exception import SqoopException
+ from decorators import get_link_or_exception
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+@@ -73,7 +73,7 @@ def create_link(request):
+     response['link'] = c.create_link(link).to_dict()
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not create link.')))
+-  except SqoopLinkException, e:
++  except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+@@ -96,7 +96,7 @@ def update_link(request, link):
+     response['link'] = c.update_link(link).to_dict()
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not update link.')))
+-  except SqoopLinkException, e:
++  except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+@@ -145,7 +145,7 @@ def link_clone(request, link):
+     response['link'] = c.create_link(link).to_dict()
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not clone link.')))
+-  except SqoopLinkException, e:
++  except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+@@ -166,7 +166,7 @@ def link_delete(request, link):
+     c.delete_link(link)
+   except RestException, e:
+     response.update(handle_rest_exception(e, _('Could not delete link.')))
+-  except SqoopLinkException, e:
++  except SqoopException, e:
+     response['status'] = 100
+     response['errors'] = e.to_dict()
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/sqoop/src/sqoop/client/base.py b/apps/sqoop/src/sqoop/client/base.py
+index 2bd85bd..d288452 100644
+--- a/apps/sqoop/src/sqoop/client/base.py
++++ b/apps/sqoop/src/sqoop/client/base.py
+@@ -28,10 +28,11 @@ from django.utils.translation import ugettext as _
+ from desktop.conf import TIME_ZONE
+ from desktop.lib.rest.http_client import HttpClient
+ 
+-from link import Link, SqoopLinkException
++from link import Link
++from job import Job
+ from connector import Connector
+ from driver import Driver
+-from job import Job, SqoopJobException
++from exception import SqoopException
+ from submission import Submission, SqoopSubmissionException
+ from resource import SqoopResource
+ 
+@@ -97,23 +98,24 @@ class SqoopClient(object):
+   def get_link(self, link_id):
+     resp_dict = self._root.get('%s/link/%d/' % (API_VERSION, link_id), headers=self.headers)
+     if resp_dict['link']:
+-      return Link.from_dict(resp_dict['link'][0])
++      return Link.from_dict(resp_dict['link'])
+     return None
+ 
+   def create_link(self, link):
+-    if not link.connector:
+-      link.connector = self.get_connectors()[0].link_config
+-    if not link.driver:
+-      link.driver = self.get_driver().job_config
+     link.creation_date = int( round(time.time() * 1000) )
+     link.update_date = link.creation_date
+     link_dict = link.to_dict()
+     request_dict = {
+-      'link': [link_dict]
++      'link': link_dict
+     }
+     resp = self._root.post('%s/link/' % API_VERSION, data=json.dumps(request_dict), headers=self.headers)
+-    if 'id' not in resp:
+-      raise SqoopLinkException.from_dict(resp)
++
++    # Lame check that iterates to make sure we have an error
++    # Server responds with: {'validation-result': [{},{}]} or {'validation-result': [{KEY: ERROR},{KEY: ERROR}]}
++    for result in resp['validation-result']:
++      if result:
++        raise SqoopException.from_dicts(resp['validation-result'])
++
+     link.id = resp['id']
+     return link
+ 
+@@ -123,11 +125,16 @@ class SqoopClient(object):
+     link.updated = int( round(time.time() * 1000) )
+     link_dict = link.to_dict()
+     request_dict = {
+-      'link': [link_dict]
++      'link': link_dict
+     }
+     resp = self._root.put('%s/link/%d/' % (API_VERSION, link.id), data=json.dumps(request_dict), headers=self.headers)
+-    if resp['connector']['status'] in SqoopClient.STATUS_BAD or resp['driver']['status'] in SqoopClient.STATUS_BAD:
+-      raise SqoopLinkException.from_dict(resp)
++    
++    # Lame check that iterates to make sure we have an error
++    # Server responds with: {'validation-result': [{},{}]} or {'validation-result': [{KEY: ERROR},{KEY: ERROR}]}
++    for result in resp['validation-result']:
++      if result:
++        raise SqoopException.from_dicts(resp['validation-result'])
++
+     return link
+ 
+   def delete_link(self, link):
+@@ -156,11 +163,11 @@ class SqoopClient(object):
+     job.update_date = job.creation_date
+     job_dict = job.to_dict()
+     request_dict = {
+-      'job': [job_dict]
++      'job': job_dict
+     }
+     resp = self._root.post('%s/job/' % API_VERSION, data=json.dumps(request_dict), headers=self.headers)
+     if 'id' not in resp:
+-      raise SqoopJobException.from_dict(resp)
++      raise SqoopException.from_dicts(resp['validation-result'])
+     job.id = resp['id']
+     return job
+ 
+@@ -174,29 +181,34 @@ class SqoopClient(object):
+     job.updated = int( round(time.time() * 1000) )
+     job_dict = job.to_dict()
+     request_dict = {
+-      'job': [job_dict]
++      'job': job_dict
+     }
+     resp = self._root.put('%s/job/%d/' % (API_VERSION, job.id), data=json.dumps(request_dict), headers=self.headers)
+-    if resp['connector']['status'] in SqoopClient.STATUS_BAD or resp['driver']['status'] in SqoopClient.STATUS_BAD:
+-      raise SqoopJobException.from_dict(resp)
++
++    # Lame check that iterates to make sure we have an error
++    # Server responds with: {'validation-result': [{},{}]} or {'validation-result': [{KEY: ERROR},{KEY: ERROR}]}
++    for result in resp['validation-result']:
++      if result:
++        raise SqoopException.from_dicts(resp['validation-result'])
++
+     return job
+ 
+   def delete_job(self, job):
+-    resp_dict = self._root.delete('%s/job/%d/' % (API_VERSION, job.id), headers=self.headers)
++    resp_dict = self._root.delete('%s/job/%s' % (API_VERSION, job.name), headers=self.headers)
+     return None
+ 
+   def get_job_status(self, job):
+-    resp_dict = self._root.get('%s/job/status/%d/' % (API_VERSION, job.id), headers=self.headers)
++    resp_dict = self._root.get('%s/job/%d/status' % (API_VERSION, job.id), headers=self.headers)
+     return Submission.from_dict(resp_dict['submission'])
+ 
+   def start_job(self, job):
+-    resp_dict = self._root.post('%s/job/start/%d/' % (API_VERSION, job.id), headers=self.headers)
+-    if resp_dict['submission'][0]['status'] in SqoopClient.STATUS_BAD:
++    resp_dict = self._root.put('%s/job/%d/start' % (API_VERSION, job.id), headers=self.headers)
++    if resp_dict['submission']['status'] in SqoopClient.STATUS_BAD:
+       raise SqoopSubmissionException.from_dict(resp_dict['submission'])
+     return Submission.from_dict(resp_dict['submission'])
+ 
+   def stop_job(self, job):
+-    resp_dict = self._root.delete('%s/job/stop/%d/' % (API_VERSION, job.id), headers=self.headers)
++    resp_dict = self._root.put('%s/job/%d/stop' % (API_VERSION, job.id), headers=self.headers)
+     return Submission.from_dict(resp_dict['submission'])
+ 
+   def get_submissions(self):
+diff --git a/apps/sqoop/src/sqoop/client/config.py b/apps/sqoop/src/sqoop/client/config.py
+index e27994f..00084a5 100644
+--- a/apps/sqoop/src/sqoop/client/config.py
++++ b/apps/sqoop/src/sqoop/client/config.py
+@@ -58,7 +58,6 @@ class Input(object):
+   def from_dict(input_dict):
+     if 'values' in input_dict and isinstance(input_dict['values'], basestring):
+       input_dict['values'] = input_dict['values'].split(',')
+-
+     return Input(**force_dict_to_strings(input_dict))
+ 
+   def to_dict(self):
+@@ -66,10 +65,12 @@ class Input(object):
+       'id': self.id,
+       'type': self.type,
+       'name': self.name,
+-      'sensitive': self.sensitive
++      'sensitive': self.sensitive,
+     }
+     if self.value:
+       d['value'] = self.value
+     if self.size != -1:
+       d['size'] = self.size
++    if self.values:
++      d['values'] = ','.join(self.values)
+     return d
+diff --git a/apps/sqoop/src/sqoop/client/exception.py b/apps/sqoop/src/sqoop/client/exception.py
+index 5cdfd6f..4bc19c2 100644
+--- a/apps/sqoop/src/sqoop/client/exception.py
++++ b/apps/sqoop/src/sqoop/client/exception.py
+@@ -16,8 +16,23 @@
+ 
+ import logging
+ 
++from desktop.lib.python_util import force_dict_to_strings
++
+ from config import Config
+ 
+ 
+ class SqoopException(Exception):
+-  pass
++  def __init__(self, errors):
++    self.errors = errors
++
++  @classmethod
++  def from_dicts(cls, error_dicts):
++    return SqoopException([force_dict_to_strings(d) for d in error_dicts])
++
++  def to_dict(self):
++    return {
++      'errors': self.errors
++    }
++
++  def __str__(self):
++    return 'Errors: %s\n' % (self.errors)
+diff --git a/apps/sqoop/src/sqoop/client/job.py b/apps/sqoop/src/sqoop/client/job.py
+index cae3b37..a637e0d 100644
+--- a/apps/sqoop/src/sqoop/client/job.py
++++ b/apps/sqoop/src/sqoop/client/job.py
+@@ -105,25 +105,3 @@ class Job(object):
+     for key in self.__dict__:
+       if key not in Job.SKIP:
+         setattr(self, key, getattr(job, key, getattr(self, key)))
+-
+-class SqoopJobException(SqoopException):
+-  def __init__(self, from_config_values, to_config_values, driver_config_values):
+-    self.link_config_values = from_config_values
+-    self.link_config_values = to_config_values
+-    self.link_config_values = driver_config_values
+-
+-
+-  @classmethod
+-  def from_dict(cls, error_dict):
+-    return SqoopJobException(**force_dict_to_strings(error_dict))
+-
+-  def to_dict(self):
+-    return {
+-      'from-config-values': self.from_config_values,
+-      'to-config-values': self.to_config_values,
+-      'driver-config-values': self.driver_config_values
+-    }
+-
+-  def __str__(self):
+-    return 'From Config Values: %s\nTo Config Values: %s\nDriver Config Values: %s\n' % (self.from_config_values, self.to_config_values, self.driver_config_values)
+-
+diff --git a/apps/sqoop/src/sqoop/client/link.py b/apps/sqoop/src/sqoop/client/link.py
+index cf9e9b8..35e57f9 100644
+--- a/apps/sqoop/src/sqoop/client/link.py
++++ b/apps/sqoop/src/sqoop/client/link.py
+@@ -68,7 +68,7 @@ class Link(object):
+       'update-user': self.update_user,
+       'update-date': self.update_date,
+       'connector-id': self.connector_id,
+-      'link-config-values': [ connector.to_dict() for connector in self.link_config_values ],
++      'link-config-values': [ config.to_dict() for config in self.link_config_values ],
+       'enabled': self.enabled
+     }
+     return d
+@@ -81,21 +81,3 @@ class Link(object):
+       if key not in Link.SKIP:
+         if hasattr(link, key):
+           setattr(self, key, getattr(link, key))
+-
+-
+-class SqoopLinkException(SqoopException):
+-  def __init__(self, link_config_values):
+-    self.link_config_values = link_config_values
+-
+-  @classmethod
+-  def from_dict(cls, error_dict):
+-    return SqoopLinkException(**force_dict_to_strings(error_dict))
+-
+-  def to_dict(self):
+-    return {
+-      'link-config-values': self.link_config_values
+-    }
+-
+-  def __str__(self):
+-    return 'Link Config Values: %s\n' % (self.link_config_values)
+-
+diff --git a/apps/sqoop/src/sqoop/client/submission.py b/apps/sqoop/src/sqoop/client/submission.py
+index 91cf343..26ede84 100644
+--- a/apps/sqoop/src/sqoop/client/submission.py
++++ b/apps/sqoop/src/sqoop/client/submission.py
+@@ -74,7 +74,7 @@ class Submission(object):
+     return d
+ 
+ 
+-class SqoopSubmissionException(SqoopException):
++class SqoopSubmissionException(Exception):
+ 
+   def __init__(self, job_id, status, progress, created, updated, **kwargs):
+     self.job_id = job_id
+diff --git a/apps/sqoop/src/sqoop/templates/app.mako b/apps/sqoop/src/sqoop/templates/app.mako
+index 3ed0190..d95d34b 100644
+--- a/apps/sqoop/src/sqoop/templates/app.mako
++++ b/apps/sqoop/src/sqoop/templates/app.mako
+@@ -31,7 +31,7 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+       <a title="${_('Manage links')}" href="#links" data-bind="visible: isReady"><i class="fa fa-list"></i> ${_('Manage links')}</a>
+     </div>
+     <h4>${_('Sqoop Jobs')}</h4>
+-    <input id="filter" type="text" class="input-xlarge search-query" placeholder="${_('Search for job name or content')}"  data-bind="visible: isReady">
++    <input id="filter-jobs" type="text" class="input-xlarge search-query sqoop-filter" placeholder="${_('Search for job name or content')}"  data-bind="visible: isReady">
+   </div>
+ 
+   <div class="top-bar" data-bind="visible:shownSection() == 'links-list'">
+@@ -42,7 +42,7 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+       <a title="${_('Manage jobs')}" href="#jobs" data-bind="visible: isReady"><i class="fa fa-list"></i> ${_('Manage jobs')}</a>
+     </div>
+     <h4>${_('Sqoop Links')}</h4>
+-    <input id="filter" type="text" class="input-xlarge search-query" placeholder="${_('Search for link name or content')}"  data-bind="visible: isReady">
++    <input id="filter-links" type="text" class="input-xlarge search-query sqoop-filter" placeholder="${_('Search for link name or content')}"  data-bind="visible: isReady">
+   </div>
+ 
+   <!-- ko if: job -->
+@@ -51,12 +51,14 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+       <a title="${_('Create a new job')}" href="#job/new"><i class="fa fa-plus-circle"></i> ${_('New job')}</a>
+     </div>
+     <h4 data-bind="visible: !persisted()"><a title="${_('Back to jobs list')}" href="#jobs">${_('Sqoop Jobs')}</a> <span class="muted">/</span> ${_('New Job')}</h4>
+-    <h4 data-bind="visible: persisted"><a title="${_('Back to jobs list')}" href="#jobs">${_('Sqoop Jobs')}</a> <span class="muted">/</span> <i data-bind="css:{'fa fa-arrow-circle-o-down': type() == 'IMPORT', 'fa fa-upload': type() == 'EXPORT'}"></i> &nbsp;<span data-bind="text: type"></span> <span class="muted" data-bind="editable: name, editableOptions: {'placement': 'right'}"></span></h4>
++    <h4 data-bind="visible: persisted"><a title="${_('Back to jobs list')}" href="#jobs">${_('Sqoop Jobs')}</a> <span class="muted">/</span> <i class="fa fa-arrow-circle-o-down"></i> &nbsp; <span class="muted" data-bind="editable: name, editableOptions: {'placement': 'right'}"></span></h4>
+   </div>
++  <!-- /ko -->
+ 
+-  <div class="top-bar" data-bind="visible:shownSection() == 'link-editor', with: editLink">
+-    <h4 data-bind="visible: !persisted()"><a title="${_('Back to jobs list')}" href="#jobs">${_('Sqoop Jobs')}</a> <span class="muted">/</span> <a href="#link/edit-cancel" data-bind="text: name"></a> <span class="muted">/</span> ${_('New Connection')}</h4>
+-    <h4 data-bind="visible: persisted()"><a title="${_('Back to jobs list')}" href="#jobs">${_('Sqoop Jobs')}</a> <span class="muted">/</span> <a href="#link/edit-cancel"><i data-bind="css:{'fa fa-arrow-circle-o-down': $root.job().type() == 'IMPORT', 'fa fa-upload': $root.job().type() == 'EXPORT'}"></i> &nbsp;<span data-bind="text: $root.job().type"></span> <span data-bind="text: $root.job().name"></span></a> <span class="muted">/</span> <span data-bind="text: $root.job().name"></span></h4>
++  <!-- ko if: link -->
++  <div class="top-bar" data-bind="visible:shownSection() == 'link-editor', with: link">
++    <h4 data-bind="visible: !persisted()"><a title="${_('Back to jobs list')}" href="#links">${_('Sqoop Links')}</a> <span class="muted">/</span> <a href="#link/edit-cancel" data-bind="text: name"></a> <span class="muted">/</span> ${_('New Connection')}</h4>
++    <h4 data-bind="visible: persisted()"><a title="${_('Back to jobs list')}" href="#links">${_('Sqoop Links')}</a> <span class="muted">/</span> <a href="#link/edit-cancel"><i class="fa fa-arrow-circle-o-down"></i> &nbsp; <span data-bind="text: $root.link().name"></span></a></h4>
+   </div>
+   <!-- /ko -->
+ </div>
+@@ -239,38 +241,41 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+       </div>
+     </div>
+ 
+-    <div id="link-editor" class="row-fluid section hide" data-bind="with: editLink">
++    <div id="link-editor" class="row-fluid section hide" data-bind="with: link">
+       <div id="link-forms" class="span12">
+-        <form method="POST" class="form form-horizontal noPadding">
+-          ${ csrf_token(request) | n,unicode }
+-          <div class="control-group">
+-            <label class="control-label">${ _('Name') }</label>
+-            <div class="controls">
+-              <input type="text" name="link-name" data-bind="value: name">
+-            </div>
+-          </div>
+-          <div class="control-group" data-bind="visible: !persisted()">
+-            <label class="control-label">${ _('Connector') }</label>
+-            <div class="controls">
+-              <select class="input-xlarge" name="connector" data-bind="'options': $root.connectors, 'optionsText': function(item) { return item.name(); }, 'optionsValue': function(item) { return item.id(); }, 'value': connector_id">
+-              </select>
++        <div class="card">
++          <form method="POST" class="form form-horizontal noPadding">
++            ${ csrf_token(request) | n,unicode }
++            <div data-bind="template: {'name': 'link-editor-form-error', 'data': {'name': ko.observable('linkConfig')}}" class=""></div>
++            <div class="control-group">
++              <label class="control-label">${ _('Name') }</label>
++              <div class="controls">
++                <input type="text" name="link-name" data-bind="value: name">
++              </div>
+             </div>
+-          </div>
+-          <fieldset data-bind="foreach: connector">
+-            <div data-bind="foreach: inputs">
+-              <div data-bind="template: 'connector-' + type().toLowerCase()"></div>
++            <div class="control-group" data-bind="visible: !persisted()">
++              <label class="control-label">${ _('Connector') }</label>
++              <div class="controls">
++                <select class="input-xlarge" name="connector" data-bind="'options': $root.connectors, 'optionsText': function(item) { return item.name(); }, 'optionsValue': function(item) { return item.id(); }, 'value': connector_id">
++                </select>
++              </div>
+             </div>
+-          </fieldset>
+-          <fieldset data-bind="foreach: driver">
+-            <div data-bind="foreach: inputs">
+-              <div data-bind="template: 'driver-' + type().toLowerCase()"></div>
++            <fieldset data-bind="foreach: link_config_values">
++              <div data-bind="foreach: inputs">
++                <div data-bind="template: 'connector-' + type().toLowerCase()"></div>
++              </div>
++            </fieldset>
++            <fieldset data-bind="foreach: driver">
++              <div data-bind="foreach: inputs">
++                <div data-bind="template: 'driver-' + type().toLowerCase()"></div>
++              </div>
++            </fieldset>
++            <div class="form-actions">
++              <a href="#link/edit-cancel" class="btn">${_('Cancel')}</a>
++              <a href="#link/save" class="btn btn-primary">${_('Save')}</a>
+             </div>
+-          </fieldset>
+-          <div class="form-actions">
+-            <a href="#link/edit-cancel" class="btn">${_('Cancel')}</a>
+-            <a href="#link/save" class="btn btn-primary">${_('Save')}</a>
+-          </div>
+-        </form>
++          </form>
++        </div>
+       </div>
+     </div>
+   </div>
+@@ -326,25 +331,28 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+ 
+ <script type="text/html" id="job-list-item">
+ <h4 style="display: inline-block">
+-  <!-- ko if: type() == 'IMPORT' -->
+   <i class="fa fa-download"></i>&nbsp;
+-  <span data-bind="text: type"></span>
+-  <span>${_('from ')}</span>
+-  <span data-bind="text: $root.getDatabaseByConnectionId(link_id())"></span>
+-  <span>${_('to ')}</span>
+-  <span data-bind="text: storageType"></span>
+-  <span data-bind="text: name" class="muted"></span>
++  <span data-bind="text: fromLabel"></span>
++  <span>${_(' to ')}</span>
++  <span data-bind="text: toLabel"></span>
++</h4>
++</script>
++
++<script type="text/html" id="link-editor-form-error">
++<!-- ko if: name() in $root.errors() -->
++  <div class="alert alert-error">
++  <!-- ko foreach: $root.errors()[name()]  -->
++    <span data-bind="text: message"></span>
+   <!-- /ko -->
+-  <!-- ko if: type() == 'EXPORT' -->
+-  <i class="fa fa-upload"></i>&nbsp;
+-  <span data-bind="text: type"></span>
+-  <span>${_('from ')}</span>
+-  <span data-bind="text: storageType"></span>
+-  <span>${_('to ')}</span>
+-  <span data-bind="text: $root.getDatabaseByConnectionId(link_id())"></span>
+-  <span data-bind="text: name" class="muted"></span>
++  </div>
++<!-- /ko -->
++<!-- ko if: name() in $root.warnings() -->
++  <div class="alert">
++  <!-- ko foreach: $root.warnings()[name()]  -->
++    <span data-bind="text: message"></span>
+   <!-- /ko -->
+-</h4>
++  </div>
++<!-- /ko -->
+ </script>
+ 
+ <script type="text/html" id="job-editor-form-error">
+@@ -389,31 +397,38 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+   </div>
+ 
+   <div class="control-group">
+-    <label class="control-label">${ _('Job type') }</label>
++    <label class="control-label">${ _('From link') }</label>
+     <div class="controls">
+-      <div title="${ _('Import from a Database to Hadoop') }" data-bind="css:{ 'big-btn': type() != '', 'selected': type() == 'IMPORT' }, click: setImport">
+-        <i class="fa fa-download"></i><br/>
+-        ${ _('Import') }
+-      </div>
+-      <div title="${ _('Import from Hadoop to a Database') }"data-bind="css:{ 'big-btn': type() != '', 'selected': type() == 'EXPORT' }, click: setExport">
+-        <i class="fa fa-upload"></i><br/>
+-        ${ _('Export') }
++      <select name="from-link" class="input-xlarge" data-bind="'options': $root.persistedLinks, 'optionsText': function(item) {return item.name();}, 'value': $root.from_link">
++      </select>
++      <!-- ko if: $root.editLink() -->
++      <div style="display:inline">
++        <a data-bind="routie: 'link/edit/' + $root.from_link().id()" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
++          <i class="fa fa-edit"></i> ${_('Edit')}
++        </a>
++        <a data-bind="click: $root.showDeleteLinkModal.bind($root)" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
++          <i class="fa fa-times"></i> ${_('Delete')}
++        </a>
+       </div>
+-      <input name="type" type="hidden" data-bind="value: type" />
++      <!-- /ko -->
++      <div class="clearfix"></div>
++      <a data-bind="routie: 'link/new'" href="javascript:void(0);" style="margin: 5px; display: block">
++        <i class="fa fa-plus"></i> ${_('Add a new link')}
++      </a>
+     </div>
+   </div>
+ 
+   <div class="control-group">
+-    <label class="control-label">${ _('Connection') }</label>
++    <label class="control-label">${ _('To link') }</label>
+     <div class="controls">
+-      <select name="link" class="input-xlarge" data-bind="'options': $root.persistedLinks, 'optionsText': function(item) {return item.name();}, 'value': $root.link">
++      <select name="from-link" class="input-xlarge" data-bind="'options': $root.persistedLinks, 'optionsText': function(item) {return item.name();}, 'value': $root.to_link">
+       </select>
+-      <!-- ko if: $root.link() -->
++      <!-- ko if: $root.editLink() -->
+       <div style="display:inline">
+-        <a data-bind="routie: 'link/edit/' + $root.link().id()" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
++        <a data-bind="routie: 'link/edit/' + $root.to_link().id()" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
+           <i class="fa fa-edit"></i> ${_('Edit')}
+         </a>
+-        <a data-bind="click: $root.showDeleteConnectionModal.bind($root)" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
++        <a data-bind="click: $root.showDeleteLinkModal.bind($root)" href="javascript:void(0);" class="subbtn" style="margin-left: 5px">
+           <i class="fa fa-times"></i> ${_('Delete')}
+         </a>
+       </div>
+@@ -427,16 +442,30 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+ </fieldset>
+ </script>
+ 
+-<script type="text/html" id="job-editor-connector">
+-<fieldset data-bind="foreach: connector">
++<script type="text/html" id="job-editor-from">
++<fieldset data-bind="foreach: from_config_values">
+   <div data-bind="template: {'name': 'job-editor-form-error'}" class=""></div>
+   <div data-bind="foreach: inputs">
+     <div data-bind="template: 'connector-' + type().toLowerCase()"></div>
+   </div>
+ </fieldset>
++
++<fieldset data-bind="foreach: driver_config_values">
++  <div data-bind="template: {'name': 'job-editor-form-error'}" class=""></div>
++  <div data-bind="foreach: inputs">
++    <div data-bind="template: 'driver-' + type().toLowerCase()"></div>
++  </div>
++</fieldset>
+ </script>
+ 
+-<script type="text/html" id="job-editor-driver">
++<script type="text/html" id="job-editor-to">
++<fieldset data-bind="foreach: to_config_values">
++  <div data-bind="template: {'name': 'job-editor-form-error'}" class=""></div>
++  <div data-bind="foreach: inputs">
++    <div data-bind="template: 'connector-' + type().toLowerCase()"></div>
++  </div>
++</fieldset>
++
+ <fieldset data-bind="foreach: driver">
+   <div data-bind="template: {'name': 'job-editor-form-error'}" class=""></div>
+   <div data-bind="foreach: inputs">
+@@ -670,40 +699,40 @@ viewModel.job.subscribe(function(job) {
+     viewModel.jobWizard.clearPages();
+     if (job.persisted()) {
+       viewModel.jobWizard.addPage(new wizard.Page({
+-        'identifier': 'job-editor-connector',
+-        'caption': job.type() == 'IMPORT' ? '${_("Step 1: From")}' : '${_("Step 1: To")}',
++        'identifier': 'job-editor-from',
++        'caption': '${_("Step 1: From")}',
+         'description': '${_("Database")}',
+         'node': job,
+-        'template': 'job-editor-connector'
++        'template': 'job-editor-from'
+       }));
+       viewModel.jobWizard.addPage(new wizard.Page({
+-        'identifier': 'job-editor-driver',
+-        'caption': job.type() == 'IMPORT' ? '${_("Step 2: To")}' : '${_("Step 2: From")}',
++        'identifier': 'job-editor-to',
++        'caption': '${_("Step 2: To")}',
+         'description': '${_("HDFS")}',
+         'node': job,
+-        'template': 'job-editor-driver'
++        'template': 'job-editor-to'
+       }));
+     } else {
+       viewModel.jobWizard.addPage(new wizard.Page({
+         'identifier': 'job-editor-begin',
+-        'caption': '${_("Step 1: Type")}',
++        'caption': '${_("Step 1: Information")}',
+         'description': '${_("Connection")}',
+         'node': job,
+         'template': 'job-editor-begin'
+       }));
+       viewModel.jobWizard.addPage(new wizard.Page({
+-        'identifier': 'job-editor-connector',
++        'identifier': 'job-editor-from',
+         'caption': '${_("Step 2: From")}',
+         'description': '${_("Database")}',
+         'node': job,
+-        'template': 'job-editor-connector'
++        'template': 'job-editor-from'
+       }));
+       viewModel.jobWizard.addPage(new wizard.Page({
+-        'identifier': 'job-editor-driver',
++        'identifier': 'job-editor-to',
+         'caption': '${_("Step 3: To")}',
+         'description': '${_("HDFS")}',
+         'node': job,
+-        'template': 'job-editor-driver'
++        'template': 'job-editor-to'
+       }));
+     }
+   }
+@@ -720,37 +749,35 @@ function handle_form_errors(e, node, options, data) {
+   var errors = data.errors;
+   viewModel.errors({});
+   viewModel.warnings({});
+-  var first_error_component = null;
+ 
+   switch(data.status) {
+     case 1:
+-    $.each(errors, function(component, err) {
++    $.each(errors, function(index, err) {
+       $(document).trigger("error", err);
+     });
+     break;
+     case 100:
+-    $.each(errors, function(component, dict) {
+-      $.each(dict['messages'], function(resource, message_dict) {
++    $.each(errors['errors'], function(index, message_dict) {
++      $.each(message_dict, function(resource, message_arr) {
+         var el = $('*[name="' + resource + '"]');
+         var has_error = false;
+ 
+         switch(message_dict.status) {
+-          case 'ACCEPTABLE':
+-          $.setdefault(viewModel.warnings(), resource, []).push(message_dict);
+-          has_error = true;
+-          break;
++          case 'WARN':
++            viewModel.warnings()[resource] = message_arr;
++            has_error = true;
++            break;
+ 
+           default:
+-          case 'UNACCEPTABLE':
+-          $.setdefault(viewModel.errors(), resource, []).push(message_dict);
+-          has_error = true;
+-          break;
++          case 'ERROR':
++            viewModel.errors()[resource] = message_arr;
++            has_error = true;
++            break;
+         }
+ 
++        viewModel.errors.valueHasMutated();
++
+         if (has_error) {
+-          if (!first_error_component) {
+-            first_error_component = component;
+-          }
+           if (el.length > 0) {
+             ko.dataFor(el[0]).name.valueHasMutated();
+           }
+@@ -760,11 +787,7 @@ function handle_form_errors(e, node, options, data) {
+     break;
+   }
+ 
+-  if (first_error_component == 'connector') {
+-    routie('job/edit/wizard/job-editor-connector');
+-  } else if (first_error_component == 'driver') {
+-    routie('job/edit/wizard/job-editor-driver');
+-  }
++  routie('job/edit/wizard/job-editor-from');
+ }
+ 
+ function link_missing_error(e, node) {
+@@ -901,8 +924,8 @@ $(document).on('shown_section', (function(){
+   };
+ })());
+ 
+-$(document).on('keyup', 'input#filter', function() {
+-  viewModel.filter($('#filter').val());
++$(document).on('keyup', 'input.sqoop-filter', function(e) {
++  viewModel.filter($(e.target).val());
+ });
+ 
+ $("#jobs-list tbody").on('click', 'tr', function() {
+@@ -953,17 +976,21 @@ var driver = new driver.Driver();
+   $(document).one('loaded.jobs', check);
+   $(document).one('loaded.driver', check);
+   $(document).one('loaded.connectors', check);
++  $(document).one('loaded.connectors', function() {
++    links.fetchLinks();
++  });
+   $(document).one('loaded.links', check);
++  $(document).one('loaded.links', function() {
++    jobs.fetchJobs();
++  });
+   $(document).one('loaded.submissions', check);
+   $(document).one('loaded.jobs', function() {
+-    driver.load();
+-    connectors.fetchConnectors();
+-    links.fetchLinks();
+     submissions.fetchSubmissions();
+   });
+   viewModel.isLoading(true);
+   viewModel.isReady(false);
+-  jobs.fetchJobs();
++  driver.load();
++  connectors.fetchConnectors();
+ })();
+ 
+ var fetch_links = function() {
+@@ -1213,21 +1240,17 @@ $(document).ready(function () {
+       });
+     },
+     "link/edit-cancel": function() {
+-      if (viewModel.link() && !viewModel.link().persisted()) {
+-        viewModel.links.pop();
+-      }
+-      // routie('job/edit');
+       window.history.go(-2);
+     },
+     "link/new": function() {
+       $(window).one('hashchange', function() {
+-        viewModel.newConnection();
++        viewModel.newLink();
+         routie('link/edit');
+       });
+       window.history.back();
+     },
+     "link/save": function() {
+-      viewModel.saveConnection();
++      viewModel.saveLink();
+       $(document).one('saved.link', function(){
+         routie('job/edit');
+       });
+@@ -1236,13 +1259,13 @@ $(document).ready(function () {
+       });
+     },
+     "link/copy": function() {
+-      if (viewModel.link()) {
++      if (viewModel.editLink()) {
+         viewModel.link().clone();
+       }
+       routie('job/edit');
+     },
+     "link/delete": function() {
+-      if (viewModel.link()) {
++      if (viewModel.editLink()) {
+         viewModel.link().delete();
+         $(document).one('deleted.link', function(){
+           routie('job/edit');
+diff --git a/apps/sqoop/src/sqoop/urls.py b/apps/sqoop/src/sqoop/urls.py
+index 6a00222..80f71dd 100644
+--- a/apps/sqoop/src/sqoop/urls.py
++++ b/apps/sqoop/src/sqoop/urls.py
+@@ -28,11 +28,11 @@ urlpatterns += patterns('sqoop.api',
+   url(r'^api/driver/?$', 'driver', name='driver'),
+   url(r'^api/connectors', 'connectors', name='connectors'),
+   url(r'^api/connectors/(?P<connector_id>\d+)/?$', 'connector', name='connector'),
+-  url(r'^api/links', 'links', name='links'),
++  url(r'^api/links/?$', 'links', name='links'),
+   url(r'^api/links/(?P<link_id>\d+)/?$', 'link', name='link'),
+   url(r'^api/links/(?P<link_id>\d+)/clone/?$', 'link_clone', name='link_clone'),
+   url(r'^api/links/(?P<link_id>\d+)/delete/?$', 'link_delete', name='link_delete'),
+-  url(r'^api/jobs', 'jobs', name='jobs'),
++  url(r'^api/jobs/?$', 'jobs', name='jobs'),
+   url(r'^api/jobs/(?P<job_id>\d+)/?$', 'job', name='job'),
+   url(r'^api/jobs/(?P<job_id>\d+)/clone/?$', 'job_clone', name='job_clone'),
+   url(r'^api/jobs/(?P<job_id>\d+)/delete/?$', 'job_delete', name='job_delete'),
+diff --git a/apps/sqoop/static/js/sqoop.connectors.js b/apps/sqoop/static/js/sqoop.connectors.js
+index 909c5f0..43de496 100644
+--- a/apps/sqoop/static/js/sqoop.connectors.js
++++ b/apps/sqoop/static/js/sqoop.connectors.js
+@@ -16,6 +16,8 @@
+ 
+ 
+ var connectors = (function($) {
++  var CONNECTOR_NAMES = ["hdfs-connector", "generic-jdbc-connector"];
++
+   var ConnectorModel = koify.Model.extend({
+     'id': -1,
+     'name': null,
+@@ -87,6 +89,7 @@ var connectors = (function($) {
+   return {
+     'ConnectorModel': ConnectorModel,
+     'Connector': Connector,
+-    'fetchConnectors': fetch_connectors
++    'fetchConnectors': fetch_connectors,
++    'CONNECTOR_NAMES': CONNECTOR_NAMES
+   };
+ })($);
+diff --git a/apps/sqoop/static/js/sqoop.jobs.js b/apps/sqoop/static/js/sqoop.jobs.js
+index ef36bc5..94bfcfb 100644
+--- a/apps/sqoop/static/js/sqoop.jobs.js
++++ b/apps/sqoop/static/js/sqoop.jobs.js
+@@ -33,17 +33,6 @@ var jobs = (function($) {
+     'creation_user': null,
+     'update_date': null,
+     'update_user': null,
+-    'setFrom': function(){
+-      this.type("FROM");
+-      // Huge hack for now
+-      $('a').filter(function(index) { return $(this).text() === "Step 2: To"; }).text("Step 2: From");
+-      $('a').filter(function(index) { return $(this).text() === "Step 3: From"; }).text("Step 3: To");
+-    },
+-    'setTo': function(){
+-      this.type("TO");
+-      $('a').filter(function(index) { return $(this).text() === "Step 2: From"; }).text("Step 2: To");
+-      $('a').filter(function(index) { return $(this).text() === "Step 3: To"; }).text("Step 3: From");
+-    },
+     'initialize': function(attrs) {
+       var self = this;
+       var _attrs = $.extend(true, {}, attrs);
+@@ -51,12 +40,19 @@ var jobs = (function($) {
+         'from-connector-id': 'from_connector_id',
+         'to-connector-id': 'to_connector_id',
+         'from-link-id': 'from_link_id',
+-        'to-link-id': 'to_link_id'
++        'to-link-id': 'to_link_id',
++        'from-config-values': 'from_config_values',
++        'to-config-values': 'to_config_values',
++        'driver-config-values': 'driver_config_values',
++        // 'creation-date': 'creation_date',
++        // 'creation-user': 'creation_user',
++        // 'update-date': 'update_date',
++        // 'update-user': 'update_user'
+       });
+       _attrs = transform_values(_attrs, {
+-        'from-config-values': to_configs,
+-        'to-config-values': to_configs,
+-        'driver-config-values': to_configs
++        'from_config_values': to_configs,
++        'to_config_values': to_configs,
++        'driver_config_values': to_configs
+       });
+       return _attrs;
+     }
+@@ -70,6 +66,9 @@ var jobs = (function($) {
+     'initialize': function() {
+       var self = this;
+       self.parent.initialize.apply(self, arguments);
++      self.selected = ko.observable();
++      self.connectors = ko.observableArray();
++      self.links = ko.observableArray();
+       self.createdFormatted = ko.computed(function() {
+         if (self.creation_date()) {
+           return moment(self.creation_date()).configat('MM/DD/YYYY hh:mm A');
+@@ -84,7 +83,6 @@ var jobs = (function($) {
+           return 0;
+         }
+       });
+-      self.selected = ko.observable();
+       self.submission = ko.computed({
+         owner: self,
+         read: function () {
+@@ -172,6 +170,50 @@ var jobs = (function($) {
+         });
+         return table;
+       });
++      self.fromLink = ko.computed(function() {
++        var link = null;
++        $.each(self.links(), function(index, $link) {
++          if (self.from_link_id() == $link.id()) {
++            link = $link;
++          }
++        });
++        return link;
++      });
++      self.toLink = ko.computed(function() {
++        var link = null;
++        $.each(self.links(), function(index, $link) {
++          if (self.to_link_id() == $link.id()) {
++            link = $link;
++          }
++        });
++        return link;
++      });
++      self.fromLabel = ko.computed(function() {
++        if (self.fromLink()) {
++          if (self.fromLink().isHdfs()) {
++            return "HDFS";
++          }
++
++          if (self.fromLink().isRdbms()) {
++            return self.fromLink().type();
++          }
++        }
++
++        return null;
++      });
++      self.toLabel = ko.computed(function() {
++        if (self.toLink()) {
++          if (self.toLink().isHdfs()) {
++            return "HDFS";
++          }
++
++          if (self.toLink().isRdbms()) {
++            return self.toLink().type();
++          }
++        }
++
++        return null;
++      });
+ 
+       self.runningInterval = 0;
+     },
+@@ -247,6 +289,22 @@ var jobs = (function($) {
+         }
+       }, options);
+       self.request('/sqoop/api/jobs/' + self.id() + '/status', options);
++    },
++    'getData': function() {
++      var self = this;
++      var model = ko.sqoop.fixModel(self);
++      var data = {};
++      model = transform_keys(model, {
++        'from_connector_id': 'from-connector-id',
++        'to_connector_id': 'to-connector-id',
++        'from_link_id': 'from-link-id',
++        'to_link_id': 'to-link-id',
++        'from_config_values': 'from-config-values',
++        'to_config_values': 'to-config-values',
++        'driver_config_values': 'driver-config-values'
++      });
++      data[self.identifier] = ko.utils.stringifyJson(model);
++      return data;
+     }
+   });
+ 
+diff --git a/apps/sqoop/static/js/sqoop.js b/apps/sqoop/static/js/sqoop.js
+index 63cc535..8a82cd0 100644
+--- a/apps/sqoop/static/js/sqoop.js
++++ b/apps/sqoop/static/js/sqoop.js
+@@ -59,12 +59,6 @@ function create_link(attrs, options) {
+   var options = options || {};
+   options.modelDict = attrs || {};
+   var node = new links.Link(options);
+-  // Need a copy of the configs so that when editing
+-  // we don't re-use configs.
+-  $.each(viewModel.link().link_config_values(), function(index, config) {
+-    node.connector.push($.extend(true, {}, config));
+-  });
+-
+   return node;
+ }
+ 
+@@ -88,8 +82,10 @@ var viewModel = new (function() {
+   self.driver = ko.observable();
+   self.connectors = ko.observableArray();
+   self.links = ko.observableArray();
+-  self.jobs = ko.observableArray();
+   self.link = ko.observable();
++  self.jobs = ko.observableArray();
++  self.from_link = ko.observable();
++  self.to_link = ko.observable();
+   self.editLink = ko.observable();
+   self.modal = {
+     'name': ko.observable()
+@@ -106,14 +102,35 @@ var viewModel = new (function() {
+     }
+   });
+ 
+-  // Must always have a value.
+   self.connector = ko.computed(function() {
++    if (self.link() && self.link().connector_id()) {
++      for (var index in self.connectors()) {
++        if (self.connectors()[index].id() == self.link().connector_id()) {
++          return self.connectors()[index];
++        }
++      }
++    }
++  });
++
++  // Must always have a value.
++  self.from_connector = ko.computed(function() {
++    // Fall back to first connector so that a connector is selected when we are creating a link.
++    if (!self.from_link()) {
++      return self.connectors()[0];
++    }
++    var connectorArr = ko.utils.arrayFilter(self.connectors(), function (connector) {
++      return connector.id() == self.from_link().connector_id();
++    });
++    return (connectorArr.length > 0) ? connectorArr[0] : self.connectors()[0];
++  });
++  // Must always have a value.
++  self.to_connector = ko.computed(function() {
+     // Fall back to first connector so that a connector is selected when we are creating a link.
+-    if (!self.link()) {
++    if (!self.to_link()) {
+       return self.connectors()[0];
+     }
+     var connectorArr = ko.utils.arrayFilter(self.connectors(), function (connector) {
+-      return connector.id() == self.link().connector_id();
++      return connector.id() == self.to_link().connector_id();
+     });
+     return (connectorArr.length > 0) ? connectorArr[0] : self.connectors()[0];
+   });
+@@ -131,7 +148,7 @@ var viewModel = new (function() {
+     var filter = self.filter().toLowerCase();
+     return ko.utils.arrayFilter(self.persistedJobs(), function (job) {
+       if (job.name()) {
+-        return job.name().toLowerCase().indexOf(filter) > -1 || job.type().toLowerCase().indexOf(filter) > -1;
++        return job.name().toLowerCase().indexOf(filter) > -1 || job.fromLabel().toLowerCase().indexOf(filter) > -1 || job.toLabel().toLowerCase().indexOf(filter) > -1;
+       } else {
+         return false;
+       }
+@@ -163,113 +180,91 @@ var viewModel = new (function() {
+   });
+ 
+ 
+-  // The driver and connector provide configurations for job
+-  self.driver.subscribe(function(value) {
+-    // We assume that the driver components
+-    // are not going to change so w do not update job objects unless they lack configs.
+-    if (value) {
+-      if (self.job() && self.job().driver_config_values().length == 0) {
+-        self.job().driver_config_values(value.job_config());
+-      }
+-    }
++  // Make sure jobs have connectors and links and links have connectors
++  self.connectors.subscribe(function() {
++    $.each(self.links(), function(index, link) {
++      link.connectors(self.connectors());
++    });
++    $.each(self.jobs(), function(index, job) {
++      job.connectors(self.connectors());
++    });
+   });
+ 
+-  self.connector.subscribe(function(value) {
+-    // We assume that the connectors component
+-    // are not going to change so we do not update link
+-    // and job objects unless they lack configs.
+-    if (value) {
+-      if (self.editLink() && self.editLink().link_config_values().length == 0) {
+-        self.editLink().link_config_values(value.link_config());
+-      }
+-      if (self.job() && self.job().from_config_values().length == 0) {
+-        self.job().from_config_values(value.job_config['FROM']());
+-      }
+-       if (self.job() && self.job().to_config_values().length == 0) {
+-        self.job().to_config_values(value.job_config['TO']());
+-      }
+-    }
++  self.links.subscribe(function() {
++    $.each(self.links(), function(index, link) {
++      link.connectors(self.connectors());
++    });
++    $.each(self.jobs(), function(index, job) {
++      job.links(self.links());
++    });
+   });
+ 
+-  // Forms are swapped between FROM and TO types.
+-  // Use of "beforeChange" subscription event to
+-  // remove subscriptions and help with swapping.
+-  var job_type_subscriptions = [];
+-  var old_connector_configs = {
+-    'FROM': null,
+-    'TO': null
+-  };
+-  var old_driver_configs = {
+-    'FROM': null,
+-    'TO': null
+-  };
+-  self.job.subscribe(function(old_job) {
+-    if (job_type_subscriptions) {
+-      $.each(job_type_subscriptions, function(index, subscription) {
+-        subscription.dispose();
+-      });
++  self.jobs.subscribe(function() {
++    $.each(self.jobs(), function(index, job) {
++      job.connectors(self.connectors());
++      job.links(self.links());
++    });
++  });
++
++  self.connector.subscribe(function() {
++    if (self.connector() && self.link() && !self.link().persisted()) {
++      self.link().link_config_values(self.connector()['link-config']());
+     }
+-  }, self, "beforeChange");
+-  self.job.subscribe(function(job) {
+-    if (job) {
++  });
+ 
+-      if (self.from_config_values() && job.from_config_values().length == 0) {
+-        job.from_config_values(self.from_config_values());
++  self.links.subscribe(function() {
++    if (self.links().length > 0) {
++      if (!self.from_link()) {
++        self.from_link(self.links()[0]);
+       }
+ 
+-      if (self.to_config_values() && job.to_config_values().length == 0) {
+-        job.to_config_values(self.to_config_values());
+-      }
+-      if (self.driver_config_values() && job.driver_config_values().length == 0) {
+-        job.driver_config_values(self.driver_config_values());
++      if (!self.to_link()) {
++        self.to_link(self.links()[0]);
+       }
++    }
++  });
+ 
+-      /*job_type_subscriptions.push(job.type.subscribe(function(new_type) {
+-        var connector = old_connector_configs[new_type] || self.connector().job_configs[new_type]();
+-        var driver = old_driver_configs[new_type] || self.driver().job_configs[new_type]();
+-        old_connector_configs[new_type] = null;
+-        old_driver_configs[new_type] = null;
+-        job.connector(connector);
+-        job.driver(driver);
+-      }));
+-
+-      job_type_subscriptions.push(job.type.subscribe(function(old_type) {
+-        if (job.connector().length > 0) {
+-          old_connector_configs[old_type] = job.connector();
+-        }
+-        if (job.driver_config_values().length > 0) {
+-          old_driver_configs[old_type] = job.driver();
+-        }
+-      }, self, "beforeChange"));*/
++  self.from_link.subscribe(function() {
++    if (self.from_link() && self.from_connector() && self.job()) {
++      self.from_link().link_config_values(self.from_connector()['link-config']());
++      self.job().from_config_values(self.from_connector()['job-config'].FROM());
+     }
+   });
+ 
+-  self.editLink.subscribe(function() {
+-    if (self.editLink()) {
+-      if (self.link_config_values() && self.editLink().link_config_values().length == 0) {
+-        self.editLink().link_config_values(self.link_config_values());
+-      }
++  self.to_link.subscribe(function() {
++    if (self.to_link() && self.to_connector() && self.job()) {
++      self.to_link().link_config_values(self.to_connector()['link-config']());
++      self.job().to_config_values(self.to_connector()['job-config'].TO());
+     }
+   });
+ 
+   self.job.subscribe(function() {
+     self.errors({});
+     self.warnings({});
++
++    if (self.job() && !self.job().persisted()) {
++      if (self.from_connector()) {
++        self.job().from_config_values(self.from_connector()['job-config'].FROM());
++      }
++
++      if (self.to_connector()) {
++        self.job().to_config_values(self.to_connector()['job-config'].TO());
++      }
++    }
+   });
+ 
++
+   self.newLink = function() {
+     var self = this;
+-    if (!self.link() || self.link().persisted()) {
+-      var conn = create_link();
+-      self.editLink(conn);
+-    }
++    self.link(create_link());
+   };
+ 
+   self.saveLink = function() {
+-    var link = self.editLink();
+-    if (link) {
+-      link.connector_id(self.connector().id());
+-      link.save();
++    if (self.link()) {
++      if (!self.link().persisted()) {
++        self.link().connector_id(self.connector().id());
++      }
++      self.link().save();
+     }
+   };
+ 
+@@ -285,7 +280,7 @@ var viewModel = new (function() {
+ 
+   self.chooseLinkById = function(id) {
+     var self = this;
+-    self.editLink(self.getLinkById(id) || self.editLink());
++    self.link(self.getLinkById(id) || self.link());
+   };
+ 
+   self.deselectAllLinks = function() {
+@@ -308,12 +303,16 @@ var viewModel = new (function() {
+   self.saveJob = function() {
+     var job = self.job();
+     if (job) {
+-      if (!self.link()) {
+-        $(document).trigger('link_missing.job', [self, null, {}]);
+-        return;
++      if (!job.from_link_id()) {
++        job.from_connector_id((self.from_connector()) ? self.from_connector().id() : null);
++        job.from_link_id((self.from_link()) ? self.from_link().id() : null);
++      }
++
++      if (!job.to_link_id()) {
++        job.to_connector_id((self.to_connector()) ? self.to_connector().id() : null);
++        job.to_link_id((self.to_link()) ? self.to_link().id() : null);
+       }
+-      job.connector_id((self.connector()) ? self.connector().id() : null);
+-      job.link_id((self.link()) ? self.link().id() : null);
++
+       job.save();
+     }
+   };
+@@ -353,12 +352,30 @@ var viewModel = new (function() {
+ 
+   self.label = function(component, name) {
+     var self = this;
+-    return self[component]().resources[name + '.label'];
++    if (component == 'connector') {
++      for (var index in self.connectors()) {
++        var label = self.connectors()[index]['all-config-resources'][name + '.label'];
++        if (label) {
++          return label;
++        }
++      }
++    } else {
++      return self['driver']()['all-config-resources'][name + '.label'];
++    }
+   };
+ 
+   self.help = function(component, name) {
+     var self = this;
+-    return self[component]().resources[name + '.help'];
++    if (component == 'connector') {
++      for (var index in self.connectors()) {
++        var help = self.connectors()[index]['all-config-resources'][name + '.help'];
++        if (help) {
++          return help;
++        }
++      }
++    } else {
++      return self[component]()['all-config-resources'][name + '.help'];
++    }
+   };
+ 
+   self.getDatabaseByLinkId = function(id) {
+@@ -421,14 +438,14 @@ function set_driver(e, driver, options) {
+ }
+ 
+ function set_connectors(e, connectors, options) {
++  ko.utils.arrayFilter(connectors, function (connector) {
++    return $.inArray(connector.name(), connectors.CONNECTOR_NAMES) != -1;
++  });
+   viewModel.connectors(connectors);
+ }
+ 
+ function set_links(e, links, options) {
+   viewModel.links(links);
+-  if (viewModel.links().length > 0) {
+-    viewModel.link(viewModel.links()[0]);
+-  }
+ }
+ 
+ function set_jobs(e, jobs, options) {
+diff --git a/apps/sqoop/static/js/sqoop.links.js b/apps/sqoop/static/js/sqoop.links.js
+index 4b8fe17..3a6991a 100644
+--- a/apps/sqoop/static/js/sqoop.links.js
++++ b/apps/sqoop/static/js/sqoop.links.js
+@@ -29,7 +29,8 @@ var links = (function($) {
+       var self = this;
+       var _attrs = $.extend(true, {}, attrs);
+       _attrs = transform_keys(_attrs, {
+-        'connector-id': 'connector_id'
++        'connector-id': 'connector_id',
++        'link-config-values': 'link_config_values'
+       });
+       _attrs = transform_values(_attrs, {
+         'link_config_values': to_configs
+@@ -39,7 +40,7 @@ var links = (function($) {
+   });
+ 
+   var Link = koify.Node.extend({
+-    'identifier': 'linkConfig',
++    'identifier': 'link',
+     'persists': true,
+     'model_class': LinkModel,
+     'base_url': '/sqoop/api/links/',
+@@ -47,9 +48,46 @@ var links = (function($) {
+       var self = this;
+       self.parent.initialize.apply(self, arguments);
+       self.selected = ko.observable();
++      self.connectors = ko.observableArray();
+       self.persisted = ko.computed(function() {
+         return self.id() > -1;
+       });
++      self.connector = ko.computed(function() {
++        var connector = null;
++        $.each(self.connectors(), function(index, $connector) {
++          if ($connector.id() == self.connector_id()) {
++            connector = $connector;
++          }
++        });
++        return connector;
++      });
++      self.isHdfs = ko.computed(function() {
++        if (!self.connector()) {
++          return false;
++        }
++
++        return self.connector().name() == connectors.CONNECTOR_NAMES[0];
++      });
++      self.isRdbms = ko.computed(function() {
++        if (!self.connector()) {
++          return false;
++        }
++
++        return self.connector().name() == connectors.CONNECTOR_NAMES[1];
++      });
++      self.hdfsUri = ko.computed(function() {
++        var hdfs_uri = null;
++        $.each(self.link_config_values(), function(index, config) {
++          if (config.name() == 'linkConfig') {
++            $.each(config.inputs(), function(index, input) {
++              if (input.name() == 'linkConfig.uri') {
++                hdfs_uri = input.value();
++              }
++            });
++          }
++        });
++        return hdfs_uri;
++      });
+       self.connectionString = ko.computed(function() {
+         var link_string = null;
+         $.each(self.link_config_values(), function(index, config) {
+@@ -121,12 +159,18 @@ var links = (function($) {
+         }
+       });
+       self.hostAndPort = ko.computed(function() {
+-        if (self.host()) {
+-          if (self.port()) {
+-            return self.host() + ":" + self.port();
++        if (self.isRdbms()) {
++          if (self.host()) {
++            if (self.port()) {
++              return self.host() + ":" + self.port();
++            } else {
++              return self.host();
++            }
+           } else {
+-            return self.host();
++            return null;
+           }
++        } else if (self.isHdfs()) {
++          return self.hdfsUri();
+         } else {
+           return null;
+         }
+@@ -180,17 +224,23 @@ var links = (function($) {
+         return password;
+       });
+       self.type = ko.computed(function() {
+-        var conn_string = self.connectionString();
+-        if (!conn_string) {
+-          return "unknown";
+-        }
++        if (self.isRdbms()) {
++          var conn_string = self.connectionString();
++          if (!conn_string) {
++            return "unknown";
++          }
+ 
+-        var parts = conn_string.split(':');
+-        if (parts.length < 2) {
++          var parts = conn_string.split(':');
++          if (parts.length < 2) {
++            return "unknown";
++          }
++
++          return parts[1];
++        } else if (self.isHdfs()) {
++          return "HDFS"
++        } else {
+           return "unknown";
+         }
+-
+-        return parts[1];
+       });
+     },
+     'map': function() {
+@@ -204,6 +254,16 @@ var links = (function($) {
+             var mapped = ko.mapping.fromJS(self.model, mapping_options);
+             $.extend(self, mapped);
+         }
++    },
++    'getData': function() {
++      var self = this;
++      var model = ko.sqoop.fixModel(self);
++      var data = {};
++      model = transform_keys(model, {
++        'link_config_values': 'link-config-values'
++      });
++      data[self.identifier] = ko.utils.stringifyJson(model);
++      return data;
+     }
+   });
+ 
+-- 
+1.7.9.5
+

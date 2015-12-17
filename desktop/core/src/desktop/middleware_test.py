@@ -29,28 +29,6 @@ from desktop.lib.django_test_util import make_logged_in_client
 from desktop.lib.test_utils import add_permission
 
 
-def test_jframe_middleware():
-  c = make_logged_in_client()
-  path = "/about/?foo=bar&baz=3"
-  response = c.get(path)
-  assert_equal(path, response["X-Hue-JFrame-Path"])
-
-  path_nocache = "/about/?noCache=blabla&foo=bar&baz=3"
-  response = c.get(path_nocache)
-  assert_equal(path, response["X-Hue-JFrame-Path"])
-
-  path_nocache = "/about/?noCache=blabla&foo=bar&noCache=twiceover&baz=3"
-  response = c.get(path_nocache)
-  assert_equal(path, response["X-Hue-JFrame-Path"])
-
-  path = "/about/"
-  response = c.get(path)
-  assert_equal(path, response["X-Hue-JFrame-Path"])
-
-  response = c.get("/about/?")
-  assert_equal("/about/", response["X-Hue-JFrame-Path"])
-
-
 def test_view_perms():
   # Super user
   c = make_logged_in_client()
@@ -143,24 +121,39 @@ def test_ensure_safe_redirect_middleware():
     # Super user
     c = make_logged_in_client()
 
-    # GET works
-    response = c.get("/useradmin/")
-    assert_equal(200, response.status_code)
+    # POST works
+    response = c.post("/accounts/login/", {
+      'username': 'test',
+      'password': 'test',
+    })
+    assert_equal(302, response.status_code)
 
     # Disallow most redirects
     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('^\d+$'))
-    response = c.get("")
+    response = c.post("/accounts/login/", {
+      'username': 'test',
+      'password': 'test',
+      'next': 'http://example.com',
+    })
     assert_equal(403, response.status_code)
 
     # Allow all redirects
     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('.*'))
-    response = c.get("")
+    response = c.post("/accounts/login/", {
+      'username': 'test',
+      'password': 'test',
+      'next': 'http://example.com',
+    })
     assert_equal(302, response.status_code)
 
     # Allow all redirects and disallow most at the same time.
     # should have a logic OR functionality.
     done.append(desktop.conf.REDIRECT_WHITELIST.set_for_testing('\d+,.*'))
-    response = c.get("")
+    response = c.post("", {
+      'username': 'test',
+      'password': 'test',
+      'next': 'http://example.com',
+    })
     assert_equal(302, response.status_code)
   finally:
     settings.MIDDLEWARE_CLASSES.pop()

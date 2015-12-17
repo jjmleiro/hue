@@ -1,0 +1,92 @@
+From 4cbeddfdf74ec2a7ec8683efd9c4705311e1b4a1 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 13 Nov 2014 14:07:34 +0100
+Subject: [PATCH 0280/1173] [oozie] Initial support for fork/decision
+ conversion
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   19 ++--------------
+ apps/oozie/static/js/workflow-editor.ko.js         |   23 ++++++++++++++++++++
+ 2 files changed, 25 insertions(+), 17 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 20b0c8a..eb4048e 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -336,6 +336,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+         <span data-bind="text: $data['to']" /></span>
+       </span>
+     </div>
++    <a class="pointer" data-bind="click: function() { $root.convertToDecision($parent, $data) }">Convert to Decision</a>
+   </div>
+   <!-- /ko -->
+ </script>
+@@ -991,22 +992,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <!-- /ko -->
+ </script>
+ 
+-<script type="text/html" id="fork-widget">
+-  <!-- ko if: $root.workflow.getNodeById(id()) -->
+-  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+-    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+-      <input type="text" data-bind="value: id" />
+-      <input type="text" data-bind="value: name" />
+-    </div>
+-
+-    <div>
+-      End
+-    </div>
+-  </div>
+-  <!-- /ko -->
+-</script>
+-
+-
+ <script type="text/html" id="decision-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+@@ -1016,7 +1001,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
+-      End
++      <a class="pointer" data-bind="click: function() { $root.convertToFork($parent, $data) }">Convert to Fork</a>
+     </div>
+   </div>
+   <!-- /ko -->
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index f6fbfd4..0d5676f 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -803,6 +803,29 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     return _row;
+   }
+ 
++  self.convertToDecision = function (widget, node) {
++    if (widget.widgetType() == "fork-widget"){
++      widget.widgetType("decision-widget");
++      node.type("decision-widget");
++      var _newName = "decision-" + node.id().slice(0, 4);
++      node.name(_newName);
++      widget.name(_newName);
++      $(document).trigger("drawArrows");
++    }
++  }
++
++  self.convertToFork = function (widget, node) {
++
++    if (widget.widgetType() == "decision-widget"){
++      widget.widgetType("fork-widget");
++      node.type("fork-widget");
++      var _newName = "fork-" + node.id().slice(0, 4);
++      node.name(_newName);
++      widget.name(_newName);
++      $(document).trigger("drawArrows");
++    }
++  }
++
+   self.save = function () {
+     $.post("/oozie/editor/workflow/save/", {
+         "layout": ko.mapping.toJSON(self.columns),
+-- 
+1.7.9.5
+

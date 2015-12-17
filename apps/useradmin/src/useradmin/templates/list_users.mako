@@ -16,7 +16,6 @@
 <%!
 from desktop.views import commonheader, commonfooter
 from django.template.defaultfilters import date, time
-import urllib
 from django.utils.translation import ugettext as _
 %>
 
@@ -88,7 +87,7 @@ ${layout.menubar(section='users')}
           <td>
             %if user.is_superuser or user.username == listed_user.username:
               <strong><a title="${_('Edit %(username)s') % dict(username=listed_user.username)}"
-                         href="${ url('useradmin.views.edit_user', username=urllib.quote(listed_user.username)) }"
+                         href="${ url('useradmin.views.edit_user', username=listed_user.username) }"
                          data-row-selector="true">${listed_user.username}</a></strong>
             %else:
               <strong>${listed_user.username}</strong>
@@ -118,6 +117,7 @@ ${layout.menubar(section='users')}
 
   <div id="deleteUser" class="modal hide fade">
     <form id="dropTableForm" action="${ url('useradmin.views.delete_user') }" method="POST">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
 
@@ -136,7 +136,7 @@ ${layout.menubar(section='users')}
 
 </div>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {
@@ -189,11 +189,11 @@ ${layout.menubar(section='users')}
 
     $("#selectAll").click(function () {
       if ($(this).attr("checked")) {
-        $(this).removeAttr("checked");
+        $(this).removeAttr("checked").removeClass("fa-check");;
         $(".userCheck").removeClass("fa-check").removeAttr("checked");
       }
       else {
-        $(this).attr("checked", "checked");
+        $(this).attr("checked", "checked").addClass("fa-check");
         $(".userCheck").addClass("fa-check").attr("checked", "checked");
       }
       toggleActions();

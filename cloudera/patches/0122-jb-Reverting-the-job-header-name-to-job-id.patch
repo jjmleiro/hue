@@ -1,0 +1,25 @@
+From faa3a8710035569966b9837b28cdfb14c06fac45 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 18 Nov 2014 19:26:03 -0800
+Subject: [PATCH 0122/1173] [jb] Reverting the job header name to job id
+
+---
+ apps/jobbrowser/src/jobbrowser/templates/job.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/job.mako b/apps/jobbrowser/src/jobbrowser/templates/job.mako
+index 1d8645a..0537b34 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/job.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/job.mako
+@@ -249,7 +249,7 @@ ${ comps.menubar() }
+     </div>
+     <div class="span10">
+       <div class="card card-small">
+-        <h1 class="card-heading simple">${_(job.name)}</h1>
++	<h1 class="card-heading simple">${_('Job: %(jobId)s') % dict(jobId=job.jobId_short)}</h1>
+           <div class="card-body">
+             <p>
+ 
+-- 
+1.7.9.5
+

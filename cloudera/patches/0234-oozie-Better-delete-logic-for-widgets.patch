@@ -1,0 +1,69 @@
+From 8167aeccdd93c5adf8bfa33604707b16b01819b6 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 4 Nov 2014 16:22:12 +0100
+Subject: [PATCH 0234/1173] [oozie] Better delete logic for widgets
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   42 ++++++++++++++++++++--------
+ 1 file changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index bbddb63..4b8101b 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -316,22 +316,40 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.deeplyRemoveWidgetById = function (widget_id, col, parent) {
+     if (col) {
+       $.each(col.rows(), function (j, row) {
+-        $.each(row.widgets(), function (z, widget) {
+-          if (widget.id() == widget_id) {
+-            row.widgets.remove(widget);
+-            col.rows.remove(row);
++        if (row && row.widgets()){
++          $.each(row.widgets(), function (z, widget) {
++            if (widget.id() == widget_id) {
++              row.widgets.remove(widget);
++              col.rows.remove(row);
++            }
++          });
+           }
+-        });
+-        $.each(row.columns(), function (i, icol) {
+-          self.deeplyRemoveWidgetById(widget_id, icol, row);
+-        });
++        if (row && row.columns()) {
++          $.each(row.columns(), function (i, icol) {
++            self.deeplyRemoveWidgetById(widget_id, icol, row);
++          });
++        }
+       });
+       if (col.rows().length == 0) {
+         parent.columns.remove(col);
+-        var _size = Math.max(1, Math.floor(12 / (parent.columns().length)));
+-        parent.columns().forEach(function (icol) {
+-          icol.size(_size);
+-        });
++        if (parent.columns().length > 1) {
++          var _size = Math.max(1, Math.floor(12 / (parent.columns().length)));
++          parent.columns().forEach(function (icol) {
++            icol.size(_size);
++          });
++        }
++        else {
++          var _rows = parent.columns()[0].rows();
++          for (var i=0;i<_rows.length;i++){
++            if (i==0){
++              parent.widgets(_rows[i].widgets());
++            }
++            else {
++              self.getRowParentColumn(parent.id()).rows.push(_rows[i]);
++            }
++          }
++          parent.columns([]);
++        }
+       }
+     }
+   }
+-- 
+1.7.9.5
+

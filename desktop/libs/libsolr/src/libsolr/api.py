@@ -20,9 +20,12 @@ import json
 import logging
 import urllib
 
+from itertools import groupby
+
 from django.utils.translation import ugettext as _
 
 from desktop.lib.exceptions_renderable import PopupException
+from desktop.lib.i18n import smart_str
 from desktop.lib.rest.http_client import HttpClient, RestException
 from desktop.lib.rest import resource
 
@@ -66,7 +69,17 @@ class SolrApi(object):
   def _get_fq(self, query):
     params = ()
 
-    for fq in query['fqs']:
+    # Merge facets queries on same fields
+    grouped_fqs = groupby(query['fqs'], lambda x: (x['type'], x['field']))
+    merged_fqs = []
+    for key, group in grouped_fqs:
+      field_fq = next(group)
+      for fq in group:
+        for f in fq['filter']:
+          field_fq['filter'].append(f)
+      merged_fqs.append(field_fq)
+
+    for fq in merged_fqs:
       if fq['type'] == 'field':
         # This does not work if spaces in Solr:
         # params += (('fq', ' '.join([urllib.unquote(utf_quoter('{!tag=%s}{!field f=%s}%s' % (fq['field'], fq['field'], _filter))) for _filter in fq['filter']])),)
@@ -74,11 +87,11 @@ class SolrApi(object):
         for field in fields:
           f = []
           for _filter in fq['filter']:
-            values = _filter['value'].split(':')
+            values = _filter['value'].split(':') if len(fields) > 1 else [_filter['value']]
             if fields.index(field) < len(values): # Lowest common field denominator
               value = values[fields.index(field)]
               exclude = '-' if _filter['exclude'] else ''
-              if value is not None and ' ' in value:
+              if value is not None and ' ' in smart_str(value):
                 f.append('%s%s:"%s"' % (exclude, field, value))
               else:
                 f.append('%s{!field f=%s}%s' % (exclude, field, value))
@@ -87,6 +100,10 @@ class SolrApi(object):
       elif fq['type'] == 'range':
         params += (('fq', '{!tag=%s}' % fq['field'] + ' '.join([urllib.unquote(
                     utf_quoter('%s%s:[%s TO %s}' % ('-' if field['exclude'] else '', fq['field'], f['from'], f['to']))) for field, f in zip(fq['filter'], fq['properties'])])),)
+      elif fq['type'] == 'range-up':
+        params += (('fq', '{!tag=%s}' % fq['field'] + ' '.join([urllib.unquote(
+                    utf_quoter('%s%s:[%s TO %s}' % ('-' if field['exclude'] else '', fq['field'], f['from'] if fq['is_up'] else '*', '*' if fq['is_up'] else f['from'])))
+                                                          for field, f in zip(fq['filter'], fq['properties'])])),)
     return params
 
   def query(self, collection, query):
@@ -121,22 +138,30 @@ class SolrApi(object):
       for facet in collection['facets']:
         if facet['type'] == 'query':
           params += (('facet.query', '%s' % facet['field']),)
-        elif facet['type'] == 'range':
-          params += tuple([
-             ('facet.range', '{!ex=%s}%s' % (facet['field'], facet['field'])),
-             ('f.%s.facet.range.start' % facet['field'], facet['properties']['start']),
-             ('f.%s.facet.range.end' % facet['field'], facet['properties']['end']),
-             ('f.%s.facet.range.gap' % facet['field'], facet['properties']['gap']),
-             ('f.%s.facet.mincount' % facet['field'], facet['properties']['mincount']),]
+        elif facet['type'] == 'range' or facet['type'] == 'range-up':
+          keys = {
+              'field': facet['field'],
+              'key': '%(field)s-%(id)s' % facet,
+              'start': facet['properties']['start'],
+              'end': facet['properties']['end'],
+              'gap': facet['properties']['gap'],
+              'mincount': int(facet['properties']['mincount'])
+          }
+          params += (
+             ('facet.range', '{!key=%(key)s ex=%(field)s f.%(field)s.facet.range.start=%(start)s f.%(field)s.facet.range.end=%(end)s f.%(field)s.facet.range.gap=%(gap)s f.%(field)s.facet.mincount=%(mincount)s}%(field)s' % keys),
           )
         elif facet['type'] == 'field':
+          keys = {
+              'field': facet['field'],
+              'key': '%(field)s-%(id)s' % facet,
+              'limit': int(facet['properties'].get('limit', 10)) + (1 if facet['widgetType'] == 'facet-widget' else 0),
+              'mincount': int(facet['properties']['mincount'])
+          }
           params += (
-              ('facet.field', '{!ex=%s}%s' % (facet['field'], facet['field'])),
-              ('f.%s.facet.limit' % facet['field'], int(facet['properties'].get('limit', 10)) + 1),
-              ('f.%s.facet.mincount' % facet['field'], int(facet['properties']['mincount'])),
+              ('facet.field', '{!key=%(key)s ex=%(field)s f.%(field)s.facet.limit=%(limit)s f.%(field)s.facet.mincount=%(mincount)s}%(field)s' % keys),
           )
         elif facet['type'] == 'pivot':
-          if facet['properties']['facets']:
+          if facet['properties']['facets'] or facet['widgetType'] == 'map-widget':
             fields = facet['field']
             for f in facet['properties']['facets']:
               params += (('f.%s.facet.limit' % f['field'], f['limit']),)
@@ -165,7 +190,8 @@ class SolrApi(object):
     params += (
       ('hl', 'true'),
       ('hl.fl', '*'),
-      ('hl.snippets', 3)
+      ('hl.snippets', 3),
+      ('hl.fragsize', 0),
     )
 
     if collection['template']['fieldsSelected']:
@@ -181,7 +207,6 @@ class SolrApi(object):
         )
 
     response = self._root.get('%(collection)s/select' % solr_query, params)
-
     return self._get_json(response)
 
 
@@ -192,9 +217,7 @@ class SolrApi(object):
           ('wt', 'json'),
       )
       response = self._root.get('%(collection)s/suggest' % solr_query, params)
-      if type(response) != dict:
-        response = json.loads(response)
-      return response
+      return self._get_json(response)
     except RestException, e:
       raise PopupException(e, title=_('Error while accessing Solr'))
 
@@ -207,6 +230,18 @@ class SolrApi(object):
       )
       response = self._root.get('zookeeper', params=params)
       return json.loads(response['znode'].get('data', '{}'))
+    except RestException, e:
+      raise PopupException(e, title=_('Error while accessing Solr'))
+
+
+  def aliases(self):
+    try:
+      params = self._get_params() + (
+          ('detail', 'true'),
+          ('path', '/aliases.json'),
+      )
+      response = self._root.get('zookeeper', params=params)
+      return json.loads(response['znode'].get('data', '{}')).get('collection', {})
     except RestException, e:
       raise PopupException(e, title=_('Error while accessing Solr'))
 

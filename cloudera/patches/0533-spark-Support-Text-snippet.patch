@@ -1,0 +1,107 @@
+From e5fc1716bf2cba3ac5996a24daa8b7a19140a303 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 2 Dec 2014 11:39:03 -0600
+Subject: [PATCH 0533/1173] [spark] Support Text snippet
+
+---
+ apps/spark/src/spark/api.py                |    1 -
+ apps/spark/src/spark/models.py             |   19 +++++++++++++++++++
+ apps/spark/src/spark/templates/editor.mako |    4 ++++
+ apps/spark/static/js/spark.vm.js           |    2 +-
+ 4 files changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index d687b19..e8b9f4b 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -25,7 +25,6 @@ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2
+ 
+-from spark.decorators import json_error_handler
+ from spark.models import get_api, Notebook
+ 
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 1340cf5..ccd6800 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -31,8 +31,11 @@ from desktop.lib.rest.http_client import RestException
+ class Notebook():
+   
+   def __init__(self, document=None):
++    self.document = None
++    
+     if document is not None:
+       self.data = document.data
++      self.document = document
+     else:    
+       self.data = json.dumps({
+           'name': 'My Notebook', 
+@@ -47,12 +50,17 @@ class Notebook():
+   def get_data(self):
+     _data = json.loads(self.data)
+   
++    if self.document is not None:
++      _data['id'] = self.document.id 
++  
+     return _data
+ 
+ 
+ def get_api(user, snippet):
+   if snippet['type'] == 'hive':
+     return HS2Api(user)
++  if snippet['type'] == 'text':
++    return TextApi(user)  
+   else:
+     return SparkApi(user)
+ 
+@@ -61,6 +69,17 @@ def _get_snippet_session(notebook, snippet):
+   return [session for session in notebook['sessions'] if session['type'] == snippet['type']][0] 
+ 
+ 
++class TextApi():
++  
++  def __init__(self, user):
++    self.user = user
++    
++  def create_session(self, lang):
++    return {
++        'type': lang,
++        'id': None
++    }
++  
+ 
+ class HS2Api():
+   
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index beded0e..579d0a6 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -149,6 +149,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           &nbsp;
+         </span>
+ 
++        <!-- ko if: type() == 'text' -->
++        <i class="fa fa-header snippet-icon"></i><sup style="color: #338bb8; margin-left: -2px">${ _('Text') }</sup>
++        <!-- /ko -->
++
+         <!-- ko if: type() == 'hive' -->
+         <img src="/beeswax/static/art/icon_beeswax_48.png" class="snippet-icon">
+         <!-- /ko -->
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 1d570c9..c77b68e 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -299,7 +299,7 @@ var Notebook = function (vm, notebook) {
+   };  
+ 
+   self.newSnippet = function() {
+-	var snippet = new Snippet(self, {type: self.selectedSnippet()});	  
++	var snippet = new Snippet(self, {type: self.selectedSnippet(), result: {}});	  
+ 	self.snippets.push(snippet);
+ 	  
+ 	if (self.getSession(self.selectedSnippet()) == null) {
+-- 
+1.7.9.5
+

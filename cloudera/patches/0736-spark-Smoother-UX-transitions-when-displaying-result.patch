@@ -1,0 +1,74 @@
+From 92576821a1c82f662d160758eebb09db62485c20 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 2 Feb 2015 17:08:34 -0500
+Subject: [PATCH 0736/1173] [spark] Smoother UX transitions when displaying
+ results
+
+---
+ apps/spark/src/spark/templates/editor.mako |    8 ++++++--
+ apps/spark/static/js/spark.ko.js           |   14 +++++++-------
+ 2 files changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b532ff8..eff4517 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -444,9 +444,13 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           ${ _('Success.') }
+         </div>
+         
+-        <div data-bind="visible: result.hasResultset() && status() == 'available' && result.data().length == 0 && result.meta().length > 0, css: resultsKlass">
++        <div data-bind="visible: result.hasResultset() && status() == 'available' && result.data().length == 0 && result.fetchedOnce(), css: resultsKlass">
+           ${ _('Success but empty results.') }
+         </div>
++        
++        <div data-bind="visible: status() == 'available' && ! result.fetchedOnce(), css: resultsKlass">
++          ${ _('Loading...') }
++        </div>
+ 
+         <!-- ko if: result.hasSomeResults() && result.type() != 'table' -->
+         <div class="row-fluid" style="max-height: 400px; margin-top: 50px">
+@@ -491,7 +495,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </div>
+         </div>
+ 
+-        <div class="row-fluid" data-bind="visible: result.meta().length > 0 && showChart()" style="max-height: 400px; margin-top: 4px">
++        <div class="row-fluid" data-bind="visible: result.fetchedOnce() && showChart()" style="max-height: 400px; margin-top: 4px">
+           <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': ! isLeftPanelVisible()}">
+             <div class="toggle-left-panel" style="float: right; margin-right: -30px; height: 400px; line-height: 400px; margin-top:0" data-bind="click: toggleLeftPanel">
+               <a title="${_('Hide settings')}" class="pointer">
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 48c9ebd..e1180d9 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -346,13 +346,6 @@ var Snippet = function (vm, notebook, snippet) {
+       if (data.status == 0) {
+         rows -= data.result.data.length;
+ 
+-        if (! self.result.fetchedOnce()) {
+-          self.result.fetchedOnce(true);        
+-   	      data.result.meta.unshift({type: "INT_TYPE", name: "", comment: null});
+-   	      self.result.meta(data.result.meta);
+-   	      self.result.type(data.result.type);
+-        }
+-
+         var _initialIndex = self.result.data().length;
+         var _tempData = [];
+         $.each(data.result.data, function (index, row) {
+@@ -363,6 +356,13 @@ var Snippet = function (vm, notebook, snippet) {
+ 
+         $(document).trigger("renderData", {data: _tempData, snippet: self, initial: _initialIndex == 0});
+ 
++        if (! self.result.fetchedOnce()) {          
++     	  data.result.meta.unshift({type: "INT_TYPE", name: "", comment: null});
++     	  self.result.meta(data.result.meta);
++     	  self.result.type(data.result.type);
++     	  self.result.fetchedOnce(true);
++        }
++        
+         if (data.result.has_more && rows > 0) {
+           setTimeout(function () {
+             self.fetchResultData(rows, false);
+-- 
+1.7.9.5
+

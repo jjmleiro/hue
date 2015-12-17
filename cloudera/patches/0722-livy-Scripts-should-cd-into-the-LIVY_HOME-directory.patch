@@ -1,0 +1,38 @@
+From 64908cabbb0950caf1a8d1410ea40aaaf3afff8d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 30 Jan 2015 11:04:49 +0800
+Subject: [PATCH 0722/1173] [livy] Scripts should cd into the LIVY_HOME
+ directory
+
+---
+ apps/spark/java/bin/livy-repl   |    1 +
+ apps/spark/java/bin/livy-server |    1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/apps/spark/java/bin/livy-repl b/apps/spark/java/bin/livy-repl
+index f8bdcd7..f120cfc 100755
+--- a/apps/spark/java/bin/livy-repl
++++ b/apps/spark/java/bin/livy-repl
+@@ -20,6 +20,7 @@
+ set -e
+ 
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
++cd $LIVY_HOME
+ 
+ CLASSPATH="$LIVY_HOME/livy-repl/target/lib/*:$LIVY_HOME/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar:$CLASSPATH"
+ 
+diff --git a/apps/spark/java/bin/livy-server b/apps/spark/java/bin/livy-server
+index 829d55a..8acef59 100755
+--- a/apps/spark/java/bin/livy-server
++++ b/apps/spark/java/bin/livy-server
+@@ -20,6 +20,7 @@
+ set -e
+ 
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
++cd $LIVY_HOME
+ 
+ CLASSPATH="$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar:$CLASSPATH"
+ 
+-- 
+1.7.9.5
+

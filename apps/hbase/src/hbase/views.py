@@ -25,10 +25,9 @@ import urllib
 
 from avro import datafile, io
 
-from django.http import HttpResponse
 from django.utils.translation import ugettext as _
 
-from desktop.lib.django_util import render
+from desktop.lib.django_util import JsonResponse, render
 
 from hbase import conf
 from hbase.settings import DJANGO_APPS
@@ -74,7 +73,7 @@ def api_router(request, url): # On split, deserialize anything
   if request.POST.get('dest', False):
     url_params += [request.FILES.get(request.REQUEST.get('dest'))]
 
-  return api_dump(HbaseApi().query(*url_params))
+  return api_dump(HbaseApi(request.user).query(*url_params))
 
 def api_dump(response):
   ignored_fields = ('thrift_spec', '__.+__')
@@ -119,7 +118,11 @@ def api_dump(response):
             cleaned[key] = clean(value)
       return cleaned
 
-  return HttpResponse(json.dumps({ 'data': clean(response), 'truncated': True, 'limit': trunc_limit }), content_type="application/json")
+  return JsonResponse({
+    'data': clean(response),
+    'truncated': True,
+    'limit': trunc_limit,
+    })
 
 
 def install_examples(request):
@@ -129,10 +132,10 @@ def install_examples(request):
     result['message'] = _('A POST request is required.')
   else:
     try:
-      hbase_setup.Command().handle_noargs()
+      hbase_setup.Command().handle(user=request.user)
       result['status'] = 0
     except Exception, e:
       LOG.exception(e)
       result['message'] = str(e)
 
-  return HttpResponse(json.dumps(result), mimetype="application/json")
+  return JsonResponse(result)

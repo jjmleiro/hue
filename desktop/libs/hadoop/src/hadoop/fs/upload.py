@@ -29,19 +29,23 @@ import errno
 import logging
 import time
 
-from django.core.files.uploadhandler import \
-    FileUploadHandler, StopFutureHandlers, StopUpload
+from django.core.files.uploadhandler import FileUploadHandler, StopFutureHandlers, StopUpload
 from django.utils.translation import ugettext as _
+
 import hadoop.cluster
+
 from hadoop.conf import UPLOAD_CHUNK_SIZE
 from hadoop.fs.exceptions import WebHdfsException
 
-UPLOAD_SUBDIR = 'hue-uploads'
 LOG = logging.getLogger(__name__)
+
+
+UPLOAD_SUBDIR = 'hue-uploads'
 
 
 class HDFSerror(Exception):
   pass
+
 
 class HDFStemporaryUploadedFile(object):
   """
@@ -63,11 +67,12 @@ class HDFStemporaryUploadedFile(object):
 
     # We want to set the user to be the user doing the upload
     self._fs.setuser(request.user.username)
-    try:
-      self._path = self._fs.mkswap(name, suffix='tmp', basedir=destination)
-      self._file = self._fs.open(self._path, 'w')
-    except WebHdfsException, e:
-      raise e
+    self._path = self._fs.mkswap(name, suffix='tmp', basedir=destination)
+
+    if self._fs.exists(self._path):
+      self._fs._delete(self._path)
+    self._file = self._fs.open(self._path, 'w')
+
     self._do_cleanup = True
 
   def __del__(self):

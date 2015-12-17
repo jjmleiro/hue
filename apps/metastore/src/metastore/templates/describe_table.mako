@@ -33,7 +33,7 @@ from django.utils.translation import ugettext as _
 ${ commonheader(_("%s : %s") % (view_or_table_noun, table.name), app_name, user) | n,unicode }
 ${ components.menubar() }
 
-<link rel="stylesheet" href="/metastore/static/css/metastore.css" type="text/css">
+<link rel="stylesheet" href="${ static('metastore/css/metastore.css') }" type="text/css">
 
 
 <%def name="column_table(cols)">
@@ -123,6 +123,7 @@ ${ components.menubar() }
                 <table id="sampleTable" class="table table-striped table-condensed sampleTable">
                   <thead>
                     <tr>
+                      <th style="width: 10px"></th>
                     % for col in table.cols:
                       <th>${col.name}</th>
                     % endfor
@@ -131,6 +132,7 @@ ${ components.menubar() }
                   <tbody>
                   % for i, row in enumerate(sample):
                     <tr>
+                      <td>${ i }</td>
                     % for item in row:
                       <td>
                         % if item is None:
@@ -176,6 +178,7 @@ ${ components.menubar() }
 
 <div id="dropTable" class="modal hide fade">
   <form id="dropTableForm" method="POST" action="${ url('metastore:drop_table', database=database) }">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
 

@@ -1,0 +1,438 @@
+From 58b25837a8d87fd288077aa45353970f39de963f Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 29 Jan 2015 20:36:53 +0800
+Subject: [PATCH 0721/1173] [livy] Add pyspark support
+
+---
+ .../livy-repl/src/main/resources/fake_pyspark.sh   |   22 ++++++
+ .../livy-repl/src/main/resources/fake_shell.py     |   40 ++++++----
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |   14 ++--
+ .../hue/livy/repl/python/PythonSession.scala       |   51 +++++++------
+ .../hue/livy/repl/scala/ScalaSession.scala         |   78 --------------------
+ .../hue/livy/repl/scala/SparkSession.scala         |   78 ++++++++++++++++++++
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    2 +
+ 7 files changed, 164 insertions(+), 121 deletions(-)
+ create mode 100644 apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
+ delete mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
+ create mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh b/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
+new file mode 100644
+index 0000000..d2da7e2
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
+@@ -0,0 +1,22 @@
++#!/usr/bin/env bash
++
++set -e
++
++if [ -z "$SPARK_HOME" ]; then
++	echo "\$SPARK_HOME is not set" 1>&2
++	exit 1
++fi
++
++source "$SPARK_HOME"/bin/utils.sh
++source "$SPARK_HOME"/bin/load-spark-env.sh
++
++export PYTHONPATH="$SPARK_HOME/python/:$PYTHONPATH"
++
++for path in $(ls $SPARK_HOME/python/lib/*.zip); do
++	export PYTHONPATH="$path:$PYTHONPATH"
++done
++
++export OLD_PYTHONSTARTUP="$PYTHONSTARTUP"
++export PYTHONSTARTUP="$SPARK_HOME/python/pyspark/shell.py"
++
++exec python livy-repl/src/main/resources/fake_shell.py
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+index e6b3317..7b5654e 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -4,24 +4,13 @@ import datetime
+ import decimal
+ import json
+ import logging
++import os
+ import sys
+ import traceback
+ 
+ logging.basicConfig()
+ logger = logging.getLogger('fake_shell')
+ 
+-sys_stdin = sys.stdin
+-sys_stdout = sys.stdout
+-sys_stderr = sys.stderr
+-
+-fake_stdin = cStringIO.StringIO()
+-fake_stdout = cStringIO.StringIO()
+-fake_stderr = cStringIO.StringIO()
+-
+-sys.stdin = fake_stdin
+-sys.stdout = fake_stdout
+-sys.stderr = fake_stderr
+-
+ global_dict = {}
+ 
+ execution_count = 0
+@@ -72,7 +61,10 @@ def execute(code):
+         return execute_reply_error(*sys.exc_info())
+ 
+     stdout = fake_stdout.getvalue()
++    fake_stdout.truncate(0)
++
+     stderr = fake_stderr.getvalue()
++    fake_stderr.truncate(0)
+ 
+     output = ''
+ 
+@@ -253,11 +245,31 @@ msg_type_router = {
+     'execute_request': execute_request,
+ }
+ 
++sys_stdin = sys.stdin
++sys_stdout = sys.stdout
++sys_stderr = sys.stderr
++
++fake_stdin = cStringIO.StringIO()
++fake_stdout = cStringIO.StringIO()
++fake_stderr = cStringIO.StringIO()
++
++sys.stdin = fake_stdin
++sys.stdout = fake_stdout
++sys.stderr = fake_stderr
+ 
+ try:
+-    while True:
+-        fake_stdout.truncate(0)
++    # Load any startup files
++    try:
++        startup = os.environ['PYTHONSTARTUP']
++    except KeyError:
++        pass
++    else:
++        execfile(startup, global_dict)
++
++    fake_stdout.truncate(0)
++    fake_stderr.truncate(0)
+ 
++    while True:
+         line = sys_stdin.readline()
+ 
+         if line == '':
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index 339d3ff..f74a185 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -3,7 +3,7 @@ package com.cloudera.hue.livy.repl
+ import javax.servlet.ServletContext
+ 
+ import com.cloudera.hue.livy.repl.python.PythonSession
+-import com.cloudera.hue.livy.repl.scala.ScalaSession
++import com.cloudera.hue.livy.repl.scala.SparkSession
+ import com.cloudera.hue.livy.{Logging, WebServer}
+ import org.scalatra.LifeCycle
+ import org.scalatra.servlet.ScalatraListener
+@@ -12,20 +12,22 @@ object Main extends Logging {
+ 
+   val SESSION_KIND = "livy-repl.session.kind"
+   val PYTHON_SESSION = "python"
++  val PYSPARK_SESSION = "pyspark"
+   val SCALA_SESSION = "scala"
++  val SPARK_SESSION = "spark"
+ 
+   def main(args: Array[String]): Unit = {
+     val port = sys.env.getOrElse("PORT", "8999").toInt
+ 
+     if (args.length != 1) {
+-      println("Must specify either `python` or `scala` for the session kind")
++      println("Must specify either `python`/`pyspark`/`scala/`spark` for the session kind")
+       sys.exit(1)
+     }
+ 
+     val session_kind = args(0)
+ 
+     session_kind match {
+-      case PYTHON_SESSION | SCALA_SESSION =>
++      case PYTHON_SESSION | PYSPARK_SESSION | SPARK_SESSION =>
+       case _ =>
+         println("Unknown session kind: " + session_kind)
+         sys.exit(1)
+@@ -52,8 +54,10 @@ class ScalatraBootstrap extends LifeCycle {
+ 
+   override def init(context: ServletContext): Unit = {
+     val session = context.getInitParameter(Main.SESSION_KIND) match {
+-      case Main.PYTHON_SESSION => PythonSession.create()
+-      case Main.SCALA_SESSION => ScalaSession.create()
++      case Main.PYTHON_SESSION => PythonSession.createPySpark()
++      case Main.PYSPARK_SESSION => PythonSession.createPySpark()
++      case Main.SCALA_SESSION => SparkSession.create()
++      case Main.SPARK_SESSION => SparkSession.create()
+     }
+ 
+     context.mount(new WebApp(session), "/*")
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+index 07e793a..f52f3b6 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+@@ -14,9 +14,17 @@ import scala.collection.mutable.ArrayBuffer
+ import scala.concurrent.{ExecutionContext, Future}
+ 
+ object PythonSession {
+-  def create(): Session = {
+-    val file = createScript()
+-    val pb = new ProcessBuilder("python", file.toString)
++  def createPython(): Session = {
++    create("python")
++  }
++
++  def createPySpark(): Session = {
++    create(createFakePySpark().toString)
++  }
++
++  private def create(driver: String) = {
++    val fakeShell = createFakeShell()
++    val pb = new ProcessBuilder(driver, fakeShell.toString)
+     pb.redirectError(Redirect.INHERIT)
+     val process = pb.start()
+     val in = process.getInputStream
+@@ -25,7 +33,7 @@ object PythonSession {
+     new PythonSession(process, in, out)
+   }
+ 
+-  private def createScript(): File = {
++  private def createFakeShell(): File = {
+     val source: InputStream = getClass.getClassLoader.getResourceAsStream("fake_shell.py")
+ 
+     val file = Files.createTempFile("", "").toFile
+@@ -46,32 +54,27 @@ object PythonSession {
+     file
+   }
+ 
+-  // Java unfortunately wraps the input stream in a buffer, so we need to hack around it so we can read the output
+-  // without blocking.
+-  private def unwrapInputStream(inputStream: InputStream) = {
+-    var filteredInputStream = inputStream
++  private def createFakePySpark(): File = {
++    val source: InputStream = getClass.getClassLoader.getResourceAsStream("fake_pyspark.sh")
+ 
+-    while (filteredInputStream.isInstanceOf[FilterInputStream]) {
+-      val field = classOf[FilterInputStream].getDeclaredField("in")
+-      field.setAccessible(true)
+-      filteredInputStream = field.get(filteredInputStream).asInstanceOf[InputStream]
+-    }
++    val file = Files.createTempFile("", "").toFile
++    file.deleteOnExit()
+ 
+-    filteredInputStream
+-  }
++    file.setExecutable(true)
+ 
+-  // Java unfortunately wraps the output stream in a buffer, so we need to hack around it so we can read the output
+-  // without blocking.
+-  private def unwrapOutputStream(outputStream: OutputStream) = {
+-    var filteredOutputStream = outputStream
++    val sink = new FileOutputStream(file)
++    val buf = new Array[Byte](1024)
++    var n = source.read(buf)
+ 
+-    while (filteredOutputStream.isInstanceOf[FilterOutputStream]) {
+-      val field = classOf[FilterOutputStream].getDeclaredField("out")
+-      field.setAccessible(true)
+-      filteredOutputStream = field.get(filteredOutputStream).asInstanceOf[OutputStream]
++    while (n > 0) {
++      sink.write(buf, 0, n)
++      n = source.read(buf)
+     }
+ 
+-    filteredOutputStream
++    source.close()
++    sink.close()
++
++    file
+   }
+ }
+ 
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
+deleted file mode 100644
+index b7f9ebf..0000000
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
++++ /dev/null
+@@ -1,78 +0,0 @@
+-package com.cloudera.hue.livy.repl.scala
+-
+-import java.util.concurrent.SynchronousQueue
+-
+-import com.cloudera.hue.livy.msgs.ExecuteRequest
+-import com.cloudera.hue.livy.repl.Session
+-import org.json4s.jackson.JsonMethods._
+-import org.json4s.jackson.Serialization.write
+-import org.json4s.{JValue, _}
+-
+-import scala.collection.mutable
+-import scala.concurrent.duration.Duration
+-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+-
+-object ScalaSession {
+-  def create(): Session = new ScalaSession()
+-}
+-
+-private class ScalaSession extends Session {
+-  private implicit def executor: ExecutionContext = ExecutionContext.global
+-
+-  implicit val formats = DefaultFormats
+-
+-  private[this] val inQueue = new SynchronousQueue[ILoop.Request]
+-  private[this] var executedStatements = 0
+-  private[this] var statements_ = new mutable.ArrayBuffer[JValue]
+-
+-  org.apache.spark.repl.Main.interp = new ILoop(inQueue)
+-
+-  // Launch the real interpreter thread.
+-  private[this] val thread = new Thread {
+-    override def run(): Unit = {
+-      val args = Array("-usejavacp")
+-      org.apache.spark.repl.Main.interp.process(args)
+-    }
+-  }
+-  thread.start()
+-
+-  override def statements: List[JValue] = synchronized {
+-    statements_.toList
+-  }
+-
+-  override def statement(id: Int): Option[JValue] = synchronized {
+-    if (id < statements_.length) {
+-      Some(statements_(id))
+-    } else {
+-      None
+-    }
+-  }
+-
+-  override def execute(content: ExecuteRequest): Future[JValue] = {
+-    executedStatements += 1
+-
+-    val promise = Promise[ILoop.ExecuteResponse]()
+-    inQueue.put(ILoop.ExecuteRequest(content.code, promise))
+-
+-    promise.future.map {
+-      case rep =>
+-        val x = executedStatements - 1
+-        parse(write(Map(
+-          "status" -> "ok",
+-          "execution_count" -> x,
+-          "payload" -> Map(
+-            "text/plain" -> rep.output
+-          )
+-        )))
+-    }
+-  }
+-
+-  override def close(): Unit = {
+-    val promise = Promise[ILoop.ShutdownResponse]()
+-    inQueue.put(ILoop.ShutdownRequest(promise))
+-
+-    Await.result(promise.future, Duration.Inf)
+-
+-    thread.join()
+-  }
+-}
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+new file mode 100644
+index 0000000..9a58d77
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+@@ -0,0 +1,78 @@
++package com.cloudera.hue.livy.repl.scala
++
++import java.util.concurrent.SynchronousQueue
++
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import com.cloudera.hue.livy.repl.Session
++import org.json4s.jackson.JsonMethods._
++import org.json4s.jackson.Serialization.write
++import org.json4s.{JValue, _}
++
++import scala.collection.mutable
++import scala.concurrent.duration.Duration
++import scala.concurrent.{Await, ExecutionContext, Future, Promise}
++
++object SparkSession {
++  def create(): Session = new SparkSession()
++}
++
++private class SparkSession extends Session {
++  private implicit def executor: ExecutionContext = ExecutionContext.global
++
++  implicit val formats = DefaultFormats
++
++  private[this] val inQueue = new SynchronousQueue[ILoop.Request]
++  private[this] var executedStatements = 0
++  private[this] var statements_ = new mutable.ArrayBuffer[JValue]
++
++  org.apache.spark.repl.Main.interp = new ILoop(inQueue)
++
++  // Launch the real interpreter thread.
++  private[this] val thread = new Thread {
++    override def run(): Unit = {
++      val args = Array("-usejavacp")
++      org.apache.spark.repl.Main.interp.process(args)
++    }
++  }
++  thread.start()
++
++  override def statements: List[JValue] = synchronized {
++    statements_.toList
++  }
++
++  override def statement(id: Int): Option[JValue] = synchronized {
++    if (id < statements_.length) {
++      Some(statements_(id))
++    } else {
++      None
++    }
++  }
++
++  override def execute(content: ExecuteRequest): Future[JValue] = {
++    executedStatements += 1
++
++    val promise = Promise[ILoop.ExecuteResponse]()
++    inQueue.put(ILoop.ExecuteRequest(content.code, promise))
++
++    promise.future.map {
++      case rep =>
++        val x = executedStatements - 1
++        parse(write(Map(
++          "status" -> "ok",
++          "execution_count" -> x,
++          "payload" -> Map(
++            "text/plain" -> rep.output
++          )
++        )))
++    }
++  }
++
++  override def close(): Unit = {
++    val promise = Promise[ILoop.ShutdownResponse]()
++    inQueue.put(ILoop.ShutdownRequest(promise))
++
++    Await.result(promise.future, Duration.Inf)
++
++    thread.join()
++  }
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index 0b0dc17..1654c4c 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -47,6 +47,8 @@ class WebApp(sessionManager: SessionManager)
+ 
+     val sessionFuture = createSessionRequest.lang match {
+       case "scala" => sessionManager.createSession(createSessionRequest.lang)
++      case "spark" => sessionManager.createSession(createSessionRequest.lang)
++      case "pyspark" => sessionManager.createSession(createSessionRequest.lang)
+       case "python" => sessionManager.createSession(createSessionRequest.lang)
+       case lang => halt(400, "unsupported language: " + lang)
+     }
+-- 
+1.7.9.5
+

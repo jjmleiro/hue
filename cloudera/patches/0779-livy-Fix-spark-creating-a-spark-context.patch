@@ -1,0 +1,324 @@
+From 7c5228a0fb8a3ae1396b3cb8a9f45a2f7762ab71 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 6 Feb 2015 20:50:13 -0800
+Subject: [PATCH 0779/1173] [livy] Fix spark creating a spark context
+
+Problem was we were including an incompatible version of akka.
+---
+ apps/spark/java/livy-core/pom.xml                  |   28 +++++++++---
+ apps/spark/java/livy-repl/pom.xml                  |   47 +++++---------------
+ .../cloudera/hue/livy/repl/SparkSessionSpec.scala  |    4 +-
+ .../com/cloudera/hue/livy/repl/WebAppSpec.scala    |    3 +-
+ apps/spark/java/livy-server/pom.xml                |   32 +++----------
+ apps/spark/java/pom.xml                            |   47 +++++++-------------
+ 6 files changed, 58 insertions(+), 103 deletions(-)
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index a122d9c..b20063e 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -31,7 +31,6 @@
+             <groupId>org.eclipse.jetty</groupId>
+             <artifactId>jetty-server</artifactId>
+             <version>${jetty.version}</version>
+-            <scope>container</scope>
+         </dependency>
+ 
+         <dependency>
+@@ -44,6 +43,12 @@
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra_2.10</artifactId>
+             <version>${scalatra.version}</version>
++            <exclusions>
++                <exclusion>
++                    <groupId>com.typesafe.akka</groupId>
++                    <artifactId>akka-actor_2.10</artifactId>
++                </exclusion>
++            </exclusions>
+         </dependency>
+ 
+         <dependency>
+@@ -53,15 +58,28 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-scalatest_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>test</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-json_2.10</artifactId>
++            <version>${scalatra.version}</version>
++        </dependency>
++
++        <dependency>
+             <groupId>org.json4s</groupId>
+-            <artifactId>json4s-jackson_2.10</artifactId>
++            <artifactId>json4s_2.10</artifactId>
+             <version>${json4s.version}</version>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-server</artifactId>
+-            <version>${jetty.version}</version>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s-jackson_2.10</artifactId>
++            <version>${json4s.version}</version>
+         </dependency>
+ 
+     </dependencies>
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 41922d5..1483647 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -21,6 +21,12 @@
+     <dependencies>
+ 
+         <dependency>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-core</artifactId>
++            <version>${project.version}</version>
++        </dependency>
++
++        <dependency>
+             <groupId>org.apache.spark</groupId>
+             <artifactId>spark-repl_2.10</artifactId>
+             <version>${spark.version}</version>
+@@ -29,6 +35,11 @@
+                     <groupId>org.eclipse.jetty</groupId>
+                     <artifactId>jetty-server</artifactId>
+                 </exclusion>
++
++                <exclusion>
++                    <groupId>org.eclipse.jetty</groupId>
++                    <artifactId>jetty-util</artifactId>
++                </exclusion>
+             </exclusions>
+         </dependency>
+ 
+@@ -40,18 +51,6 @@
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-json_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+             <artifactId>scalatra-scalatest_2.10</artifactId>
+             <version>${scalatra.version}</version>
+             <scope>test</scope>
+@@ -71,18 +70,6 @@
+             <scope>provided</scope>
+         </dependency>
+ 
+-        <dependency>
+-            <groupId>com.cloudera.hue.livy</groupId>
+-            <artifactId>livy-core</artifactId>
+-            <version>${project.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>ch.qos.logback</groupId>
+-            <artifactId>logback-access</artifactId>
+-            <version>${logback.version}</version>
+-        </dependency>
+-
+     </dependencies>
+ 
+     <build>
+@@ -170,16 +157,4 @@
+         </plugins>
+     </build>
+ 
+-    <reporting>
+-        <plugins>
+-            <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
+-                <configuration>
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                </configuration>
+-            </plugin>
+-        </plugins>
+-    </reporting>
+-
+ </project>
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+index 459135f..a9a163d 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/SparkSessionSpec.scala
+@@ -1,9 +1,9 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import com.cloudera.hue.livy.repl.scala.SparkSession
+-import org.json4s.{Extraction, DefaultFormats}
+-import org.scalatest.{BeforeAndAfter, FunSpec}
++import org.json4s.{DefaultFormats, Extraction}
+ import org.scalatest.matchers.ShouldMatchers
++import org.scalatest.{FunSpec, BeforeAndAfter}
+ 
+ import _root_.scala.concurrent.Await
+ import _root_.scala.concurrent.duration.Duration
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/WebAppSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/WebAppSpec.scala
+index c7dda8a..0366499 100644
+--- a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/WebAppSpec.scala
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/WebAppSpec.scala
+@@ -1,13 +1,12 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import com.cloudera.hue.livy.repl.Session.State
+-import org.json4s.{Extraction, DefaultFormats, JValue}
+ import org.json4s.JsonAST.{JArray, JString}
+ import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
++import org.json4s.{DefaultFormats, Extraction, JValue}
+ import org.scalatest.{BeforeAndAfter, FunSpec}
+ import org.scalatra.test.scalatest.ScalatraSuite
+-
+ import _root_.scala.concurrent.Future
+ 
+ class WebAppSpec extends ScalatraSuite with FunSpec with BeforeAndAfter {
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index 695e6f4..9d176cf 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -33,32 +33,6 @@
+     <dependencies>
+ 
+         <dependency>
+-            <groupId>org.json4s</groupId>
+-            <artifactId>json4s_2.10</artifactId>
+-            <version>${json4s.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.json4s</groupId>
+-            <artifactId>json4s-jackson_2.10</artifactId>
+-            <version>${json4s.version}</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra-json_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+-        </dependency>
+-
+-        <dependency>
+             <groupId>com.cloudera.hue.livy</groupId>
+             <artifactId>livy-core</artifactId>
+             <version>${project.version}</version>
+@@ -77,6 +51,12 @@
+         </dependency>
+ 
+         <dependency>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s-jackson_2.10</artifactId>
++            <version>${json4s.version}</version>
++        </dependency>
++
++        <dependency>
+             <groupId>net.databinder.dispatch</groupId>
+             <artifactId>dispatch-core_2.10</artifactId>
+             <version>${dispatch.version}</version>
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 1afa96d..ef80e7a 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -51,10 +51,9 @@
+         <javaVersion>1.7</javaVersion>
+         <hadoop.version>2.5.0</hadoop.version>
+         <guava.version>11.0.2</guava.version>
+-        <jetty.version>8.1.16.v20140903</jetty.version>
++        <jetty.version>8.1.14.v20131031</jetty.version>
+         <json4s.version>3.2.11</json4s.version>
+         <logback.version>1.1.2</logback.version>
+-        <scala.binary.version>2.10.3</scala.binary.version>
+         <scala.version>2.10.3</scala.version>
+         <scalatra.version>2.2.1</scalatra.version>
+         <spark.version>1.1.0</spark.version>
+@@ -171,34 +170,6 @@
+                     <version>2.4.0</version>
+                 </plugin>
+ 
+-                <!-- disable surefire -->
+-                <plugin>
+-                    <groupId>org.apache.maven.plugins</groupId>
+-                    <artifactId>maven-surefire-plugin</artifactId>
+-                    <version>2.7</version>
+-                    <configuration>
+-                        <skipTests>true</skipTests>
+-                    </configuration>
+-                </plugin>
+-                <!-- enable scalatest -->
+-                <plugin>
+-                    <groupId>org.scalatest</groupId>
+-                    <artifactId>scalatest-maven-plugin</artifactId>
+-                    <version>1.0</version>
+-                    <configuration>
+-                        <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+-                        <junitxml>.</junitxml>
+-                        <filereports>WDF TestSuite.txt</filereports>
+-                    </configuration>
+-                    <executions>
+-                        <execution>
+-                            <id>test</id>
+-                            <goals>
+-                                <goal>test</goal>
+-                            </goals>
+-                        </execution>
+-                    </executions>
+-                </plugin>
+             </plugins>
+         </pluginManagement>
+ 
+@@ -248,8 +219,8 @@
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-compiler-plugin</artifactId>
+                 <configuration>
+-                    <source>1.6</source>
+-                    <target>1.6</target>
++                    <source>${javaVersion}</source>
++                    <target>${javaVersion}</target>
+                 </configuration>
+             </plugin>
+ 
+@@ -301,4 +272,16 @@
+ 
+     </build>
+ 
++    <reporting>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration>
++            </plugin>
++        </plugins>
++    </reporting>
++
+ </project>
+-- 
+1.7.9.5
+

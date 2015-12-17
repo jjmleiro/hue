@@ -1,0 +1,42 @@
+From faf708b7ada551c8cf68337102af0114ecbae9c2 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 30 Oct 2014 16:18:50 +0100
+Subject: [PATCH 0081/1173] HUE-2444 [search] Remove showDetails:false from
+ the grid result dump
+
+Deleted showDetails and details from the doc object
+---
+ apps/search/static/js/search.ko.js |   10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index 07178b4..1d6cb3d 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -1043,6 +1043,10 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+             var leafletmap = {};
+             $.each(data.response.docs, function (index, item) {
+               var row = [];
++              var _showDetails = item.showDetails;
++              var _details = item.details;
++              delete item["showDetails"];
++              delete item["details"];
+               var fields = self.collection.template.fieldsSelected();
+               // Display selected fields or whole json document
+               if (fields.length != 0) {
+@@ -1062,9 +1066,9 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+               var doc = {
+                 'id': item[self.collection.idField()],
+                 'row': row,
+-                'showDetails': ko.observable(item.showDetails),
+-                'details': ko.observableArray(item.details),
+-                'leafletmap': leafletmap,
++                'showDetails': ko.observable(_showDetails),
++                'details': ko.observableArray(_details),
++                'leafletmap': leafletmap
+               };
+               _docs.push(doc);
+             });
+-- 
+1.7.9.5
+

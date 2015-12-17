@@ -1,0 +1,82 @@
+From 8fd72ec0cfc42fcd8b9e66158eb3c6993b86f487 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 1 Nov 2014 15:58:57 +0100
+Subject: [PATCH 0221/1173] [oozie] Add SLA to action
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   19 ++++++++++++++-----
+ apps/oozie/src/oozie/views/editor2.py              |   11 +++++++++++
+ 2 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 6d80868..974a8e6 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -19,6 +19,7 @@ from django.utils.translation import ugettext as _
+ %>
+ 
+ <%namespace name="dashboard" file="/common_dashboard.mako" />
++<%namespace name="utils" file="../utils.inc.mako" />
+ 
+ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+@@ -314,14 +315,19 @@ ${ dashboard.layout_skeleton() }
+           <button data-bind="click: function(){ properties.parameters.push({'value': ''}); }">
+             <i class="fa fa-plus"></i>
+           </button>       
+-          </br>          
+-          
+-          sla <input type="text" data-bind="value: properties.sla" /></br>
+-          credentials <input type="text" data-bind="value: properties.credentials" /></br>
++          </br>                    
+         </div>
+-        <div class="tab-pane" id="sla">
++        <div class="tab-pane" id="sla">          
++          <div class="control-group">
++            <label class="control-label">${ _('SLA Configuration') }</label>
++            <div class="controls" data-bind="with: properties">
++              ${ utils.slaForm() }
++            </div>
++          </div>          
++          
+         </div>
+         <div class="tab-pane" id="credentials">
++          credentials <input type="text" data-bind="value: properties.credentials" /></br>
+         </div>
+         <div class="tab-pane" id="transitions">
+           OK --> []
+@@ -530,6 +536,9 @@ ${ dashboard.import_bindings() }
+ 
+ 
+ <script type="text/javascript">
++  ${ utils.slaGlobal() }
++
++
+   var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode });
+   ko.applyBindings(viewModel);
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index e936775..3ab5772 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -179,6 +179,17 @@ def add_node(request):
+       'prepares': [],
+       'job_xml': '',
+       'properties': [],
++      'sla': [
++          {'key': 'enabled', 'value': False},
++          {'key': 'nominal-time', 'value': ''},
++          {'key': 'should-start', 'value': ''},
++          {'key': 'should-end', 'value': ''},
++          {'key': 'max-duration', 'value': ''},
++          {'key': 'alert-events', 'value': ''},
++          {'key': 'alert-contact', 'value': ''},
++          {'key': 'notification-msg', 'value': ''},
++          {'key': 'upstream-apps', 'value': ''},
++      ]      
+   })
+ 
+   response['status'] = 0
+-- 
+1.7.9.5
+

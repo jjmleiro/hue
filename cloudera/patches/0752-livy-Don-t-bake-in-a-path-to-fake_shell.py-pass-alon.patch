@@ -1,0 +1,54 @@
+From ad3723a5421873e41feffb499cbaae25effe1138 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 4 Feb 2015 18:39:19 -0800
+Subject: [PATCH 0752/1173] [livy] Don't bake in a path to fake_shell.py, pass
+ along SPARK_HOME, set SPARK_CONF_DIR
+
+---
+ .../livy-repl/src/main/resources/fake_pyspark.sh   |    8 +++++---
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    6 ++++++
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh b/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
+index d2da7e2..c1b5957 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_pyspark.sh
+@@ -7,8 +7,10 @@ if [ -z "$SPARK_HOME" ]; then
+ 	exit 1
+ fi
+ 
+-source "$SPARK_HOME"/bin/utils.sh
+-source "$SPARK_HOME"/bin/load-spark-env.sh
++export SPARK_CONF_DIR="$SPARK_HOME/conf"
++
++source "$SPARK_HOME/bin/utils.sh"
++source "$SPARK_HOME/bin/load-spark-env.sh"
+ 
+ export PYTHONPATH="$SPARK_HOME/python/:$PYTHONPATH"
+ 
+@@ -19,4 +21,4 @@ done
+ export OLD_PYTHONSTARTUP="$PYTHONSTARTUP"
+ export PYTHONSTARTUP="$SPARK_HOME/python/pyspark/shell.py"
+ 
+-exec python livy-repl/src/main/resources/fake_shell.py
++exec python "$@"
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 251fa35..a25fc21 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -104,6 +104,12 @@ class Client(yarnConf: YarnConfiguration) {
+       containerCtx.getEnvironment()("MASTER") = master
+     }
+ 
++    // FIXME: Spark needs the `SPARK_HOME` environment passed through to run on YARN. This needs a better approach.
++    val spark_home = System.getenv("SPARK_HOME")
++    if (spark_home != null) {
++      containerCtx.getEnvironment()("SPARK_HOME") = spark_home
++    }
++
+     appContext.setApplicationId(appId)
+     appContext.setAMContainerSpec(containerCtx)
+     appContext.setApplicationType("livy")
+-- 
+1.7.9.5
+

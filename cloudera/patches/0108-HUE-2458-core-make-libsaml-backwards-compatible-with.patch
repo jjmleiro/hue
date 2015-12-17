@@ -1,0 +1,70 @@
+From 216c5a502c2e843fb577dfd57cc4f7cd4d69e012 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 11 Nov 2014 15:04:42 -0800
+Subject: [PATCH 0108/1173] HUE-2458 [core] make libsaml backwards compatible
+ with abec's saml2 forks
+
+---
+ desktop/libs/libsaml/src/libsaml/saml_settings.py |    3 +++
+ desktop/libs/libsaml/src/libsaml/urls.py          |    2 +-
+ desktop/libs/libsaml/src/libsaml/views.py         |   15 +++++++++------
+ 3 files changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/saml_settings.py b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+index 0076a74..fd64449 100644
+--- a/desktop/libs/libsaml/src/libsaml/saml_settings.py
++++ b/desktop/libs/libsaml/src/libsaml/saml_settings.py
+@@ -90,3 +90,6 @@ SAML_CONFIG = {
+ 
+ SAML_ATTRIBUTE_MAPPING = libsaml.conf.USER_ATTRIBUTE_MAPPING.get()
+ SAML_CREATE_UNKNOWN_USER = libsaml.conf.CREATE_USERS_ON_LOGIN.get()
++
++if libsaml.conf.USERNAME_SOURCE.get() == 'nameid':
++  SAML_USE_NAME_ID_AS_USERNAME = True
+diff --git a/desktop/libs/libsaml/src/libsaml/urls.py b/desktop/libs/libsaml/src/libsaml/urls.py
+index deed5aa..f79fbd2 100644
+--- a/desktop/libs/libsaml/src/libsaml/urls.py
++++ b/desktop/libs/libsaml/src/libsaml/urls.py
+@@ -31,7 +31,7 @@ urlpatterns = patterns(
+ 
+ urlpatterns += patterns('libsaml.views',
+                         url(r'^ls/$', 'logout_service', name='saml2_ls'),
+-                        url(r'^acs/$', 'acs', name='saml2_acs'),
++                        url(r'^acs/$', 'assertion_consumer_service', name='saml2_acs'),
+                         url(r'^login/$', 'login', name='saml2_login'),
+                         url(r'^metadata/$', 'metadata', name='saml2_metadata'),
+                         url(r'^test/$', 'echo_attributes'))
+diff --git a/desktop/libs/libsaml/src/libsaml/views.py b/desktop/libs/libsaml/src/libsaml/views.py
+index 7682593..c0a1416 100644
+--- a/desktop/libs/libsaml/src/libsaml/views.py
++++ b/desktop/libs/libsaml/src/libsaml/views.py
+@@ -32,17 +32,20 @@ import libsaml.conf
+ __all__ = ['login', 'echo_attributes', 'assertion_consumer_service', 'metadata']
+ 
+ 
+-@require_POST
+-@csrf_exempt
+-def acs(request, config_loader_path=None, attribute_mapping=None, create_unknown_user=None):
+-  username_source = libsaml.conf.USERNAME_SOURCE.get().lower()
+-  return assertion_consumer_service(request, config_loader_path, attribute_mapping, create_unknown_user, username_source)
++if logout_service_post is None:
++  _assertion_consumer_service = assertion_consumer_service
++
++  @require_POST
++  @csrf_exempt
++  def assertion_consumer_service(request, config_loader_path=None, attribute_mapping=None, create_unknown_user=None):
++    username_source = libsaml.conf.USERNAME_SOURCE.get().lower()
++    return _assertion_consumer_service(request, config_loader_path, attribute_mapping, create_unknown_user, username_source)
+ 
+ 
+ setattr(logout_service, 'login_notrequired', True)
+ setattr(login, 'login_notrequired', True)
+ setattr(echo_attributes, 'login_notrequired', True)
+-setattr(acs, 'login_notrequired', True)
++setattr(assertion_consumer_service, 'login_notrequired', True)
+ setattr(metadata, 'login_notrequired', True)
+ 
+ if logout_service_post is not None:
+-- 
+1.7.9.5
+

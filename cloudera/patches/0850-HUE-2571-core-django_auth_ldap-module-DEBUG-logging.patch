@@ -1,0 +1,62 @@
+From 833ea342f91a98d5b422686e35e9e303ba350712 Mon Sep 17 00:00:00 2001
+From: Michalis Kongtongk <michalis@cloudera.com>
+Date: Tue, 17 Feb 2015 17:52:31 -0800
+Subject: [PATCH 0850/1173] HUE-2571 [core] django_auth_ldap module DEBUG
+ logging
+
+---
+ desktop/conf.dist/log.conf |    6 +++++-
+ desktop/conf/log.conf      |    6 +++++-
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/conf.dist/log.conf b/desktop/conf.dist/log.conf
+index b7faf24..a605435 100644
+--- a/desktop/conf.dist/log.conf
++++ b/desktop/conf.dist/log.conf
+@@ -22,6 +22,10 @@ handlers=logfile,errorlog
+ handlers=accesslog
+ qualname=access
+ 
++[logger_django_auth_ldap]
++handlers=accesslog
++qualname=django_auth_ldap
++
+ # The logrotation limit is set at 5MB per file for a total of 5 copies.
+ # I.e. 25MB for each set of logs.
+ [handler_accesslog]
+@@ -49,7 +53,7 @@ format=[%(asctime)s] %(levelname)-8s %(message)s
+ datefmt=%d/%b/%Y %H:%M:%S %z
+ 
+ [loggers]
+-keys=root,access
++keys=root,access,django_auth_ldap
+ 
+ [handlers]
+ keys=logfile,accesslog,errorlog
+diff --git a/desktop/conf/log.conf b/desktop/conf/log.conf
+index eeff378..581f012 100644
+--- a/desktop/conf/log.conf
++++ b/desktop/conf/log.conf
+@@ -17,6 +17,10 @@ handlers=logfile,errorlog
+ handlers=accesslog
+ qualname=access
+ 
++[logger_django_auth_ldap]
++handlers=accesslog
++qualname=django_auth_ldap
++
+ [handler_stderr]
+ class=StreamHandler
+ formatter=default
+@@ -59,7 +63,7 @@ datefmt=%d/%b/%Y %H:%M:%S %z
+ ########################################
+ 
+ [loggers]
+-keys=root,access
++keys=root,access,django_auth_ldap
+ 
+ [handlers]
+ keys=stderr,logfile,accesslog,errorlog
+-- 
+1.7.9.5
+

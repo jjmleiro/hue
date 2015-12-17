@@ -1,0 +1,56 @@
+From 4864b89eb8c3c601c06ef02593d55c6d70b77a6b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 02:59:07 +0100
+Subject: [PATCH 0579/1173] [spark] Fix infinite scroll for queries that don't
+ have more results
+
+---
+ apps/spark/src/spark/templates/editor.mako |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 6cf48d4..a06390b 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -1029,7 +1029,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     $(".dataTables_filter").hide();
+     var dataTableEl = $(el).parents(".dataTables_wrapper");
+ 
+-    var _bodyScrollTimeout = -1;
+     dataTableEl.bind('mousewheel DOMMouseScroll wheel', function (e) {
+       var _e = e.originalEvent,
+           _deltaX = _e.wheelDeltaX || -_e.deltaX,
+@@ -1307,6 +1306,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           redrawFixedHeaders();
+         }, 100);
+       }
++      else {
++        var _dtElement = $("#snippet_" + options.snippet.id()).find(".dataTables_wrapper");
++        _dtElement.animate({opacity: '1'}, 50);
++        _dtElement.off("scroll");
++      }
+     });
+ 
+     $(document).on("progress", function (e, options) {
+@@ -1316,6 +1320,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             height: "1px"
+           }, 100, function () {
+             options.snippet.progress(0);
++            redrawFixedHeaders();
+           });
+         }, 2000);
+       }
+@@ -1345,10 +1350,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     });
+   });
+ 
+-
+-function getTime(){
+-  return (new Date()).getTime();
+-}
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+-- 
+1.7.9.5
+

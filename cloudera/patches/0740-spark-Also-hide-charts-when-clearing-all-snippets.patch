@@ -1,0 +1,62 @@
+From 8019dc375479d4d9de04f9f7a63511ea7c7d9d8a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 2 Feb 2015 18:46:31 -0500
+Subject: [PATCH 0740/1173] [spark] Also hide charts when clearing all
+ snippets
+
+---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ apps/spark/static/js/spark.ko.js           |    9 +++++----
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 135b6aa..e3544ec 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -495,7 +495,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </div>
+         </div>
+ 
+-        <div class="row-fluid" data-bind="visible: showChart()" style="max-height: 400px; margin-top: 4px">
++        <div class="row-fluid" data-bind="visible: status() != 'ready' && showChart()" style="max-height: 400px; margin-top: 4px">
+           <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': ! isLeftPanelVisible()}">
+             <div class="toggle-left-panel" style="float: right; margin-right: -30px; height: 400px; line-height: 400px; margin-top:0" data-bind="click: toggleLeftPanel">
+               <a title="${_('Hide settings')}" class="pointer">
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 48fcbbc..ebf4bf1 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -133,7 +133,7 @@ var Snippet = function (vm, notebook, snippet) {
+       var match = ko.utils.arrayFirst(self.variables(), function (_var) {
+         return _var.name() == name;
+       });
+-      if (!match) {
++      if (! match) {
+         toAdd.push(name);
+       }
+     });
+@@ -141,7 +141,7 @@ var Snippet = function (vm, notebook, snippet) {
+       var match = ko.utils.arrayFirst(newVal, function (name) {
+         return _var.name() == name;
+       });
+-      if (!match) {
++      if (! match) {
+         toDelete.push(_var);
+       }
+     });
+@@ -593,9 +593,10 @@ var Notebook = function (vm, notebook) {
+   };
+   
+   self.clearResults = function () {
+-	$.each(self.snippets(), function(index, snippet) {
++    $.each(self.snippets(), function(index, snippet) {
+       snippet.result.clear();
+-	});
++      snippet.status('ready');
++    });
+   };
+ }
+ 
+-- 
+1.7.9.5
+

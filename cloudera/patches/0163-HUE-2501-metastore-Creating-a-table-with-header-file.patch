@@ -1,0 +1,33 @@
+From 075c710b67b98f541a9d4f27a22798b1e7304569 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 18 Dec 2014 18:40:26 -0800
+Subject: [PATCH 0163/1173] HUE-2501 [metastore] Creating a table with header
+ files bigger than 64MB truncates it
+
+---
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index a38f743..37dde1b 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -559,6 +559,7 @@ class WebHdfs(Hdfs):
+ 
+     while True:
+       data = self.read(src, offset, UPLOAD_CHUNK_SIZE.get())
++      cnt = len(data)
+       if offset == 0:
+         if skip_header:
+           n = data.index('\n')
+@@ -574,7 +575,6 @@ class WebHdfs(Hdfs):
+       if offset != 0:
+         self.append(dst, data)
+ 
+-      cnt = len(data)
+       if cnt < UPLOAD_CHUNK_SIZE.get():
+         break
+ 
+-- 
+1.7.9.5
+

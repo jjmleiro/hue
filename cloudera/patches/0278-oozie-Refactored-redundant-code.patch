@@ -1,0 +1,44 @@
+From e3d5c5834d91d84ed96ccd97a9b32dc7e5fef91e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 11 Nov 2014 11:33:55 +0100
+Subject: [PATCH 0278/1173] [oozie] Refactored redundant code
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   15 +++++----------
+ 1 file changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index c712ada..e3a473c 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -400,22 +400,17 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       var _parentCol = target instanceof Column ? target : self.getRowParentColumn(target.id());
+ 
+       var _newRow = null;
+-      if (typeof atBeginning != "undefined"){
+-        if (atBeginning){
+-          if (_parentCol.rows().length > 0 && _parentCol.rows()[0].widgets() && _parentCol.rows()[0].widgets().length > 0  && _parentCol.rows()[0].widgets()[0].widgetType()=="start-widget"){
++      if (typeof atBeginning != "undefined") {
++        if (_parentCol.rows().length > 0 && _parentCol.rows()[0].widgets() && _parentCol.rows()[0].widgets().length > 0 && _parentCol.rows()[0].widgets()[0].widgetType() == "start-widget") {
++          if (atBeginning) {
+             _newRow = _parentCol.addEmptyRow(false, 1);
+           }
+           else {
+-            _newRow = _parentCol.addEmptyRow(atBeginning);
++            _newRow = _parentCol.addEmptyRow(false, _parentCol.rows().length - 1);
+           }
+         }
+         else {
+-          if (_parentCol.rows().length > 0 && _parentCol.rows()[0].widgets() && _parentCol.rows()[0].widgets().length > 0  && _parentCol.rows()[0].widgets()[0].widgetType()=="start-widget"){
+-            _newRow = _parentCol.addEmptyRow(false, _parentCol.rows().length - 1);
+-          }
+-          else {
+-            _newRow = _parentCol.addEmptyRow(atBeginning);
+-          }
++          _newRow = _parentCol.addEmptyRow(atBeginning);
+         }
+       }
+       else {
+-- 
+1.7.9.5
+

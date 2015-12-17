@@ -1,0 +1,695 @@
+From 643abb283e864fc10423fcaec7906bc7ed49f70f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 12 Dec 2014 12:03:50 -0800
+Subject: [PATCH 0335/1173] [oozie] Generate basic XML of Coordinator
+
+Save and load a Coordinator
+---
+ apps/oozie/src/oozie/models2.py                    |  212 +++++++++++++++++---
+ .../oozie/templates/editor/coordinator_editor.mako |    9 +-
+ .../templates/editor/gen2/coordinator.xml.mako     |   80 ++++----
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/src/oozie/urls.py                       |    2 +
+ apps/oozie/src/oozie/views/editor2.py              |   94 ++++++---
+ apps/oozie/static/js/coordinator-editor.ko.js      |   32 +--
+ 7 files changed, 317 insertions(+), 114 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index a4d4e19..9fab2ad 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -36,6 +36,7 @@ from liboozie.submission2 import create_directories
+ 
+ from oozie.conf import REMOTE_SAMPLE_DIR
+ from oozie.models import Workflow as OldWorflows
++from oozie.utils import utc_datetime_format
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -1190,46 +1191,193 @@ class Coordinator():
+   XML_FILE_NAME = 'coordinator.xml'
+   PROPERTY_APP_PATH = 'oozie.coord.application.path'
+ 
+-  def __init__(self, data=None, document=None):
++  def __init__(self, data=None, json_data=None, document=None):
+     self.document = document
+ 
+     if document is not None:
+-      self.data = document.data
++      self._data = json.loads(document.data)
++    elif json_data is not None:
++      self._data = json.loads(json_data)
+     elif data is not None:
+-      self.data = data
++      self._data = data
+     else:
+-      self.data = json.dumps({
+-          'coordinator': {
+-              "id": None, 
+-              "uuid": None,
+-              "name": "My Coordinator",
+-              "properties": {
+-                  "frequency_number": 1,
+-                  "frequency_unit": "days",
+-                  "cron_frequency": "0 0 * * *",
+-                  "timezone": "America/Los_Angeles",
+-                  "start": datetime.today().strftime('%s'),
+-                  "end": (datetime.today() + timedelta(days=3)).strftime('%s'),
+-                  "workflow": None,
+-                  "concurrency": None,
+-                  "execution": None,
+-                  "throttle": None,
+-                  "job_xml": "",
+-                  "sla_enabled": False,
+-                  "sla_workflow_enabled": False,
+-                  "credentials": [],
+-                  "properties": [],
+-                  "sla": Workflow.SLA_DEFAULT
+-              }
++      self._data = {
++          "id": None, 
++          "uuid": None,
++          "name": "My Coordinator",
++          "variables": [],
++          "properties": {
++              "schema_version": "uri:oozie:coordinator:0.2",
++              "frequency_number": 1,
++              "frequency_unit": "days",
++              "cron_frequency": "0 0 * * *",
++              "cron_advanced": False,
++              "timezone": "America/Los_Angeles",
++              "start": datetime.today(),
++              "end": datetime.today() + timedelta(days=3),
++              "workflow": None,
++              "timeout": None,
++              "concurrency": None,
++              "execution": None,
++              "throttle": None,
++              "job_xml": "",
++              "sla_enabled": False,
++              "sla_workflow_enabled": False,
++              "credentials": [],
++              "properties": [],
++              "sla": Workflow.SLA_DEFAULT
+           }
+-      })
++      }
+ 
+-  def get_json(self):
+-    _data = self.get_data()
++  @property
++  def json(self):
++    _data = self.data.copy()
++
++    _data['properties']['start'] = _data['properties']['start'].strftime('%Y-%m-%dT%H:%M:%S')
++    _data['properties']['end'] = _data['properties']['end'].strftime('%Y-%m-%dT%H:%M:%S')
+ 
+     return json.dumps(_data)
+  
+-  def get_data(self):
+-    _data = json.loads(self.data)
++  @property
++  def data(self):
++    self._data['properties']['start'] = datetime.today()
++    self._data['properties']['end'] = datetime.today() + timedelta(days=3)    
++    
++    return self._data
++  
++  @property
++  def datasets(self):
++    return self.inputDatasets + self.outputDatasets
++  
++  @property
++  def inputDatasets(self):    
++    return [Dataset(dataset) for dataset in self.data['variables'] if dataset['dataset_type'] == 'input_path']
++    
++  @property
++  def outputDatasets(self):
++    return [Dataset(dataset) for dataset in self.data['variables'] if dataset['dataset_type'] == 'output_path']
+ 
+-    return _data
++  @property
++  def start_utc(self):
++    return utc_datetime_format(self.data['properties']['start'])
++
++  @property
++  def end_utc(self):
++    return utc_datetime_format(self.data['properties']['end'])
++
++  @property
++  def frequency(self):
++    return '${coord:%(unit)s(%(number)d)}' % {'unit': self.data['properties']['frequency_unit'], 'number': self.data['properties']['frequency_number']}
++
++  @property
++  def cron_frequency(self):
++    data_dict = self.data['properties']
++    
++    if 'cron_frequency' in data_dict:
++      return data_dict['cron_frequency']
++    else:
++      # Backward compatibility
++      freq = '0 0 * * *'
++      if data_dict['frequency_number'] == 1:
++        if data_dict['frequency_number'] == 'MINUTES':
++          freq = '* * * * *'
++        elif data_dict['frequency_number'] == 'HOURS':
++          freq = '0 * * * *'
++        elif data_dict['frequency_number'] == 'DAYS':
++          freq = '0 0 * * *'
++        elif data_dict['frequency_number'] == 'MONTH':
++          freq = '0 0 * * *'
++      return {'frequency': freq, 'isAdvancedCron': False}
++
++  def to_xml(self, mapping=None):
++    if mapping is None:
++      mapping = {}
++
++    tmpl = "editor/gen2/coordinator.xml.mako"
++    return re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {'coord': self, 'mapping': mapping})).encode('utf-8', 'xmlcharrefreplace') 
++  
++#  def get_properties(self):
++#    props = self.properties.copy()
++#    index = [prop['name'] for prop in props]
++#
++#    for prop in self.workflow.find_all_parameters():
++#      if not prop['name'] in index:
++#        props.append(prop)
++#        index.append(prop['name'])
++#
++#    # Remove DataInputs and DataOutputs
++#    removable_names = [dataset.workflow_variable for dataset in self.datasets]
++#    props = filter(lambda prop: prop['name'] not in removable_names, props)
++#
++#    return props
++  
++  
++  
++class Dataset():
++
++  def __init__(self, data=None, json_data=None):
++    if json_data is not None:
++      self.data = json.loads(json_data)
++    elif data is not None:
++      self.data = data
++    else:
++      self.data = {
++          'name': 'dataset',
++          'frequency_number': 1,
++          'frequency_unit': 'days',
++          'start': datetime.today(),
++          'uri': '',
++          'done_flag': '',
++          'instance_choice': 'default',
++          'advanced_start_instance': '0',
++          'advanced_end_instance': '0',
++          
++          'workflow_variable': ''
++      }  
++      
++  @property
++  def data(self):
++    return self.data      
++      
++  @property
++  def frequency(self):
++    return '${coord:%(unit)s(%(number)d)}' % {'unit': self.data['frequency_unit'], 'number': self.data['frequency_number']}
++      
++  @property
++  def start_utc(self):
++    return utc_datetime_format(self.data['start'])
++
++  @property
++  def start_instance(self):
++    if not self.is_advanced_start_instance:
++      return int(self.data['advanced_start_instance'])
++    else:
++      return 0
++
++  @property
++  def is_advanced_start_instance(self):
++    return not self.is_int(self.data['advanced_start_instance'])
++
++  def is_int(self, text):
++    try:
++      int(text)
++      return True
++    except ValueError:
++      return False
++
++  @property
++  def end_instance(self):
++    if not self.is_advanced_end_instance:
++      return int(self.data['advanced_end_instance'])
++    else:
++      return 0
++
++  @property
++  def is_advanced_end_instance(self):
++    return not self.is_int(self.data['advanced_end_instance'])
++
++
++
++      
++      
++      
+\ No newline at end of file
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 4f33c0a..9057b97 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -88,6 +88,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+     <select data-bind="options: workflows,
+                        optionsText: 'name',
++                       optionsValue: 'uuid',
+                        value: coordinator.properties.workflow,
+                        optionsCaption: 'Choose...'">
+     </select>
+@@ -147,7 +148,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+           
+           <span data-bind="visible: show_advanced">            
+             Done flag <input data-bind="value: done_flag"/>
+-            Range <input data-bind="value: range"/>
++            Range <input data-bind="value: instance_choice"/>
+             ...
+           </span>          
+         <!-- /ko -->
+@@ -176,16 +177,16 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+       <br/>
+ 
+       ${ _('Oozie Parameters') }
+-      <ul data-bind="foreach: $root.coordinator.properties.parameters">
++      <ul data-bind="foreach: coordinator.properties.properties">
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+-          <a href="#" data-bind="click: function(){ $root.coordinator.properties.parameters.remove(this); }">
++          <a href="#" data-bind="click: function(){ $root.coordinator.properties.properties.remove(this); }">
+             <i class="fa fa-minus"></i>
+           </a>
+         </li>
+       </ul>
+-      <button data-bind="click: function(){ $root.coordinator.properties.parameters.push({'name': '', 'value': ''}); }">
++      <button data-bind="click: function(){ $root.coordinator.properties.properties.push({'name': '', 'value': ''}); }">
+         <i class="fa fa-plus"></i>
+       </button>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index db35cfc..6e0aab0 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -24,9 +24,9 @@
+ 
+ 
+ <%def name="render_dataset_instance(dataset)">
+-  % if dataset.instance_choice == 'default':
++  % if dataset.data['instance_choice'] == 'default':
+     <instance>${ '${'}coord:current(0)}</instance>
+-  % elif dataset.instance_choice == 'single':
++  % elif dataset.data['instance_choice'] == 'single':
+     % if not dataset.is_advanced_start_instance:
+       <instance>${ '${'}coord:current(${ dataset.start_instance })}</instance>
+     % else:
+@@ -51,59 +51,61 @@
+ </%def>
+ 
+ 
+-<coordinator-app name="${ coord.name }"
++<coordinator-app name="${ coord.data['name'] | x }"
+   % if ENABLE_CRON_SCHEDULING.get():
+-  frequency="${ coord.cron_frequency['frequency'] }"
++  frequency="${ coord.cron_frequency }"
+   % else:
+   frequency="${ coord.frequency }"
+   % endif
+-  start="${ coord.start_utc }" end="${ coord.end_utc }" timezone="${ coord.timezone }"
+-  xmlns="${ 'uri:oozie:coordinator:0.4' if coord.sla_enabled else coord.schema_version | n,unicode }"
+-  ${ 'xmlns:sla="uri:oozie:sla:0.2"' if coord.sla_enabled else '' | n,unicode }>
+-  % if coord.timeout is not None or coord.concurrency is not None or coord.execution or coord.throttle is not None:
++  start="${ coord.start_utc }" end="${ coord.end_utc }" timezone="${ coord.data['properties']['timezone'] }"
++  xmlns="${ 'uri:oozie:coordinator:0.4' if coord.data['properties']['sla_enabled'] else coord.data['properties']['schema_version'] | n,unicode }"
++  ${ 'xmlns:sla="uri:oozie:sla:0.2"' if coord.data['properties']['sla_enabled'] else '' | n,unicode }>
++  % if coord.data['properties']['timeout'] or coord.data['properties']['concurrency'] or coord.data['properties']['execution'] or coord.data['properties']['throttle']:
+   <controls>
+-    % if coord.timeout is not None:
+-    <timeout>${ coord.timeout }</timeout>
++    % if coord.data['properties']['timeout']:
++    <timeout>${ coord.data['properties']['timeout'] }</timeout>
+     % endif
+-    % if coord.concurrency is not None:
+-    <concurrency>${ coord.concurrency }</concurrency>
++    % if coord.data['properties']['concurrency']:
++    <concurrency>${ coord.data['properties']['concurrency'] }</concurrency>
+     % endif
+-    % if coord.execution:
+-    <execution>${ coord.execution }</execution>
++    % if coord.data['properties']['execution']:
++    <execution>${ coord.data['properties']['execution'] }</execution>
+     % endif
+-    % if coord.throttle is not None:
+-    <throttle>${ coord.throttle }</throttle>
++    % if coord.data['properties']['throttle']:
++    <throttle>${ coord.data['properties']['throttle'] }</throttle>
+     % endif
+   </controls>
+   % endif
+ 
+-  % if coord.dataset_set.exists():
++  % if coord.datasets:
+   <datasets>
+-    % for dataset in coord.dataset_set.all():
+-    <dataset name="${ dataset.name }" frequency="${ dataset.frequency }"
+-             initial-instance="${ dataset.start_utc }" timezone="${ dataset.timezone }">
+-      <uri-template>${ smart_path(dataset.uri, mapping) }</uri-template>
+-      <done-flag>${ dataset.done_flag }</done-flag>
++    % for dataset in coord.datasets:
++    <dataset name="${ dataset['name'] }" frequency="${ dataset.data['frequency'] }"
++             initial-instance="${ dataset.start_utc }" timezone="${ dataset.data['timezone'] }">
++      <uri-template>${ smart_path(dataset.data['uri'], mapping) }</uri-template>
++      % if dataset.data['done_flag'] is not None:
++      <done-flag>${ dataset.data['done_flag'] }</done-flag>
++      % endif
+     </dataset>
+     % endfor
+   </datasets>
+   % endif
+ 
+-  % if coord.datainput_set.exists():
++  % if coord.inputDatasets:
+   <input-events>
+-    % for input in coord.datainput_set.all():
+-    <data-in name="${ input.name }" dataset="${ input.dataset.name }">
+-      ${ render_dataset_instance(input.dataset) }
++    % for dataset in coord.inputDatasets:
++    <data-in name="${ dataset.data['workflow_variable'] }" dataset="${ dataset.data['name'] }">
++      ${ render_dataset_instance(dataset) }
+     </data-in>
+     % endfor
+   </input-events>
+   % endif
+ 
+-  % if coord.dataoutput_set.exists():
++  % if coord.outputDatasets:
+   <output-events>
+-    % for output in coord.dataoutput_set.all():
+-    <data-out name="${ output.name }" dataset="${ output.dataset.name }">
+-      ${ render_dataset_instance(output.dataset) }
++    % for dataset in coord.outputDatasets:
++    <data-out name="${ dataset.data['workflow_variable'] }" dataset="${ dataset.data['name'] }">
++      ${ render_dataset_instance(dataset) }
+     </data-out>
+     % endfor
+   </output-events>
+@@ -112,21 +114,21 @@
+   <action>
+     <workflow>
+       <app-path>${'${'}wf_application_path}</app-path>
+-      % if coord.datainput_set.exists() or coord.dataoutput_set.exists() or coord.get_properties():
++      % if coord.inputDatasets or coord.outputDatasets or coord.data['properties']['properties']:
+       <configuration>
+-        % for input in coord.datainput_set.all():
++        % for dataset in coord.inputDatasets:
+           <property>
+-            <name>${ input.name }</name>
+-            <value>${'${'}coord:dataIn('${ input.name }')}</value>
++            <name>${ dataset.data['name'] }</name>
++            <value>${'${'}coord:dataIn('${ dataset.data['name'] }')}</value>
+           </property>
+         % endfor
+-        % for output in coord.dataoutput_set.all():
++        % for dataset in coord.outputDatasets:
+         <property>
+-          <name>${ output.name }</name>
+-          <value>${'${'}coord:dataOut('${ output.name }')}</value>
++          <name>${ dataset.data['name'] }</name>
++          <value>${'${'}coord:dataOut('${ dataset.data['name'] }')}</value>
+         </property>
+         % endfor
+-        % for property in coord.get_properties():
++        % for property in coord.data['properties']['properties']:
+         <property>
+           <name>${ property['name'] }</name>
+           <value>${ property['value'] }</value>
+@@ -135,6 +137,6 @@
+       </configuration>
+       % endif
+    </workflow>
+-   ${ common.sla(coord) }
++   ${ common.sla(coord.data) }
+   </action>
+ </coordinator-app>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 91fe42e..ee7a4e3 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -484,7 +484,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="min-height: 40px">
+     <div class="big-icon" data-bind="visible: id() == '17c9c895-5a16-7443-bb81-f34b30b21548'"><i class="fa fa-stop"></i></div>
+ 
+-    <div data-bind="visible: $root.isEditing()" style="padding: 10px">
++    <div data-bind="visible: $root.isEditing" style="padding: 10px">
+       <h6 class="field-title">${ _('Message') }</h6>
+       <textarea class="span12" data-bind="value: properties.message" />
+     </div>
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 67ba9fc..3d4ac8c 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -84,6 +84,8 @@ urlpatterns += patterns(
+   url(r'^editor/coordinator/list/$', 'list_editor_coordinators', name='list_editor_coordinators'),
+   url(r'^editor/coordinator/edit/$', 'edit_coordinator', name='edit_coordinator'),
+   url(r'^editor/coordinator/new/$', 'new_coordinator', name='new_coordinator'),
++  url(r'^editor/coordinator/save/$', 'save_coordinator', name='save_coordinator'),
++  url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'), # Temporary
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 5416383..489e8b7 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -242,15 +242,12 @@ def list_editor_coordinators(request):
+ 
+ 
+ def edit_coordinator(request):
+-
+   coordinator_id = request.GET.get('coordinator')
+   
+   if coordinator_id:
+     coordinator = Coordinator(document=Document2.objects.get(id=coordinator_id)) # Todo perms
+   else:
+     coordinator = Coordinator()
+-  
+-  coordinator_data = coordinator.get_data()
+ 
+   api = get_oozie(request.user)
+   credentials = Credentials()
+@@ -261,7 +258,7 @@ def edit_coordinator(request):
+     LOG.error(smart_str(e))
+ 
+   return render('editor/coordinator_editor.mako', request, {
+-      'coordinator_json': json.dumps(coordinator_data['coordinator']),
++      'coordinator_json': coordinator.json,
+       'credentials_json': json.dumps(credentials.credentials.keys()),
+       'workflows_json': json.dumps(list(Document2.objects.filter(type='oozie-workflow2', owner=request.user).values('uuid', 'name')))
+   })
+@@ -274,36 +271,85 @@ def new_coordinator(request):
+ def save_coordinator(request):
+   response = {'status': -1}
+ 
+-  workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
+-  layout = json.loads(request.POST.get('layout', '{}'))
++  coordinator_data = json.loads(request.POST.get('coordinator', '{}')) # TODO perms
+ 
+   name = 'test'
+ 
+-  if workflow.get('id'):
+-    workflow_doc = Document2.objects.get(id=workflow['id'])
++  if coordinator_data.get('id'):
++    coordinator_doc = Document2.objects.get(id=coordinator_data['id'])
+   else:      
+-    workflow_doc = Document2.objects.create(name=name, type='oozie-workflow2', owner=request.user)
++    coordinator_doc = Document2.objects.create(name=name, type='oozie-coordinator2', owner=request.user)
+ 
+-  subworkflows = [node['properties']['subworkflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
+-  if subworkflows:
+-    dependencies = Document2.objects.filter(uuid__in=subworkflows)
+-    workflow_doc.dependencies = dependencies
++  if coordinator_data['properties']['workflow']:
++    dependencies = Document2.objects.filter(uuid=coordinator_data['properties']['workflow'])
++    coordinator_doc.dependencies = dependencies
+ 
+-  workflow_doc.update_data({'workflow': workflow})
+-  workflow_doc.update_data({'layout': layout})
+-  workflow_doc.name = name
+-  workflow_doc.save()
+-  
+-  workflow_instance = Workflow(document=workflow_doc)
+-  workflow_instance.check_workspace(request.fs)
++  coordinator_doc.update_data(coordinator_data)
++  coordinator_doc.name = name
++  coordinator_doc.save()
+   
+   response['status'] = 0
+-  response['id'] = workflow_doc.id
+-  response['message'] = _('Page saved !')
++  response['id'] = coordinator_doc.id
++  response['message'] = _('Saved !')
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def gen_xml_coordinator(request):
++  response = {'status': -1}
++
++#  try:
++  coordinator_dict = json.loads(request.POST.get('coordinator', '{}')) # TODO perms
++
++  coordinator = Coordinator(data=coordinator_dict)
++
++  response['status'] = 0
++  response['xml'] = coordinator.to_xml()
++#  except Exception, e:
++#    response['message'] = str(e)
++    
++  return HttpResponse(json.dumps(response), mimetype="application/json") 
+ 
+-def submit_coordinator(request, doc_id):
+-  pass
++
++def submit_coordinator(request, coordinator):
++  ParametersFormSet = formset_factory(ParameterForm, extra=0)
++
++  if request.method == 'POST':
++    params_form = ParametersFormSet(request.POST)
++
++    if params_form.is_valid():
++      mapping = dict([(param['name'], param['value']) for param in params_form.cleaned_data])
++      job_id = _submit_coordinator(request, coordinator, mapping)
++
++      request.info(_('Coordinator submitted.'))
++      return redirect(reverse('oozie:list_oozie_coordinator', kwargs={'job_id': job_id}))
++    else:
++      request.error(_('Invalid submission form: %s' % params_form.errors))
++  else:
++    parameters = coordinator.find_all_parameters()
++    initial_params = ParameterForm.get_initial_params(dict([(param['name'], param['value']) for param in parameters]))
++    params_form = ParametersFormSet(initial=initial_params)
++
++  popup = render('editor/submit_job_popup.mako', request, {
++                 'params_form': params_form,
++                 'action': reverse('oozie:submit_coordinator',  kwargs={'coordinator': coordinator.id})
++                }, force_template=True).content
++  return HttpResponse(json.dumps(popup), mimetype="application/json")
++
++
++def _submit_coordinator(request, coordinator, mapping):
++  try:
++    wf_dir = Submission(request.user, coordinator.workflow, request.fs, request.jt, mapping).deploy()
++
++    properties = {'wf_application_path': request.fs.get_hdfs_path(wf_dir)}
++    properties.update(mapping)
++
++    submission = Submission(request.user, coordinator, request.fs, request.jt, properties=properties)
++    job_id = submission.run()
++
++    History.objects.create_from_submission(submission)
++
++    return job_id
++  except RestException, ex:
++    raise PopupException(_("Error submitting coordinator %s") % (coordinator,),
++                         detail=ex._headers.get('oozie-error-message', ex))
+\ No newline at end of file
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 8ba6fcd..50dbd2e 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -56,38 +56,41 @@ var Coordinator = function (vm, coordinator) {
+   self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "");
+ 
+   self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
+-
++  
+   self.variables = ko.observableArray([]);
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
+ 
+-  
+   self.properties.workflow.subscribe(function(newVal) {
+     if (newVal) {
+ 	  $.get("/desktop/api2/doc/get", {
+-		  "uuid":  self.properties.workflow().uuid()
++        "uuid": self.properties.workflow()
+ 	   }, function (data) {
+-	     // set wf
++	    // set wf
+ 	  }).fail(function (xhr, textStatus, errorThrown) {
+-	     $(document).trigger("error", xhr.responseText);
++	    $(document).trigger("error", xhr.responseText);
+ 	  });
+ 	}
+   });
+   
+   self.addVariable = function() {
+-    var _var = {
++    var _var = {       
+        'workflow_variable': '',
++       
+        'dataset_type': 'parameter',
+-       'dataset_variable': '',
+-       'show_advanced': false,
+        
++       'uuid': UUID(),
++       'dataset_variable': '',       
++       'show_advanced': false,       
+        'done_flag': '',
+-       'timzone': 'America/Los_Angeles',
+-       'range': 'single',
++       'timezone': 'America/Los_Angeles',
++       'instance_choice': 'default', // is_advanced_start_instance, start_instance, is_advanced_end_instance, end_instance
+        'frequency_number': 1,
+        'frequency_unit': 'DAYS',
+        'start': null,
+        'name': '',
++       'shared_dataset_uuid': '' // If reusing a shared dataset
+     };
++
+ 	self.variables.push(ko.mapping.fromJS(_var));	  
+   };
+   
+@@ -108,12 +111,13 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+     self.isEditing(! self.isEditing());
+   };
+ 
++  self.workflows = ko.mapping.fromJS(workflows_json);
+   self.coordinator = new Coordinator(self, coordinator_json);
+   self.credentials = ko.mapping.fromJS(credentials_json);
+-  self.workflows = ko.mapping.fromJS(workflows_json);
++  
+   
+   self.save = function () {
+-    $.post("/oozie/editor/coodinator/save/", {
++    $.post("/oozie/editor/coordinator/save/", {
+         "coordinator": ko.mapping.toJSON(self.coordinator)
+     }, function (data) {
+       if (data.status == 0) {
+@@ -132,7 +136,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   };
+ 
+   self.gen_xml = function () {
+-    $.post("/oozie/editor/coodinator/gen_xml/", {
++    $.post("/oozie/editor/coordinator/gen_xml/", {
+         "coordinator": ko.mapping.toJSON(self.coordinator)
+     }, function (data) {
+       if (data.status == 0) {
+@@ -147,7 +151,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+   };
+ 
+   self.import_coordinators = function () {
+-    $.post("/oozie/editor/coodinator/import_coordinators/", {
++    $.post("/oozie/editor/coordinator/import_coordinators/", {
+     }, function (data) {
+       if (data.status == 0) {
+         console.log(data.json);
+-- 
+1.7.9.5
+

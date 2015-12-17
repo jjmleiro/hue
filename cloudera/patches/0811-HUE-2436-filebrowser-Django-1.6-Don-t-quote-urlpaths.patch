@@ -1,0 +1,35 @@
+From 4fef4d581038af4c40a3302588096f5143e57a04 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Tue, 10 Feb 2015 12:06:38 -0800
+Subject: [PATCH 0811/1173] HUE-2436 [filebrowser] Django-1.6: Don't quote
+ urlpaths
+
+---
+ apps/filebrowser/src/filebrowser/views.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 4f37c16..b6c1b9e 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -40,7 +40,7 @@ from django.views.static import was_modified_since
+ from django.shortcuts import redirect
+ from django.template.defaultfilters import urlencode
+ from django.utils.functional import curry
+-from django.utils.http import http_date, urlquote
++from django.utils.http import http_date
+ from django.utils.html import escape
+ from django.utils.translation import ugettext as _
+ from cStringIO import StringIO
+@@ -484,7 +484,7 @@ def _massage_stats(request, stats):
+         'type': filetype(stats['mode']),
+         'rwx': rwx(stats['mode'], stats['aclBit']),
+         'mode': stringformat(stats['mode'], "o"),
+-        'url': make_absolute(request, "view", dict(path=urlquote(normalized))),
++        'url': make_absolute(request, "view", dict(path=normalized)),
+         'is_sentry_managed': request.fs.is_sentry_managed(path)
+     }
+ 
+-- 
+1.7.9.5
+

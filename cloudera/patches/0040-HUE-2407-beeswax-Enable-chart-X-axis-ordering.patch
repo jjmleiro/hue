@@ -1,0 +1,159 @@
+From c81edb6ddca3acb8ea72773a4ee85ae863fccc22 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 14 Oct 2014 16:26:12 +0200
+Subject: [PATCH 0040/1173] HUE-2407 [beeswax] Enable chart X axis ordering
+
+Added the possibility to sort bars, lines and pies
+Removed Checkbox to select on the bar chart
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |   64 ++++++++++++++++++++++-
+ apps/beeswax/static/js/beeswax.vm.js            |    1 +
+ desktop/core/static/js/ko.charts.js             |    3 +-
+ 3 files changed, 65 insertions(+), 3 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 6ccdce0..1c5822b 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -429,7 +429,12 @@ ${layout.menubar(section='query')}
+               </label>&nbsp;&nbsp;
+               <label>${_('Y-Axis')}
+               <select id="blueprintY" class="blueprintSelect"></select>
+-              </label>
++              </label>&nbsp;
++              <div class="btn-group" data-toggle="buttons-radio">
++                <a rel="tooltip" data-placement="top" title="${_('No sorting')}" id="blueprintNoSort" href="javascript:void(0)" class="btn active"><i class="fa fa-align-left fa-rotate-270"></i></a>
++                <a rel="tooltip" data-placement="top" title="${_('Sort ascending')}" id="blueprintSortAsc" href="javascript:void(0)" class="btn"><i class="fa fa-sort-amount-asc fa-rotate-270"></i></a>
++                <a rel="tooltip" data-placement="top" title="${_('Sort descending')}" id="blueprintSortDesc" href="javascript:void(0)" class="btn"><i class="fa fa-sort-amount-desc fa-rotate-270"></i></a>
++              </div>&nbsp;&nbsp;
+             </span>
+             <span id="blueprintLatLng" class="hide">
+               <label>${_('Latitude')}
+@@ -450,7 +455,7 @@ ${layout.menubar(section='query')}
+               transformer: pieChartDataTransformer,
+               maxWidth: 350 }, visible: $root.chartType() == 'pie'"></div>
+ 
+-            <div id="barChart" data-bind="barChart: {datum: {counts: $root.chartData}, fqs: ko.observableArray([]),
++            <div id="barChart" data-bind="barChart: {datum: {counts: $root.chartData}, fqs: ko.observableArray([]), hideSelection: true,
+                   transformer: barChartDataTransformer}, visible: $root.chartType() == 'bars'"></div>
+ 
+             <div id="lineChart" data-bind="lineChart: {datum: {counts: $root.chartData},
+@@ -1865,6 +1870,25 @@ $(document).ready(function () {
+     generateGraph(ko.HUE_CHARTS.TYPES.MAP)
+   });
+ 
++  $("#blueprintNoSort").on("click", function () {
++    viewModel.chartSorting("none");
++    redrawChart();
++  });
++
++  $("#blueprintSortAsc").on("click", function () {
++    viewModel.chartSorting("asc");
++    redrawChart();
++  });
++
++  $("#blueprintSortDesc").on("click", function () {
++    viewModel.chartSorting("desc");
++    redrawChart();
++  });
++
++  function redrawChart() {
++    generateGraph(viewModel.chartType());
++  }
++
+   $("#log pre:eq(1)").scroll(function () {
+     if ($(this).scrollTop() + $(this).height() + 20 >= $(this)[0].scrollHeight) {
+       logsAtEnd = true;
+@@ -2704,6 +2728,18 @@ function pieChartDataTransformer(data) {
+       obj: item
+     });
+   });
++
++  if (viewModel.chartSorting() == "asc"){
++    _data.sort(function(a, b){
++      return a.value > b.value
++    });
++  }
++  if (viewModel.chartSorting() == "desc"){
++    _data.sort(function(a, b){
++      return b.value > a.value
++    });
++  }
++
+   return _data;
+ }
+ 
+@@ -2734,6 +2770,18 @@ function barChartDataTransformer(rawDatum) {
+       });
+     }
+   });
++
++  if (viewModel.chartSorting() == "asc"){
++    _data.sort(function(a, b){
++      return a.y > b.y
++    });
++  }
++  if (viewModel.chartSorting() == "desc"){
++    _data.sort(function(a, b){
++      return b.y > a.y
++    });
++  }
++
+   _datum.push({
+     key: $("#blueprintY option:selected").text(),
+     values: _data
+@@ -2763,6 +2811,18 @@ function lineChartDataTransformer(rawDatum) {
+         });
+       }
+     });
++
++    if (viewModel.chartSorting() == "asc"){
++      _data.sort(function(a, b){
++        return a.y > b.y
++      });
++    }
++    if (viewModel.chartSorting() == "desc"){
++      _data.sort(function(a, b){
++        return b.y > a.y
++      });
++    }
++
+     _datum.push({
+       key: $("#blueprintY option:selected").text(),
+       values: _data
+diff --git a/apps/beeswax/static/js/beeswax.vm.js b/apps/beeswax/static/js/beeswax.vm.js
+index 6e6c65c..7c75384 100644
+--- a/apps/beeswax/static/js/beeswax.vm.js
++++ b/apps/beeswax/static/js/beeswax.vm.js
+@@ -74,6 +74,7 @@ function BeeswaxViewModel(server) {
+   self.design = ko.mapping.fromJS(DESIGN_DEFAULTS);
+ 
+   self.chartType = ko.observable("bars");
++  self.chartSorting = ko.observable("none");
+   self.chartData = ko.observableArray();
+ 
+   self.server = ko.observable(server);
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index 678b347..58aebcb 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -426,6 +426,7 @@ function barChartBuilder(element, options, isTimeline) {
+   $(element).height(300);
+ 
+   var _isPivot = options.isPivot != null ? options.isPivot : false;
++  var _hideSelection = options.hideSelection != null ? options.hideSelection : false;
+ 
+   if ($(element).find("svg").length > 0 && (_datum.length == 0 || _datum[0].values.length == 0)) {
+     $(element).find("svg").empty();
+@@ -508,7 +509,7 @@ function barChartBuilder(element, options, isTimeline) {
+             _chart.enableSelection();
+           }
+ 
+-          if (_isPivot) {
++          if (_isPivot || _hideSelection) {
+             _chart.hideSelection();
+           }
+           else {
+-- 
+1.7.9.5
+

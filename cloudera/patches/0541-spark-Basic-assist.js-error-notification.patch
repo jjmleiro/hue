@@ -1,0 +1,62 @@
+From 0ff0195b1631ba833e6ba53f596bc4e0bd28e544 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 3 Dec 2014 17:03:25 +0100
+Subject: [PATCH 0541/1173] [spark] Basic assist.js error notification
+
+---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ apps/spark/static/js/assist.js             |   22 ++++++++++++++++------
+ 2 files changed, 17 insertions(+), 7 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b107ebc..e8aecc9 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -314,7 +314,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   var assist = new Assist({
+     app: "beeswax",
+     user: "${user}",
+-    failsQuietlyOn: [500], // error codes from beeswax/views.py - autocomplete
++    failsSilentlyOn: [500], // error codes from beeswax/views.py - autocomplete
+     baseURL: "${url('beeswax:api_autocomplete_databases')}"
+   });
+ 
+diff --git a/apps/spark/static/js/assist.js b/apps/spark/static/js/assist.js
+index b982c6c..4d09ad3 100644
+--- a/apps/spark/static/js/assist.js
++++ b/apps/spark/static/js/assist.js
+@@ -63,15 +63,25 @@ var Assist = function (options) {
+       type: "GET",
+       url: _url + "?" + Math.random(),
+       success: function (data) {
+-        var _obj = {
+-          data: data,
+-          timestamp: (new Date()).getTime()
++        if (data.error){
++          if (typeof options.failsSilentlyOn == "undefined" || (data.code != null && options.failsSilentlyOn.indexOf(data.code) == -1)){
++            $.jHueNotify.error(data.error);
++          }
+         }
+-        $.totalStorage(_cachePath, _obj);
+-        if (!_returnCached) {
+-          options.onDataReceived($.totalStorage(_cachePath).data);
++        else {
++          var _obj = {
++            data: data,
++            timestamp: (new Date()).getTime()
++          }
++          $.totalStorage(_cachePath, _obj);
++          if (!_returnCached) {
++            options.onDataReceived($.totalStorage(_cachePath).data);
++          }
+         }
+       },
++      error: function (error) {
++        $(document).trigger('error', error);
++      },
+       async: options.sync == "undefined"
+     });
+ 
+-- 
+1.7.9.5
+

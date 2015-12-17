@@ -1,0 +1,25 @@
+From 4a8682a69335a815fae8430d1af00dcb5630ed5d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 10 Nov 2014 10:18:39 -0800
+Subject: [PATCH 0104/1173] Use the PATH to find the xmlsec1 binary
+
+---
+ desktop/libs/libsaml/src/libsaml/conf.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/conf.py b/desktop/libs/libsaml/src/libsaml/conf.py
+index 4855d8c..f489ee7 100644
+--- a/desktop/libs/libsaml/src/libsaml/conf.py
++++ b/desktop/libs/libsaml/src/libsaml/conf.py
+@@ -40,7 +40,7 @@ def xmlsec():
+   xmlsec path
+   """
+   if get_xmlsec_binary:
+-    return get_xmlsec_binary(['/usr/bin', '/usr/local/bin', '/opt/local/bin'])
++    return get_xmlsec_binary()
+   else:
+     return '/usr/local/bin/xmlsec1'
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,135 @@
+From d38d6d3ada5b96cffc7d82514567947775ca878a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 11 Nov 2014 15:21:37 -0800
+Subject: [PATCH 0277/1173] [oozie] Adding Kill droppable Kill node
+
+---
+ apps/oozie/src/oozie/models2.py                    |   23 +++++++++++++++++++-
+ .../oozie/templates/editor/workflow_editor.mako    |    8 +++----
+ apps/oozie/src/oozie/views/editor2.py              |    4 ----
+ apps/oozie/static/js/workflow-editor.ko.js         |   11 +++++-----
+ 4 files changed, 31 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 0ade273..ff7825f 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -463,10 +463,31 @@ class HiveAction():
+     return [cls.FIELDS['script_path']]
+ 
+ 
++class KillAction():
++  TYPE = 'kill'
++  FIELDS = {
++     'message': { 
++          'name': 'message',
++          'label': _('Message'),
++          'value': _('Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]'),
++          'help_text': _('Message to display when the workflow fails. Can contain some EL functions.')
++     }
++  }
++
++  @classmethod
++  def get_fields(cls):
++    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()]
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['message']]
++
++
+ NODES = {
+   'pig-widget': PigAction,
+   'java-widget': JavaAction,
+-  'hive-widget': HiveAction
++  'hive-widget': HiveAction,
++  'kill-widget': KillAction
+ }
+ 
+ WORKFLOW_NODE_PROPERTIES = {}
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index e9957ed..95b7f4b 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -123,8 +123,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div data-bind="css: { 'draggable-widget': true },
+-                    draggable: {data: draggableStopNode(), isEnabled: true,
+-                    options: {'start': function(event, ui){}}}"
++                    draggable: {data: draggableKillNode(), isEnabled: true,
++                    options: {'start': function(event, ui){$root.setCurrentDraggedWidget(draggableKillNode());}}}"
+          title="${_('Kill')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-stop"></i></a>
+     </div>
+@@ -1023,7 +1023,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
+-<script type="text/html" id="enkill-widget">
++<script type="text/html" id="kill-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+     <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+@@ -1032,7 +1032,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
+-      End
++      <input type="text" data-bind="value: properties.message" />
+     </div>
+   </div>
+   <!-- /ko -->
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 4e21839..ac15277 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -113,10 +113,6 @@ def save_workflow(request):
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+-#  elif node['widgetType'] == 'hive-widget':
+-#    properties = [WORKFLOW_PROPERTIES['script_path']]
+-#  elif node['widgetType'] == 'kill-widget':
+-#    properties = [WORKFLOW_PROPERTIES['message']]
+ #  elif node['widgetType'] == 'subworkflow-widget':
+ #    workflows = [{
+ #        'name': workflow.name,
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 56e2350..c712ada 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -211,10 +211,8 @@ var Workflow = function (vm, workflow) {
+         self.nodes.push(node);
+         self.nodes.push(end);
+ 
+-       // if node != kill node
+-
+-        // Added to the side ?
+         if (vm.currentlyCreatingFork) {
++          // Added to the side ?
+           var parentWidget = vm.getWidgetPredecessor(node.id());
+           var parent = self.getNodeById(parentWidget.id());
+ 
+@@ -262,7 +260,9 @@ var Workflow = function (vm, workflow) {
+           var parentWidget = vm.getWidgetPredecessor(node.id());
+           var parent = self.getNodeById(parentWidget.id());
+ 
+-          if (parentWidget.widgetType() == 'fork-widget') {
++          if (widget.widgetType() == 'kill-widget') {
++        	parent.set_link('to', node.id());
++          } else if (parentWidget.widgetType() == 'fork-widget') {
+             var child = vm.getWidgetSuccessor(node.id());
+             parent.remove_link('to', child.id());            
+             parent.children.push({'to': node.id()});
+@@ -872,6 +872,5 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.draggableStreamingAction = ko.observable(bareWidgetBuilder("Streaming", "streaming-widget"));
+   self.draggableDistCpAction = ko.observable(bareWidgetBuilder("Distcp", "distcp-widget"));
+ 
+-
+-  self.draggableStopNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
++  self.draggableKillNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
+ };
+-- 
+1.7.9.5
+

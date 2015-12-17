@@ -1,0 +1,303 @@
+From 30ac690309cf2feee3a966492859d37deddc8314 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 18 Dec 2014 14:37:17 -0800
+Subject: [PATCH 0353/1173] [oozie] Generate XML and submit Bundles
+
+---
+ apps/oozie/src/oozie/models2.py                    |   23 ++++++++++-
+ .../src/oozie/templates/editor/bundle_editor.mako  |    4 --
+ .../oozie/templates/editor/gen2/bundle.xml.mako    |   43 ++++++++++----------
+ .../templates/editor/list_editor_bundles.mako      |    4 +-
+ apps/oozie/src/oozie/urls.py                       |    3 +-
+ apps/oozie/src/oozie/views/editor2.py              |   42 +++++++++----------
+ apps/oozie/static/js/bundle-editor.ko.js           |   20 +--------
+ 7 files changed, 68 insertions(+), 71 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 8b63842..0fc7987 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -112,6 +112,10 @@ class Workflow(Job):
+   def id(self):
+     return self.document.id  
+   
++  @property
++  def uuid(self):
++    return self.document.uuid   
++  
+   def get_json(self):
+     _data = self.get_data()
+ 
+@@ -1269,6 +1273,10 @@ class Coordinator(Job):
+     return self.document.id
+ 
+   @property
++  def uuid(self):
++    return self.document.uuid
++
++  @property
+   def json(self):
+     _data = self.data.copy()
+ 
+@@ -1466,7 +1474,7 @@ class Bundle(Job):
+           'coordinators': [],
+           'properties': {
+               'deployment_dir': '',
+-              'schema_version': 'uri:oozie:coordinator:0.2',
++              'schema_version': 'uri:oozie:bundle:0.2',
+               'kickoff': datetime.today(),
+               'parameters': [{'name': 'oozie.use.system.libpath', 'value': True}]
+           }
+@@ -1477,6 +1485,10 @@ class Bundle(Job):
+     return self.document.id
+ 
+   @property
++  def uuid(self):
++    return self.document.uuid
++
++  @property
+   def json(self):
+     _data = self.data.copy()
+ 
+@@ -1498,6 +1510,7 @@ class Bundle(Job):
+     if mapping is None:
+       mapping = {}
+ 
++    mapping.update(dict(list(Document2.objects.filter(type='oozie-coordinator2', uuid__in=self.data['coordinators']).values('uuid', 'name')))) # TODO perms
+     tmpl = "editor/gen2/bundle.xml.mako"
+     return force_unicode(
+               re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {
+@@ -1506,6 +1519,14 @@ class Bundle(Job):
+            })))
+   
+   @property      
++  def parameters(self):
++    return self.data['properties']['parameters']  
++  
++  @property
++  def kick_off_time_utc(self):
++    return utc_datetime_format(self.data['properties']['kickoff'])  
++  
++  @property      
+   def deployment_dir(self):
+     if not self.data['properties'].get('deployment_dir'):
+       self.data['properties']['deployment_dir'] = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too    
+diff --git a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+index 407ccb1..774c0fa 100644
+--- a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+@@ -34,10 +34,6 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+ 
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+-    <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
+-      <i class="fa fa-file-code-o"></i>
+-    </a>
+-    &nbsp;&nbsp;&nbsp;
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
+       <i class="fa fa-play"></i>
+     </a>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+index 6d5f0c6..3ff4d95 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+@@ -16,18 +16,19 @@
+ ## limitations under the License.
+ 
+ <%!
++  import json
+   from oozie.models import BundledCoordinator
+ %>
+ 
+-<bundle-app name="${ bundle.name }"
+-  xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'
+-  xmlns="${ bundle.schema_version }">
+-  % if bundle.get_parameters():
++<bundle-app name="${ bundle.data['name'] }"
++  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++  xmlns="${ bundle.data['properties']['schema_version'] }">
++  % if bundle.data['properties']['parameters']:
+   <parameters>
+-    % for p in bundle.get_parameters():
++    % for p in bundle.data['properties']['parameters']:
+     <property>
+         <name>${ p['name'] }</name>
+-        <value>${ p['value'] }</value>
++        <value>${ json.dumps(p['value']) }</value>
+     </property>
+     % endfor
+   </parameters>
+@@ -38,21 +39,21 @@
+   </controls>
+ 
+ 
+-  % for bundled in BundledCoordinator.objects.filter(bundle=bundle):
+-  <coordinator name='${ bundled.coordinator.name }-${ bundled.id }' >
+-     <app-path>${'${'}nameNode}${ mapping['coord_%s_dir' % bundled.coordinator.id] }</app-path>
+-       <configuration>
+-         <property>
+-            <name>wf_application_path</name>
+-            <value>${ mapping['wf_%s_dir' % bundled.coordinator.workflow.id] }</value>
+-        </property>
+-         % for param in bundled.get_parameters():
+-         <property>
+-            <name>${ param['name'] }</name>
+-            <value>${ param['value'] }</value>
+-        </property>
+-        % endfor
+-      </configuration>
++  % for bundled in bundle.data['coordinators']:
++  <coordinator name="${ mapping[bundled['coordinator']] }-${ bundled['coordinator'][0:4] }">
++     <app-path>${'${'}nameNode}${ mapping['coord_%s_dir' % bundled['coordinator'] ] }</app-path>
++     <configuration>
++       <property>
++          <name>wf_application_path</name>
++          <value>${ mapping['wf_%s_dir' % bundled['coordinator']] }</value>
++      </property>
++      % for param in bundled['properties']:
++      <property>
++          <name>${ param['name'] }</name>
++          <value>${ param['value'] }</value>
++     </property>
++     % endfor
++    </configuration>
+   </coordinator>
+   % endfor
+ </bundle-app>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+index a8c2252..676f05b 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+@@ -32,8 +32,8 @@ ${ layout.menubar(section='Bundles') }
+ 
+   % for bundle in bundles:
+     <div>
+-      <a href="${ url('oozie:edit_bundle') }?coordinator=${ bundle.id }">
+-        ${ coordinator.name }
++      <a href="${ url('oozie:edit_bundle') }?bundle=${ bundle.id }">
++        ${ bundle.name }
+       </a>
+     </div>
+   % endfor
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index c465158..4c86a7e 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -92,8 +92,7 @@ urlpatterns += patterns(
+   url(r'^editor/bundle/edit/$', 'edit_bundle', name='edit_bundle'),
+   url(r'^editor/bundle/new/$', 'new_bundle', name='new_bundle'),
+   url(r'^editor/bundle/save/$', 'save_bundle', name='save_bundle'),
+-  url(r'^editor/bundle/submit/(?P<doc_id>\d+)$', 'submit_bundle', name='editor_submit_bundle'),
+-  url(r'^editor/bundle/gen_xml/$', 'gen_xml_bundle', name='gen_xml_bundle'), # Temporary  
++  url(r'^editor/bundle/submit/(?P<doc_id>\d+)$', 'submit_bundle', name='editor_submit_bundle')
+ )
+ 
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 537fc18..6f6d00d 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -401,7 +401,7 @@ def save_bundle(request):
+     bundle_doc = Document2.objects.create(name=bundle_data['name'], uuid=bundle_data['uuid'], type='oozie-bundle2', owner=request.user)
+ 
+   if bundle_data['coordinators']:
+-    dependencies = Document2.objects.filter(type='oozie-coordinator2', uuid__in=bundle_data['coordinators']) # TODO perms
++    dependencies = Document2.objects.filter(type='oozie-coordinator2', uuid__in=[c['coordinator'] for c in bundle_data['coordinators']]) # TODO perms
+     bundle_doc.dependencies = dependencies
+ 
+   bundle_doc.update_data(bundle_data)
+@@ -415,19 +415,6 @@ def save_bundle(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+-def gen_xml_bundle(request):
+-  response = {'status': -1}
+-
+-  bundle_dict = json.loads(request.POST.get('bundle', '{}')) # TODO perms
+-
+-  bundle = Bundle(data=bundle_dict)
+-
+-  response['status'] = 0
+-  response['xml'] = bundle.to_xml()
+-    
+-  return HttpResponse(json.dumps(response), mimetype="application/json") 
+-
+-
+ def submit_bundle(request, doc_id):
+   bundle = Bundle(document=Document2.objects.get(id=doc_id)) # Todo perms  
+   ParametersFormSet = formset_factory(ParameterForm, extra=0)
+@@ -455,18 +442,27 @@ def submit_bundle(request, doc_id):
+   return HttpResponse(json.dumps(popup), mimetype="application/json")
+ 
+ 
+-def _submit_bundle(request, bundle, mapping):
++def _submit_bundle(request, bundle, properties):
+   try:
+-    wf_doc = Document2.objects.get(uuid=bundle.data['properties']['workflow'])
+-    wf_dir = Submission(request.user, Workflow(document=wf_doc), request.fs, request.jt, mapping).deploy()
+-
+-    properties = {'wf_application_path': request.fs.get_hdfs_path(wf_dir)}
+-    properties.update(mapping)
+-
++    deployment_mapping = {}
++
++    for coord in bundle.document.dependencies.all():
++      workflow = Workflow(document=coord.dependencies.all()[0])
++      wf_dir = Submission(request.user, workflow, request.fs, request.jt, properties).deploy()      
++      deployment_mapping['wf_%s_dir' % coord.uuid] = request.fs.get_hdfs_path(wf_dir)
++      deployment_mapping[workflow.uuid] = workflow.document.name
++      
++      coordinator = Coordinator(document=coord)
++      coord_dir = Submission(request.user, coordinator, request.fs, request.jt, properties).deploy()
++      deployment_mapping['coord_%s_dir' % coord.uuid] = coord_dir
++      deployment_mapping[coord.uuid] = coord.name
++
++    properties.update(deployment_mapping)
++    
+     submission = Submission(request.user, bundle, request.fs, request.jt, properties=properties)
+     job_id = submission.run()
+ 
+     return job_id
+   except RestException, ex:
+-    raise PopupException(_("Error submitting bundle %s") % (bundle,),
+-                         detail=ex._headers.get('oozie-error-message', ex))
+\ No newline at end of file
++    raise PopupException(_("Error submitting bundle %s") % (bundle,), detail=ex._headers.get('oozie-error-message', ex))
++
+diff --git a/apps/oozie/static/js/bundle-editor.ko.js b/apps/oozie/static/js/bundle-editor.ko.js
+index 6a54a70..14c0eb6 100644
+--- a/apps/oozie/static/js/bundle-editor.ko.js
++++ b/apps/oozie/static/js/bundle-editor.ko.js
+@@ -77,27 +77,11 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json) {
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
+-
+-  self.gen_xml = function () {
+-	$(".jHueNotify").hide();
+-	logGA('gen_xml');
+-
+-    $.post("/oozie/editor/bundle/gen_xml/", {
+-        "bundle": ko.mapping.toJSON(self.bundle)
+-    }, function (data) {
+-      if (data.status == 0) {
+-        console.log(data.xml);
+-      }
+-      else {
+-        $(document).trigger("error", data.message);
+-     }
+-   }).fail(function (xhr, textStatus, errorThrown) {
+-      $(document).trigger("error", xhr.responseText);
+-    });
+-  };
+   
+   self.showSubmitPopup = function () {
+     // If self.bundle.id() == null, need to save wf for now
++	$(".jHueNotify").hide();
++	logGA('submit');
+ 
+     $.get("/oozie/editor/bundle/submit/" + self.bundle.id(), {
+       }, function (data) {
+-- 
+1.7.9.5
+

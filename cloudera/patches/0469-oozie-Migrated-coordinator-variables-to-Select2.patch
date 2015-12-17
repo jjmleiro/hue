@@ -1,0 +1,122 @@
+From 08a172a735870db877816cc515e66e1cca958926 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 20 Jan 2015 16:03:12 +0100
+Subject: [PATCH 0469/1173] [oozie] Migrated coordinator variables to Select2
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |   13 ++++---
+ desktop/core/static/js/ko.hue-bindings.js          |   36 ++++++++++++++++++++
+ 2 files changed, 45 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 747622b..9889007 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -175,7 +175,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               <div class="control-group" style="margin-bottom: 0">
+                 <label class="control-label">${ _('Timezone') }</label>
+                 <div class="controls">
+-                  <select data-bind="options: $root.availableTimezones, value: coordinator.properties.timezone, chosen: { width: '200px'}"></select>
++                  <select data-bind="options: $root.availableTimezones, select2: { placeholder: '${ _("Select a Timezone") }', update: coordinator.properties.timezone}" style="width: 180px"></select>
+                   <span class="help-inline"></span>
+                 </div>
+               </div>
+@@ -194,11 +194,13 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+         <div class="card-body">
+           <ul data-bind="foreach: coordinator.variables" class="unstyled">
+-            <li>
+-              <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name', value: workflow_variable, optionsValue: 'name', visible: $root.isEditing"></select>
++            <li style="margin-bottom: 10px">
++              <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name', optionsValue: 'name', select2: { placeholder: '${ _("Select a parameter") }', update: workflow_variable, type: 'parameter'}, visible: $root.isEditing" style="width: 120px"></select>
+ 
+               <span data-bind="text: workflow_variable, visible: ! $root.isEditing()"/></span>
+ 
++              &nbsp;&nbsp;
++
+               <div class="btn-group">
+                 <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"
+                         aria-expanded="false">
+@@ -230,7 +232,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   <!-- /ko -->
+                 </ul>
+               </div>
+-              <input data-bind="value: dataset_variable"/>
++              <input type="text" data-bind="value: dataset_variable" style="margin-bottom:0"/>
+ 
+               <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->              
+               
+@@ -417,6 +419,9 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ <link href="/static/css/jqCron.css" rel="stylesheet" type="text/css" />
+ <script src="/static/js/jqCron.js" type="text/javascript"></script>
+ 
++<link rel="stylesheet" href="/static/ext/select2/select2.css">
++<script src="/static/ext/select2/select2.min.js" type="text/javascript" charset="utf-8"></script>
++
+ ${ dashboard.import_layout() }
+ 
+ ${ commonshare() | n,unicode }
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index e00cf53..bbcb116 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -943,6 +943,20 @@ ko.bindingHandlers.select2 = {
+       if (options.type == "scope" && viewModel.availablePrivileges().indexOf(options.update) == -1) {
+         viewModel.availablePrivileges.push(options.update);
+       }
++      if (options.type == "parameter" && options.update != "") {
++        var _found = false;
++        allBindingsAccessor().options().forEach(function(opt){
++          if (opt[allBindingsAccessor().optionsValue]() == options.update){
++            _found = true;
++          }
++        });
++        if (!_found){
++          allBindingsAccessor().options.push({
++            name: ko.observable(options.update),
++            value: ko.observable(options.update)
++          });
++        }
++      }
+     }
+     $(element)
+         .select2(options)
+@@ -989,6 +1003,20 @@ ko.bindingHandlers.select2 = {
+                   viewModel.tempRoles.push(_r);
+                   viewModel.roles.push(_r);
+                 }
++                if (_type == "parameter") {
++                  var _found = false;
++                  allBindingsAccessor().options().forEach(function(opt){
++                    if (opt[allBindingsAccessor().optionsValue]() == _newVal){
++                      _found = true;
++                    }
++                  });
++                  if (!_found){
++                    allBindingsAccessor().options.push({
++                      name: ko.observable(_newVal),
++                      value: ko.observable(_newVal)
++                    });
++                  }
++                }
+                 if (_isArray) {
+                   var _vals = $(element).select2("val");
+                   _vals.push(_newVal);
+@@ -1004,6 +1032,14 @@ ko.bindingHandlers.select2 = {
+         })
+   },
+   update: function (element, valueAccessor, allBindingsAccessor, vm) {
++    if (typeof allBindingsAccessor().visible != "undefined"){
++      if (allBindingsAccessor().visible()) {
++        $(element).select2("container").show();
++      }
++      else {
++        $(element).select2("container").hide();
++      }
++    }
+     if (typeof valueAccessor().update != "undefined") {
+       $(element).select2("val", valueAccessor().update());
+     }
+-- 
+1.7.9.5
+

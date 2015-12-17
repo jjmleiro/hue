@@ -1,0 +1,215 @@
+From 7b7b182afbdcff621831690c78479f66d7580102 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 3 Dec 2014 15:45:29 -0600
+Subject: [PATCH 0547/1173] [spark] Initial version of fetch metadata from a
+ resulset
+
+---
+ apps/spark/src/spark/api.py      |   21 ++++++++-
+ apps/spark/src/spark/urls.py     |    3 +-
+ apps/spark/static/js/spark.vm.js |   96 ++++++++++++++++++++++----------------
+ 3 files changed, 79 insertions(+), 41 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index ab0c27b..f80a276 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -85,7 +85,7 @@ def check_status(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+-def fetch_result(request):
++def fetch_result_data(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+@@ -105,6 +105,25 @@ def fetch_result(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def fetch_result_metadata(request):
++  response = {'status': -1}
++
++  notebook = json.loads(request.POST.get('notebook', '{}'))
++  snippet = json.loads(request.POST.get('snippet', '{}'))
++
++  try:
++    response['result'] = get_api(request.user, snippet).fetch_result_metadata(notebook, snippet)
++    response['status'] = 0
++  except Exception, e:
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['message'] = force_unicode(str(e))
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
+ def cancel_statement(request):
+   response = {'status': -1}
+ 
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index f105f56..2aa767f 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -30,7 +30,8 @@ urlpatterns += patterns('spark.api',
+   url(r'^api/create_session$', 'create_session', name='create_session'),
+   url(r'^api/execute$', 'execute', name='execute'),
+   url(r'^api/check_status$', 'check_status', name='check_status'),
+-  url(r'^api/fetch_result$', 'fetch_result', name='fetch_result'),
++  url(r'^api/fetch_result_data$', 'fetch_result_data', name='fetch_result_data'),
++  url(r'^api/fetch_result_metadata$', 'fetch_result_metadata', name='fetch_result_metadata'),
+   url(r'^api/cancel_statement', 'cancel_statement', name='cancel_statement'),
+   url(r'^api/get_log', 'get_log', name='get_log'),
+ 
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 2924477..1f5a436 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -184,12 +184,6 @@ var Snippet = function (notebook, snippet) {
+   
+   self.checkStatusTimeout = null;
+   
+-  self.init = function() {
+-	if (self.status() == 'running') {
+-	  self.checkStatus();	
+-	}
+-  };
+-
+   self.create_session = function() {
+     $.post("/spark/api/create_session", {
+     	notebook: ko.mapping.toJSON(notebook),
+@@ -206,15 +200,15 @@ var Snippet = function (notebook, snippet) {
+       $(document).trigger("error", xhr.responseText);
+     }); 
+   };
+-  
++
+   self.execute = function() {
+     $(document).trigger("executeStarted", self);
+-	  $(".jHueNotify").hide();
+-	  logGA('/execute/' + self.type());
+-    
+-	  self.result.clear();
+-	  self.status('running');
++    $(".jHueNotify").hide();
++	logGA('/execute/' + self.type());
+     
++	self.result.clear();
++	self.status('running');
++
+     $.post("/spark/api/execute", {
+         notebook: ko.mapping.toJSON(notebook),
+         snippet: ko.mapping.toJSON(self)
+@@ -235,33 +229,14 @@ var Snippet = function (notebook, snippet) {
+       $(document).trigger("error", xhr.responseText);
+     });    
+   };
+-
+-  self.checkStatus = function() {	  
+-    $.post("/spark/api/check_status", {
+-       notebook: ko.mapping.toJSON(notebook),
+-       snippet: ko.mapping.toJSON(self)
+-	  }, function (data) {
+-	    if (data.status == 0) {
+-          self.status(data.query_status.status);
+-
+-          if (self.status() == 'running') {
+-        	self.checkStatusTimeout = setTimeout(self.checkStatus, 1000);
+-          } 
+-          else if (self.status() == 'available') {
+-        	self.fetchResult(100);
+-          }
+-	    } else if (data.status == -2) {
+-	      self.create_session();  
+-	    } else {
+-	      $(document).trigger("error", data.message);
+-	    }
+-	}).fail(function (xhr, textStatus, errorThrown) {
+-     $(document).trigger("error", xhr.responseText);
+-    });
++  
++  self.fetchResult = function(rows) {
++    self.fetchResultData(rows);
++    //self.fetchResultMetadata(rows); 
+   };
+ 
+-  self.fetchResult = function(rows) {
+-    $.post("/spark/api/fetch_result", {
++  self.fetchResultData = function(rows) {
++    $.post("/spark/api/fetch_result_data", {
+       notebook: ko.mapping.toJSON(notebook),
+       snippet: ko.mapping.toJSON(self),
+       rows: rows
+@@ -276,7 +251,7 @@ var Snippet = function (notebook, snippet) {
+  	    });
+          
+         if (data.result.hasMore && rows > 0) {
+-          setTimeout(function(){ self.fetchResult(rows); }, 500);
++          setTimeout(function(){ self.fetchResultData(rows); }, 500);
+         }
+       } else if (data.status == -2) {
+         self.create_session();  
+@@ -289,7 +264,44 @@ var Snippet = function (notebook, snippet) {
+   };
+ 
+   self.fetchResultMetadata = function() {
+-	  
++    $.post("/spark/api/fetch_result_metadata", {
++        notebook: ko.mapping.toJSON(notebook),
++        snippet: ko.mapping.toJSON(self),
++      }, function (data) {
++   	  if (data.status == 0) {
++   	    self.result.meta(data.result.meta);
++        } else if (data.status == -2) {
++          self.create_session();  
++        } else {
++          $(document).trigger("error", data.message);
++        }
++      }).fail(function (xhr, textStatus, errorThrown) {
++        $(document).trigger("error", xhr.responseText);
++      });	  
++  };
++
++  self.checkStatus = function() {	  
++    $.post("/spark/api/check_status", {
++       notebook: ko.mapping.toJSON(notebook),
++       snippet: ko.mapping.toJSON(self)
++	  }, function (data) {
++	    if (data.status == 0) {
++          self.status(data.query_status.status);
++
++          if (self.status() == 'running') {
++        	self.checkStatusTimeout = setTimeout(self.checkStatus, 1000);
++          } 
++          else if (self.status() == 'available') {
++        	self.fetchResult(100);
++          }
++	    } else if (data.status == -2) {
++	      self.create_session();  
++	    } else {
++	      $(document).trigger("error", data.message);
++	    }
++	}).fail(function (xhr, textStatus, errorThrown) {
++     $(document).trigger("error", xhr.responseText);
++    });
+   };
+   
+   self.cancel = function() {
+@@ -326,6 +338,12 @@ var Snippet = function (notebook, snippet) {
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
++  
++  self.init = function() {
++	if (self.status() == 'running') {
++	  self.checkStatus();	
++	}
++  };
+ }
+ 
+ 
+-- 
+1.7.9.5
+

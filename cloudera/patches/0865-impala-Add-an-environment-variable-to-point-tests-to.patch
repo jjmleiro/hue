@@ -1,0 +1,139 @@
+From cf4ed7538a2ab11c23196608b1eb8e196ca0395c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Feb 2015 08:57:41 -0800
+Subject: [PATCH 0865/1173] [impala] Add an environment variable to point
+ tests to a read impalad
+
+When exporting:
+export TEST_IMPALAD_HOST=impalad-hostname
+
+before running the tests, the Impala integration tests will be
+ran against this impalad.
+---
+ apps/impala/src/impala/tests.py                    |   17 +++++++++++++++--
+ .../core/src/desktop/management/commands/test.py   |    4 ++--
+ docs/dev/testing.rst                               |    6 ++++++
+ docs/manual.txt                                    |    2 +-
+ 4 files changed, 24 insertions(+), 5 deletions(-)
+
+diff --git a/apps/impala/src/impala/tests.py b/apps/impala/src/impala/tests.py
+index 749e748..069908f 100644
+--- a/apps/impala/src/impala/tests.py
++++ b/apps/impala/src/impala/tests.py
+@@ -15,6 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import os
+ import re
+ import sys
+ 
+@@ -33,6 +34,8 @@ from beeswax.server import dbms
+ from beeswax.test_base import get_query_server_config, wait_for_query_to_finish, fetch_query_result_data
+ from beeswax.tests import _make_query
+ 
++from impala.conf import SERVER_HOST
++
+ 
+ class MockDbms:
+   def get_databases(self):
+@@ -94,16 +97,22 @@ class TestImpalaIntegration:
+   DATABASE = 'test_hue_impala'
+ 
+   def setUp(self):
++    self.finish = []
++
+     # We need a real Impala cluster currently
+-    if not 'impala' in sys.argv:
++    if not 'impala' in sys.argv and not os.environ.get('TEST_IMPALAD_HOST'):
+       raise SkipTest
+ 
++    if os.environ.get('TEST_IMPALAD_HOST'):
++      self.finish.append(SERVER_HOST.set_for_testing(os.environ.get('TEST_IMPALAD_HOST')))
++
+     self.client = make_logged_in_client()
+     self.user = User.objects.get(username='test')
+     add_to_group('test')
+     self.db = dbms.get(self.user, get_query_server_config(name='impala'))
+ 
+     hql = """
++      USE default;
+       DROP TABLE IF EXISTS %(db)s.tweets;
+       DROP DATABASE IF EXISTS %(db)s;
+       CREATE DATABASE %(db)s;
+@@ -111,7 +120,7 @@ class TestImpalaIntegration:
+       USE %(db)s;
+     """ % {'db': self.DATABASE}
+ 
+-    resp = _make_query(self.client, hql, local=False, server_name='impala') # Does not point to the database yet
++    resp = _make_query(self.client, hql, database='default', local=False, server_name='impala')
+     resp = wait_for_query_to_finish(self.client, resp, max=30.0)
+ 
+     hql = """
+@@ -127,6 +136,10 @@ class TestImpalaIntegration:
+     resp = _make_query(self.client, hql, database=self.DATABASE, local=False, server_name='impala')
+     resp = wait_for_query_to_finish(self.client, resp, max=30.0)
+ 
++    def tearDown(self):
++      for f in self.finish:
++        f()
++
+   def test_basic_flow(self):
+     dbs = self.db.get_databases()
+     assert_true('_impala_builtins' in dbs, dbs)
+diff --git a/desktop/core/src/desktop/management/commands/test.py b/desktop/core/src/desktop/management/commands/test.py
+index 40020ae..92162e6 100644
+--- a/desktop/core/src/desktop/management/commands/test.py
++++ b/desktop/core/src/desktop/management/commands/test.py
+@@ -91,9 +91,9 @@ class Command(BaseCommand):
+       if len(args) > 1:
+         from impala.conf import SERVER_HOST
+         SERVER_HOST.set_for_testing(args[1])
+-      nose_args = args + ["impala"]
++      nose_args = ["specific", "impala"]
++      args = ["specific"]
+     elif args[0] == "fast":
+-      test_apps = [ app.module.__name__ for app in appmanager.DESKTOP_MODULES ]
+       nose_args = args + all_apps + ["-a", "!requires_hadoop"]
+     elif args[0] == "windmill":
+       args = args[1:]
+diff --git a/docs/dev/testing.rst b/docs/dev/testing.rst
+index 43fa5ad..5ff1f7b 100644
+--- a/docs/dev/testing.rst
++++ b/docs/dev/testing.rst
+@@ -54,6 +54,9 @@ E.g.
+ Start up pdb on test failures:
+   build/env/bin/hue test <args> --pdb --pdb-failure -s
+ 
++Point to an Impalad and trigger the Impala tests:
++  build/env/bin/hue test impala impalad-01.gethue.com
++
+ 
+ Special environment variables
+ =============================
+@@ -80,6 +83,9 @@ DESKTOP_DB_CONFIG=<db engine:db name:test db name:username:password:host:port>
+   testing your changes against, for example, MySQL instead of sqlite. String
+   is a colon-delimited list.
+ 
++TEST_IMPALAD_HOST=impalad-01.gethue.com
++  Point to an Impalad and trigger the Impala tests.
++
+ 
+ Writing tests that depend on Hadoop
+ ===================================
+diff --git a/docs/manual.txt b/docs/manual.txt
+index 06c884d..26b94ff 100644
+--- a/docs/manual.txt
++++ b/docs/manual.txt
+@@ -509,7 +509,7 @@ submit_to::
+   But note that JobBrowser will not be able to show MR2 jobs.
+ 
+ 
+-Beeswax Configuration
++Hive Configuration
+ ~~~~~~~~~~~~~~~~~~~~~
+ 
+ In the `[beeswax]` section of the configuration file, you can
+-- 
+1.7.9.5
+

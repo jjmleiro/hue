@@ -1,0 +1,188 @@
+From a2e3b85876e265b5eae883e41ad86af32e8310c3 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 22:22:24 +0100
+Subject: [PATCH 0443/1173] HUE-2491 [indexer] Add option to show only
+ collections
+
+Added 'show cores' checkbox to the collection list
+Shows cores if there are no collections
+Can select to add the list of cores to the collection list
+---
+ apps/search/src/search/search_controller.py        |    8 ++++++--
+ apps/search/src/search/templates/search.mako       |    3 ++-
+ apps/search/src/search/views.py                    |    3 ++-
+ apps/search/static/js/search.ko.js                 |   15 ++++++++++++++-
+ .../indexer/src/indexer/templates/collections.mako |   12 +++++++-----
+ desktop/libs/indexer/static/js/collections.js      |   12 ++++++++++++
+ 6 files changed, 43 insertions(+), 10 deletions(-)
+
+diff --git a/apps/search/src/search/search_controller.py b/apps/search/src/search/search_controller.py
+index aaa1367..a653584 100644
+--- a/apps/search/src/search/search_controller.py
++++ b/apps/search/src/search/search_controller.py
+@@ -93,10 +93,14 @@ class SearchController(object):
+   def get_solr_collection(self):
+     return SolrApi(SOLR_URL.get(), self.user).collections()
+ 
+-  def get_all_indexes(self):
++  def get_all_indexes(self, show_all=False):
+     indexes = []
+     try:
+       indexes = self.get_solr_collection().keys()
+     except:
+       pass
+-    return indexes + SolrApi(SOLR_URL.get(), self.user).cores().keys()
++
++    if show_all or not indexes:
++      return indexes + SolrApi(SOLR_URL.get(), self.user).cores().keys()
++    else:
++      return indexes
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 263bbc3..a88eedd 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -52,8 +52,9 @@ ${ commonheader(_('Search'), "search", user, "80px") | n,unicode }
+   <form data-bind="visible: $root.isEditing() && columns().length == 0">
+     ${ _('Select a search index') }
+     <!-- ko if: columns().length == 0 -->
+-    <select data-bind="options: $root.initial.collections, value: $root.collection.name">
++    <select data-bind="options: $root.initial.collections, value: $root.collection.name, disable: isSyncingCollections">
+     </select>
++    <label class="checkbox" style="display:inline-block; margin-left: 10px"><input type="checkbox" data-bind="checked: showCores" />${ _('Show cores') } <i class="fa fa-spinner fa-spin" data-bind="visible: isSyncingCollections"></i></label>
+     <!-- /ko -->
+   </form>
+ 
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index 55434cb..43fc94d 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -533,7 +533,8 @@ def get_collections(request):
+   result = {'status': -1, 'message': ''}
+ 
+   try:
+-    result['collection'] = SearchController(request.user).get_all_indexes()
++    show_all = json.loads(request.POST.get('show_all'))
++    result['collection'] = SearchController(request.user).get_all_indexes(show_all=show_all)
+     result['status'] = 0
+ 
+   except Exception, e:
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index dd81633..d8c8981 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -833,8 +833,10 @@ var NewTemplate = function (vm, initial) {
+   };
+ 
+   self.syncCollections = function () {
++    vm.isSyncingCollections(true);
+     $.post("/search/get_collections", {
+         collection: ko.mapping.toJSON(vm.collection),
++        show_all: ko.mapping.toJSON(vm.showCores)
+       }, function (data) {
+         if (data.status == 0) {
+           // Sync new and old names
+@@ -843,11 +845,15 @@ var NewTemplate = function (vm, initial) {
+               self.collections.push(name);
+             }
+           });
++          var _toDelete = [];
+           $.each(self.collections(), function(index, collection) {
+             if (data.collection.indexOf(collection) == -1) {
+-              self.collections.remove(collection);
++              _toDelete.push(collection);
+             }
+           });
++          $.each(_toDelete, function(index, collection) {
++            self.collections.remove(collection);
++          });
+         }
+         else {
+           $(document).trigger("error", data.message);
+@@ -855,6 +861,7 @@ var NewTemplate = function (vm, initial) {
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+     }).done(function() {
++      vm.isSyncingCollections(false);
+       self.inited(true);
+     });
+   };
+@@ -924,6 +931,12 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+   };
+   self.isRetrievingResults = ko.observable(false);
+ 
++  self.showCores = ko.observable(false);
++  self.showCores.subscribe(function(newValue) {
++    self.initial.syncCollections();
++  });
++  self.isSyncingCollections = ko.observable(false);
++
+   function bareWidgetBuilder(name, type){
+     return new Widget({
+       size: 12,
+diff --git a/desktop/libs/indexer/src/indexer/templates/collections.mako b/desktop/libs/indexer/src/indexer/templates/collections.mako
+index 2fcebc5..c92afb6 100644
+--- a/desktop/libs/indexer/src/indexer/templates/collections.mako
++++ b/desktop/libs/indexer/src/indexer/templates/collections.mako
+@@ -157,13 +157,15 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
+                 title="${_('Delete the selected indexes. These must be solr cloud collections. Cores cannot be deleted currently.')}" data-toggle="modal" data-target="#deleteCollections">
+               <i class="fa fa-times"></i> ${_('Delete')}
+             </button>
+-            <a href="#create" class="btn toolbarBtn pull-right">
+-              <i class="fa fa-plus-circle"></i> ${_('Create')}
+-            </a>
++            <label class="checkbox" style="display:inline-block; margin-left: 20px" data-bind="visible: hasCloudCollections"><input type="checkbox" data-bind="checked: showCores" />${ _('Show cores') }</label>
+           </div>
+         </%def>
+ 
+-        <%def name="creation()"></%def>
++        <%def name="creation()">
++          <a href="#create" class="btn toolbarBtn">
++              <i class="fa fa-plus-circle"></i> ${_('Create')}
++            </a>
++        </%def>
+       </%actionbar:render>
+ 
+       <div class="row-fluid" data-bind="visible: collections().length == 0 && !isLoading()">
+@@ -183,7 +185,7 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
+                 <th width="100%">${_('Name')}</th>
+               </tr>
+             </thead>
+-            <tbody data-bind="foreach: filteredCollections">
++            <tbody data-bind="foreach: displayCollections">
+               <tr data-bind="routie: 'edit/' + name()" class="pointer">
+                 <td data-bind="click: $parent.toggleCollectionSelect.bind($parent), clickBubble: false">
+                   <span data-bind="css: {'fa-check': $parent.filteredCollections()[$index()].selected()}" class="hueCheckbox fa"></span>
+diff --git a/desktop/libs/indexer/static/js/collections.js b/desktop/libs/indexer/static/js/collections.js
+index 5bbda45..b261cad 100644
+--- a/desktop/libs/indexer/static/js/collections.js
++++ b/desktop/libs/indexer/static/js/collections.js
+@@ -407,7 +407,13 @@ var ManageCollectionsViewModel = function() {
+   // UI
+   self.isLoading = ko.observable();
+   self.hasLoadedOnce = ko.observable(false);
++  self.showCores = ko.observable(false);
+   self.filteredCollections = ko.observableArray();
++  self.displayCollections = ko.computed(function() {
++    return ko.utils.arrayFilter(self.filteredCollections(), function(collection) {
++      return ! self.hasCloudCollections() || self.showCores() || ! ko.unwrap(collection).isCoreOnly();
++    });
++  });
+   self.selectedCollections = ko.computed(function() {
+     return ko.utils.arrayFilter(self.collections(), function(collection) {
+       return collection.selected();
+@@ -418,6 +424,12 @@ var ManageCollectionsViewModel = function() {
+       return !ko.unwrap(collection).isCoreOnly();
+     });
+   });
++  self.hasCloudCollections = ko.computed(function() {
++    var _arr = ko.utils.arrayFilter(self.collections(), function(collection) {
++      return !ko.unwrap(collection).isCoreOnly();
++    });
++    return _arr.length > 0;
++  });
+ 
+   self.toggleSelectAll = function() {
+     var direction = !self.selectedCollections().length;
+-- 
+1.7.9.5
+

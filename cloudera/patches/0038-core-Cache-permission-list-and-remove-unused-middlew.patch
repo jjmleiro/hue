@@ -1,0 +1,207 @@
+From 4622652365a49d019f4aaf32d7e51d149c022f53 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 8 Oct 2014 23:23:47 -0700
+Subject: [PATCH 0038/1173] [core] Cache permission list and remove unused
+ middlewares
+
+This avoids tens of SQL queries and use of useless inspects calls.
+---
+ apps/useradmin/src/useradmin/models.py      |    8 +++-
+ desktop/core/src/desktop/middleware.py      |   65 +++------------------------
+ desktop/core/src/desktop/middleware_test.py |   22 ---------
+ desktop/core/src/desktop/settings.py        |    9 ++--
+ 4 files changed, 20 insertions(+), 84 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/models.py b/apps/useradmin/src/useradmin/models.py
+index 70bae67..86a5f2e 100644
+--- a/apps/useradmin/src/useradmin/models.py
++++ b/apps/useradmin/src/useradmin/models.py
+@@ -54,6 +54,7 @@ import logging
+ 
+ from django.db import connection, models
+ from django.contrib.auth import models as auth_models
++from django.core.cache import cache
+ from django.utils.translation import ugettext_lazy as _t
+ 
+ from desktop import appmanager
+@@ -97,7 +98,12 @@ class UserProfile(models.Model):
+     return self.user.groups.all()
+ 
+   def _lookup_permission(self, app, action):
+-    return HuePermission.objects.get(app=app, action=action)
++    # We cache it instead of doing HuePermission.objects.get(app=app, action=action). To revert with Django 1.6
++    perms = cache.get('perms')
++    if not perms:
++      perms = dict([('%s:%s' % (p.app, p.action), p) for p in HuePermission.objects.all()])
++      cache.set('perms', perms, 60 * 60)
++    return perms.get('%s:%s' % (app, action))
+ 
+   def has_hue_permission(self, action=None, app=None, perm=None):
+     if perm is None:
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 070067d..9ea4422 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -73,6 +73,7 @@ class AjaxMiddleware(object):
+     request.ajax = request.is_ajax() or request.REQUEST.get("format", "") == "json"
+     return None
+ 
++
+ class ExceptionMiddleware(object):
+   """
+   If exceptions know how to render themselves, use that.
+@@ -100,28 +101,6 @@ class ExceptionMiddleware(object):
+ 
+     return None
+ 
+-class JFrameMiddleware(object):
+-  """
+-  Updates JFrame headers to update path and push flash messages into headers.
+-  """
+-  def process_response(self, request, response):
+-    path = request.path
+-    if request.GET:
+-      get_params = request.GET.copy()
+-      if "noCache" in get_params:
+-        del get_params["noCache"]
+-      query_string = get_params.urlencode()
+-      if query_string:
+-        path = request.path + "?" + query_string
+-    response['X-Hue-JFrame-Path'] = iri_to_uri(path)
+-    if response.status_code == 200:
+-      if is_jframe_request(request):
+-        if hasattr(request, "flash"):
+-          flashes = request.flash.get()
+-          if flashes:
+-            response['X-Hue-Flash-Messages'] = json.dumps(flashes)
+-
+-    return response
+ 
+ class ClusterMiddleware(object):
+   """
+@@ -383,47 +362,17 @@ class AuditLoggingMiddleware(object):
+     return response
+ 
+ 
+-class SessionOverPostMiddleware(object):
+-  """
+-  Django puts session info in cookies, which is reasonable.
+-  Unfortunately, the plugin we use for file-uploading
+-  doesn't forward the cookies, though it can do so over
+-  POST.  So we push the POST data back in.
+-
+-  This is the issue discussed at
+-  http://www.stereoplex.com/two-voices/cookieless-django-sessions-and-authentication-without-cookies
+-  and
+-  http://digitarald.de/forums/topic.php?id=20
+-
+-  The author of fancyupload says (http://digitarald.de/project/fancyupload/):
+-    Flash-request forgets cookies and session ID
+-
+-    See option appendCookieData. Flash FileReference is not an intelligent
+-    upload class, the request will not have the browser cookies, Flash saves
+-    his own cookies. When you have sessions, append them as get-data to the the
+-    URL (e.g. "upload.php?SESSID=123456789abcdef"). Of course your session-name
+-    can be different.
+-
+-  and, indeed, folks are whining about it: http://bugs.adobe.com/jira/browse/FP-78
+-
+-  There seem to be some other solutions:
+-  http://robrosenbaum.com/flash/using-flash-upload-with-php-symfony/
+-  and it may or may not be browser and plugin-dependent.
+-
+-  In the meanwhile, this is pretty straight-forward.
+-  """
+-  def process_request(self, request):
+-    cookie_key = settings.SESSION_COOKIE_NAME
+-    if cookie_key not in request.COOKIES and cookie_key in request.POST:
+-      request.COOKIES[cookie_key] = request.POST[cookie_key]
+-      del request.POST[cookie_key]
+-
+-
+ class DatabaseLoggingMiddleware(object):
+   """
+   If configured, logs database queries for every request.
+   """
+   DATABASE_LOG = logging.getLogger("desktop.middleware.DatabaseLoggingMiddleware")
++
++  def __init__(self):
++    if not desktop.conf.DATABASE_LOGGING.get():
++      LOG.info('Unloading DatabaseLoggingMiddleware')
++      raise exceptions.MiddlewareNotUsed
++
+   def process_response(self, request, response):
+     if desktop.conf.DATABASE_LOGGING.get():
+       if self.DATABASE_LOG.isEnabledFor(logging.INFO):
+diff --git a/desktop/core/src/desktop/middleware_test.py b/desktop/core/src/desktop/middleware_test.py
+index 0ab5595..30aee62 100644
+--- a/desktop/core/src/desktop/middleware_test.py
++++ b/desktop/core/src/desktop/middleware_test.py
+@@ -29,28 +29,6 @@ from desktop.lib.django_test_util import make_logged_in_client
+ from desktop.lib.test_utils import add_permission
+ 
+ 
+-def test_jframe_middleware():
+-  c = make_logged_in_client()
+-  path = "/about/?foo=bar&baz=3"
+-  response = c.get(path)
+-  assert_equal(path, response["X-Hue-JFrame-Path"])
+-
+-  path_nocache = "/about/?noCache=blabla&foo=bar&baz=3"
+-  response = c.get(path_nocache)
+-  assert_equal(path, response["X-Hue-JFrame-Path"])
+-
+-  path_nocache = "/about/?noCache=blabla&foo=bar&noCache=twiceover&baz=3"
+-  response = c.get(path_nocache)
+-  assert_equal(path, response["X-Hue-JFrame-Path"])
+-
+-  path = "/about/"
+-  response = c.get(path)
+-  assert_equal(path, response["X-Hue-JFrame-Path"])
+-
+-  response = c.get("/about/?")
+-  assert_equal("/about/", response["X-Hue-JFrame-Path"])
+-
+-
+ def test_view_perms():
+   # Super user
+   c = make_logged_in_client()
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index a31acb8..3c9dfba 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -113,7 +113,6 @@ MIDDLEWARE_CLASSES = [
+     'desktop.middleware.DatabaseLoggingMiddleware',
+     'desktop.middleware.AuditLoggingMiddleware',
+     'django.middleware.common.CommonMiddleware',
+-    'desktop.middleware.SessionOverPostMiddleware',
+     'django.contrib.sessions.middleware.SessionMiddleware',
+     'django.contrib.auth.middleware.AuthenticationMiddleware',
+     'desktop.middleware.SpnegoMiddleware',    
+@@ -125,10 +124,8 @@ MIDDLEWARE_CLASSES = [
+     'desktop.middleware.LoginAndPermissionMiddleware',
+     'django.contrib.messages.middleware.MessageMiddleware',
+     'desktop.middleware.NotificationMiddleware',
+-    'desktop.middleware.JFrameMiddleware',
+     'desktop.middleware.ExceptionMiddleware',
+     'desktop.middleware.ClusterMiddleware',
+-    'desktop.middleware.AppSpecificMiddleware',
+     'django.middleware.transaction.TransactionMiddleware',
+     # 'debug_toolbar.middleware.DebugToolbarMiddleware'
+     'django.middleware.csrf.CsrfViewMiddleware'
+@@ -283,6 +280,12 @@ DATABASES = {
+   'default': default_db
+ }
+ 
++CACHES = {
++    'default': {
++        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
++        'LOCATION': 'unique-hue'
++    }
++}
+ 
+ # Configure sessions
+ SESSION_COOKIE_AGE = desktop.conf.SESSION.TTL.get()
+-- 
+1.7.9.5
+

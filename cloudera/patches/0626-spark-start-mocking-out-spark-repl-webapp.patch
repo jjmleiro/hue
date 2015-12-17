@@ -1,0 +1,219 @@
+From 608ea31328d8eda1acc72e2ae9a4f61c598a6bb3 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 8 Dec 2014 18:15:30 -0800
+Subject: [PATCH 0626/1173] [spark] start mocking out spark-repl webapp
+
+---
+ apps/spark/java/sparker-repl/pom.xml               |  100 +++++++++++---------
+ .../sparker-repl/src/main/scala/Scalatra.scala     |   36 +++++++
+ .../scala/com/cloudera/hue/sparker/repl/Main.scala |    2 +-
+ 3 files changed, 93 insertions(+), 45 deletions(-)
+ create mode 100644 apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+index 7a8a87e..14449ef 100644
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -18,6 +18,7 @@
+         <scala.binary.version>2.10</scala.binary.version>
+         <scala.macros.version>2.0.1</scala.macros.version>
+         <spark.version>1.1.0-cdh5.2.0-SNAPSHOT</spark.version>
++        <scalatra.version>2.2.1</scalatra.version>
+         <PermGen>64m</PermGen>
+         <MaxPermGen>512m</MaxPermGen>
+     </properties>
+@@ -36,69 +37,78 @@
+             <version>3.2.11</version>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+         <plugins>
+ 
+             <plugin>
+-                <groupId>org.scala-tools</groupId>
+-                <artifactId>maven-scala-plugin</artifactId>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-shade-plugin</artifactId>
++                <version>1.6</version>
++                <configuration>
++                    <createDependencyReducedPom>true</createDependencyReducedPom>
++                    <filters>
++                        <filter>
++                            <artifact>*:*</artifact>
++                            <excludes>
++                                <exclude>META-INF/*.SF</exclude>
++                                <exclude>META-INF/*.DSA</exclude>
++                                <exclude>META-INF/*.RSA</exclude>
++                            </excludes>
++                        </filter>
++                    </filters>
++                </configuration>
+                 <executions>
+                     <execution>
++                        <phase>package</phase>
+                         <goals>
+-                            <goal>compile</goal>
+-                            <goal>testCompile</goal>
++                            <goal>shade</goal>
+                         </goals>
++                        <configuration>
++                            <transformers>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
++                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
++                                    <mainClass>com.cloudera.hue.sparker.repl.Main</mainClass>
++                                </transformer>
++                            </transformers>
++                        </configuration>
+                     </execution>
+-                    <!--
++                </executions>
++            </plugin>
++
++            <plugin>
++                <groupId>org.eclipse.jetty</groupId>
++                <artifactId>jetty-maven-plugin</artifactId>
++                <version>9.0.2.v20130417</version>
++            </plugin>
++
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <executions>
+                     <execution>
+-                        <id>scala-compile-first</id>
+-                        <phase>process-resources</phase>
+                         <goals>
+                             <goal>compile</goal>
+-                        </goals>
+-                    </execution>
+-                    <execution>
+-                        <id>scala-test-compile-first</id>
+-                        <phase>process-test-resources</phase>
+-                        <goals>
+                             <goal>testCompile</goal>
+                         </goals>
+                     </execution>
+-                    <execution>
+-                        <id>attach-scaladocs</id>
+-                        <phase>verify</phase>
+-                        <goals>
+-                            <goal>doc-jar</goal>
+-                        </goals>
+-                    </execution>
+-                    -->
+                 </executions>
+                 <configuration>
+-                    <!--
+-                    <scalaVersion>${scala.version}</scalaVersion>
+-                    <recompileMode>incremental</recompileMode>
+-                    <useZincServer>true</useZincServer>
+-                    <args>
+-                        <arg>-unchecked</arg>
+-                        <arg>-deprecation</arg>
+-                        <arg>-feature</arg>
+-                        <arg>-language:postfixOps</arg>
+-                    </args>
+-                    <jvmArgs>
+-                        <jvmArg>-Xms1024m</jvmArg>
+-                        <jvmArg>-Xmx1024m</jvmArg>
+-                        <jvmArg>-XX:PermSize=${PermGen}</jvmArg>
+-                        <jvmArg>-XX:MaxPermSize=${MaxPermGen}</jvmArg>
+-                    </jvmArgs>
+-                    <javacArgs>
+-                        <javacArg>-source</javacArg>
+-                        <javacArg>${java.version}</javacArg>
+-                        <javacArg>-target</javacArg>
+-                        <javacArg>${java.version}</javacArg>
+-                    </javacArgs>
+-                    -->
+                     <!-- The following plugin is required to use quasiquotes in Scala 2.10 and is used
+                          by Spark SQL for code generation. -->
+                     <compilerPlugins>
+@@ -111,6 +121,7 @@
+                 </configuration>
+             </plugin>
+ 
++            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-dependency-plugin</artifactId>
+@@ -143,6 +154,7 @@
+                     </archive>
+                 </configuration>
+             </plugin>
++            -->
+         </plugins>
+     </build>
+ 
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+new file mode 100644
+index 0000000..feba7cd
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+@@ -0,0 +1,36 @@
++import javax.servlet.ServletContext
++
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.servlet.DefaultServlet
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.{ScalatraFilter, LifeCycle}
++import org.scalatra.servlet.ScalatraListener
++
++class HelloWorldApp extends ScalatraFilter {
++  get("/") {
++    <h1>Hello {params("name")}</h1>
++  }
++}
++
++object Main {
++  def main(args: Array[String]): Unit = {
++    val port = 8087
++    val server = new Server(port)
++    val context = new WebAppContext()
++    context.setContextPath("/")
++    context.setResourceBase("src/main/com/cloudera/hue/sparker/repl")
++    context.addEventListener(new ScalatraListener)
++    context.addServlet(classOf[DefaultServlet], "/")
++
++    server.setHandler(context)
++
++    server.start()
++    server.join()
++  }
++}
++
++class ScalatraBootstrap extends LifeCycle {
++  override def init(context: ServletContext): Unit = {
++    context.mount(new HelloWorldApp, "/*")
++  }
++}
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+index bc8280a..f2aeb52 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+@@ -7,4 +7,4 @@ object Main {
+     org.apache.spark.repl.Main.interp = new SparkerILoop(Console.in, new StringWriter)
+     org.apache.spark.repl.Main.interp.process(args)
+   }
+-}
+\ No newline at end of file
++}
+-- 
+1.7.9.5
+

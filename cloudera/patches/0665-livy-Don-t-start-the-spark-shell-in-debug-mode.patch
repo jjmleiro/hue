@@ -1,0 +1,23 @@
+From bad5122af8f482722f538a52bb98962768fa3aa3 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 24 Jan 2015 18:06:06 -0800
+Subject: [PATCH 0665/1173] [livy] Don't start the spark-shell in debug mode
+
+---
+ apps/spark/java/bin/spark-shell |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/apps/spark/java/bin/spark-shell b/apps/spark/java/bin/spark-shell
+index bd34824..2772392 100755
+--- a/apps/spark/java/bin/spark-shell
++++ b/apps/spark/java/bin/spark-shell
+@@ -22,6 +22,5 @@ set -e
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
+ 
+ exec java \
+-	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006 \
+ 	-cp "$LIVY_HOME/livy-repl/target/lib/*:$LIVY_HOME/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar" \
+ 	com.cloudera.hue.livy.repl.Main -usejavacp "$@"
+-- 
+1.7.9.5
+

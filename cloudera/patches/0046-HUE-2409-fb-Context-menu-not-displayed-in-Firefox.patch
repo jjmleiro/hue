@@ -1,0 +1,35 @@
+From 28640a2f1cac01b03297aea437d12bfbfaab3c3a Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 15 Oct 2014 00:20:13 -0500
+Subject: [PATCH 0046/1173] HUE-2409 [fb] Context menu not displayed in
+ Firefox
+
+Stopped event bubbling in showContextMenu to allow display of context menu
+---
+ .../filebrowser/templates/listdir_components.mako  |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 3a46a31..31fd3c6 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -647,13 +647,15 @@ from django.utils.translation import ugettext as _
+             actions = $('#ch-dropdown'),
+             rect = document.querySelector('body').getBoundingClientRect();
+ 
++          e.stopPropagation();
++
+           // close the actions menu from button area if open
+           if (actions.hasClass('open')) {
+             actions.removeClass('open');
+           }
+ 
+           // display context menu and ensure it is on-screen
+-          if ($.inArray(row.name, ['..', '.']) === -1) {
++          if ($.inArray(row.name, ['..', '.', '.Trash']) === -1) {
+             this.selected(true);
+             cm.css({ display: 'block', top: e.pageY - 15, left: (e.pageX < rect.right - 200 ) ? e.pageX : e.pageX - 250 });
+           } else {
+-- 
+1.7.9.5
+

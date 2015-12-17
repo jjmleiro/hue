@@ -1,0 +1,57 @@
+From 8f02fc1d1138f770e5a2122b87e35343bed6de01 Mon Sep 17 00:00:00 2001
+From: Shuo Diao <shuodiao@amazon.com>
+Date: Fri, 14 Nov 2014 13:30:05 -0800
+Subject: [PATCH 0137/1173] HUE-2486 [beeswax] Fix saving result to a new Hive
+ table and to a HDFS directory
+
+Hive query editor allows users to save Hive query results to HDFS or a new Hive table.
+However, when users have multiple query statements in the Hive query editor, the editor
+wraps all the queries inserts them into the 'CREATE TABLE AS SELECT ...' or
+'INSERT OVERWRITE DIRECTORY SELECT ...' statement to save the query, which causes syntax error.
+
+The fix takes only the last SELECT statement being executed and saves it,
+and it also provides an error message that only SELECT clause can be saved.
+---
+ apps/beeswax/src/beeswax/server/dbms.py |   15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/dbms.py b/apps/beeswax/src/beeswax/server/dbms.py
+index 86b012b..6fd067c 100644
+--- a/apps/beeswax/src/beeswax/server/dbms.py
++++ b/apps/beeswax/src/beeswax/server/dbms.py
+@@ -263,12 +263,19 @@ class HiveServer2Dbms(object):
+ 
+     return self.execute_query(query, design)
+ 
++  def _get_and_validate_select_query(self, design, query_history):
++    query = design.get_query_statement(query_history.statement_number)
++    if not query.strip().lower().startswith('select'):
++      raise Exception(_('Only SELECT statements can be saved. Provided query: %(query)s') % {'query': query})
++
++    return query
++
+   def insert_query_into_directory(self, query_history, target_dir):
+     design = query_history.design.get_design()
+     database = design.query['database']
+     self.use(database)
+-
+-    hql = "INSERT OVERWRITE DIRECTORY '%s' %s" % (target_dir, design.query['query'])
++    query = self._get_and_validate_select_query(design, query_history)
++    hql = "INSERT OVERWRITE DIRECTORY '%s' %s" % (target_dir, query)
+     return self.execute_statement(hql)
+ 
+ 
+@@ -279,8 +286,8 @@ class HiveServer2Dbms(object):
+     # Case 1: Hive Server 2 backend or results straight from an existing table
+     if result_meta.in_tablename:
+       self.use(database)
+-
+-      hql = 'CREATE TABLE %s.%s AS %s' % (target_database, target_table, design.query['query'])
++      query = self._get_and_validate_select_query(design, query_history)
++      hql = 'CREATE TABLE %s.%s AS %s' % (target_database, target_table, query)
+       query_history = self.execute_statement(hql)
+     else:
+       # Case 2: The results are in some temporary location
+-- 
+1.7.9.5
+

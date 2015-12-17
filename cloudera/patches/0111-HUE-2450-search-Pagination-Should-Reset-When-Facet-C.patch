@@ -1,0 +1,41 @@
+From b2fcf2e2a2f734fb40c463ae9d4231ba99286d8b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 12 Nov 2014 18:39:32 -0500
+Subject: [PATCH 0111/1173] HUE-2450 [search] Pagination Should Reset When
+ Facet Changes
+
+---
+ apps/search/static/js/search.ko.js |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index 1d6cb3d..5f0006e 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -133,6 +133,7 @@ var Query = function (vm, query) {
+       });
+     }
+ 
++    self.start(0);
+     vm.search();
+   }
+ 
+@@ -153,6 +154,7 @@ var Query = function (vm, query) {
+     self.toggleFacet({'widget_id': id, 'facet': {'cat': data.val.cat, 'value': data.val.value}, 'exclude': exclude});
+     vm.search();
+   }
++
+   self.addSingleTermFacet = function(data) {
+     _toggleSingleTermFacet(data, false);
+   }
+@@ -193,6 +195,7 @@ var Query = function (vm, query) {
+       }
+     }
+ 
++    self.start(0);
+     if (data.no_refresh == undefined) {
+       vm.search();
+     }
+-- 
+1.7.9.5
+

@@ -1,0 +1,221 @@
+From ebf9a32cb6ea8422c531f8643b555ab3dc480f80 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 7 Jan 2015 19:27:57 +0100
+Subject: [PATCH 0405/1173] [oozie] Added coordinator picker to bundle page
+
+---
+ .../src/oozie/templates/editor/bundle_editor.mako  |  105 ++++++++++++--------
+ .../oozie/templates/editor/coordinator_editor.mako |    5 +-
+ apps/oozie/static/js/bundle-editor.ko.js           |   29 +++++-
+ 3 files changed, 90 insertions(+), 49 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+index a3cde4a..b63eab8 100644
+--- a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+@@ -74,40 +74,30 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+       <div class="card card-home">
+         <h1 class="card-heading simple">${ _('Which schedules to bundle?') }</h1>
+ 
+-          <select data-bind="options: coordinators,
+-                         optionsText: 'name',
+-                         optionsValue: 'uuid',
+-                         value: selectedCoordinator,
+-                         optionsCaption: 'Choose...'">
+-          </select>
+-
+-          <a class="pointer" data-bind="click: addBundledCoordinator">
+-            <i class="fa fa-plus"></i> ${ _('Add') }
++        <div class="card-body">
++
++          <a class="pointer" data-bind="click: function() { showChooseCoordinator(); }">
++            <i class="fa fa-plus"></i> ${ _('Add a coordinator') }
+           </a>
+ 
+-        <div class="card-body">
++          
+           <ul data-bind="foreach: bundle.coordinators" class="unstyled">
+             <li>
+-            <select data-bind="options: $root.coordinators,
+-                         optionsText: 'name',
+-                         optionsValue: 'uuid',
+-                         value: coordinator,
+-                         optionsCaption: 'Choose...'">
+-            </select>
+-
+-            <ul data-bind="foreach: properties" class="unstyled">
+-              <li>
+-                <input data-bind="value: name"/>
+-                <input data-bind="value: value"/>
+-                <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
+-                  <i class="fa fa-minus"></i>
+-                </a>
+-              </li>
+-            </ul>
+-
+-            <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }">
+-              <i class="fa fa-plus"></i> ${ _('Add a parameter') }
+-            </a>
++              <h3><a class="pointer" data-bind="click: function() { showChooseCoordinator(this); }, text: $root.getCoordinatorById(coordinator()).name"></a></h3>
++
++              <ul data-bind="foreach: properties" class="unstyled">
++                <li>
++                  <input data-bind="value: name"/>
++                  <input data-bind="value: value"/>
++                  <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
++                    <i class="fa fa-minus"></i>
++                  </a>
++                </li>
++              </ul>
++
++              <a class="pointer" data-bind="click: function(){ $data.properties.push({'name': '', 'value': ''}); }">
++                <i class="fa fa-plus"></i> ${ _('Add a parameter') }
++              </a>
+             </li>          
+           </ul>
+         </div>
+@@ -119,6 +109,28 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+ </div>
+ 
+ 
++<div id="chooseCoordinatorDemiModal" class="demi-modal hide" data-backdrop="false">
++  <div class="modal-body">
++    <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
++    <div style="float: left; margin-right: 10px;text-align: center">
++      <input type="text" data-bind="clearable: $root.coordinatorModalFilter, valueUpdate:'afterkeydown'" placeholder="${_('Filter coordinators')}" class="input" style="float: left" /><br/>
++    </div>
++    <div>
++      <ul data-bind="foreach: $root.filteredModalCoordinators().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalCoordinators().length > 0"
++          class="unstyled inline fields-chooser" style="height: 100px; overflow-y: auto">
++        <li data-bind="click: selectCoordinator">
++          <span class="badge badge-info"><span data-bind="text: name(), attr: {'title': uuid()}"></span>
++          </span>
++        </li>
++      </ul>
++      <div class="alert alert-info inline" data-bind="visible: $root.filteredModalCoordinators().length == 0" style="margin-left: 250px;margin-right: 50px; height: 42px;line-height: 42px">
++        ${_('There are no coordinators matching your search term.')}
++      </div>
++    </div>
++  </div>
++</div>
++
++
+ <div id="settingsModal" class="modal hide fade">
+   <div class="modal-header" style="padding-bottom: 2px">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+@@ -171,26 +183,35 @@ ${ dashboard.import_bindings() }
+   var viewModel = new BundleEditorViewModel(${ bundle_json | n,unicode }, ${ coordinators_json | n,unicode });
+   ko.applyBindings(viewModel);
+ 
+-  function showAddActionDemiModal(widget) {
+-    newAction = widget;
+-    $("#addActionDemiModal").modal("show");
++  var tempCoordinator = null;
++  function showChooseCoordinator(coord) {
++    if (typeof coord != "undefined"){
++      tempCoordinator = coord;  
++    }
++    $("#chooseCoordinatorDemiModal").modal("show");
+   }
+ 
+-  function addActionDemiModalFieldPreview(field) {
+-    if (newAction != null) {
+-      viewModel.coordinator.addNode(newAction);
+-      $("#addActionDemiModal").modal("hide");
++  function selectCoordinator(coord) {
++    if (tempCoordinator != null){
++      tempCoordinator.coordinator(coord.uuid());
++      tempCoordinator = null;
++    } 
++    else  {
++      viewModel.addBundledCoordinator(coord.uuid());
+     }
++    $("#chooseCoordinatorDemiModal").modal("hide");
+   }
+ 
+-  function addActionDemiModalFieldCancel() {
+-    viewModel.removeWidgetById(newAction.id());
+-  }
+-  
+   $(document).on("showSubmitPopup", function(event, data){
+     $('#submit-modal').html(data);
+     $('#submit-modal').modal('show');
+-  });  
++  });
++
++  $(document).ready(function() {
++    $("#chooseCoordinatorDemiModal").modal({
++      show: false
++    });
++  });
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 53ee8ac..14d600f 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -81,9 +81,8 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <div class="card-body">
+           <a class="pointer" data-bind="visible: ! coordinator.properties.workflow(), click: showChooseWorkflow">${ _('Choose a workflow...') }</a>
+           <!-- ko if: coordinator.properties.workflow -->
+-            <a class="pointer" data-bind="click: showChooseWorkflow, text: getWorkflowById(coordinator.properties.workflow()).name">${ _('Choose a workflow...') }</a>
++            <a class="pointer" data-bind="click: showChooseWorkflow, text: getWorkflowById(coordinator.properties.workflow()).name"></a>
+           <!-- /ko -->
+-
+         </div>
+       </div>
+ 
+@@ -242,7 +241,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+   <div class="modal-body">
+     <a href="javascript: void(0)" data-dismiss="modal" class="pull-right"><i class="fa fa-times"></i></a>
+     <div style="float: left; margin-right: 10px;text-align: center">
+-      <input id="chooseWorkflowInput" type="text" data-bind="clearable: $root.workflowModalFilter, valueUpdate:'afterkeydown'" placeholder="${_('Filter workflows')}" class="input" style="float: left" /><br/>
++      <input type="text" data-bind="clearable: $root.workflowModalFilter, valueUpdate:'afterkeydown'" placeholder="${_('Filter workflows')}" class="input" style="float: left" /><br/>
+     </div>
+     <div>
+       <ul data-bind="foreach: $root.filteredModalWorkflows().sort(function (l, r) { return l.name() > r.name() ? 1 : -1 }), visible: $root.filteredModalWorkflows().length > 0"
+diff --git a/apps/oozie/static/js/bundle-editor.ko.js b/apps/oozie/static/js/bundle-editor.ko.js
+index 14c0eb6..cbadea6 100644
+--- a/apps/oozie/static/js/bundle-editor.ko.js
++++ b/apps/oozie/static/js/bundle-editor.ko.js
+@@ -51,11 +51,32 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json) {
+   self.bundle = new Bundle(self, bundle_json);
+   
+   self.coordinators = ko.mapping.fromJS(coordinators_json);
+-  self.selectedCoordinator = ko.observable();
+ 
+-  self.addBundledCoordinator = function() {
+-    self.bundle.addCoordinator(self.selectedCoordinator());
+-    self.selectedCoordinator(null);
++  self.coordinatorModalFilter = ko.observable("");
++  self.filteredModalCoordinators = ko.computed(function() {
++    var _filter = self.coordinatorModalFilter().toLowerCase();
++    if (!_filter) {
++      return self.coordinators();
++    }
++    else {
++      return ko.utils.arrayFilter(self.coordinators(), function(coord) {
++        return coord.name().toLowerCase().indexOf(_filter.toLowerCase()) > -1;
++      });
++    }
++  }, self);
++
++  self.getCoordinatorById = function (uuid) {
++    var _coords = ko.utils.arrayFilter(self.coordinators(), function(coord) {
++      return coord.uuid() == uuid;
++    });
++    if (_coords.length > 0){
++      return _coords[0];
++    }
++    return null;
++  }
++
++  self.addBundledCoordinator = function (uuid) {
++    self.bundle.addCoordinator(uuid);
+   };
+ 
+   
+-- 
+1.7.9.5
+

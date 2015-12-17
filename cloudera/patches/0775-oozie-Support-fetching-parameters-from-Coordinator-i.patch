@@ -1,0 +1,295 @@
+From 351b8b2caff2d9821eeb8018f1d3aacbceb83875 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sun, 8 Feb 2015 21:56:40 -0800
+Subject: [PATCH 0775/1173] [oozie] Support fetching parameters from
+ Coordinator in Bundle editor
+
+Fix Oozie v1 tests
+---
+ apps/oozie/src/oozie/models2.py                    |    3 ++
+ .../src/oozie/templates/editor2/bundle_editor.mako |    2 ++
+ .../templates/editor2/coordinator_editor.mako      |   16 +++++++----
+ apps/oozie/src/oozie/tests.py                      |   30 +++++++++++++-------
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/dashboard.py            |   30 +++++++++++---------
+ apps/oozie/src/oozie/views/editor2.py              |   17 ++++++++++-
+ apps/oozie/static/js/bundle-editor.ko.js           |   22 ++++++++++----
+ 8 files changed, 83 insertions(+), 38 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index c7fc02a..80bbf9a 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1546,6 +1546,9 @@ class Coordinator(Job):
+     for param in find_json_parameters([self.data['properties']]):
+       params.add(param)
+ 
++    for param in find_json_parameters(self.data['variables']):
++      params.add(param)
++
+     if self.sla_enabled:
+       for param in find_json_parameters(self.sla):
+         params.add(param)
+diff --git a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+index f15132a..16aa7fc 100644
+--- a/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/bundle_editor.mako
+@@ -166,6 +166,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+         
+       <h4>${ _('Submission Parameters') }</h4>
+       <ul data-bind="foreach: bundle.properties.parameters" class="unstyled">
++        <!-- ko if: ['oozie.use.system.libpath', 'start_date', 'end_date'].indexOf(name()) == -1 -->
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+@@ -173,6 +174,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+             <i class="fa fa-minus"></i>
+           </a>
+         </li>
++        <!-- /ko -->
+       </ul>
+       <a class="pointer" data-bind="click: function(){ $root.bundle.properties.parameters.push({'name': '', 'value': ''}); }">
+         <i class="fa fa-plus"></i> ${ _('Add parameter') }
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 8dfb388..e262406 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -216,7 +216,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+               <div class="btn-group">
+                 <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"
+-                        aria-expanded="false">
++                        aria-expanded="false" data-bind="enable: $root.isEditing">
+                   <!-- ko if: dataset_type() == 'parameter' -->
+                   ${ _('Parameter') }
+                   <!-- /ko -->
+@@ -248,11 +248,15 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               
+               &nbsp;&nbsp;
+               
+-              <input type="text" class="filechooser-input dataset-input" data-bind="value: dataset_variable, filechooser: dataset_variable, attr: { placeholder:
+-                dataset_type() == 'input_path' ? '${ _("Required data path dependency to start the worklow") }' : 
+-                dataset_type() == 'output_path' ? '${ _("Data path created by the workflow") }' : 
+-                '${ _("e.g. 1, 2, 3, /data/logs, coord:nominalTime()") }' },
+-                valueUpdate: 'afterkeydown'" style="margin-bottom:0; width: 380px" />
++              <span data-bind="visible: $root.isEditing">
++                <input type="text" class="filechooser-input dataset-input" data-bind="value: dataset_variable, filechooser: dataset_variable, attr: { placeholder:
++                  dataset_type() == 'input_path' ? '${ _("Required data path dependency to start the worklow") }' : 
++                  dataset_type() == 'output_path' ? '${ _("Data path created by the workflow") }' : 
++                  '${ _("e.g. 1, 2, 3, /data/logs, coord:nominalTime()") }' },
++                  valueUpdate: 'afterkeydown'" style="margin-bottom:0; width: 380px" />
++              </span>
++
++              <span data-bind="text: dataset_variable, visible: ! $root.isEditing()"></span>
+ 
+               <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }, visible: $root.isEditing">
+                 <i class="fa fa-minus"></i>
+diff --git a/apps/oozie/src/oozie/tests.py b/apps/oozie/src/oozie/tests.py
+index 7a83812..c20a723 100644
+--- a/apps/oozie/src/oozie/tests.py
++++ b/apps/oozie/src/oozie/tests.py
+@@ -44,7 +44,7 @@ from liboozie.oozie_api_tests import OozieServerProvider
+ from liboozie.types import WorkflowList, Workflow as OozieWorkflow, Coordinator as OozieCoordinator,\
+   Bundle as OozieBundle, CoordinatorList, WorkflowAction, BundleList
+ 
+-from oozie.conf import ENABLE_CRON_SCHEDULING
++from oozie.conf import ENABLE_CRON_SCHEDULING, ENABLE_V2
+ from oozie.models import Workflow, Node, Kill, Link, Job, Coordinator, History,\
+   find_parameters, NODE_TYPES, Bundle
+ from oozie.utils import workflow_to_dict, model_to_dict, smart_path
+@@ -3467,20 +3467,28 @@ class TestDashboard(OozieMockBase):
+ 
+ 
+   def test_good_workflow_status_graph(self):
+-    workflow_count = Document.objects.available_docs(Workflow, self.user).count()
+-
+-    response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]), {})
+-
+-    assert_true(response.context['workflow_graph'])
+-    assert_equal(Document.objects.available_docs(Workflow, self.user).count(), workflow_count)
++    finish = ENABLE_V2.set_for_testing(False)
++    try:
++      workflow_count = Document.objects.available_docs(Workflow, self.user).count()
++  
++      response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[0]]), {})
++  
++      assert_true(response.context['workflow_graph'])
++      assert_equal(Document.objects.available_docs(Workflow, self.user).count(), workflow_count)
++    finally:
++      finish()
+ 
+   def test_bad_workflow_status_graph(self):
+-    workflow_count = Document.objects.available_docs(Workflow, self.user).count()
++    finish = ENABLE_V2.set_for_testing(False)
++    try:
++      workflow_count = Document.objects.available_docs(Workflow, self.user).count()
+ 
+-    response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[1]]), {})
++      response = self.c.get(reverse('oozie:list_oozie_workflow', args=[MockOozieApi.WORKFLOW_IDS[1]]), {})
+ 
+-    assert_true(response.context['workflow_graph'] is None)
+-    assert_equal(Document.objects.available_docs(Workflow, self.user).count(), workflow_count)
++      assert_true(response.context['workflow_graph'] is None)
++      assert_equal(Document.objects.available_docs(Workflow, self.user).count(), workflow_count)
++    except:
++      finish()
+ 
+   def test_list_oozie_sla(self):
+     response = self.c.get(reverse('oozie:list_oozie_sla'))
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index c102b32..25479c8 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -93,6 +93,7 @@ urlpatterns += patterns(
+   url(r'^editor/coordinator/submit/(?P<doc_id>\d+)$', 'submit_coordinator', name='editor_submit_coordinator'),
+   url(r'^editor/coordinator/gen_xml/$', 'gen_xml_coordinator', name='gen_xml_coordinator'),
+   url(r'^editor/coordinator/open_v1/$', 'open_old_coordinator', name='open_old_coordinator'),
++  url(r'^editor/coordinator/parameters/$', 'coordinator_parameters', name='coordinator_parameters'),
+   
+   url(r'^editor/bundle/list/$', 'list_editor_bundles', name='list_editor_bundles'),
+   url(r'^editor/bundle/edit/$', 'edit_bundle', name='edit_bundle'),
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 4b4fcd8..3eab97c 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -43,14 +43,16 @@ from liboozie.types import Workflow as OozieWorkflow, Coordinator as Coordinator
+ 
+ from oozie.conf import OOZIE_JOBS_COUNT, ENABLE_CRON_SCHEDULING, ENABLE_V2
+ from oozie.forms import RerunForm, ParameterForm, RerunCoordForm, RerunBundleForm
+-from oozie.models import Workflow, Job, utc_datetime_format, Bundle, Coordinator, get_link
++from oozie.models import Workflow, Job, utc_datetime_format, Bundle, Coordinator, get_link, History as OldHistory
++from oozie.models2 import History
+ from oozie.settings import DJANGO_APPS
+ 
+ 
+-if ENABLE_V2.get():
+-  from oozie.models2 import History
+-else:
+-  from oozie.models import History
++def get_history():
++  if ENABLE_V2.get():
++    return History
++  else:
++    return OldHistory
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -223,8 +225,8 @@ def list_oozie_workflow(request, job_id):
+ 
+   if ENABLE_V2.get():
+     # To update with the new History document model
+-    hue_coord = History.get_coordinator_from_config(oozie_workflow.conf_dict)
+-    hue_workflow = (hue_coord and hue_coord.workflow) or History.get_workflow_from_config(oozie_workflow.conf_dict)
++    hue_coord = get_history().get_coordinator_from_config(oozie_workflow.conf_dict)
++    hue_workflow = (hue_coord and hue_coord.workflow) or get_history().get_workflow_from_config(oozie_workflow.conf_dict)
+   
+     if hue_coord and hue_coord.workflow: hue_coord.workflow.document.doc.get().can_read_or_exception(request.user)
+     if hue_workflow: hue_workflow.document.doc.get().can_read_or_exception(request.user)
+@@ -235,10 +237,10 @@ def list_oozie_workflow(request, job_id):
+     else:
+       workflow_graph, full_node_list = '', None    
+   else:
+-    history = History.cross_reference_submission_history(request.user, job_id)
++    history = get_history().cross_reference_submission_history(request.user, job_id)
+ 
+-    hue_coord = history and history.get_coordinator() or History.get_coordinator_from_config(oozie_workflow.conf_dict)
+-    hue_workflow = (hue_coord and hue_coord.workflow) or (history and history.get_workflow()) or History.get_workflow_from_config(oozie_workflow.conf_dict)
++    hue_coord = history and history.get_coordinator() or get_history().get_coordinator_from_config(oozie_workflow.conf_dict)
++    hue_workflow = (hue_coord and hue_coord.workflow) or (history and history.get_workflow()) or get_history().get_workflow_from_config(oozie_workflow.conf_dict)
+ 
+     if hue_coord and hue_coord.workflow: Job.objects.can_read_or_exception(request, hue_coord.workflow.id)
+     if hue_workflow: Job.objects.can_read_or_exception(request, hue_workflow.id)
+@@ -293,9 +295,9 @@ def list_oozie_coordinator(request, job_id):
+   oozie_coordinator = check_job_access_permission(request, job_id)
+ 
+   # Cross reference the submission history (if any)
+-  coordinator = History.get_coordinator_from_config(oozie_coordinator.conf_dict)
++  coordinator = get_history().get_coordinator_from_config(oozie_coordinator.conf_dict)
+   try:
+-    coordinator = History.objects.get(oozie_job_id=job_id).job.get_full_node()
++    coordinator = get_history().objects.get(oozie_job_id=job_id).job.get_full_node()
+   except:
+     pass
+ 
+@@ -354,8 +356,8 @@ def list_oozie_bundle(request, job_id):
+   # Cross reference the submission history (if any)
+   bundle = None
+   try:
+-    bundle = History.objects.get(oozie_job_id=job_id).job.get_full_node()
+-  except History.DoesNotExist:
++    bundle = get_history().objects.get(oozie_job_id=job_id).job.get_full_node()
++  except:
+     pass
+ 
+   if request.GET.get('format') == 'json':
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index ca4a5a9..798df05 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -408,7 +408,7 @@ def edit_coordinator(request):
+     LOG.error(smart_str(e))
+ 
+   workflows = [dict([('uuid', d.content_object.uuid), ('name', d.content_object.name)])
+-                                    for d in Document.objects.get_docs(request.user, Document2, extra='workflow2')]
++                    for d in Document.objects.get_docs(request.user, Document2, extra='workflow2')]
+ 
+   if coordinator_id and not filter(lambda a: a['uuid'] == coordinator.data['properties']['workflow'], workflows):
+     raise PopupException(_('You don\'t have access to the workflow of this coordinator.'))
+@@ -510,6 +510,21 @@ def gen_xml_coordinator(request):
+ 
+ 
+ @check_document_access_permission()
++def coordinator_parameters(request):
++  response = {'status': -1}
++
++  try:
++    coordinator = Coordinator(document=Document2.objects.get(type='oozie-coordinator2', uuid=request.GET.get('uuid'))) 
++
++    response['status'] = 0
++    response['parameters'] = coordinator.find_all_parameters(with_lib_path=False)
++  except Exception, e:
++    response['message'] = str(e)
++    
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++@check_document_access_permission()
+ def submit_coordinator(request, doc_id):
+   coordinator = Coordinator(document=Document2.objects.get(id=doc_id))  
+   ParametersFormSet = formset_factory(ParameterForm, extra=0)
+diff --git a/apps/oozie/static/js/bundle-editor.ko.js b/apps/oozie/static/js/bundle-editor.ko.js
+index bf3935a..4c76396 100644
+--- a/apps/oozie/static/js/bundle-editor.ko.js
++++ b/apps/oozie/static/js/bundle-editor.ko.js
+@@ -27,12 +27,22 @@ var Bundle = function (vm, bundle) {
+ 
+   
+   self.addCoordinator = function(coordinator_uuid) {
+-    var _var = {       
+-       'coordinator': coordinator_uuid,
+-       'properties': []
+-    };
+-
+-	self.coordinators.push(ko.mapping.fromJS(_var));	  
++    self.getCoordinatorParameters(coordinator_uuid);	  
++  };
++  
++  self.getCoordinatorParameters = function(uuid) {
++	$.get("/oozie/editor/coordinator/parameters/", {
++	  "uuid": uuid,
++	}, function (data) {
++	   var _var = {       
++           'coordinator': uuid,
++		   'properties': data.parameters
++	   };
++
++      self.coordinators.push(ko.mapping.fromJS(_var));
++	}).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
+   };
+ }
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,25 @@
+From f2ef15ffa0633b6f53e9def6771444b7133ff5cf Mon Sep 17 00:00:00 2001
+From: Ivan Orlov <ivanorlo@amazon.com>
+Date: Wed, 8 Oct 2014 14:48:10 -0700
+Subject: [PATCH 0010/1173] HUE-2382 [core] Typo in hadoop config_validator
+
+---
+ desktop/libs/hadoop/src/hadoop/conf.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index d1ecf35..e81307c 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -166,7 +166,7 @@ def config_validator(user):
+     if name == 'default':
+       has_default = True
+   if not has_default:
+-    res.append("hadoop.hdfs_clusters", "You should have an HDFS called 'default'.")
++    res.append(("hadoop.hdfs_clusters", "You should have an HDFS called 'default'."))
+ 
+   # MR_CLUSTERS
+   mr_down = []
+-- 
+1.7.9.5
+

@@ -1,0 +1,26 @@
+From 8344708b9cb18b60fa21625bc07414502fe134c4 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 5 Nov 2014 20:16:27 +0000
+Subject: [PATCH 0094/1173] [beeswax] Now Hive leaves some temporary files
+ when doing a CTAS
+
+---
+ apps/beeswax/src/beeswax/tests.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/tests.py b/apps/beeswax/src/beeswax/tests.py
+index fea6769..c106387 100644
+--- a/apps/beeswax/src/beeswax/tests.py
++++ b/apps/beeswax/src/beeswax/tests.py
+@@ -887,7 +887,7 @@ for x in sys.stdin:
+ 
+       # Check that data is right
+       if verify:
+-        target_ls = self.cluster.fs.listdir(target_dir)
++        target_ls = self.cluster.fs.listdir(target_dir)[1:]
+         assert_true(len(target_ls) >= 1)
+         data_buf = ""
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,568 @@
+From 90be62ea125f6704128a44a9c5b4bd5fd1402c92 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 5 Dec 2014 10:51:52 -0600
+Subject: [PATCH 0562/1173] [spark] Unify all the exception handling
+
+---
+ apps/spark/src/spark/api.py                |   88 ++++++++--------------------
+ apps/spark/src/spark/decorators.py         |   28 +++++++--
+ apps/spark/src/spark/models.py             |   72 ++++++++++++-----------
+ apps/spark/src/spark/templates/editor.mako |    4 ++
+ apps/spark/src/spark/views.py              |    4 +-
+ apps/spark/static/js/spark.vm.js           |   60 +++++++++++--------
+ 6 files changed, 128 insertions(+), 128 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index d6bc562..4c6c1b8 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -25,66 +25,53 @@ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2
+ 
+-from spark.models import get_api, Notebook, QueryExpired, SessionExpired
++from spark.models import get_api, Notebook
++from spark.decorators import api_error_handler
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
+-
++@api_error_handler
+ def create_session(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    response['session'] = get_api(request.user, snippet).create_session(lang=snippet['type'])
+-    response['status'] = 0
+-  except Exception, e:
+-    response['error'] = force_unicode(str(e))
++  response['session'] = get_api(request.user, snippet).create_session(lang=snippet['type'])
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def execute(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    response['handle'] = get_api(request.user, snippet).execute(notebook, snippet)
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  response['handle'] = get_api(request.user, snippet).execute(notebook, snippet)
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def check_status(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    response['query_status'] = get_api(request.user, snippet).check_status(notebook, snippet)
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  response['query_status'] = get_api(request.user, snippet).check_status(notebook, snippet)
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def fetch_result_data(request):
+   response = {'status': -1}
+ 
+@@ -93,74 +80,49 @@ def fetch_result_data(request):
+   rows = json.loads(request.POST.get('rows', 100))
+   start_over = json.loads(request.POST.get('startOver', False))
+ 
+-  try:
+-    response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet, rows, start_over)
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet, rows, start_over)
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def fetch_result_metadata(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    response['result'] = get_api(request.user, snippet).fetch_result_metadata(notebook, snippet)
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  response['result'] = get_api(request.user, snippet).fetch_result_metadata(notebook, snippet)
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def cancel_statement(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    response['result'] = get_api(request.user, snippet).cancel(notebook, snippet)
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  response['result'] = get_api(request.user, snippet).cancel(notebook, snippet)
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++@api_error_handler
+ def get_logs(request):
+   response = {'status': -1}
+ 
+   notebook = json.loads(request.POST.get('notebook', '{}'))
+   snippet = json.loads(request.POST.get('snippet', '{}'))
+ 
+-  try:
+-    db = get_api(request.user, snippet)
+-    response['logs'] = db.get_log(snippet)
+-    response['progress'] = db._progress(snippet, response['logs']) if snippet['status'] != 'available' else 100
+-    response['status'] = 0
+-  except SessionExpired, e:
+-    response['status'] = -2    
+-  except QueryExpired, e:
+-    response['status'] = -3    
+-  except Exception, e:
+-    response['message'] = force_unicode(str(e))
++  db = get_api(request.user, snippet)
++  response['logs'] = db.get_log(snippet)
++  response['progress'] = db._progress(snippet, response['logs']) if snippet['status'] != 'available' else 100
++  response['status'] = 0
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+diff --git a/apps/spark/src/spark/decorators.py b/apps/spark/src/spark/decorators.py
+index 9467d5f..1f0a6cf 100644
+--- a/apps/spark/src/spark/decorators.py
++++ b/apps/spark/src/spark/decorators.py
+@@ -20,18 +20,36 @@ import logging
+ 
+ from django.http import HttpResponse, Http404
+ from django.utils.translation import ugettext as _
++
+ from desktop.lib.exceptions_renderable import PopupException
++from desktop.lib.i18n import force_unicode
++
++from spark.models import QueryExpired, QueryError, SessionExpired
++
+ 
+ LOG = logging.getLogger(__name__)
+ 
+-def view_error_handler(view_fn):
++
++def api_error_handler(func):
+   def decorator(*args, **kwargs):
++    response = {}
++    
+     try:
+-      return view_fn(*args, **kwargs)
+-    except Http404, e:
+-      raise e
++      return func(*args, **kwargs)
++    except SessionExpired, e:
++      response['status'] = -2    
++    except QueryExpired, e:
++      response['status'] = -3
++    except QueryError, e:
++      response['status'] = 1
++      response['message'] = force_unicode(str(e))
+     except Exception, e:
+-      raise PopupException(_('An error happened with the Spark Server'), detail=e)
++      response['status'] = -1
++      response['message'] = force_unicode(str(e))
++    finally:
++      if response:
++        return HttpResponse(json.dumps(response), mimetype="application/json")
++    
+   return decorator
+ 
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index c6636b6..0cc0f84 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -26,7 +26,7 @@ from beeswax.design import hql_query
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory
+ from beeswax.views import safe_get_design, save_design
+ from beeswax.server import dbms
+-from beeswax.server.dbms import get_query_server_config
++from beeswax.server.dbms import get_query_server_config, QueryServerException
+ 
+ from spark.job_server_api import get_api as get_spark_api
+ 
+@@ -40,6 +40,13 @@ class QueryExpired(Exception):
+   pass
+ 
+ 
++class QueryError(Exception):
++  def __init__(self, message):
++    self.message = message
++
++  def __str__(self):
++    return force_unicode(str(self.message))
++
+ 
+ class Notebook():
+   
+@@ -94,6 +101,21 @@ class TextApi():
+     }
+   
+ 
++# HS2
++
++def query_error_handler(func):
++  def decorator(*args, **kwargs):
++    try:
++      return func(*args, **kwargs)
++    except QueryServerException, e:
++      message = force_unicode(str(e))
++      if 'Invalid query handle' in message or 'Invalid OperationHandle' in message:
++        raise QueryExpired(e)
++      else:
++        raise QueryError(message)
++  return decorator  
++  
++
+ class HS2Api():
+   
+   def __init__(self, user):
+@@ -122,19 +144,11 @@ class HS2Api():
+   def execute(self, notebook, snippet):
+     db = self._get_db(snippet)
+     query = hql_query(snippet['statement'], QUERY_TYPES[0])
+-    handle = db.client.query(query)
+     
+-#    if not handle.is_valid():
+-#        msg = _("Server returning invalid handle for query id %(id)d [%(query)s]...") % {'id': query_history.id, 'query': query[:40]}
+-#        raise QueryServerException(msg)
+-#    except QueryServerException, ex:
+-#      LOG.exception(ex)
+-#      # Kind of expected (hql compile/syntax error, etc.)
+-#      if hasattr(ex, 'handle') and ex.handle:
+-#        query_history.server_id, query_history.server_guid = ex.handle.id, ex.handle.id
+-#        query_history.log_context = ex.handle.log_context
+-#      query_history.save_state(QueryHistory.STATE.failed)
+-#      raise ex
++    try:
++      handle = db.client.query(query)
++    except QueryServerException, ex:      
++      raise QueryError(ex.message)
+ 
+     # All good
+     server_id, server_guid  = handle.get()
+@@ -147,19 +161,12 @@ class HS2Api():
+         'log_context': handle.log_context
+     }    
+ 
++  @query_error_handler
+   def check_status(self, notebook, snippet):
+     db = self._get_db(snippet)
+       
+     handle = self._get_handle(snippet)
+-
+-    try:
+-      status =  db.get_state(handle)
+-    except Exception, e:
+-      message = force_unicode(str(e))
+-      if 'Invalid query handle' in message or 'Invalid OperationHandle' in message:
+-        raise QueryExpired(e)
+-      else:
+-        raise e
++    status =  db.get_state(handle)      
+ 
+     return {
+         'status':
+@@ -170,19 +177,12 @@ class HS2Api():
+           )
+     }
+ 
++  @query_error_handler
+   def fetch_result(self, notebook, snippet, rows, start_over):
+     db = self._get_db(snippet)
+       
+     handle = self._get_handle(snippet)
+-    
+-    try:
+-      results = db.fetch(handle, start_over=start_over, rows=rows)
+-    except Exception, e:
+-      message = force_unicode(str(e))
+-      if 'Invalid query handle' in message or 'Invalid OperationHandle' in message:
+-        raise QueryExpired(e)
+-      else:
+-        raise e
++    results = db.fetch(handle, start_over=start_over, rows=rows)
+     
+     # No escaping...
+     return {
+@@ -195,16 +195,19 @@ class HS2Api():
+         } for column in results.data_table.cols()]
+     }
+ 
++  @query_error_handler
+   def fetch_result_metadata(self):
+     pass 
+ 
++  @query_error_handler
+   def cancel(self, notebook, snippet):
+     db = self._get_db(snippet)
+-      
++
+     handle = self._get_handle(snippet)
+     db.cancel_operation(handle)
+     return {'status': 'canceled'}    
+ 
++  @query_error_handler
+   def get_log(self, snippet):
+     db = self._get_db(snippet)
+       
+@@ -227,7 +230,10 @@ class HS2Api():
+       return 50
+ 
+ 
+-class SparkApi():  # Pig, DBquery, Phoenix... 
++# Spark
++
++
++class SparkApi(): 
+   
+   def __init__(self, user):
+     self.user = user
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 6b29101..1466aa7 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -291,6 +291,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <span data-bind="text: result.logs"></span>
+       </div>
+ 
++      <div data-bind="visible: result.errors().length > 0, css: resultsKlass">
++        <span data-bind="text: result.errors"></span>
++      </div>
++
+       <div class="row-fluid" data-bind="visible: result.meta().length > 0 && showGrid()" style="height: 400px">
+         <div class="span2">
+           <ul class="nav nav-list" style="border: none; background-color: #FFF">
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index 625c838..45a114a 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -21,13 +21,11 @@ import logging
+ from desktop.lib.django_util import render
+ from desktop.models import Document2
+ 
+-from spark.decorators import view_error_handler
+ from spark.models import Notebook
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ 
+-@view_error_handler
+ def editor(request):
+   notebook_id = request.GET.get('notebook')
+   
+@@ -46,4 +44,4 @@ def list_notebooks(request):
+ 
+   return render('list_notebooks.mako', request, {
+       'notebooks': notebooks
+-  })
+\ No newline at end of file
++  })
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index ec46cd6..48d1855 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -31,6 +31,7 @@ var Result = function (snippet, result) {
+   self.data = ko.observableArray(typeof result.data != "undefined" && result.data != null ? result.data : []);
+   self.data.extend({ rateLimit: 50 });
+   self.logs = ko.observable('');
++  self.errors = ko.observable('');
+ 
+   if (typeof result.handle != "undefined" && result.handle != null) {
+     $.each(result.handle, function(key, val) {
+@@ -45,6 +46,7 @@ var Result = function (snippet, result) {
+     self.meta.removeAll();
+     self.data.removeAll();
+     self.logs('');
++    self.errors('');
+   };  
+ }
+ 
+@@ -195,6 +197,22 @@ var Snippet = function (notebook, snippet) {
+   
+   self.checkStatusTimeout = null;
+   
++  self._ajax_error = function(data) {
++       if (data.status == -2) {
++          self.create_session();
++        }
++        else if (data.status == -3) {
++          self.status('expired');
++        } 
++        else if (data.status == 1) {
++          self.status('failed');
++          self.result.errors(data.message);
++        } else {
++          $(document).trigger("error", data.message);
++          self.status('failed');
++        }
++  };
++  
+   self.create_session = function() {
+     $.post("/spark/api/create_session", {
+     	notebook: ko.mapping.toJSON(notebook),
+@@ -231,14 +249,12 @@ var Snippet = function (notebook, snippet) {
+           });
+ 
+           self.checkStatus();
+-        }
+-        else if (data.status == -2) {
+-          self.create_session();          
+         } else {
+-          $(document).trigger("error", data.message);
++          self._ajax_error(data);
+         }
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
++      self.status('failed');
+     });    
+   };
+   
+@@ -280,12 +296,8 @@ var Snippet = function (notebook, snippet) {
+             self.fetchResultData(rows, false);
+           }, 500);
+         }
+-      } else if (data.status == -2) {
+-        self.create_session();
+-      } else if (data.status == -3) {
+-        self.status('expired');
+       } else {
+-        $(document).trigger("error", data.message);
++    	self._ajax_error(data);
+       }
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+@@ -294,18 +306,17 @@ var Snippet = function (notebook, snippet) {
+ 
+   self.fetchResultMetadata = function () {
+     $.post("/spark/api/fetch_result_metadata", {
+-      notebook: ko.mapping.toJSON(notebook),
+-      snippet: ko.mapping.toJSON(self)
+-    }, function (data) {
+-      if (data.status == 0) {
+-        self.result.meta(data.result.meta);
+-      } else if (data.status == -2) {
+-        self.create_session();
+-      } else {
+-        $(document).trigger("error", data.message);
+-      }
++        notebook: ko.mapping.toJSON(notebook),
++        snippet: ko.mapping.toJSON(self),
++      }, function (data) {
++   	    if (data.status == 0) {
++   	      self.result.meta(data.result.meta);  
++        } else {
++          $(document).trigger("error", data.message);
++        }
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
++      self.status('failed');
+     });
+   };
+ 
+@@ -325,13 +336,12 @@ var Snippet = function (notebook, snippet) {
+         	self.fetchResult(100);
+         	self.progress(100);
+           }
+-	    } else if (data.status == -2) {
+-	      self.create_session();  
+ 	    } else {
+-	      $(document).trigger("error", data.message);
++	      self._ajax_error(data);
+ 	    }
+ 	}).fail(function (xhr, textStatus, errorThrown) {
+      $(document).trigger("error", xhr.responseText);
++     self.status('failed');
+     });
+   };
+   
+@@ -348,10 +358,11 @@ var Snippet = function (notebook, snippet) {
+  	    if (data.status == 0) {
+  	      self.status('canceled'); 
+  	    } else {
+- 	      $(document).trigger("error", data.message);
++ 	      self._ajax_error(data);
+  	    }
+  	}).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
++      self.status('failed');
+     });
+   };
+   
+@@ -364,10 +375,11 @@ var Snippet = function (notebook, snippet) {
+  	      self.result.logs(data.logs); // Way to append?
+  	      self.progress(data.progress);
+  	    } else {
+- 	      $(document).trigger("error", data.message);
++ 	    	self._ajax_error(data);
+  	    }
+  	}).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
++      self.status('failed');
+     });
+   };
+   
+-- 
+1.7.9.5
+

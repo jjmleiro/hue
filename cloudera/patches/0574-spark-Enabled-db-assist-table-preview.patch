@@ -1,0 +1,110 @@
+From 460ae6c32a5c3be7093a7a56ecc97d7e4c59f49c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 9 Dec 2014 01:03:57 +0100
+Subject: [PATCH 0574/1173] [spark] Enabled db assist table preview
+
+---
+ apps/spark/src/spark/templates/editor.mako |   56 ++++++++++++++++++++++++++--
+ apps/spark/static/css/spark.css            |    2 +-
+ 2 files changed, 54 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 25f2a7f..5a9fea3 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -157,6 +157,29 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   </div>
+ </div>
+ 
++<div id="assistQuickLook" class="modal hide fade">
++    <div class="modal-header">
++      <a href="#" class="close" data-dismiss="modal">&times;</a>
++##      % if has_metastore:
++##      <a class="tableLink pull-right" href="#" target="_blank" style="margin-right: 20px;margin-top:6px">
++##        <i class="fa fa-external-link"></i> ${ _('View in Metastore Browser') }
++##      </a>
++##      % endif
++
++      <h3>${_('Data sample for')} <span class="tableName"></span></h3>
++    </div>
++    <div class="modal-body" style="min-height: 100px">
++      <div class="loader">
++        <!--[if !IE]><!--><i class="fa fa-spinner fa-spin" style="font-size: 30px; color: #DDD"></i><!--<![endif]-->
++        <!--[if IE]><img src="/static/art/spinner.gif"/><![endif]-->
++      </div>
++      <div class="sample"></div>
++    </div>
++    <div class="modal-footer">
++      <button class="btn btn-primary disable-feedback" data-dismiss="modal">${_('Ok')}</button>
++    </div>
++  </div>
++
+ 
+ <script type="text/html" id="notebook">
+   <div class="row-fluid">
+@@ -177,12 +200,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <div data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length == 0">${_('The selected database has no tables.')}</div>
+           <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: Object.keys($root.assistContent().firstLevelObjects())" class="unstyled assist-main">
+             <li>
+-              <a href="javascript:void(0)" class="pull-right" style="padding-right:5px"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
+-              <a href="javascript:void(0)" data-bind="click: loadAssistSecondLevel"><i class="fa fa-table"></i> <span data-bind="text: $data"></span></a>
++              <a href="javascript:void(0)" class="pull-right" style="padding-right:5px" data-bind="click: showTablePreview"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
++              <a href="javascript:void(0)" data-bind="click: loadAssistSecondLevel"><span data-bind="text: $data"></span></a>
+ 
+               <div data-bind="visible: $root.assistContent().firstLevelObjects()[$data].loaded() && $root.assistContent().firstLevelObjects()[$data].open()">
+                 <ul data-bind="visible: $root.assistContent().firstLevelObjects()[$data].items().length > 0, foreach: $root.assistContent().firstLevelObjects()[$data].items()" class="unstyled">
+-                  <li><a data-bind="attr: {'title': secondLevelTitle($data)}" style="padding-left:10px" href="javascript:void(0)"><i class="fa fa-columns"></i> <span data-bind="html: truncateSecondLevel($data)"></span></a></li>
++                  <li><a data-bind="attr: {'title': secondLevelTitle($data)}" style="padding-left:10px" href="javascript:void(0)"><span data-bind="html: truncateSecondLevel($data)"></span></a></li>
+                 </ul>
+               </div>
+             </li>
+@@ -1171,6 +1194,33 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   }
+ 
+ 
++  function showTablePreview(table) {
++    var tableUrl = "/beeswax/api/table/" + viewModel.assistContent().selectedMainObject() + "/" + table;
++    $("#assistQuickLook").find(".tableName").text(table);
++    $("#assistQuickLook").find(".tableLink").attr("href", "/metastore/table/" + viewModel.assistContent().selectedMainObject() + "/" + table);
++    $("#assistQuickLook").find(".sample").empty("");
++    $("#assistQuickLook").attr("style", "width: " + ($(window).width() - 120) + "px;margin-left:-" + (($(window).width() - 80) / 2) + "px!important;");
++    $.ajax({
++      url: tableUrl,
++      data: {"sample": true},
++      beforeSend: function (xhr) {
++        xhr.setRequestHeader("X-Requested-With", "Hue");
++      },
++      dataType: "html",
++      success: function (data) {
++        $("#assistQuickLook").find(".loader").hide();
++        $("#assistQuickLook").find(".sample").html(data);
++      },
++      error: function (e) {
++        if (e.status == 500) {
++          $(document).trigger("error", "${ _('There was a problem loading the table preview.') }");
++          $("#assistQuickLook").modal("hide");
++        }
++      }
++    });
++    $("#assistQuickLook").modal("show");
++  }
++
+   $(document).ready(function () {
+     resizeAssist();
+ 
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index db48686..8d1095d 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -116,7 +116,7 @@
+ }
+ 
+ .assist {
+-  padding: 4px;
++  padding: 8px;
+   position: fixed;
+ }
+ 
+-- 
+1.7.9.5
+

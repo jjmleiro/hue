@@ -1,0 +1,42 @@
+From f87918cd719a6cf01c79114c1cc3f25679d93d4e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 5 Jan 2015 10:41:56 +0100
+Subject: [PATCH 0392/1173] [oozie] Scroll to new added action
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    3 +++
+ apps/oozie/static/css/common-editor.css            |    6 +++++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 69476ae..22a71fd 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1820,6 +1820,9 @@ ${ dashboard.import_bindings() }
+       "width": 450
+     });
+     $("#addActionDemiModal").width(_el.width()).css("top", _el.offset().top + 25).css("left", _el.offset().left).modal("show");
++    $("html, body").animate({
++      scrollTop: $("#addActionDemiModal").offset().top - 200
++    }, 200);
+   }
+ 
+   function addActionDemiModalFieldPreview(field) {
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+index 040a099..dbbb053 100644
+--- a/apps/oozie/static/css/common-editor.css
++++ b/apps/oozie/static/css/common-editor.css
+@@ -42,4 +42,8 @@
+ 
+ .tooltip {
+   z-index: 1051;
+-}
+\ No newline at end of file
++}
++
++.demi-modal {
++  z-index: 1032;
++}
+-- 
+1.7.9.5
+

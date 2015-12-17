@@ -1,0 +1,48 @@
+From 1996de78d2e84c3a59764c773d7933059e470453 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 17 Mar 2015 10:32:41 -0500
+Subject: [PATCH 1102/1173] [spark] Disable functionality of action buttons
+ when no notebooks are selected
+
+---
+ apps/spark/src/spark/templates/notebooks.mako |    9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/notebooks.mako b/apps/spark/src/spark/templates/notebooks.mako
+index 5d440a9..cd74c6b 100644
+--- a/apps/spark/src/spark/templates/notebooks.mako
++++ b/apps/spark/src/spark/templates/notebooks.mako
+@@ -20,7 +20,7 @@
+ %>
+ <%namespace name="actionbar" file="actionbar.mako" />
+ 
+-${ commonheader(_("Notebooks"), "oozie", user, "60px") | n,unicode }
++${ commonheader(_("Notebooks"), "spark", user, "60px") | n,unicode }
+ 
+ <div id="editor">
+ 
+@@ -35,18 +35,17 @@ ${ commonheader(_("Notebooks"), "oozie", user, "60px") | n,unicode }
+ 
+     <%def name="actions()">
+       <div class="btn-toolbar" style="display: inline; vertical-align: middle">
+-
+-        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: prepareShareModal,
++        <a class="share-link btn" rel="tooltip" data-placement="bottom" data-bind="click: function(e){ oneSelected() ? prepareShareModal(e) : void(0) },
+           attr: {'data-original-title': '${ _("Share") } ' + name},
+           css: {'disabled': ! oneSelected(), 'btn': true}">
+           <i class="fa fa-users"></i> ${ _('Share') }
+         </a>
+ 
+-        <a data-bind="click: copy, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
++        <a data-bind="click: function(e){ atLeastOneSelected() ? copy(e) : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelected()}">
+           <i class="fa fa-files-o"></i> ${ _('Copy') }
+         </a>
+ 
+-        <a data-bind="click: function() { $('#deleteNotebook').modal('show'); }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
++        <a data-bind="click: function() { atLeastOneSelected() ? $('#deleteNotebook').modal('show') : void(0) }, css: {'btn': true, 'disabled': ! atLeastOneSelected() }">
+           <i class="fa fa-times"></i> ${ _('Delete') }
+         </a>
+ 
+-- 
+1.7.9.5
+

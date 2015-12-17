@@ -1,0 +1,1288 @@
+From e8bc0a5ded1466a396686bf4207fd2a2f46b3ec6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 7 Nov 2014 14:09:14 +0000
+Subject: [PATCH 0275/1173] [oozie] Templating logic for Hive, Pig and Java
+ actions
+
+---
+ apps/oozie/src/oozie/models2.py                    |  219 ++++++++
+ .../templates/editor/gen2/workflow-hive.xml.mako   |   22 +-
+ .../templates/editor/gen2/workflow-java.xml.mako   |   28 +-
+ .../templates/editor/gen2/workflow-pig.xml.mako    |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |  533 +++++++++++++++++---
+ apps/oozie/src/oozie/views/editor2.py              |   73 +--
+ apps/oozie/static/art/icon_sqoop_48.png            |  Bin 0 -> 1783 bytes
+ apps/oozie/static/js/workflow-editor.ko.js         |   22 +-
+ 8 files changed, 742 insertions(+), 157 deletions(-)
+ create mode 100644 apps/oozie/static/art/icon_sqoop_48.png
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index ceab9c5..0ade273 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -256,6 +256,225 @@ class Node():
+ 
+ 
+ 
++class PigAction():
++  TYPE = 'pig'
++  FIELDS = {
++     'script_path': { 
++          'name': 'script_path',
++          'label': _('Script name'),
++          'value': '',
++          'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
++     },            
++     'parameters': { 
++          'name': 'parameters',
++          'label': _('Parameters'),
++          'value': [],
++          'help_text': _('The Pig parameters of the script without -param. e.g. INPUT=${inputDir}')
++     },
++     'arguments': { 
++          'name': 'arguments',
++          'label': _('Arguments'),
++          'value': [],
++          'help_text': _('The Pig parameters of the script as is. e.g. -param, INPUT=${inputDir}')
++     },
++     # Common
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                       'Properties specified in the Job Properties element override properties specified in the '
++                       'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_fields(cls):
++    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()]
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['script_path']]
++
++
++class JavaAction():
++  TYPE = 'java'
++  FIELDS = {
++     'jar_path': { 
++          'name': 'jar_path',
++          'label': _('Jar name'),
++          'value': '',
++          'help_text': _('Name or path to the %(program)s jar file on HDFS. E.g. examples.jar.') % {'program': 'Java'}
++     },            
++     'main_class': { 
++          'name': 'main_class',
++          'label': _('Main class'),
++          'value': '',
++          'help_text': _('Full name of the Java class. E.g. org.apache.hadoop.examples.Grep')
++     },
++     'arguments': { 
++          'name': 'arguments',
++          'label': _('Arguments'),
++          'value': [],
++          'help_text': _('Arguments of the main method. The value of each arg element is considered a single argument '
++                       'and they are passed to the main method in the same order.')
++     },
++     'java_opts': { 
++          'name': 'java_opts',
++          'label': _('Java options'),
++          'value': [],
++          'help_text': _('Command-line parameters used to start the JVM that will execute '
++                        'the Java application. Using this element is equivalent to using the mapred.child.java.opts '
++                        'configuration property. E.g. -Dexample-property=hue')
++     },
++     'capture_output': { 
++          'name': 'capture_output',
++          'label': _('Capture output'),
++          'value': False,
++          'help_text': _('Capture output of the stdout of the %(program)s command execution. The %(program)s '
++                         'command output must be in Java Properties file format and it must not exceed 2KB. '
++                         'From within the workflow definition, the output of an %(program)s action node is accessible '
++                         'via the String action:output(String node, String key) function') % {'program': TYPE.title()}
++     },
++     # Common
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                       'Properties specified in the Job Properties element override properties specified in the '
++                       'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_fields(cls):
++    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()]
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['jar_path'], cls.FIELDS['main_class']]
++  
++  
++class HiveAction():
++  TYPE = 'hive'
++  FIELDS = {
++     'script_path': { 
++          'name': 'script_path',
++          'label': _('Script name'),
++          'value': '',
++          'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
++     },            
++     'parameters': { 
++          'name': 'parameters',
++          'label': _('Parameters'),
++          'value': [],
++          'help_text': ('The %(type)s parameters of the script. E.g. N=5, INPUT=${inputDir}')  % {'type': TYPE.title()}
++     },
++     # Common
++     'files': { 
++          'name': 'files',
++          'label': _('Files'),
++          'value': [],
++          'help_text': _('List of names or paths of files to be added to the distributed cache and the task running directory.')
++     },
++     'archives': { 
++          'name': 'archives',
++          'label': _('Archives'),
++          'value': [],
++          'help_text': _('List of names or paths of the archives to be added to the distributed cache.')
++     },
++     'job_properties': { 
++          'name': 'job_properties',
++          'label': _('Hadoop job properties'),
++          'value': [],
++          'help_text': _('For the job configuration (e.g. mapred.job.queue.name=production).')
++     },
++     'prepares': { 
++          'name': 'prepares',
++          'label': _('Prepares'),
++          'value': [],
++          'help_text': _('List of absolute paths to delete and then to create before starting the application. This should be used exclusively for directory cleanup.')
++     },
++     'job_xml': { 
++          'name': 'job_xml',
++          'label': _('Job XML'),
++          'value': [],
++          'help_text': _('Refer to a Hadoop JobConf job.xml file bundled in the workflow deployment directory. '
++                       'Properties specified in the Job Properties element override properties specified in the '
++                       'files specified in the Job XML element.')
++     }
++  }
++
++  @classmethod
++  def get_fields(cls):
++    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()]
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return [cls.FIELDS['script_path']]
++
++
++NODES = {
++  'pig-widget': PigAction,
++  'java-widget': JavaAction,
++  'hive-widget': HiveAction
++}
++
++WORKFLOW_NODE_PROPERTIES = {}
++for node in NODES.itervalues():
++  WORKFLOW_NODE_PROPERTIES.update(node.FIELDS)
++
++
++
+ def find_parameters(instance, fields=None):
+   """Find parameters in the given fields"""
+   if fields is None:
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+index 92fe593..733b40a 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+@@ -17,26 +17,26 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <hive xmlns="uri:oozie:hive-action:0.2">
+             <job-tracker>${'${'}jobTracker}</job-tracker>
+             <name-node>${'${'}nameNode}</name-node>
+ 
+-            ${ common.prepares(node.get_prepares()) }
+-            % if node.job_xml:
+-              <job-xml>${ node.job_xml }</job-xml>
++            ${ common.prepares(node['properties']['prepares']) }
++            % if node['properties']['job_xml']:
++              <job-xml>${ node['properties']['job_xml'] }</job-xml>
+             % endif
+-            ${ common.configuration(node.get_properties()) }
++            ${ common.configuration(node['properties']['properties']) }
+ 
+-            <script>${ node.script_path }</script>
++            <script>${ node['properties']['script_path'] }</script>
+ 
+-            % for param in node.get_params():
+-              <${ param['type'] }>${ param['value'] }</${ param['type'] }>
++            % for param in node['properties']['parameters']:
++              <param>${ param['value'] }</param>
+             % endfor
+ 
+-            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+         </hive>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']] }"/>
++        <error to="${ node_mapping[node['children'][1]['error']] }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
+index 05d656d..36e90dd 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-java.xml.mako
+@@ -17,34 +17,34 @@
+ 
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+-    <action name="${ node }"${ common.credentials(node.credentials) }>
++    <action name="${ node['name'] }"${ common.credentials(node['properties']['credentials']) }>
+         <java>
+             <job-tracker>${'${'}jobTracker}</job-tracker>
+             <name-node>${'${'}nameNode}</name-node>
+ 
+-            ${ common.prepares(node.get_prepares()) }
+-            % if node.job_xml:
+-              <job-xml>${ node.job_xml }</job-xml>
++            ${ common.prepares(node['properties']['prepares']) }
++            % if node['properties']['job_xml']:
++              <job-xml>${ node['properties']['job_xml'] }</job-xml>
+             % endif
+-            ${ common.configuration(node.get_properties()) }
++            ${ common.configuration(node['properties']['properties']) }
+ 
+-            <main-class>${ node.main_class }</main-class>
++            <main-class>${ node['properties']['main_class'] }</main-class>
+ 
+-            % if node.java_opts:
+-            <java-opts>${ node.java_opts }</java-opts>
++            % if node['properties']['java_opts']:
++            <java-opts>${ node['properties']['java_opts'] }</java-opts>
+             % endif
+ 
+-            % for arg in node.args.split():
+-            <arg>${ arg }</arg>
++            % for arg in node['properties']['arguments']:
++            <arg>${ arg['value'] }</arg>
+             % endfor
+ 
+-            ${ common.distributed_cache(node.get_files(), node.get_archives()) }
++            ${ common.distributed_cache(node['properties']['files'], node['properties']['archives']) }
+ 
+-            % if node.capture_output:
++            % if node['properties']['capture_output']:
+             <capture-output/>
+             % endif
+         </java>
+-        <ok to="${ node.get_oozie_child('ok') }"/>
+-        <error to="${ node.get_oozie_child('error') }"/>
++        <ok to="${ node_mapping[node['children'][0]['to']] }"/>
++        <error to="${ node_mapping[node['children'][1]['error']] }"/>
+         ${ common.sla(node) }
+     </action>
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+index 96848e6..a891164 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-pig.xml.mako
+@@ -26,7 +26,7 @@
+             % if node['properties']['job_xml']:
+               <job-xml>${ node['properties']['job_xml'] }</job-xml>
+             % endif
+-            ${ common.configuration(node['properties']['properties']) }
++            ${ common.configuration(node['properties']['job_properties']) }
+ 
+             <script>${ node['properties']['script_path'] }</script>
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 21807e2..e9957ed 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -57,10 +57,17 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableSqoopAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Sqoop 1')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><img src="/oozie/static/art/icon_sqoop_48.png" class="app-icon"></a>
++    </div>
++
++    <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableMapReduceAction(), isEnabled: true,
+                     options: {'start': function(event, ui){}}}"
+          title="${_('MapReduce job')}" rel="tooltip" data-placement="top">
+-         <a class="draggable-icon"><i class="fa fa-files-o"></i></a>
++         <a class="draggable-icon"><i class="fa fa-file-archive-o"></i></a>
+     </div>
+ 
+     <div data-bind="css: { 'draggable-widget': true },
+@@ -69,6 +76,48 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+          title="${_('Sub workflow')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><i class="fa fa-code-fork"></i></a>
+     </div>
++    
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableShellAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Shell')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-terminal"></i></a>
++    </div>
++    
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableSshAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Ssh')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-tty"></i></a>
++    </div>
++        
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableFsAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('HDFS Fs')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-file-o"></i></a>
++    </div>    
++    
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableEmailAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Email')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-envelope-o"></i></a>
++    </div>    
++    
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableStreamingAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Streaming')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-exchange"></i></a>
++    </div>    
++
++    <div data-bind="css: { 'draggable-widget': true },
++                    draggable: {data: draggableDistCpAction(), isEnabled: true,
++                    options: {'start': function(event, ui){}}}"
++         title="${_('Distcp')}" rel="tooltip" data-placement="top">
++         <a class="draggable-icon"><i class="fa fa-files-o"></i></a>
++    </div>    
+ 
+     <div data-bind="css: { 'draggable-widget': true }" rel="tooltip" data-placement="top">
+     </div>
+@@ -363,16 +412,16 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   ${ _('Job XML') } <input type="text" data-bind="value: properties.job_xml" />
+   <br/>
+   ${ _('Properties') }
+-  <ul data-bind="foreach: properties.properties">
++  <ul data-bind="foreach: properties.job_properties">
+     <li>
+       <input data-bind="value: name"/>
+       <input data-bind="value: value"/>
+-      <a href="#" data-bind="click: function(){ $parent.properties.properties.remove(this); }">
++      <a href="#" data-bind="click: function(){ $parent.properties.job_properties.remove(this); }">
+         <i class="fa fa-minus"></i>
+       </a>
+     </li>
+   </ul>
+-  <button data-bind="click: function(){ properties.properties.push({'name': '', 'value': ''}); }">
++  <button data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); }">
+     <i class="fa fa-plus"></i>
+   </button>
+   <br/>
+@@ -391,6 +440,79 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="common-properties-arguments">
++  ${ _('Arguments') }
++  <ul data-bind="foreach: properties.arguments">
++    <li>
++      <input data-bind="value: value"/>
++      <a href="#" data-bind="click: function(){ $parent.properties.arguments.remove(this); }">
++        <i class="fa fa-minus"></i>
++      </a>
++    </li>
++  </ul>
++  <button data-bind="click: function(){ properties.arguments.push({'value': ''}); }">
++    <i class="fa fa-plus"></i>
++  </button> 
++</script>
++
++
++<script type="text/html" id="common-properties-files">
++  ${ _('Files') }
++  <ul data-bind="foreach: properties.files">
++    <li>
++      <input data-bind="value: value"/>
++      <a href="#" data-bind="click: function(){ $parent.properties.files.remove(this); }">
++        <i class="fa fa-minus"></i>
++      </a>
++    </li>
++  </ul>
++  <button data-bind="click: function(){ properties.files.push({'value': ''}); }">
++    <i class="fa fa-plus"></i>
++  </button>
++</script>
++
++
++<script type="text/html" id="common-properties-parameters">
++  ${ _('Parameters') }
++  <ul data-bind="foreach: properties.parameters">
++    <li>
++      <input data-bind="value: value"/>
++      <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); }">
++        <i class="fa fa-minus"></i>
++      </a>
++    </li>
++  </ul>
++  <button data-bind="click: function(){ properties.parameters.push({'value': ''}); }">
++    <i class="fa fa-plus"></i>
++  </button>
++</script>
++
++
++<script type="text/html" id="common-action-transition">
++  <!-- ko if: children().length == 2 -->
++  OK --> <input type="text" data-bind="value: children()[0]['to']" />
++  <br/>
++  KO --> <input type="text" data-bind="value: children()[1]['error']" />
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="common-action-credentials">
++  <select data-bind="options: $root.credentials, value: properties.credentials" size="5" multiple="true"></select>
++</script>
++
++
++<script type="text/html" id="common-action-sla">
++  <div class="control-group">
++    <label class="control-label">${ _('SLA Configuration') }</label>
++    <div class="controls" data-bind="with: properties">
++      ${ utils.slaForm() }
++    </div>
++  </div>
++</script>
++
++
++
+ <script type="text/html" id="hive-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+@@ -401,26 +523,38 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <ul class="nav nav-tabs">
+-        <li class="active"><a href="#action" data-toggle="tab">${ _('Hive') }</a></li>
+-        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
+-        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
+-        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
+-        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Hive') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
+       </ul>
+       <div class="tab-content">
+-        <div class="tab-pane active" id="action">
++        <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
+           <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++
++          <span data-bind="text: $root.workflow_properties.script_path.label"></span>
++          <input type="text" data-bind="value: properties.script_path" />                    
++          </br>
++          <span data-bind="template: { name: 'common-properties-parameters' }"></span>
+         </div>
+-        <div class="tab-pane" id="properties">
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
+           <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <br/>
++          </br>
+         </div>
+-        <div class="tab-pane" id="sla">
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
+         </div>
+-        <div class="tab-pane" id="credentials">
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
+         </div>
+-        <div class="tab-pane" id="transitions">
+-          OK --> []
+-          KO --> []
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
+         </div>
+       </div>
+     </div>
+@@ -448,73 +582,104 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       <div class="tab-content">
+         <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
+           <img src="/oozie/static/art/icon_pig_48.png" class="app-icon">
+-          <input type="text" data-bind="value: properties.script_path" />
+-          </br>
+-	      ${ _('Variables') }
+-	      <ul data-bind="foreach: properties.arguments">
+-	        <li>
+-	          <input data-bind="value: value"/>
+-	          <a href="#" data-bind="click: function(){ $parent.properties.arguments.remove(this); }">
+-	            <i class="fa fa-minus"></i>
+-	          </a>
+-	        </li>
+-	      </ul>
+-          <button data-bind="click: function(){ properties.arguments.push({'value': ''}); }">
+-            <i class="fa fa-plus"></i>
+-          </button>	
++
++          <span data-bind="text: $root.workflow_properties.script_path.label"></span>
++          <input type="text" data-bind="value: properties.script_path" />          
+           </br>
+-          ${ _('Files') }
+-          <ul data-bind="foreach: properties.files">
+-            <li>
+-              <input data-bind="value: value"/>
+-              <a href="#" data-bind="click: function(){ $parent.properties.files.remove(this); }">
+-                <i class="fa fa-minus"></i>
+-              </a>
+-            </li>
+-          </ul>
+-          <button data-bind="click: function(){ properties.files.push({'value': ''}); }">
+-            <i class="fa fa-plus"></i>
+-          </button>
++
++	      <span data-bind="template: { name: 'common-properties-parameters' }"></span>
++	      <br/>
++	      <span data-bind="template: { name: 'common-properties-files' }"></span>
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">
+-          <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <span data-bind="template: { name: 'common-properties-arguments' }"></span>
++          <br/>        
++          <span data-bind="template: { name: 'common-action-properties' }"></span>          
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="java-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a data-bind="attr: { href: '#action-' + id()}" data-toggle="tab">${ _('Java') }</a></li>
++        <li><a data-bind="attr: { href: '#properties-' + id()}" data-toggle="tab">${ _('Properties') }</a></li>
++        <li><a data-bind="attr: { href: '#sla-' + id()}" href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a data-bind="attr: { href: '#credentials-' + id()}" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a data-bind="attr: { href: '#transitions-' + id()}" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" data-bind="attr: { id: 'action-' + id() }">
++          <i class="fa fa-file-code-o"></i>
++          
++          <span data-bind="text: $root.workflow_properties.jar_path.label"></span>          
++          <input type="text" data-bind="value: properties.jar_path" />
+           <br/>
++          <span data-bind="text: $root.workflow_properties.main_class.label"></span>
++          <input type="text" data-bind="value: properties.main_class" />
++          </br>
++
++          <span data-bind="template: { name: 'common-properties-parameters' }"></span>
+           <br/>
+-          ${ _('Parameters') }
+-          <ul data-bind="foreach: properties.parameters">
++          <span data-bind="template: { name: 'common-properties-files' }"></span>
++        </div>
++
++        <div class="tab-pane" data-bind="attr: { id: 'properties-' + id() }">          
++          <span data-bind="text: $root.workflow_properties.java_opts.label"></span>
++          <ul data-bind="foreach: properties.java_opts">
+             <li>
+               <input data-bind="value: value"/>
+-              <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); }">
++              <a href="#" data-bind="click: function(){ $parent.properties.java_opts.remove(this); }">
+                 <i class="fa fa-minus"></i>
+               </a>
+             </li>
+           </ul>
+-          <button data-bind="click: function(){ properties.parameters.push({'value': ''}); }">
++          <button data-bind="click: function(){ properties.java_opts.push({'value': ''}); }">
+             <i class="fa fa-plus"></i>
+-          </button>
++          </button>        
++          </br>
++          <span data-bind="text: $root.workflow_properties.capture_output.label"></span>
++          <input type="text" data-bind="value: properties.capture_output" />
+           </br>
++
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++          <br/>
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
+-          <div class="control-group">
+-            <label class="control-label">${ _('SLA Configuration') }</label>
+-            <div class="controls" data-bind="with: properties">
+-              ${ utils.slaForm() }
+-            </div>
+-          </div>
++          <span data-bind="template: { name: 'common-action-sla' }"></span>
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'credentials-' + id() }">
+-          <select data-bind="options: $root.credentials, value: properties.credentials" size="5" multiple="true"></select>
++          <span data-bind="template: { name: 'common-action-credentials' }"></span>
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'transitions-' + id() }">
+-          <!-- ko if: children().length == 2 -->
+-          OK --> <input type="text" data-bind="value: children()[0]['to']" />
+-          <br/>
+-          KO --> <input type="text" data-bind="value: children()[1]['error']" />
+-          <!-- /ko -->
++          <span data-bind="template: { name: 'common-action-transition' }"></span>
+         </div>
+       </div>
+     </div>
+@@ -523,7 +688,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
+-<script type="text/html" id="java-widget">
++<script type="text/html" id="subworkflow-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+     <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+@@ -533,15 +698,15 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <ul class="nav nav-tabs">
+-        <li class="active"><a href="#action" data-toggle="tab">${ _('Java') }</a></li>
+-        <li><a href="#properties" data-toggle="tab">${ _('Properties') }</a></li>
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Sub-workflow') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
+         <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
+         <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
+         <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
+       </ul>
+       <div class="tab-content">
+         <div class="tab-pane active" id="action">
+-          <input type="text" data-bind="value: properties.jar_path" />
++          <input type="text" data-bind="value: properties.subworkflow" />
+         </div>
+         <div class="tab-pane" id="properties">
+           <span data-bind="template: { name: 'common-action-properties' }"></span>
+@@ -561,7 +726,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
+-<script type="text/html" id="subworkflow-widget">
++<script type="text/html" id="sqoop-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+     <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
+@@ -571,7 +736,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+     <div>
+       <ul class="nav nav-tabs">
+-        <li class="active"><a href="#action" data-toggle="tab">${ _('Sub-workflow') }</a></li>
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Sqoop') }</a></li>
+         <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
+         <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
+         <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
+@@ -579,7 +744,197 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       </ul>
+       <div class="tab-content">
+         <div class="tab-pane active" id="action">
+-          <input type="text" data-bind="value: properties.subworkflow" />
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="shell-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Ssh') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <i class="fa fa-terminal"></i>
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="ssh-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Ssh') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <i class="fa fa-tty"></i>
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="fs-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Fs') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="email-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Email') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <i class="fa fa-envelope-o"></i>
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
++
++<script type="text/html" id="streaming-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Streaming') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
+         </div>
+         <div class="tab-pane" id="properties">
+           <span data-bind="template: { name: 'common-action-properties' }"></span>
+@@ -599,6 +954,43 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ </script>
+ 
+ 
++<script type="text/html" id="distcp-widget">
++  <!-- ko if: $root.workflow.getNodeById(id()) -->
++  <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
++    <div data-bind="visible: $root.isEditing" style="margin-bottom: 20px">
++      <input type="text" data-bind="value: id" />
++      <input type="text" data-bind="value: name" />
++    </div>
++
++    <div>
++      <ul class="nav nav-tabs">
++        <li class="active"><a href="#action" data-toggle="tab">${ _('Dist Cp') }</a></li>
++        <li><a href="#properties" data-toggle="tab">${ _('Files') }</a></li>
++        <li><a href="#sla" data-toggle="tab">${ _('SLA') }</a></li>
++        <li><a href="#credentials" data-toggle="tab">${ _('Credentials') }</a></li>
++        <li><a href="#transitions" data-toggle="tab">${ _('Transitions') }</a></li>
++      </ul>
++      <div class="tab-content">
++        <div class="tab-pane active" id="action">
++          <img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon">
++        </div>
++        <div class="tab-pane" id="properties">
++          <span data-bind="template: { name: 'common-action-properties' }"></span>
++        </div>
++        <div class="tab-pane" id="sla">
++        </div>
++        <div class="tab-pane" id="credentials">
++        </div>
++        <div class="tab-pane" id="transitions">
++          OK --> []
++          KO --> []
++        </div>
++      </div>
++    </div>
++  </div>
++  <!-- /ko -->
++</script>
++
+ <script type="text/html" id="fork-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+@@ -750,8 +1142,7 @@ ${ dashboard.import_bindings() }
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
+-
+-  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode });
++  var viewModel = new WorkflowEditorViewModel(${ layout_json | n,unicode }, ${ workflow_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflow_properties_json | n,unicode });
+   ko.applyBindings(viewModel);
+ 
+   viewModel.init();
+@@ -793,8 +1184,8 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function linkWidgets(fromId, toId) {
+-    var _from = $("#wdg_" + (typeof fromId == "function"?fromId():fromId));
+-    var _to = $("#wdg_" + (typeof toId == "function"?toId():toId));
++    var _from = $("#wdg_" + (typeof fromId == "function" ? fromId() : fromId));
++    var _to = $("#wdg_" + (typeof toId == "function" ? toId() : toId));
+ 
+     var _fromCenter = {
+       x: _from.position().left + _from.outerWidth() / 2,
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index d4a95a6..4e21839 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -35,7 +35,7 @@ from liboozie.oozie_api import get_oozie
+ from liboozie.submission2 import Submission
+ 
+ from oozie.forms import ParameterForm
+-from oozie.models2 import Workflow
++from oozie.models2 import Workflow, NODES, WORKFLOW_NODE_PROPERTIES
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -72,7 +72,8 @@ def edit_workflow(request):
+   return render('editor/workflow_editor.mako', request, {
+       'layout_json': json.dumps(workflow_data['layout']),
+       'workflow_json': json.dumps(workflow_data['workflow']),
+-      'credentials_json': json.dumps(credentials.credentials.keys())
++      'credentials_json': json.dumps(credentials.credentials.keys()),
++      'workflow_properties_json': json.dumps(WORKFLOW_NODE_PROPERTIES),
+   })
+ 
+ 
+@@ -112,29 +113,18 @@ def save_workflow(request):
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
++#  elif node['widgetType'] == 'hive-widget':
++#    properties = [WORKFLOW_PROPERTIES['script_path']]
++#  elif node['widgetType'] == 'kill-widget':
++#    properties = [WORKFLOW_PROPERTIES['message']]
++#  elif node['widgetType'] == 'subworkflow-widget':
++#    workflows = [{
++#        'name': workflow.name,
++#        'owner': workflow.owner.username,
++#        'value': workflow.uuid
++#      } for workflow in Document2.objects.filter(type='oozie-workflow2', owner=request.user)
++#    ]
+ 
+-P = {
+-  'jar_path': {
+-      'name': 'jar_path',
+-      'label': _("Jar Path"),
+-      'value': ''
+-  },
+-  'main_class': {
+-      'name': 'main_class',
+-      'label': _("Main class"),
+-      'value': ''
+-  },
+-  'script_path': {
+-      'name': 'script_path',
+-      'label': _("Script Path"),
+-      'value': ''
+-  },
+-  'message': {
+-      'name': 'message',
+-      'label': _("Message"),
+-      'value': ''
+-  }     
+-}
+ 
+ def new_node(request):
+   response = {'status': -1}
+@@ -142,24 +132,8 @@ def new_node(request):
+   workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
+   node = json.loads(request.POST.get('node', '{}'))
+ 
+-  properties = []
++  properties = NODES[node['widgetType']].get_mandatory_fields()
+   workflows = []
+-
+-  if node['widgetType'] == 'java-widget':
+-    properties = [P['jar_path'], P['main_class'] ]
+-  elif node['widgetType'] == 'pig-widget':
+-    properties = [P['script_path']]
+-  elif node['widgetType'] == 'hive-widget':
+-    properties = [P['script_path']]
+-  elif node['widgetType'] == 'kill-widget':
+-    properties = [P['message']]
+-  elif node['widgetType'] == 'subworkflow-widget':
+-    workflows = [{
+-        'name': workflow.name,
+-        'owner': workflow.owner.username,
+-        'value': workflow.uuid
+-      } for workflow in Document2.objects.filter(type='oozie-workflow2', owner=request.user)
+-    ]
+     
+   response['status'] = 0
+   response['properties'] = properties 
+@@ -176,25 +150,20 @@ def add_node(request):
+   properties = json.loads(request.POST.get('properties', '{}'))
+   subworkflow = json.loads(request.POST.get('subworkflow', '{}'))
+ 
+-  properties = response['properties'] = dict([(property['name'], property['value']) for property in properties])
++  _properties = dict(NODES[node['widgetType']].get_fields())
++  _properties.update(dict([(_property['name'], _property['value']) for _property in properties]))
++
+   if subworkflow:
+-    properties.update({
++    _properties.update({
+        'subworkflow': subworkflow['value']
+     })
+-  properties.update({
+-      'parameters': [],
+-      'arguments': [],
+-      'files': [],
+-      'archives': [],
+-      'prepares': [],
+-      'job_xml': '',
+-      'properties': [],
++  _properties.update({
+       'sla': Workflow.SLA_DEFAULT,
+       'credentials': []
+   })
+ 
+   response['status'] = 0
+-  response['properties'] = properties
++  response['properties'] = _properties
+   response['name'] = '%s-%s' % (node['widgetType'].split('-')[0], node['id'][:4])
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/oozie/static/art/icon_sqoop_48.png b/apps/oozie/static/art/icon_sqoop_48.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..08cd8f90a630f3ca73c6265a27e4aa27c169414c
+GIT binary patch
+literal 1783
+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
+Z{{bfmNT8)gZ|VR5002ovPDHLkV1hStX{Z1I
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4fec7b1..7de526f 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -116,7 +116,7 @@ var Node = function (node) {
+       self.children.push(_link);
+     }
+     _link[name] = node_id;
+-    
++    self.children.valueHasMutated(); 
+   }
+ 
+   self.remove_link = function(name, child) {
+@@ -216,6 +216,7 @@ var Workflow = function (vm, workflow) {
+         // Added to the side ?
+         if (vm.currentlyCreatingFork) {
+           var parentWidget = vm.getWidgetPredecessor(node.id());
++          var parent = self.getNodeById(parentWidget.id());
+ 
+           if (self.getNodeById(parentWidget.id()) == null) { // New fork
+         	
+@@ -240,17 +241,14 @@ var Workflow = function (vm, workflow) {
+ 	        var end = self.nodes.pop();
+ 	        self.nodes.push(fork);
+ 	        self.nodes.push(join);
+-	        self.nodes.push(end);	        
+-            // Regular node
+-          
+-            // Join node
++	        self.nodes.push(end);
+           } else {
+             // Just add to existing fork
+         	var join = vm.getWidgetSuccessor(node.id()); 
+             node.set_link('to', join.id());
+     	    node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+ 
+-    	    self.getNodeById(parentWidget.id()).children.push({'to': node.id()});          	  
++    	    parent.children.push({'to': node.id()});          	  
+           }
+         } else {
+           var parentWidget = vm.getWidgetPredecessor(node.id());
+@@ -269,7 +267,6 @@ var Workflow = function (vm, workflow) {
+   	        node.set_link('error', '17c9c895-5a16-7443-bb81-f34b30b21548');
+   	
+   	        parent.set_link('to', node.id());
+-  	        parent.children.valueHasMutated();
+           }
+         }
+ 
+@@ -348,7 +345,7 @@ var Workflow = function (vm, workflow) {
+   };
+ }
+ 
+-var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json) {
++var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_json, workflow_properties_json) {
+   var self = this;
+ 
+   self.isNested = ko.observable(true);
+@@ -368,6 +365,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.inited = ko.observable(self.columns().length > 0);
+   self.init = function(callback) {
++	self.workflow_properties = ko.mapping.fromJS(workflow_properties_json);
+     loadLayout(self, layout_json);
+     self.workflow.loadNodes(workflow_json);
+   }
+@@ -858,6 +856,14 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.draggableJavaAction = ko.observable(bareWidgetBuilder("Java program", "java-widget"));
+   self.draggableMapReduceAction = ko.observable(bareWidgetBuilder("MapReduce job", "mapreduce-widget"));
+   self.draggableSubworkflowAction = ko.observable(bareWidgetBuilder("Sub workflow", "subworkflow-widget"));
++  self.draggableSqoopAction = ko.observable(bareWidgetBuilder("Sqoop 1", "sqoop-widget"));
++  self.draggableShellAction = ko.observable(bareWidgetBuilder("Shell", "shell-widget"));
++  self.draggableSshAction = ko.observable(bareWidgetBuilder("Ssh", "ssh-widget"));
++  self.draggableFsAction = ko.observable(bareWidgetBuilder("HDFS Fs", "fs-widget"));
++  self.draggableEmailAction = ko.observable(bareWidgetBuilder("Email", "email-widget"));
++  self.draggableStreamingAction = ko.observable(bareWidgetBuilder("Streaming", "streaming-widget"));
++  self.draggableDistCpAction = ko.observable(bareWidgetBuilder("Distcp", "distcp-widget"));
++
+ 
+   self.draggableStopNode = ko.observable(bareWidgetBuilder("Kill", "kill-widget"));
+ };
+-- 
+1.7.9.5
+

@@ -1,0 +1,103 @@
+From 5defbcb9119691baf54f1f5005eddc79701df573 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 6 Jan 2015 15:41:57 +0100
+Subject: [PATCH 0401/1173] [oozie] Added filechooser binding for parameters
+ named input or output
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   11 ++++++++++-
+ apps/oozie/static/css/workflow-editor.css          |    4 ++++
+ desktop/core/static/js/ko.hue-bindings.js          |   12 ++++++++++--
+ 3 files changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index c11b04f..f5f562f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -609,7 +609,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="span11" data-bind="value: value, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
++      <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser }, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+@@ -1790,6 +1790,15 @@ ${ dashboard.import_bindings() }
+     }
+   }
+ 
++  function enableFilechooser(va, evt) {
++    if ($(evt.target).val().indexOf('input=') == 0 || $(evt.target).val().indexOf('output=') == 0) {
++      $(evt.target).next().removeAttr('disabled').removeClass('disabled');
++    }
++    else {
++      $(evt.target).next().attr('disabled', 'disabled').addClass('disabled');
++    }
++  }
++
+   function columnDropAdditionalHandler(widget) {
+     widgetDraggedAdditionalHandler(widget);
+   }
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 46051fb..e5aea67 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -462,6 +462,10 @@ input[type="text"].filechooser-input, input[type="text"].half {
+   width: 50%;
+ }
+ 
++input[type="text"].seventy {
++  width: 70%;
++}
++
+ .fileChooserBtn {
+   height: 31px;
+ }
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index eab0f77..231a812 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -1034,15 +1034,16 @@ ko.bindingHandlers.filechooser = {
+   }
+ };
+ 
++
+ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdfsPrefix, allBindingsAccessor) {
+-  return $("<button>").addClass("btn").addClass("fileChooserBtn").text("..").click(function (e) {
++  var _btn = $("<button>").addClass("btn").addClass("fileChooserBtn").text("..").click(function (e) {
+     e.preventDefault();
+     // check if it's a relative path
+     callFileChooser();
+ 
+     function callFileChooser() {
+       var _initialPath = $.trim(inputElement.val()) != "" ? inputElement.val() : "/";
+-      if (allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.skipInitialPathIfEmpty && inputElement.val() == ""){
++      if ((allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.skipInitialPathIfEmpty && inputElement.val() == "") || allBindingsAccessor().filechooserPrefixSeparator){
+         _initialPath = "";
+       }
+       if (inputElement.data("fullPath")){
+@@ -1076,6 +1077,9 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+     }
+ 
+     function handleChoice(filePath, stripHdfsPrefix) {
++      if (allBindingsAccessor().filechooserPrefixSeparator){
++        filePath = inputElement.val().split(allBindingsAccessor().filechooserPrefixSeparator)[0] + '=' + filePath;
++      }
+       if (stripHdfsPrefix){
+         inputElement.val(filePath);
+       }
+@@ -1102,6 +1106,10 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+       }
+     }
+   });
++  if (allBindingsAccessor().filechooserDisabled){
++    _btn.addClass("disabled").attr("disabled", "disabled");
++  }
++  return _btn;
+ }
+ 
+ ko.bindingHandlers.tooltip = {
+-- 
+1.7.9.5
+

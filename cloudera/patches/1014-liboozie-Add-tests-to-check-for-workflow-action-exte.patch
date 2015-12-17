@@ -1,0 +1,91 @@
+From ad6b491f1b39fbfd97a93ff7ad2f795a54b94b9b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Mar 2015 18:32:36 -0700
+Subject: [PATCH 1014/1173] [liboozie] Add tests to check for workflow action
+ external id links
+
+---
+ .../dashboard/list_oozie_workflow_action.mako      |    4 ++--
+ apps/oozie/src/oozie/views/dashboard.py            |    2 +-
+ desktop/libs/liboozie/src/liboozie/tests.py        |   23 ++++++++++++++++----
+ desktop/libs/liboozie/src/liboozie/types.py        |    2 +-
+ 4 files changed, 23 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+index d643800..ea992cb 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow_action.mako
+@@ -44,8 +44,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <li class="white">${ action.name }</li>
+ 
+           <li class="nav-header">${ _('External Id') }</li>
+-          % if action.get_externalId_url():
+-            <li><a href="${ action.get_externalId_url() }">${ action.externalId }</a></li>
++          % if action.get_external_id_url():
++            <li><a href="${ action.get_external_id_url() }">${ action.externalId }</a></li>
+           % else:
+             <li>${ action.externalId } </li>
+           % endif
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index ce802da..a99935d 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -790,7 +790,7 @@ def massaged_workflow_actions_for_json(workflow_actions, oozie_coordinator, oozi
+       'name': action.name,
+       'type': action.type,
+       'status': action.status,
+-      'externalIdUrl': action.get_externalId_url(),
++      'externalIdUrl': action.get_external_id_url(),
+       'externalId': action.externalId,
+       'startTime': format_time(action.startTime),
+       'endTime': format_time(action.endTime),
+diff --git a/desktop/libs/liboozie/src/liboozie/tests.py b/desktop/libs/liboozie/src/liboozie/tests.py
+index 744c46d..da3c5f2 100644
+--- a/desktop/libs/liboozie/src/liboozie/tests.py
++++ b/desktop/libs/liboozie/src/liboozie/tests.py
+@@ -31,10 +31,25 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ def test_valid_external_id():
+-  assert_equal('job_201208072118_0044', WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[0]).externalId)
+-  assert_equal(None, WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[1]).externalId)
+-  assert_equal(None, WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[2]).externalId)
+-  assert_equal(None, WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[3]).externalId)
++  action = WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[0])
++  assert_equal('job_201208072118_0044', action.externalId)
++  assert_equal('/jobbrowser/jobs/job_201208072118_0044/single_logs', action.get_absolute_log_url())
++  assert_equal('/jobbrowser/jobs/job_201208072118_0044', action.get_external_id_url())
++
++  action = WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[1])
++  assert_equal('-', action.externalId)
++  assert_equal(None, action.get_absolute_log_url())
++  assert_equal(None, action.get_external_id_url())
++
++  action = WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[2])
++  assert_equal('', action.externalId)
++  assert_equal(None, action.get_absolute_log_url())
++  assert_equal(None, action.get_external_id_url())
++
++  action = WorkflowAction(MockOozieApi.JSON_WORKFLOW_LIST[3])
++  assert_equal(None, action.externalId)
++  assert_equal(None, action.get_absolute_log_url())
++  assert_equal(None, action.get_external_id_url())
+ 
+ 
+ def aggregate_coordinator_instances():
+diff --git a/desktop/libs/liboozie/src/liboozie/types.py b/desktop/libs/liboozie/src/liboozie/types.py
+index 617f0e6..33234fe 100644
+--- a/desktop/libs/liboozie/src/liboozie/types.py
++++ b/desktop/libs/liboozie/src/liboozie/types.py
+@@ -173,7 +173,7 @@ class WorkflowAction(Action):
+       url = self.externalId and reverse('jobbrowser.views.job_single_logs', kwargs={'job': self.externalId}) or ''
+     return url
+ 
+-  def get_externalId_url(self):
++  def get_external_id_url(self):
+     url = None
+     if self.externalId and self.externalId.endswith('W'):
+       url = reverse('oozie:list_oozie_workflow', kwargs={'job_id': self.externalId}) or ''
+-- 
+1.7.9.5
+

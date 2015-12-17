@@ -1,0 +1,35 @@
+From c6e43d27e258e73d9ef3338bcea61b6cfe00f86d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 6 Jan 2015 18:44:53 +0100
+Subject: [PATCH 0402/1173] [oozie] Enable filechooser for all the parameters
+ with '='
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f5f562f..7297ce5 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -609,7 +609,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser }, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
++      <input type="text" class="filechooser-input seventy" data-bind="value: value, filechooser: value, filechooserOptions: globalFilechooserOptions, filechooserDisabled: true, filechooserPrefixSeparator: '=', event: { change: enableFilechooser, keyup: enableFilechooser }, attr: { placeholder: $parent.actionParametersUI }, typeahead: { target: value, source: $parent.actionParameters, sourceSuffix: '=', triggerOnFocus: true }"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+@@ -1791,7 +1791,7 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function enableFilechooser(va, evt) {
+-    if ($(evt.target).val().indexOf('input=') == 0 || $(evt.target).val().indexOf('output=') == 0) {
++    if ($(evt.target).val().indexOf('=') > 0) {
+       $(evt.target).next().removeAttr('disabled').removeClass('disabled');
+     }
+     else {
+-- 
+1.7.9.5
+

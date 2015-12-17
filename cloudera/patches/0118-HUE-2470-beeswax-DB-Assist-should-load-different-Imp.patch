@@ -1,0 +1,50 @@
+From ed3d5940fdbc8f37f84b142c08fc6a5827c7bffd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 17 Nov 2014 00:20:33 +0100
+Subject: [PATCH 0118/1173] HUE-2470 [beeswax] DB Assist should load different
+ Impala and Hive tables without hitting refresh
+
+Prefixed totalStorage with the app name
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    1 +
+ apps/beeswax/static/js/autocomplete.utils.js    |   10 +++++++---
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 00171ec..40c52a8 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -978,6 +978,7 @@ var codeMirror, renderNavigator, resetNavigator, resizeNavigator, dataTable, ren
+ var HIVE_AUTOCOMPLETE_BASE_URL = "${ autocomplete_base_url | n,unicode }";
+ var HIVE_AUTOCOMPLETE_FAILS_QUIETLY_ON = [500]; // error codes from beeswax/views.py - autocomplete
+ var HIVE_AUTOCOMPLETE_USER = "${ user }";
++var HIVE_AUTOCOMPLETE_APP = "${app_name}";
+ 
+ var HIVE_AUTOCOMPLETE_GLOBAL_CALLBACK = function (data) {
+   if (data != null && data.error && typeof resetNavigator != "undefined") {
+diff --git a/apps/beeswax/static/js/autocomplete.utils.js b/apps/beeswax/static/js/autocomplete.utils.js
+index 6756d3c..30575a0 100644
+--- a/apps/beeswax/static/js/autocomplete.utils.js
++++ b/apps/beeswax/static/js/autocomplete.utils.js
+@@ -58,11 +58,15 @@ function hac_getTableAliases(textScanned) {
+   return _aliases;
+ }
+ 
+-function hac_getTotalStorageUserPrefix(){
++function hac_getTotalStorageUserPrefix() {
++  var _app = "";
++  if (typeof HIVE_AUTOCOMPLETE_APP != "undefined") {
++    _app = HIVE_AUTOCOMPLETE_APP;
++  }
+   if (typeof HIVE_AUTOCOMPLETE_USER != "undefined") {
+-    return HIVE_AUTOCOMPLETE_USER + "_";
++    return _app + "_" + HIVE_AUTOCOMPLETE_USER + "_";
+   }
+-  return "";
++  return (_app != "" ? _app + "_" : "");
+ }
+ 
+ function hac_getTableColumns(databaseName, tableName, textScanned, callback) {
+-- 
+1.7.9.5
+

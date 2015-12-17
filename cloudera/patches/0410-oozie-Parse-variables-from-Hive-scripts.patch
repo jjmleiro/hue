@@ -1,0 +1,121 @@
+From 7375973969da7815581347ff789cd1de9ad6c315 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 7 Jan 2015 18:25:55 -0800
+Subject: [PATCH 0410/1173] [oozie] Parse variables from Hive scripts
+
+---
+ apps/oozie/src/oozie/models2.py       |   11 +++++++++++
+ apps/oozie/src/oozie/tests2.py        |   13 ++++++++++++-
+ apps/oozie/src/oozie/views/editor2.py |   18 ++++++++++++------
+ 3 files changed, 35 insertions(+), 7 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 15fa1df..294af9c 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1164,6 +1164,17 @@ def find_json_parameters(fields):
+ def find_dollar_variables(text):
+   return re.findall('[^\n\\\\]\$([^\{ \'\"\-;\(\)]+)', text, re.MULTILINE)  
+ 
++def find_dollar_braced_variables(text):
++  vars = set()
++  
++  for var in re.findall('\$\{(.+)\}', text, re.MULTILINE):  
++    if ':' in var:
++      var = var.split(':', 1)[1]    
++    vars.add(var)
++  
++  return list(vars) 
++
++
+ 
+ 
+ def import_workflows_from_hue_3_7():
+diff --git a/apps/oozie/src/oozie/tests2.py b/apps/oozie/src/oozie/tests2.py
+index 24a70b1..2f1fcb5 100644
+--- a/apps/oozie/src/oozie/tests2.py
++++ b/apps/oozie/src/oozie/tests2.py
+@@ -27,7 +27,7 @@ from desktop.lib.django_test_util import make_logged_in_client
+ from desktop.lib.test_utils import grant_access, add_permission, add_to_group, reformat_json, reformat_xml
+ 
+ 
+-from oozie.models2 import Job, Workflow, find_dollar_variables
++from oozie.models2 import Job, Workflow, find_dollar_variables, find_dollar_braced_variables
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -38,6 +38,7 @@ class TestEditor():
+   def setUp(self):
+     self.wf = Workflow()
+ 
++
+   def test_parsing(self):
+     assert_equal(['input', 'LIMIT', 'out'], find_dollar_variables("""
+ data = '$input';
+@@ -54,6 +55,15 @@ WHERE
+ ORDER BY sample_07.salary DESC
+ LIMIT $limit"""))
+ 
++
++  def test_hive_script_parsing(self):
++    assert_equal(['field', 'tablename', 'LIMIT'], find_dollar_braced_variables("""
++    SELECT ${field}
++    FROM ${hivevar:tablename}
++    LIMIT ${hiveconf:LIMIT}  
++    """))
++
++
+   def test_workflow_gen_xml(self):
+     assert_equal(
+         '<workflow-app name="Test" xmlns="0">\n'
+@@ -62,6 +72,7 @@ LIMIT $limit"""))
+         self.wf.to_xml({'output': '/path'}).split()
+     )
+ 
++
+   def test_job_validate_xml_name(self):
+     assert_equal('a', Job.validate_name('a'))
+     assert_equal('aa', Job.validate_name('aa'))
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 83e90b2..922afa6 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -35,7 +35,8 @@ from liboozie.oozie_api import get_oozie
+ from liboozie.submission2 import Submission
+ 
+ from oozie.forms import ParameterForm
+-from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflows_from_hue_3_7, find_dollar_variables
++from oozie.models2 import Node, Workflow, Coordinator, Bundle, NODES, WORKFLOW_NODE_PROPERTIES, import_workflows_from_hue_3_7,\
++    find_dollar_variables, find_dollar_braced_variables
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -177,15 +178,20 @@ def action_parameters(request):
+   try:
+     node_data = json.loads(request.POST.get('node', '{}'))
+     
++    parameters = parameters.union(set(Node(node_data).find_parameters()))
++    
+     script_path = node_data.get('properties', {}).get('script_path', {})
+     if script_path:
+       script_path = script_path.replace('hdfs://', '')
++
+       if request.fs.do_as_user(request.user, request.fs.exists, script_path):
+-        data =  request.fs.do_as_user(request.user, request.fs.read, script_path, 0, 16 * 1024**2)
+-        parameters = parameters.union(set(find_dollar_variables(data)))
+-       
+-    parameters = parameters.union(set(Node(node_data).find_parameters()))
+-                    
++        data =  request.fs.do_as_user(request.user, request.fs.read, script_path, 0, 16 * 1024 ** 2)  
++
++        if node_data['type'] in ('hive', 'hive2'):
++          parameters = parameters.union(set(find_dollar_braced_variables(data)))
++        elif node_data['type'] == 'pig':
++          parameters = parameters.union(set(find_dollar_variables(data)))
++                
+     response['status'] = 0
+     response['parameters'] = list(parameters)
+   except Exception, e:
+-- 
+1.7.9.5
+

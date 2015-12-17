@@ -1,0 +1,223 @@
+From 0391b468f9ce8b0f6762d720400a09a106dc2425 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 18 Dec 2014 22:42:38 -0800
+Subject: [PATCH 0354/1173] [oozie] Updating icons, bundle dependencies, link
+ to pig script
+
+---
+ apps/oozie/src/oozie/models2.py                    |    7 +++---
+ .../src/oozie/templates/editor/bundle_editor.mako  |    2 +-
+ .../oozie/templates/editor/coordinator_editor.mako |    3 ---
+ .../oozie/templates/editor/gen2/bundle.xml.mako    |    6 ++---
+ .../oozie/templates/editor/workflow_editor.mako    |   24 +++++++++++++-------
+ apps/oozie/src/oozie/views/editor2.py              |   13 ++++++-----
+ 6 files changed, 31 insertions(+), 24 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 0fc7987..8dcde34 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -92,6 +92,7 @@ class Workflow(Job):
+               "uuid": None,
+               "name": "My Workflow",
+               "properties": {
++                  "description": "",
+                   "job_xml": "",
+                   "sla_enabled": False,
+                   "schema_version": "uri:oozie:workflow:0.4",
+@@ -298,7 +299,7 @@ class PigAction(Action):
+   FIELDS = {
+      'script_path': { 
+           'name': 'script_path',
+-          'label': _('Script name'),
++          'label': _('Script'),
+           'value': '',
+           'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
+      },            
+@@ -438,7 +439,7 @@ class HiveAction(Action):
+   FIELDS = {
+      'script_path': { 
+           'name': 'script_path',
+-          'label': _('Script name'),
++          'label': _('Script'),
+           'value': '',
+           'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
+      },            
+@@ -493,7 +494,7 @@ class HiveServer2Action(Action):
+   FIELDS = {
+      'script_path': { 
+           'name': 'script_path',
+-          'label': _('Script name'),
++          'label': _('Script'),
+           'value': '',
+           'help_text': _('Script name or path to the Pig script. E.g. my_script.pig.')
+      },            
+diff --git a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+index 774c0fa..96e25a8 100644
+--- a/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/bundle_editor.mako
+@@ -98,7 +98,7 @@ ${ commonheader(_("Bundle Editor"), "Oozie", user) | n,unicode }
+               <li>
+                 <input data-bind="value: name"/>
+                 <input data-bind="value: value"/>
+-                <a href="#" data-bind="click: function(){ $data.properties.remove(this); }">
++                <a href="#" data-bind="click: function(){ $parent.properties.remove(this); }">
+                   <i class="fa fa-minus"></i>
+                 </a>
+               </li>
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index a447e12..1222acf 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -162,9 +162,6 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
+                 <i class="fa fa-sliders"></i>
+               </a>
+-              <a href="#" data-bind="click: function(){ $root.coordinator.variables.remove(this); }">
+-                <i class="fa fa-minus"></i>
+-              </a>
+ 
+               <div data-bind="visible: show_advanced" style="padding-left: 20px">
+                 Done flag 
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+index 3ff4d95..3c1bba6 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/bundle.xml.mako
+@@ -40,12 +40,12 @@
+ 
+ 
+   % for bundled in bundle.data['coordinators']:
+-  <coordinator name="${ mapping[bundled['coordinator']] }-${ bundled['coordinator'][0:4] }">
+-     <app-path>${'${'}nameNode}${ mapping['coord_%s_dir' % bundled['coordinator'] ] }</app-path>
++  <coordinator name="${ mapping['coord_%s' % loop.index].name }-${ loop.index }">
++     <app-path>${'${'}nameNode}${ mapping['coord_%s_dir' % loop.index ] }</app-path>
+      <configuration>
+        <property>
+           <name>wf_application_path</name>
+-          <value>${ mapping['wf_%s_dir' % bundled['coordinator']] }</value>
++          <value>${ mapping['wf_%s_dir' % loop.index] }</value>
+       </property>
+       % for param in bundled['properties']:
+       <property>
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 7bd5594..4e4daa4 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -139,12 +139,17 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
++    [
+     <a title="${ _('Gen XML') }" rel="tooltip" data-placement="bottom" data-bind="click: gen_xml, css: {'btn': true}">
+       <i class="fa fa-fw fa-file-code-o"></i>
+     </a>
+     <a title="${ _('Import workflows') }" rel="tooltip" data-placement="bottom" data-bind="click: import_workflows, css: {'btn': true}">
+       <i class="fa fa-fw fa-download"></i>
+     </a>
++    <a title="${ _('Toggle arrows') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleArrows, css: {'btn': true, 'btn-inverse': hasArrows}">
++      <i class="fa fa-fw fa-long-arrow-down"></i>
++    </a>
++    ]
+     &nbsp;&nbsp;&nbsp;
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}">
+       <i class="fa fa-fw fa-play"></i>
+@@ -152,9 +157,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <a title="${ _('Edit') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleEditing, css: {'btn': true, 'btn-inverse': isEditing}">
+       <i class="fa fa-fw fa-pencil"></i>
+     </a>
+-    <a title="${ _('Toggle arrows') }" rel="tooltip" data-placement="bottom" data-bind="click: toggleArrows, css: {'btn': true, 'btn-inverse': hasArrows}">
+-      <i class="fa fa-fw fa-long-arrow-down"></i>
+-    </a>
+     &nbsp;&nbsp;&nbsp;
+     % if user.is_superuser:
+       <button type="button" title="${ _('Settings') }" rel="tooltip" data-placement="bottom" data-toggle="modal" data-target="#settingsModal" data-bind="css: {'btn': true}">
+@@ -164,7 +166,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           data-original-title="${ _('Go upload additional files and libraries to the deployment directory on HDFS') }"
+           data-bind="css: {'btn': true}, attr: {href: '/filebrowser/view' + $root.workflow.properties.deployment_dir() }">
+         <i class="fa fa-fw fa-folder-open"></i>
+-      </a>      
++      </a>
++      <a title="${ _('Share') }" rel="tooltip" data-placement="bottom" data-bind="css: {'btn': true}">
++        <i class="fa fa-fw fa-users"></i>
++      </a>
+       &nbsp;&nbsp;&nbsp;
+       <button type="button" title="${ _('Save') }" rel="tooltip" data-placement="bottom" data-loading-text="${ _("Saving...") }" data-bind="click: $root.save, css: {'btn': true}">
+         <i class="fa fa-fw fa-save"></i>
+@@ -182,6 +187,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <form class="form-search" style="margin: 0">
+     <strong>${_("Name")}</strong>
+     <input data-bind="value: $root.workflow.name"/>
++    <input data-bind="value: $root.workflow.properties.description" class="span6"/>
+   </form>
+ </div>
+ 
+@@ -416,7 +422,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="min-height: 40px">
+     <div class="big-icon"><i class="fa fa-sitemap"></i></div>
+     <div data-bind="visible: $root.isEditing" style="padding: 10px">
+-      <a class="pointer" data-bind="click: function() { $root.convertToDecision($parent, $data) }"><i class="fa fa-magic"></i> ${_('Convert to Decision')}</a>
++      <a class="pointer" data-bind="click: function() { $root.convertToDecision($parent, $data) }">${_('Convert to Decision')} <i class="fa fa-wrench"></i></a>
+     </div>
+   </div>
+   <!-- /ko -->
+@@ -472,7 +478,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <script type="text/html" id="start-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="min-height: 40px;">
+-    <div class="big-icon"><i class="fa fa-caret-square-o-down"></i></div>
++    <div class="big-icon"><i class="fa fa-flag-checkered"></i></div>
+   </div>
+   <!-- /ko -->
+ </script>
+@@ -481,7 +487,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ <script type="text/html" id="end-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="min-height: 40px">
+-    <div class="big-icon"><i class="fa fa-check-square"></i></div>
++    <div class="big-icon"><i class="fa fa-dot-circle-o"></i></div>
+   </div>
+   <!-- /ko -->
+ </script>
+@@ -709,7 +715,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     <div data-bind="visible: ! $root.isEditing()">
+       <span data-bind="text: $root.workflow_properties.script_path.label"></span>
+-      <strong data-bind="text: properties.script_path"></strong>
++      <a data-bind="attr: {href: '/filebrowser/view' + properties.script_path() }" target="_blank" title="${ _('Open script') }">
++        <strong data-bind="text: properties.script_path"></strong>
++      </a>
+     </div>
+ 
+     <div data-bind="visible: $root.isEditing">
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 6f6d00d..e7ab1d0 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -445,17 +445,18 @@ def submit_bundle(request, doc_id):
+ def _submit_bundle(request, bundle, properties):
+   try:
+     deployment_mapping = {}
+-
+-    for coord in bundle.document.dependencies.all():
++    coords = dict([(c.uuid, c) for c in Document2.objects.filter(type='oozie-coordinator2', uuid__in=[b['coordinator'] for b in bundle.data['coordinators']])])
++    
++    for i, bundled in enumerate(bundle.data['coordinators']):
++      coord = coords[bundled['coordinator']]
+       workflow = Workflow(document=coord.dependencies.all()[0])
+       wf_dir = Submission(request.user, workflow, request.fs, request.jt, properties).deploy()      
+-      deployment_mapping['wf_%s_dir' % coord.uuid] = request.fs.get_hdfs_path(wf_dir)
+-      deployment_mapping[workflow.uuid] = workflow.document.name
++      deployment_mapping['wf_%s_dir' % i] = request.fs.get_hdfs_path(wf_dir)
+       
+       coordinator = Coordinator(document=coord)
+       coord_dir = Submission(request.user, coordinator, request.fs, request.jt, properties).deploy()
+-      deployment_mapping['coord_%s_dir' % coord.uuid] = coord_dir
+-      deployment_mapping[coord.uuid] = coord.name
++      deployment_mapping['coord_%s_dir' % i] = coord_dir
++      deployment_mapping['coord_%s' % i] = coord
+ 
+     properties.update(deployment_mapping)
+     
+-- 
+1.7.9.5
+

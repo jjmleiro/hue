@@ -1,0 +1,43 @@
+From f58789925c7594830cb87ff7f84e545512a4fe60 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 28 Apr 2015 15:52:31 +0200
+Subject: [PATCH 1161/1173] [search] Strip script tag from HTML template
+
+---
+ apps/search/src/search/templates/search.mako       |    2 +-
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 724a9a4..acfc55d 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -614,7 +614,7 @@ ${ dashboard.layout_skeleton() }
+       <div class="widget-section widget-html-section" style="display: none">
+         <div class="row-fluid">
+           <div class="span9">
+-            <textarea data-bind="codemirror: {data: $root.collection.template.template, lineNumbers: true, htmlMode: true, mode: 'text/html' }" data-template="true"></textarea>
++            <textarea data-bind="codemirror: {data: $root.collection.template.template, lineNumbers: true, htmlMode: true, mode: 'text/html', stripScript: true }" data-template="true"></textarea>
+           </div>
+           <div class="span3">
+             <h5 class="editor-title">${_('Available Fields')}</h5>
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index c4669ad..8e240ed 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -744,7 +744,11 @@ ko.bindingHandlers.codemirror = {
+       clearTimeout(sourceDelay);
+       var _cm = cm;
+       sourceDelay = setTimeout(function () {
+-        valueAccessor().data(_cm.getValue());
++        var _value = _cm.getValue();
++        if (options.stripScript){
++          _value = _value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
++        }
++        valueAccessor().data(_value);
+         if ($(".widget-html-pill").parent().hasClass("active")) {
+           $("[contenteditable=true]").html(stripHtmlFromFunctions(valueAccessor().data()));
+         }
+-- 
+1.7.9.5
+

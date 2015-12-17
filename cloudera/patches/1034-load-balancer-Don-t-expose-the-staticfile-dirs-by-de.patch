@@ -1,0 +1,27 @@
+From 003b694159b387b0dbdbea07ada4ddc66153bd86 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 11 Mar 2015 11:38:44 -0700
+Subject: [PATCH 1034/1173] [load-balancer] Don't expose the staticfile dirs
+ by default
+
+---
+ tools/load-balancer/etc/nginx.conf |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/tools/load-balancer/etc/nginx.conf b/tools/load-balancer/etc/nginx.conf
+index df4e8c7..d685dcc 100644
+--- a/tools/load-balancer/etc/nginx.conf
++++ b/tools/load-balancer/etc/nginx.conf
+@@ -33,7 +33,8 @@ http {
+         }
+ 
+         location /static/ {
+-            autoindex on;
++            # Uncomment to expose the static file directories.
++            ## autoindex on;
+ 
+             # The default Hue staticfile packaging installation directory.
+             alias /usr/lib/hue/build/static/;
+-- 
+1.7.9.5
+

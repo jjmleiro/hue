@@ -37,6 +37,15 @@ ALLOWED_FIELD_ATTRIBUTES = set(['name', 'type', 'indexed', 'stored'])
 FLAGS = [('I', 'indexed'), ('T', 'tokenized'), ('S', 'stored')]
 
 
+def get_solrctl_path():
+  solrctl_path = conf.SOLRCTL_PATH.get()
+  if solrctl_path is None:
+    LOG.error("Could not find solrctl executable")
+    raise PopupException(_('Could not find solrctl executable'))
+
+  return solrctl_path
+
+
 class CollectionManagerController(object):
   """
   Glue the models to the views.
@@ -57,7 +66,8 @@ class CollectionManagerController(object):
       try:
         api.collections()
         setattr(self, '_solr_cloud_mode', True)
-      except:
+      except Exception, e:
+        LOG.info('Non SolrCloud server: %s' % e)
         setattr(self, '_solr_cloud_mode', False)
     return getattr(self, '_solr_cloud_mode')
 
@@ -67,21 +77,33 @@ class CollectionManagerController(object):
   def get_collections(self):
     try:
       api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
+
       if self.is_solr_cloud_mode():
         solr_collections = api.collections()
         for name in solr_collections:
           solr_collections[name]['isCoreOnly'] = False
       else:
         solr_collections = {}
+
       solr_cores = api.cores()
       for name in solr_cores:
         solr_cores[name]['isCoreOnly'] = True
+
+      solr_aliases = api.aliases()
+      for name in solr_aliases:
+        solr_aliases[name] = {
+            'isCoreOnly': False,
+            'isAlias': True,
+            'collections': solr_aliases[name]
+        }
     except Exception, e:
       LOG.warn('No Zookeeper servlet running on Solr server: %s' % e)
       solr_collections = {}
       solr_cores = {}
+      solr_aliases = {}
 
     solr_cores.update(solr_collections)
+    solr_cores.update(solr_aliases)
     return solr_cores
 
   def get_fields(self, collection_or_core_name):
@@ -112,11 +134,12 @@ class CollectionManagerController(object):
       tmp_path, solr_config_path = utils.copy_configs(fields, unique_key_field, df, True)
 
       # Create instance directory.
-      process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--create", name, solr_config_path],
+      solrctl_path = get_solrctl_path()
+
+      process = subprocess.Popen([solrctl_path, "instancedir", "--create", name, solr_config_path],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
                                  env={
-                                   'SOLR_HOME': conf.SOLR_HOME.get(),
                                    'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
                                  })
       status = process.wait()
@@ -127,16 +150,15 @@ class CollectionManagerController(object):
       if status != 0:
         LOG.error("Could not create instance directory.\nOutput: %s\nError: %s" % process.communicate())
         raise PopupException(_('Could not create instance directory. '
-                               'Check if [indexer] solr_zk_ensemble is correct in Hue config and look at the Solr error logs for more info.'))
+                               'Check if solr_zk_ensemble and solrctl_path are correct in Hue config [indexer].'))
 
       api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
       if not api.create_collection(name):
         # Delete instance directory if we couldn't create a collection.
-        process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--delete", name],
+        process = subprocess.Popen([solrctl_path, "instancedir", "--delete", name],
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE,
                                    env={
-                                     'SOLR_HOME': conf.SOLR_HOME.get(),
                                      'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
                                    })
         if process.wait() != 0:
@@ -165,21 +187,22 @@ class CollectionManagerController(object):
     api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
     if core:
       raise PopupException(_('Cannot remove Solr cores.'))
+
+    if api.remove_collection(name):
+      # Delete instance directory.
+      solrctl_path = get_solrctl_path()
+
+      process = subprocess.Popen([solrctl_path, "instancedir", "--delete", name],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 env={
+                                   'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
+                                 })
+      if process.wait() != 0:
+        LOG.error("Cloud not delete instance directory.\nOutput stream: %s\nError stream: %s" % process.communicate())
+        raise PopupException(_('Could not create instance directory. Check error logs for more info.'))
     else:
-      if api.remove_collection(name):
-        # Delete instance directory.
-        process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--delete", name],
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE,
-                                   env={
-                                     'SOLR_HOME': conf.SOLR_HOME.get(),
-                                     'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
-                                   })
-        if process.wait() != 0:
-          LOG.error("Cloud not delete instance directory.\nOutput stream: %s\nError stream: %s" % process.communicate())
-          raise PopupException(_('Could not create instance directory. Check error logs for more info.'))
-      else:
-        raise PopupException(_('Could not remove collection. Check error logs for more info.'))
+      raise PopupException(_('Could not remove collection. Check error logs for more info.'))
 
   def update_collection(self, name, fields):
     """

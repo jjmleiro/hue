@@ -43,8 +43,8 @@ ${ layout.menubar(section='bundles') }
   }
 </style>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 
 <div class="container-fluid">
@@ -89,7 +89,7 @@ ${ layout.menubar(section='bundles') }
       <div class="card card-small">
       <h1 class="card-heading simple">${ _('Bundle Editor : ') } ${ bundle.name }</h1>
       <form id="jobForm" class="form-horizontal" action="${ url('oozie:edit_bundle', bundle=bundle.id) }" method="POST">
-
+        ${ csrf_token(request) | n,unicode }
       <div id="properties" class="section">
         <ul class="nav nav-pills">
           <li class="active"><a href="#step1" class="step">${ _('Step 1: General') }</a></li>
@@ -268,7 +268,7 @@ ${ layout.menubar(section='bundles') }
     }
   </style>
 
-  <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
   <script type="text/javascript" charset="utf-8">
 

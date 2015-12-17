@@ -1,0 +1,166 @@
+From 912a1625187cec3d06d5709f8edcb603f01a777b Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Fri, 27 Feb 2015 15:52:47 -0800
+Subject: [PATCH 0968/1173] HUE-2596 [oozie] Add parent column on dashboard
+
+---
+ apps/oozie/src/oozie/models.py                     |    4 +++
+ .../src/oozie/static/oozie/js/dashboard-utils.js   |    8 +++---
+ .../templates/dashboard/list_oozie_workflows.mako  |   28 +++++++++++---------
+ apps/oozie/src/oozie/views/dashboard.py            |    4 +--
+ 4 files changed, 25 insertions(+), 19 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index 3af667c..2aec70c 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -1942,6 +1942,10 @@ def get_link(oozie_id):
+     link = reverse('oozie:list_oozie_workflow', kwargs={'job_id': oozie_id})
+   elif oozie_id.endswith('C'):
+     link = reverse('oozie:list_oozie_coordinator', kwargs={'job_id': oozie_id})
++  elif 'C@' in oozie_id:
++    link = reverse('oozie:list_oozie_coordinator', kwargs={'job_id': oozie_id.split('@')[0]})
++  elif 'B@' in oozie_id:
++    link = reverse('oozie:list_oozie_bundle', kwargs={'job_id': oozie_id.split('@')[0]})
+ 
+   return link
+ 
+diff --git a/apps/oozie/src/oozie/static/oozie/js/dashboard-utils.js b/apps/oozie/src/oozie/static/oozie/js/dashboard-utils.js
+index 226d48a..68f44fd 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/dashboard-utils.js
++++ b/apps/oozie/src/oozie/static/oozie/js/dashboard-utils.js
+@@ -84,12 +84,12 @@ var PersistedButtonsFilters = function (oSettings, aData, iDataIndex) {
+       statuses.push($(this).attr("data-value"));
+     });
+ 
+-    var _statusColumn = aData[aData.length - 1];
++    var _parentUrlColumn = aData[aData.length - 1];
+     if (statuses.length == 1) {
+-      if (statuses[0] == 'MANUALLY') {
+-        submittedByFilter = _statusColumn == null;
++      if (statuses[0] == 'COORDINATOR') {
++        submittedByFilter = _parentUrlColumn.indexOf('icon_oozie_coordinator') > -1;
+       } else {
+-        submittedByFilter = _statusColumn != null;
++        submittedByFilter = _parentUrlColumn.indexOf('icon_oozie_coordinator') == -1;
+       }
+     }
+   }
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index c5864ac..9d00152 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -77,9 +77,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <th width="21%">${ _('Name') }</th>
+           <th width="7%">${ _('Progress') }</th>
+           <th width="7%">${ _('Submitter') }</th>
+-          <th width="15%">${ _('Last Modified') }</th>
++          <th width="7%">${ _('Last Modified') }</th>
+           <th width="20%">${ _('Id') }</th>
+-          <th width="1%">${ _('parentId') }</th>
++          <th width="5%">${ _('Parent') }</th>
+         </tr>
+       </thead>
+       <tbody>
+@@ -109,9 +109,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <th width="25%">${ _('Name') }</th>
+           <th width="7%">${ _('Duration') }</th>
+           <th width="10%">${ _('Submitter') }</th>
+-          <th width="15%">${ _('Last Modified') }</th>
+           <th width="25%">${ _('Id') }</th>
+-          <th width="1%">${ _('parentId') }</th>
++          <th width="5%">${ _('Parent') }</th>
+         </tr>
+       </thead>
+       <tbody>
+@@ -123,7 +122,6 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <td></td>
+           <td></td>
+           <td></td>
+-          <td></td>
+         </tr>
+       </tbody>
+      </table>
+@@ -188,7 +186,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+       created: wf.created,
+       createdInMillis: wf.createdInMillis,
+       run: wf.run,
+-      parentId: wf.parentId,
++      parentUrl: wf.parentUrl,
+     }
+   }
+ 
+@@ -209,7 +207,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+-        { "bVisible":false }
++        null
+       ],
+       "aaSorting":[
+         [ 0, "desc" ]
+@@ -243,9 +241,8 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         null,
+         { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+-        { "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+-        { "bVisible":false }
++        null
+       ],
+       "aaSorting":[
+         [ 0, "desc" ]
+@@ -384,9 +381,9 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+                     wf.appName,
+                     '<div class="progress"><div class="bar bar-warning" style="width: 1%"></div></div>',
+                     wf.user,
+-                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
++                    '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTimeInMillis) + '</span>',
+                     '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
+-                    wf.parentId
++                    ''
+                   ]);
+                 }
+                 catch (error) {
+@@ -423,9 +420,14 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+               '<span class="' + wf.statusClass + '" data-type="status">' + wf.status + '</span>', decodeURIComponent(wf.appName),
+               '<span data-sort-value="'+ wf.durationInMillis +'">' + emptyStringIfNull(wf.duration) + '</span>',
+               wf.user,
+-              '<span data-sort-value="'+ wf.lastModTimeInMillis +'">' + emptyStringIfNull(wf.lastModTime) + '</span>',
+               '<a href="' + wf.absoluteUrl + '" data-row-selector="true">' + wf.id + '</a>',
+-              wf.parentId
++              wf.parentUrl == ''? '':
++              wf.parentUrl[wf.parentUrl.length-2] == 'W' ?
++                '<a href="' + wf.parentUrl + '"> <img src="${static("oozie/art/icon_oozie_workflow_24.png")}"/> </a>' :
++              wf.parentUrl[wf.parentUrl.length-2] == 'C' ?
++                '<a href="' + wf.parentUrl + '"> <img src="${static("oozie/art/icon_oozie_coordinator_24.png")}"/> </a>' :
++              wf.parentUrl[wf.parentUrl.length-2] == 'B' ?
++                '<a href="' + wf.parentUrl + '"> <img src="${static("oozie/art/icon_oozie_bundle_24.png")}"/> </a>' : ''
+             ], false);
+           }
+           catch (error) {
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index 11bf827..eadcdb6 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -876,7 +876,7 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+       massaged_job = {
+         'id': job.id,
+         'lastModTime': hasattr(job, 'lastModTime') and job.lastModTime and format_time(job.lastModTime) or None,
+-        'lastModTimeInMillis': hasattr(job, 'lastModTime') and job.lastModTime and time.mktime(job.lastModTime) or 0,
++        'lastModTimeInMillis': hasattr(job, 'lastModTime') and job.lastModTime and format_duration_in_millis(time.mktime(job.lastModTime)) or 0,
+         'kickoffTime': hasattr(job, 'kickoffTime') and job.kickoffTime and format_time(job.kickoffTime) or '',
+         'kickoffTimeInMillis': hasattr(job, 'kickoffTime') and job.kickoffTime and time.mktime(catch_unicode_time(job.kickoffTime)) or 0,
+         'nextMaterializedTime': hasattr(job, 'nextMaterializedTime') and job.nextMaterializedTime and format_time(job.nextMaterializedTime) or '',
+@@ -903,7 +903,7 @@ def massaged_oozie_jobs_for_json(oozie_jobs, user, just_sla=False):
+         'run': hasattr(job, 'run') and job.run or 0,
+         'frequency': hasattr(job, 'frequency') and Coordinator.CRON_MAPPING.get(job.frequency, job.frequency) or None,
+         'timeUnit': hasattr(job, 'timeUnit') and job.timeUnit or None,
+-        'parentId': hasattr(job, 'parentId') and job.parentId or None,
++        'parentUrl': hasattr(job, 'parentId') and job.parentId and get_link(job.parentId) or ''
+       }
+       jobs.append(massaged_job)
+ 
+-- 
+1.7.9.5
+

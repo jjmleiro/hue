@@ -1,0 +1,46 @@
+From 7fb6bc1457f5f59218139e2a1290bef53761ffd3 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 5 Nov 2014 09:10:05 +0000
+Subject: [PATCH 0244/1173] [oozie] Remove a node below a regular action
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   15 +++++++--------
+ 1 file changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 7976be7..10cab1b 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -243,22 +243,21 @@ var Workflow = function (vm, workflow) {
+      });
+   };
+   
+-  self.removeNode = function(node_id) { alert(node_id);
++  self.removeNode = function(node_id) {
+ 	var node = self.getNodeById(node_id);
+ 	
+     var parentWidget = vm.getWidgetPredecessor(node_id);
+     var parent = self.getNodeById(parentWidget.id());
+ 
+-    // if parent start
+-    if (parentWidget.widgetType() == 'start-widget') {
+-      parent.set_link('to', node.get_link('ok')['ok']);
++    // If parent start
++    if (parentWidget.widgetType() == 'start-widget' || parentWidget.widgetType() == 'join-widget') {
++      parent.set_link('to', node.get_link('ok')['ok']);    	
++    } else {
++      // If parent normal node
++      parent.set_link('ok', node.get_link('ok')['ok']);
+     }
+ 
+     self.nodes.remove(node);
+-
+-	// if parent normal node
+-	  
+-	// if parent is fork
+   };
+ 
+   self.getNodeById = function (node_id) {
+-- 
+1.7.9.5
+

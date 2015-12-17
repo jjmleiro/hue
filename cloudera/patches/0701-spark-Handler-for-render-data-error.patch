@@ -1,0 +1,38 @@
+From 85c506c643a3de25eeef88e2b67bd916db9605e0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 28 Jan 2015 08:10:00 +0100
+Subject: [PATCH 0701/1173] [spark] Handler for render data error
+
+---
+ apps/spark/src/spark/templates/editor.mako |    8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b291a56..59a9fe9 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -207,7 +207,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <div data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length == 0">${_('The selected database has no tables.')}</div>
+           <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: $root.assistContent().filteredFirstLevelObjects()" class="unstyled assist-main">
+             <li data-bind="event: { mouseover: function(){ $('#assistHover_' + $data).show(); }, mouseout: function(){ $('#assistHover_' + $data).hide(); } }">
+-              <a href="javascript:void(0)" class="pull-rsight" data-bind="attr: {'id': 'assistHover_' + $data}, click: showTablePreview" style="padding-right:5px; display: none; position: absolute; right: 4px; margin-left: auto"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
++              <a href="javascript:void(0)" data-bind="attr: {'id': 'assistHover_' + $data}, click: showTablePreview" style="padding-right:5px; display: none; position: absolute; right: 4px; margin-left: auto; background-color: #FFF"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
+               <a href="javascript:void(0)" data-bind="click: loadAssistSecondLevel"><span data-bind="text: $data"></span></a>
+ 
+               <div data-bind="visible: $root.assistContent().firstLevelObjects()[$data].loaded() && $root.assistContent().firstLevelObjects()[$data].open()">
+@@ -1556,6 +1556,12 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       $("#snippet_" + options.snippet.id()).find("select").trigger('chosen:updated');
+     });
+ 
++    $(document).on("renderDataError", function (e, options){
++      var _dtElement = $("#snippet_" + options.snippet.id()).find(".dataTables_wrapper");
++      _dtElement.animate({opacity: '1'}, 50);
++      _dtElement.off("scroll");
++    });
++
+     $(document).on("progress", function (e, options) {
+       if (options.data == 100) {
+         window.setTimeout(function () {
+-- 
+1.7.9.5
+

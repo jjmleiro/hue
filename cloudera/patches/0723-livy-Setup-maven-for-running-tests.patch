@@ -1,0 +1,159 @@
+From e48ede22839ff4e7de4b0c8beb3a087f63623b91 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 30 Jan 2015 11:24:50 +0800
+Subject: [PATCH 0723/1173] [livy] Setup maven for running tests
+
+---
+ apps/spark/java/livy-core/pom.xml                  |    7 ++++
+ apps/spark/java/livy-repl/pom.xml                  |   38 ++++++++++++++++++--
+ .../hue/livy/repl/python/PythonSessionSpec.scala   |   17 +++++++++
+ apps/spark/java/pom.xml                            |   29 +++++++++++++++
+ 4 files changed, 89 insertions(+), 2 deletions(-)
+ create mode 100644 apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/python/PythonSessionSpec.scala
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index 3c53dbd..a122d9c 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -29,6 +29,13 @@
+ 
+         <dependency>
+             <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-server</artifactId>
++            <version>${jetty.version}</version>
++            <scope>container</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
+             <artifactId>jetty-webapp</artifactId>
+             <version>${jetty.version}</version>
+         </dependency>
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index e0514fd..41922d5 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -42,14 +42,19 @@
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra_2.10</artifactId>
+             <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.scalatra</groupId>
+             <artifactId>scalatra-json_2.10</artifactId>
+             <version>${scalatra.version}</version>
+-            <scope>compile</scope>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-scalatest_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>test</scope>
+         </dependency>
+ 
+         <dependency>
+@@ -133,6 +138,35 @@
+                 </configuration>
+             </plugin>
+ 
++            <!-- disable surefire -->
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-surefire-plugin</artifactId>
++                <version>2.7</version>
++                <configuration>
++                    <skipTests>true</skipTests>
++                </configuration>
++            </plugin>
++            <!-- enable scalatest -->
++            <plugin>
++                <groupId>org.scalatest</groupId>
++                <artifactId>scalatest-maven-plugin</artifactId>
++                <version>1.0</version>
++                <configuration>
++                    <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
++                    <junitxml>.</junitxml>
++                    <filereports>WDF TestSuite.txt</filereports>
++                </configuration>
++                <executions>
++                    <execution>
++                        <id>test</id>
++                        <goals>
++                            <goal>test</goal>
++                        </goals>
++                    </execution>
++                </executions>
++            </plugin>
++
+         </plugins>
+     </build>
+ 
+diff --git a/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/python/PythonSessionSpec.scala b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/python/PythonSessionSpec.scala
+new file mode 100644
+index 0000000..f053ace
+--- /dev/null
++++ b/apps/spark/java/livy-repl/src/test/scala/com/cloudera/hue/livy/repl/python/PythonSessionSpec.scala
+@@ -0,0 +1,17 @@
++package com.cloudera.hue.livy.repl.python
++
++import com.cloudera.hue.livy.repl.WebApp
++import org.scalatest.FunSuite
++import org.scalatra.test.scalatest._
++
++class PythonSessionSpec extends ScalatraSuite with FunSuite {
++
++  addServlet(new WebApp(PythonSession.createPython()), "/*")
++
++  test("it works") {
++    get("/") {
++      status should equal (200)
++    }
++  }
++
++}
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index b1d9b60..c1a1fba 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -171,6 +171,35 @@
+                     <artifactId>maven-bundle-plugin</artifactId>
+                     <version>2.4.0</version>
+                 </plugin>
++
++                <!-- disable surefire -->
++                <plugin>
++                    <groupId>org.apache.maven.plugins</groupId>
++                    <artifactId>maven-surefire-plugin</artifactId>
++                    <version>2.7</version>
++                    <configuration>
++                        <skipTests>true</skipTests>
++                    </configuration>
++                </plugin>
++                <!-- enable scalatest -->
++                <plugin>
++                    <groupId>org.scalatest</groupId>
++                    <artifactId>scalatest-maven-plugin</artifactId>
++                    <version>1.0</version>
++                    <configuration>
++                        <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
++                        <junitxml>.</junitxml>
++                        <filereports>WDF TestSuite.txt</filereports>
++                    </configuration>
++                    <executions>
++                        <execution>
++                            <id>test</id>
++                            <goals>
++                                <goal>test</goal>
++                            </goals>
++                        </execution>
++                    </executions>
++                </plugin>
+             </plugins>
+         </pluginManagement>
+ 
+-- 
+1.7.9.5
+

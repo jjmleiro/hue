@@ -1,0 +1,39 @@
+From 789694dad765fce24e49adc181be76046976491e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 19 Feb 2015 13:45:40 -0800
+Subject: [PATCH 0878/1173] [livy] Clean up some unnecessary comments
+
+---
+ apps/spark/java/bin/livy-yarn-server |    2 --
+ apps/spark/java/bin/setup-classpath  |    2 --
+ 2 files changed, 4 deletions(-)
+
+diff --git a/apps/spark/java/bin/livy-yarn-server b/apps/spark/java/bin/livy-yarn-server
+index 07ea8c1..ac17290 100755
+--- a/apps/spark/java/bin/livy-yarn-server
++++ b/apps/spark/java/bin/livy-yarn-server
+@@ -14,8 +14,6 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+-#
+-# Runs Livy server.
+ 
+ set -e
+ 
+diff --git a/apps/spark/java/bin/setup-classpath b/apps/spark/java/bin/setup-classpath
+index 9f29d41..e61cb02 100644
+--- a/apps/spark/java/bin/setup-classpath
++++ b/apps/spark/java/bin/setup-classpath
+@@ -14,8 +14,6 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+-#
+-# Runs Livy server.
+ 
+ ASSEMBLY_DIR="$LIVY_HOME/livy-assembly/target/scala-2.10"
+ 
+-- 
+1.7.9.5
+

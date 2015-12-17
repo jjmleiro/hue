@@ -1,0 +1,68 @@
+From 75027ebdb0fda0f8657d23d95505d5c86a09e8f8 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 5 Feb 2015 15:42:07 -0800
+Subject: [PATCH 0760/1173] [oozie] Add a link for scheduling a workflow from
+ the editor page
+
+Also automatically set to edit mode for a new workflow
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ apps/oozie/src/oozie/views/editor2.py              |    4 ++++
+ apps/oozie/static/js/workflow-editor.ko.js         |    6 +++++-
+ 3 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 62c0efa..47904bd 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -148,7 +148,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-play"></i>
+     </a>
+-    <a title="${ _('Schedule') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
++    <a title="${ _('Schedule') }" rel="tooltip" data-placement="bottom" data-bind="click: schedule, css: {'btn': true, 'disabled': workflow.isDirty()}, visible: workflow.id() != null">
+       <i class="fa fa-fw fa-calendar"></i>
+     </a>
+ 
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 14b2898..b6cefe7 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -395,6 +395,10 @@ def edit_coordinator(request):
+     coordinator = Coordinator()
+     coordinator.set_workspace(request.user)
+ 
++  workflow_uuid = request.GET.get('workflow')
++  if workflow_uuid:
++    coordinator.data['properties']['workflow'] = workflow_uuid
++
+   api = get_oozie(request.user)
+   credentials = Credentials()
+   
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 0964ea3..25bdff5 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -489,7 +489,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   self.isNested = ko.observable(true);
+ 
+   self.canEdit = ko.mapping.fromJS(can_edit_json);
+-  self.isEditing = ko.observable(false);
++  self.isEditing = ko.observable(workflow_json.id == null);
+   self.isEditing.subscribe(function (newVal) {
+     $(document).trigger("editingToggled");
+   });
+@@ -1099,6 +1099,10 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
++  
++  self.schedule = function () {
++    window.location.replace('/oozie/editor/coordinator/new/?workflow=' + self.workflow.uuid());
++  };
+ 
+   function bareWidgetBuilder(name, type) {
+     return new ExtendedWidget({
+-- 
+1.7.9.5
+

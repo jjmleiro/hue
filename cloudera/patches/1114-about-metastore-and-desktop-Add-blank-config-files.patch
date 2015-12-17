@@ -1,0 +1,87 @@
+From 46dad3c165d3399880c72a2309001b0ff4ea9df4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 17 Mar 2015 18:04:43 -0700
+Subject: [PATCH 1114/1173] [about, metastore, and desktop] Add blank config
+ files
+
+IntelliJ debugging overrides python importing, which breaks how the
+appmanager._import_module_or_none works. The simplest way to fix this
+is to just add the missing files.
+---
+ apps/about/src/about/conf.py             |   16 ++++++++++++++++
+ apps/metastore/src/metastore/conf.py     |   16 ++++++++++++++++
+ desktop/libs/libsolr/src/libsolr/conf.py |   16 ++++++++++++++++
+ 3 files changed, 48 insertions(+)
+ create mode 100644 apps/about/src/about/conf.py
+ create mode 100644 apps/metastore/src/metastore/conf.py
+ create mode 100644 desktop/libs/libsolr/src/libsolr/conf.py
+
+diff --git a/apps/about/src/about/conf.py b/apps/about/src/about/conf.py
+new file mode 100644
+index 0000000..d053ec4
+--- /dev/null
++++ b/apps/about/src/about/conf.py
+@@ -0,0 +1,16 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+diff --git a/apps/metastore/src/metastore/conf.py b/apps/metastore/src/metastore/conf.py
+new file mode 100644
+index 0000000..d053ec4
+--- /dev/null
++++ b/apps/metastore/src/metastore/conf.py
+@@ -0,0 +1,16 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+diff --git a/desktop/libs/libsolr/src/libsolr/conf.py b/desktop/libs/libsolr/src/libsolr/conf.py
+new file mode 100644
+index 0000000..d053ec4
+--- /dev/null
++++ b/desktop/libs/libsolr/src/libsolr/conf.py
+@@ -0,0 +1,16 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
+-- 
+1.7.9.5
+

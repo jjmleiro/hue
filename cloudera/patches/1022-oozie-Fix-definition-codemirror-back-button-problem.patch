@@ -1,0 +1,31 @@
+From 77477b8dbd6a37b035c6cc3430bc42cf4ff85a21 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 10 Mar 2015 20:53:19 +0100
+Subject: [PATCH 1022/1173] [oozie] Fix definition codemirror back button
+ problem
+
+---
+ .../templates/dashboard/list_oozie_workflow.mako   |    7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+index 0f89790..6738ddd 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflow.mako
+@@ -531,11 +531,8 @@ ${ utils.slaGlobal() }
+ 
+     var definitionEditor = $("#definitionEditor")[0];
+ 
+-    var codeMirror = CodeMirror(function (elt) {
+-      definitionEditor.parentNode.replaceChild(elt, definitionEditor);
+-    }, {
+-      value:definitionEditor.value,
+-      readOnly:true,
++    var codeMirror = CodeMirror.fromTextArea(definitionEditor, {
++      readOnly: true,
+       lineNumbers:true
+     });
+ 
+-- 
+1.7.9.5
+

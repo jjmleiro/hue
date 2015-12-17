@@ -1,0 +1,2081 @@
+From c95c4e248a6a7ffbac48e56c16350b63ef8f47ae Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 23 Dec 2014 14:15:44 -0800
+Subject: [PATCH 0650/1173] [spark] Rewrite livy-server in scala
+
+---
+ apps/spark/java/livy-core/pom.xml                  |   34 +++-
+ .../com/cloudera/hue/livy/ExecuteResponse.scala    |    9 +
+ .../scala/com/cloudera/hue/livy/WebServer.scala    |   60 ++++++
+ .../scala/com/cloudera/hue/livy/requests.scala     |    6 +
+ .../com/cloudera/hue/livy/repl/Interpreter.scala   |   28 +--
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |   31 +++-
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |   12 +-
+ .../com/cloudera/hue/livy/repl/WebServer.scala     |   72 --------
+ apps/spark/java/livy-server/pom.xml                |  129 ++++++-------
+ .../java/com/cloudera/hue/livy/server/LivyApp.java |   40 ----
+ .../hue/livy/server/LivyConfiguration.java         |    6 -
+ .../server/resources/ExecuteStatementRequest.java  |   15 --
+ .../hue/livy/server/resources/SessionResource.java |  134 --------------
+ .../livy/server/resources/StatementResource.java   |   47 -----
+ .../server/sessions/ClosedSessionException.java    |    4 -
+ .../cloudera/hue/livy/server/sessions/Session.java |   60 ------
+ .../hue/livy/server/sessions/SessionManager.java   |  171 ------------------
+ .../hue/livy/server/sessions/SparkSession.java     |  191 --------------------
+ .../hue/livy/server/sessions/Statement.java        |   70 -------
+ .../src/main/resources/logback-access.xml          |   13 ++
+ .../livy-server/src/main/resources/logback.xml     |   12 ++
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |  115 ++++++++++++
+ .../com/cloudera/hue/livy/server/Session.scala     |   30 +++
+ .../cloudera/hue/livy/server/SessionFactory.scala  |   24 +++
+ .../cloudera/hue/livy/server/SessionManager.scala  |   84 +++++++++
+ .../hue/livy/server/SparkProcessSession.scala      |  161 +++++++++++++++++
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |    9 +-
+ apps/spark/java/pom.xml                            |    7 +-
+ apps/spark/livy-server                             |   27 +++
+ apps/spark/livy_server.sh                          |   31 ----
+ apps/spark/spark-shell                             |    8 +
+ 31 files changed, 697 insertions(+), 943 deletions(-)
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
+ delete mode 100644 apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
+ delete mode 100644 apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
+ create mode 100644 apps/spark/java/livy-server/src/main/resources/logback-access.xml
+ create mode 100644 apps/spark/java/livy-server/src/main/resources/logback.xml
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
+ create mode 100755 apps/spark/livy-server
+ delete mode 100755 apps/spark/livy_server.sh
+ create mode 100755 apps/spark/spark-shell
+
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index d90c24b..d9cc3c4 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -14,11 +14,43 @@
+     <packaging>jar</packaging>
+ 
+     <dependencies>
++
+         <dependency>
+             <groupId>ch.qos.logback</groupId>
+             <artifactId>logback-classic</artifactId>
+-            <version>1.1.2</version>
++            <version>${logback.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>ch.qos.logback</groupId>
++            <artifactId>logback-access</artifactId>
++            <version>${logback.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.eclipse.jetty</groupId>
++            <artifactId>jetty-webapp</artifactId>
++            <version>${jetty.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>${scalatra.version}</version>
++        </dependency>
++
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-jetty_2.10</artifactId>
++            <version>${scalatra.version}</version>
+         </dependency>
++
++        <dependency>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s-jackson_2.10</artifactId>
++            <version>3.2.11</version>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+new file mode 100644
+index 0000000..c7499b5
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+@@ -0,0 +1,9 @@
++package com.cloudera.hue.livy
++
++case class ExecuteResponse(id: Int, state: State, input: List[String], output: List[String])
++
++sealed trait State
++case class Ready() extends State
++case class Incomplete() extends State
++case class Running() extends State
++case class Complete() extends State
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+new file mode 100644
+index 0000000..15c77f6
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/WebServer.scala
+@@ -0,0 +1,60 @@
++package com.cloudera.hue.livy
++
++import javax.servlet.{Servlet, ServletContextListener}
++
++import ch.qos.logback.access.jetty.RequestLogImpl
++import org.eclipse.jetty.server.Server
++import org.eclipse.jetty.server.handler.{HandlerCollection, RequestLogHandler}
++import org.eclipse.jetty.servlet.DefaultServlet
++import org.eclipse.jetty.webapp.WebAppContext
++import org.scalatra.servlet.AsyncSupport
++
++import scala.concurrent.ExecutionContext
++
++class WebServer(var port: Int) extends Logging {
++  val server = new Server(port)
++  val context = new WebAppContext()
++
++  context.setContextPath("/")
++
++  context.addServlet(classOf[DefaultServlet], "/")
++
++  context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
++
++  val handlers = new HandlerCollection
++  handlers.addHandler(context)
++
++  // configure the access log
++  val requestLogHandler = new RequestLogHandler
++  val requestLog = new RequestLogImpl
++  requestLog.setResource("/logback-access.xml")
++  requestLogHandler.setRequestLog(requestLog)
++  handlers.addHandler(requestLogHandler)
++
++  server.setHandler(handlers)
++
++  def addEventListener(listener: ServletContextListener) = {
++    context.addEventListener(listener)
++  }
++
++  def addServlet(servlet: Servlet) = {
++
++  }
++
++  def start() = {
++    server.start()
++    port = server.getConnectors()(0).getLocalPort
++
++    info("Starting server on %s" format port)
++  }
++
++  def join() = {
++    server.join()
++  }
++
++  def stop() = {
++    context.stop()
++    server.stop()
++  }
++}
++
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
+new file mode 100644
+index 0000000..afd402f
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
+@@ -0,0 +1,6 @@
++package com.cloudera.hue.livy
++
++trait Request
++
++case class ExecuteRequest(statement: String) extends Request
++case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+index 3bae01c..d17accc 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Interpreter.scala
+@@ -1,10 +1,12 @@
+-package com.cloudera.hue.livy.repl.interpreter
++package com.cloudera.hue.livy.repl
+ 
+ import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
+ import java.util.concurrent.{BlockingQueue, SynchronousQueue}
+ 
++import com.cloudera.hue.livy.{Complete, ExecuteResponse}
+ import org.apache.spark.repl.SparkILoop
+ 
++import scala.annotation.tailrec
+ import scala.concurrent._
+ import scala.tools.nsc.SparkHelper
+ import scala.tools.nsc.interpreter.{Formatting, _}
+@@ -13,7 +15,6 @@ import scala.tools.nsc.util.ClassPath
+ class SparkInterpreter {
+   private implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+-  private var running = false;
+   private val inQueue = new SynchronousQueue[Request]
+   private val inWriter = new PipedWriter()
+ 
+@@ -36,8 +37,8 @@ class SparkInterpreter {
+     org.apache.spark.repl.Main.interp.history.asStrings
+   }
+ 
+-  def execute(statement: String): Future[Map[String, String]] = {
+-    val promise = Promise[Map[String, String]]()
++  def execute(statement: String): Future[com.cloudera.hue.livy.ExecuteResponse] = {
++    val promise = Promise[ExecuteResponse]()
+     inQueue.put(ExecuteRequest(statement, promise))
+     promise.future
+   }
+@@ -101,6 +102,7 @@ private class ILoop(parent: SparkInterpreter, inQueue: BlockingQueue[Request], i
+     def readOneLine() = {
+       inQueue.take()
+     }
++
+     // return false if repl should exit
+     def processLine(request: Request): Boolean = {
+       if (isAsync) {
+@@ -109,10 +111,10 @@ private class ILoop(parent: SparkInterpreter, inQueue: BlockingQueue[Request], i
+       }
+ 
+       request match {
+-        case ExecuteRequest(statement, promise) => {
++        case ExecuteRequest(statement, promise) =>
+           command(statement) match {
+             case Result(false, _) => false
+-            case Result(true, finalLine) => {
++            case Result(true, finalLine) =>
+               finalLine match {
+                 case Some(line) => addReplay(line)
+                 case _ =>
+@@ -122,15 +124,16 @@ private class ILoop(parent: SparkInterpreter, inQueue: BlockingQueue[Request], i
+               output = output.substring(0, output.length - 1)
+               outString.getBuffer.setLength(0)
+ 
+-              promise.success(Map("type" -> "stdout", "stdout" -> output))
++              val statement = ExecuteResponse(0, Complete(), List(), List(output))
++              promise.success(statement)
+ 
+               true
+-            }
+           }
+-        }
+         case ShutdownRequest() => false
+       }
+     }
++
++    @tailrec
+     def innerLoop() {
+       outString.getBuffer.setLength(0)
+ 
+@@ -144,10 +147,11 @@ private class ILoop(parent: SparkInterpreter, inQueue: BlockingQueue[Request], i
+         innerLoop()
+       }
+     }
++
+     innerLoop()
+   }
+ }
+ 
+-sealed trait Request
+-case class ExecuteRequest(statement: String, promise: Promise[Map[String, String]]) extends Request
+-case class ShutdownRequest() extends Request
++private sealed trait Request
++private case class ExecuteRequest(statement: String, promise: Promise[ExecuteResponse]) extends Request
++private case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index 48ff6ae..32b63ba 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -1,14 +1,39 @@
+ package com.cloudera.hue.livy.repl
+ 
+-object Main {
++import javax.servlet.ServletContext
++
++import com.cloudera.hue.livy.{Logging, WebServer}
++import org.scalatra.LifeCycle
++import org.scalatra.servlet.ScalatraListener
++
++object Main extends Logging {
+   def main(args: Array[String]): Unit = {
+     val port = sys.env.getOrElse("PORT", "8999").toInt
+     val server = new WebServer(port)
+-    server.start()
+-    server.join()
++
++    server.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
++    server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
++    server.context.addEventListener(new ScalatraListener)
+ 
+     server.start()
++    println("Starting livy-repl on port %s" format server.port)
++
+     server.join()
+     server.stop()
+   }
+ }
++
++class ScalatraBootstrap extends LifeCycle {
++
++  //val system = ActorSystem()
++  val sparkInterpreter = new SparkInterpreter
++
++  override def init(context: ServletContext): Unit = {
++    context.mount(new WebApp(sparkInterpreter), "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++    sparkInterpreter.close()
++    //system.shutdown()
++  }
++}
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index 68e044d..fdccabf 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -1,18 +1,18 @@
+ package com.cloudera.hue.livy.repl
+ 
+ import akka.util.Timeout
+-import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+ import org.json4s.{DefaultFormats, Formats}
+ import org.scalatra.json._
+ import org.scalatra.{Accepted, AsyncResult, FutureSupport, ScalatraServlet}
+ 
+-import scala.concurrent.{Future, ExecutionContext, ExecutionContextExecutor}
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ 
+-class LivyApp(interpreter: SparkInterpreter) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
++class WebApp(interpreter: SparkInterpreter) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
++
++  override protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++  override protected implicit val jsonFormats: Formats = DefaultFormats
+ 
+-  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+   protected implicit def defaultTimeout: Timeout = Timeout(10)
+-  protected implicit val jsonFormats: Formats = DefaultFormats
+ 
+   sealed trait State
+   case class Starting() extends State
+@@ -54,5 +54,3 @@ class LivyApp(interpreter: SparkInterpreter) extends ScalatraServlet with Future
+     Accepted()
+   }
+ }
+-
+-case class ExecuteRequest(statement: String)
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
+deleted file mode 100644
+index 057f0ee..0000000
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebServer.scala
++++ /dev/null
+@@ -1,72 +0,0 @@
+-package com.cloudera.hue.livy.repl
+-
+-import javax.servlet.ServletContext
+-
+-import ch.qos.logback.access.jetty.RequestLogImpl
+-import com.cloudera.hue.livy.Logging
+-import com.cloudera.hue.livy.repl.interpreter.SparkInterpreter
+-import org.eclipse.jetty.server.{NCSARequestLog, Server}
+-import org.eclipse.jetty.server.handler.{RequestLogHandler, HandlerCollection}
+-import org.eclipse.jetty.servlet.DefaultServlet
+-import org.eclipse.jetty.webapp.WebAppContext
+-import org.scalatra.servlet.{AsyncSupport, ScalatraListener}
+-import org.scalatra.{LifeCycle, ScalatraServlet}
+-
+-import scala.concurrent.ExecutionContext
+-
+-class WebServer(var port: Int) extends Logging {
+-  val server = new Server(port)
+-  val context = new WebAppContext()
+-
+-  context.setContextPath("/")
+-  context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
+-  context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
+-  context.addEventListener(new ScalatraListener)
+-
+-  context.addServlet(classOf[DefaultServlet], "/")
+-
+-  context.setAttribute(AsyncSupport.ExecutionContextKey, ExecutionContext.global)
+-
+-  val handlers = new HandlerCollection
+-  handlers.addHandler(context)
+-
+-  // configure the access log
+-  val requestLogHandler = new RequestLogHandler
+-  val requestLog = new RequestLogImpl
+-  requestLog.setResource("/logback-access.xml")
+-  requestLogHandler.setRequestLog(requestLog)
+-  handlers.addHandler(requestLogHandler)
+-
+-  server.setHandler(handlers)
+-
+-  def start() = {
+-    server.start()
+-    port = server.getConnectors()(0).getLocalPort
+-
+-    info("Starting RPC server on %s" format port)
+-  }
+-
+-  def join() = {
+-    server.join()
+-  }
+-
+-  def stop() = {
+-    context.stop()
+-    server.stop()
+-  }
+-}
+-
+-class ScalatraBootstrap extends LifeCycle {
+-
+-  //val system = ActorSystem()
+-  val sparkInterpreter = new SparkInterpreter
+-
+-  override def init(context: ServletContext): Unit = {
+-    context.mount(new LivyApp(sparkInterpreter), "/*")
+-  }
+-
+-  override def destroy(context: ServletContext): Unit = {
+-    sparkInterpreter.close()
+-    //system.shutdown()
+-  }
+-}
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index e74cdc8..dfdeb8d 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -30,113 +30,81 @@
+     <artifactId>livy-server</artifactId>
+     <packaging>jar</packaging>
+ 
+-    <properties>
+-        <dropwizard.version>0.7.0</dropwizard.version>
+-        <jetty.version>9.1.0.v20131115</jetty.version>
+-        <jersey.version>2.7</jersey.version>
+-    </properties>
+-
+     <dependencies>
+-        <dependency>
+-            <groupId>io.dropwizard</groupId>
+-            <artifactId>dropwizard-core</artifactId>
+-            <version>${dropwizard.version}</version>
+-        </dependency>
+ 
+-        <!--
+         <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-databind</artifactId>
+-            <version>2.3.1</version>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s_2.10</artifactId>
++            <version>3.2.11</version>
+         </dependency>
+-        -->
+ 
+-        <!--
+-        <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-server</artifactId>
+-            <version>${jetty.version}</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>org.eclipse.jetty</groupId>
+-            <artifactId>jetty-servlet</artifactId>
+-            <version>${jetty.version}</version>
+-        </dependency>
+         <dependency>
+-            <groupId>org.glassfish.jersey.core</groupId>
+-            <artifactId>jersey-server</artifactId>
+-            <version>${jersey.version}</version>
++            <groupId>org.json4s</groupId>
++            <artifactId>json4s-jackson_2.10</artifactId>
++            <version>3.2.11</version>
+         </dependency>
++
+         <dependency>
+-            <groupId>org.glassfish.jersey.containers</groupId>
+-            <artifactId>jersey-container-servlet-core</artifactId>
+-            <version>${jersey.version}</version>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
+         </dependency>
++
+         <dependency>
+-            <groupId>org.glassfish.jersey.containers</groupId>
+-            <artifactId>jersey-container-jetty-http</artifactId>
+-            <version>${jersey.version}</version>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-json_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
+         </dependency>
++
+         <dependency>
+-            <groupId>org.glassfish.jersey.media</groupId>
+-            <artifactId>jersey-media-moxy</artifactId>
+-            <version>${jersey.version}</version>
++            <groupId>com.cloudera.hue.livy</groupId>
++            <artifactId>livy-core</artifactId>
++            <version>${project.version}</version>
+         </dependency>
++
+         <dependency>
+-            <groupId>org.codehaus.jackson</groupId>
+-            <artifactId>jackson-mapper-asl</artifactId>
+-            <version>1.9.3</version>
++            <groupId>com.fasterxml.jackson.core</groupId>
++            <artifactId>jackson-databind</artifactId>
++            <version>2.4.4</version>
+         </dependency>
++
+         <dependency>
+             <groupId>com.google.guava</groupId>
+             <artifactId>guava</artifactId>
+-            <version>14.0.1</version>
++            <version>11.0.2</version>
+         </dependency>
+-        -->
++
++        <dependency>
++            <groupId>net.databinder.dispatch</groupId>
++            <artifactId>dispatch-core_2.10</artifactId>
++            <version>0.11.2</version>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+         <plugins>
++
+             <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
+-                <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
+-                </configuration>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <version>2.15.2</version>
+                 <executions>
+                     <execution>
+-                        <phase>package</phase>
+                         <goals>
+-                            <goal>shade</goal>
++                            <goal>compile</goal>
++                            <goal>testCompile</goal>
+                         </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.livy.server.LivyApp</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+                     </execution>
+                 </executions>
+             </plugin>
+ 
+-
+-            <!--
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-dependency-plugin</artifactId>
++                <version>2.9</version>
+                 <executions>
+                     <execution>
+                         <id>copy-dependencies</id>
+@@ -153,23 +121,36 @@
+                     </execution>
+                 </executions>
+             </plugin>
++
+             <plugin>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-jar-plugin</artifactId>
++                <version>2.5</version>
+                 <configuration>
+                     <archive>
+                         <manifest>
+                             <addClasspath>true</addClasspath>
+                             <classpathPrefix>lib/</classpathPrefix>
+-                            <mainClass>com.cloudera.hue.livy.server.LivyMain</mainClass>
++                            <mainClass>com.cloudera.hue.livy.server.Main</mainClass>
+                         </manifest>
+                     </archive>
+                 </configuration>
+             </plugin>
+-            -->
+ 
+         </plugins>
+ 
+     </build>
+ 
++    <reporting>
++        <plugins>
++            <plugin>
++                <groupId>org.scala-tools</groupId>
++                <artifactId>maven-scala-plugin</artifactId>
++                <configuration>
++                    <scalaVersion>${scala.version}</scalaVersion>
++                </configuration>
++            </plugin>
++        </plugins>
++    </reporting>
++
+ </project>
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
+deleted file mode 100644
+index 132cf34..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyApp.java
++++ /dev/null
+@@ -1,40 +0,0 @@
+-package com.cloudera.hue.livy.server;
+-
+-import com.cloudera.hue.livy.server.sessions.SessionManager;
+-import com.cloudera.hue.livy.server.resources.StatementResource;
+-import com.cloudera.hue.livy.server.resources.SessionResource;
+-import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+-import io.dropwizard.Application;
+-import io.dropwizard.setup.Bootstrap;
+-import io.dropwizard.setup.Environment;
+-
+-import javax.ws.rs.core.Response;
+-import javax.ws.rs.ext.ExceptionMapper;
+-
+-public class LivyApp extends Application<LivyConfiguration> {
+-
+-    public static void main(String[] args) throws Exception {
+-        new LivyApp().run(args);
+-    }
+-
+-    @Override
+-    public void initialize(Bootstrap<LivyConfiguration> bootstrap) {
+-
+-    }
+-
+-    @Override
+-    public void run(LivyConfiguration livyConfiguration, Environment environment) throws Exception {
+-        final SessionManager sessionManager = new SessionManager();
+-        environment.jersey().register(new SessionResource(sessionManager));
+-        environment.jersey().register(new StatementResource(sessionManager));
+-        environment.jersey().register(new SessionManagerExceptionMapper());
+-    }
+-
+-    private class SessionManagerExceptionMapper implements ExceptionMapper<SessionManager.SessionNotFound> {
+-
+-        @Override
+-        public Response toResponse(SessionManager.SessionNotFound sessionNotFound) {
+-            return new ResponseBuilderImpl().status(404).entity("session not found").build();
+-        }
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
+deleted file mode 100644
+index 6510c85..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/LivyConfiguration.java
++++ /dev/null
+@@ -1,6 +0,0 @@
+-package com.cloudera.hue.livy.server;
+-
+-import io.dropwizard.Configuration;
+-
+-public class LivyConfiguration extends Configuration {
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
+deleted file mode 100644
+index 37681af..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/ExecuteStatementRequest.java
++++ /dev/null
+@@ -1,15 +0,0 @@
+-package com.cloudera.hue.livy.server.resources;
+-
+-import org.hibernate.validator.constraints.NotEmpty;
+-
+-/**
+- * Created by erickt on 11/25/14.
+- */
+-public class ExecuteStatementRequest {
+-    @NotEmpty
+-    private String statement;
+-
+-    public String getStatement() {
+-        return statement;
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
+deleted file mode 100644
+index c059a36..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/SessionResource.java
++++ /dev/null
+@@ -1,134 +0,0 @@
+-package com.cloudera.hue.livy.server.resources;
+-
+-import com.cloudera.hue.livy.server.sessions.ClosedSessionException;
+-import com.cloudera.hue.livy.server.sessions.Session;
+-import com.cloudera.hue.livy.server.sessions.SessionManager;
+-import com.cloudera.hue.livy.server.sessions.Statement;
+-import com.codahale.metrics.annotation.Timed;
+-import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+-
+-import javax.servlet.http.HttpServletRequest;
+-import javax.validation.Valid;
+-import javax.ws.rs.DELETE;
+-import javax.ws.rs.GET;
+-import javax.ws.rs.POST;
+-import javax.ws.rs.Path;
+-import javax.ws.rs.PathParam;
+-import javax.ws.rs.Produces;
+-import javax.ws.rs.QueryParam;
+-import javax.ws.rs.WebApplicationException;
+-import javax.ws.rs.core.Context;
+-import javax.ws.rs.core.MediaType;
+-import javax.ws.rs.core.Response;
+-import java.io.IOException;
+-import java.net.URI;
+-import java.net.URISyntaxException;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.concurrent.TimeoutException;
+-
+-@Path("/sessions")
+-@Produces(MediaType.APPLICATION_JSON)
+-public class SessionResource {
+-
+-    private static final String SCALA = "scala";
+-    private static final String PYTHON = "python";
+-
+-    private final SessionManager sessionManager;
+-
+-    public SessionResource(SessionManager sessionManager) {
+-        this.sessionManager = sessionManager;
+-    }
+-
+-    @GET
+-    @Timed
+-    public List<String> getSessions() {
+-        return Collections.list(sessionManager.getSessionIds());
+-    }
+-
+-    @POST
+-    @Timed
+-    public Response createSession(@QueryParam("lang") String language,
+-                                  @Context HttpServletRequest request) throws IOException, InterruptedException, URISyntaxException {
+-        SessionManager.SessionType sessionType;
+-
+-        if (language == null) {
+-            Response resp = new ResponseBuilderImpl().status(400).entity("missing language").build();
+-            throw new WebApplicationException(resp);
+-        }
+-
+-        if (language.equals(SCALA)) {
+-            sessionType = SessionManager.SessionType.SCALA;
+-        } else if (language.equals(PYTHON)) {
+-            sessionType = SessionManager.SessionType.PYTHON;
+-        } else {
+-            Response resp = new ResponseBuilderImpl().status(400).entity("invalid language").build();
+-            throw new WebApplicationException(resp);
+-        }
+-
+-        Session session = sessionManager.create(sessionType);
+-
+-        URI location = new URI("/" + session.getId());
+-        return Response.created(location).build();
+-    }
+-
+-    @Path("/{id}")
+-    @GET
+-    @Timed
+-    public List<Statement> getSession(@PathParam("id") String id,
+-                                 @QueryParam("from") Integer fromCell,
+-                                 @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(id);
+-        List<Statement> statements = session.getStatements();
+-
+-        if (fromCell != null || limit != null) {
+-            if (fromCell == null) {
+-                fromCell = 0;
+-            }
+-
+-            if (limit == null) {
+-                limit = statements.size();
+-            }
+-
+-            statements = statements.subList(fromCell, fromCell + limit);
+-        }
+-
+-        return statements;
+-    }
+-
+-    @Path("/{id}")
+-    @POST
+-    @Timed
+-    public Response executeStatement(@PathParam("id") String id,
+-                                     @Valid ExecuteStatementRequest body,
+-                                     @Context HttpServletRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(id);
+-
+-        // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
+-        Statement statement = session.executeStatement(body.getStatement());
+-
+-        URI location = new URI("/cells/" + statement.getId());
+-        return Response.created(location).build();
+-    }
+-
+-    @Path("/{id}")
+-    @DELETE
+-    @Timed
+-    public Response closeSession(@PathParam("id") String id) throws InterruptedException, TimeoutException, IOException, SessionManager.SessionNotFound {
+-        sessionManager.close(id);
+-        return Response.noContent().build();
+-    }
+-
+-
+-    @Path("/{id}/interrupt")
+-    @POST
+-    @Timed
+-    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound, Exception, ClosedSessionException {
+-        Session session = sessionManager.get(id);
+-
+-        // FIXME: don't actually do anything for now as it doesn't work yet.
+-        //  session.interrupt();
+-
+-        return Response.ok().build();
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
+deleted file mode 100644
+index be81bbb..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/resources/StatementResource.java
++++ /dev/null
+@@ -1,47 +0,0 @@
+-package com.cloudera.hue.livy.server.resources;
+-
+-import com.cloudera.hue.livy.server.sessions.Session;
+-import com.cloudera.hue.livy.server.sessions.SessionManager;
+-import com.cloudera.hue.livy.server.sessions.Statement;
+-import com.codahale.metrics.annotation.Timed;
+-
+-import javax.ws.rs.*;
+-import javax.ws.rs.core.MediaType;
+-import java.util.List;
+-
+-@Path("/sessions/{sessionId}/statements")
+-@Produces(MediaType.APPLICATION_JSON)
+-public class StatementResource {
+-
+-    private final SessionManager sessionManager;
+-
+-    public StatementResource(SessionManager sessionManager) {
+-        this.sessionManager = sessionManager;
+-    }
+-
+-    @GET
+-    @Timed
+-    public List<Statement> getStatements(@PathParam("sessionId") String sessionId,
+-                                         @QueryParam("from") Integer fromStatement,
+-                                         @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        List<Statement> statements;
+-
+-        if (fromStatement == null && limit == null) {
+-            statements = session.getStatements();
+-        } else {
+-            statements = session.getStatementRange(fromStatement, fromStatement + limit);
+-        }
+-
+-        return statements;
+-    }
+-
+-    @Path("/{statementId}")
+-    @GET
+-    @Timed
+-    public Statement getStatement(@PathParam("sessionId") String sessionId, @PathParam("statementId") int statementId) throws SessionManager.SessionNotFound, Session.StatementNotFound {
+-        Session session = sessionManager.get(sessionId);
+-        return session.getStatement(statementId);
+-    }
+-
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
+deleted file mode 100644
+index 13e8e62..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/ClosedSessionException.java
++++ /dev/null
+@@ -1,4 +0,0 @@
+-package com.cloudera.hue.livy.server.sessions;
+-
+-public class ClosedSessionException extends Throwable {
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
+deleted file mode 100644
+index e10ca49..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Session.java
++++ /dev/null
+@@ -1,60 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.livy.server.sessions;
+-
+-import com.fasterxml.jackson.annotation.JsonProperty;
+-
+-import java.io.IOException;
+-import java.util.List;
+-import java.util.concurrent.TimeoutException;
+-
+-public interface Session {
+-
+-    public enum State {
+-        EXECUTING_STATEMENT,
+-        READY
+-    }
+-
+-    @JsonProperty
+-    String getId();
+-
+-    @JsonProperty
+-    State getState();
+-
+-    @JsonProperty
+-    List<Statement> getStatements();
+-
+-    List<Statement> getStatementRange(Integer fromIndex, Integer toIndex);
+-
+-    Statement getStatement(int statementId) throws StatementNotFound;
+-
+-    @JsonProperty
+-    public long getLastActivity();
+-
+-    public Statement executeStatement(String statement) throws Exception, ClosedSessionException;
+-
+-    public void close() throws IOException, InterruptedException, TimeoutException;
+-
+-    void interrupt() throws Exception, ClosedSessionException;
+-
+-    public static class StatementNotFound extends Throwable {
+-
+-    }
+-}
+-
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
+deleted file mode 100644
+index a851dda..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SessionManager.java
++++ /dev/null
+@@ -1,171 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.livy.server.sessions;
+-
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-import java.io.IOException;
+-import java.util.Enumeration;
+-import java.util.UUID;
+-import java.util.concurrent.*;
+-
+-public class SessionManager {
+-
+-    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
+-
+-    public enum SessionType {
+-        SCALA,
+-        PYTHON,
+-    }
+-
+-    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+-    private BlockingQueue<Session> freshScalaSessions = new LinkedBlockingQueue<Session>(5);
+-
+-    SessionManagerGarbageCollector gcThread = new SessionManagerGarbageCollector();
+-    SessionCreator creatorThread = new SessionCreator(SessionType.SCALA);
+-
+-    public SessionManager() {
+-        gcThread.setDaemon(true);
+-        gcThread.start();
+-
+-        creatorThread.setDaemon(true);
+-        creatorThread.start();
+-    }
+-
+-    public Session get(String id) throws SessionNotFound {
+-        Session session = sessions.get(id);
+-        if (session == null) {
+-            throw new SessionNotFound(id);
+-        }
+-        return session;
+-    }
+-
+-    public Session create(SessionType type) throws IllegalArgumentException, IOException, InterruptedException {
+-        Session session;
+-        switch (type) {
+-            case SCALA: session = freshScalaSessions.take(); break;
+-            //case PYTHON: session = new PySparkSession(id); break;
+-            default: throw new IllegalArgumentException("Invalid language specified for shell session");
+-        }
+-        sessions.put(session.getId(), session);
+-        return session;
+-    }
+-
+-    public void close() throws InterruptedException, IOException, TimeoutException {
+-        for (Session session : sessions.values()) {
+-            sessions.remove(session.getId());
+-            session.close();
+-        }
+-
+-        gcThread.interrupt();
+-        gcThread.join();
+-        creatorThread.interrupt();
+-        creatorThread.join();
+-
+-        Session session;
+-        while ((session = freshScalaSessions.poll(500, TimeUnit.MILLISECONDS)) != null) {
+-            session.close();
+-        }
+-    }
+-
+-    public void close(String id) throws InterruptedException, TimeoutException, IOException, SessionNotFound {
+-        Session session = this.get(id);
+-        sessions.remove(id);
+-        session.close();
+-
+-    }
+-
+-    public Enumeration<String> getSessionIds() {
+-        return sessions.keys();
+-    }
+-
+-    public void garbageCollect() throws InterruptedException, IOException, TimeoutException {
+-        long timeout = 60000; // Time in milliseconds; TODO: make configurable
+-        for (Session session : sessions.values()) {
+-            long now = System.currentTimeMillis();
+-            if ((now - session.getLastActivity()) > timeout) {
+-                try {
+-                    this.close(session.getId());
+-                } catch (SessionNotFound sessionNotFound) {
+-                    // Ignore
+-                }
+-            }
+-        }
+-    }
+-
+-    private class SessionManagerGarbageCollector extends Thread {
+-
+-        protected long period = 1000 * 60 * 60; // Time in milliseconds; TODO: make configurable
+-
+-        public SessionManagerGarbageCollector() {
+-            super();
+-        }
+-
+-        public void run() {
+-            try {
+-                while(true) {
+-                    garbageCollect();
+-                    sleep(period);
+-                }
+-            } catch (InterruptedException e) {
+-                e.printStackTrace();
+-            } catch (TimeoutException e) {
+-                e.printStackTrace();
+-            } catch (IOException e) {
+-                e.printStackTrace();
+-            }
+-        }
+-    }
+-
+-    public class SessionNotFound extends Throwable {
+-        public SessionNotFound(String id) {
+-            super(id);
+-        }
+-    }
+-
+-    private class SessionCreator extends Thread {
+-        SessionType type;
+-
+-        public SessionCreator(SessionType type) {
+-            this.type = type;
+-        }
+-
+-        public void run() {
+-            try {
+-                while(true) {
+-                    String id = UUID.randomUUID().toString();
+-
+-                    Session session;
+-                    switch (type) {
+-                        case SCALA: session = new SparkSession(id); break;
+-                        //case PYTHON: session = new PythonSession(id); break;
+-                        default: throw new IllegalArgumentException("Invalid language specified for shell session");
+-                    }
+-
+-                    freshScalaSessions.put(session);
+-                }
+-            } catch (InterruptedException e) {
+-                e.printStackTrace();
+-            } catch (IOException e) {
+-                e.printStackTrace();
+-            }
+-        }
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
+deleted file mode 100644
+index 631d93b..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/SparkSession.java
++++ /dev/null
+@@ -1,191 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *      http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package com.cloudera.hue.livy.server.sessions;
+-
+-import com.fasterxml.jackson.databind.JsonNode;
+-import com.fasterxml.jackson.databind.ObjectMapper;
+-import com.fasterxml.jackson.databind.node.ObjectNode;
+-import com.google.common.collect.Lists;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-import java.io.*;
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-/**
+- * The SparkSession works by spawning off a worker process and communicating with it over a simple IPC json protocol.
+- *
+- * The request is a json dictionary with the following fields:
+- *
+- * - id: the cell id.
+- * - type: the kind of command.
+- * - stdin: the command to execute.
+- *
+- * The response is a json dictionary with the following fields:
+- *
+- * - id: the cell this message corresponds to.
+- * - state: what state the interpreter is in. One of [ready, incomplete, running, complete]
+- * - stdout: the STDOUT lines.
+- * - stderr: the STDERR lines.
+- *
+- * The way it works is that we spawn a worker thread th
+- */
+-public class SparkSession implements Session {
+-
+-    private static final Logger LOG = LoggerFactory.getLogger(SparkSession.class);
+-
+-    private static final String SPARKER_HOME = System.getenv("SPARKER_HOME");
+-    private static final String SPARKER_SHELL = SPARKER_HOME + "/livy-shell";
+-
+-    private final String id;
+-    private State state = State.READY;
+-    private final Process process;
+-    private final Writer writer;
+-    private final BufferedReader reader;
+-    private final List<Statement> statements = new ArrayList<Statement>();
+-    private final ObjectMapper objectMapper = new ObjectMapper();
+-
+-    private boolean isClosed = false;
+-
+-    protected long lastActivity = Long.MAX_VALUE;
+-
+-    public SparkSession(final String id) throws IOException, InterruptedException {
+-        LOG.info("[" + id + "]: creating spark session");
+-
+-        touchLastActivity();
+-
+-        this.id = id;
+-
+-        ProcessBuilder pb = new ProcessBuilder(Lists.newArrayList(SPARKER_SHELL))
+-                .redirectInput(ProcessBuilder.Redirect.PIPE)
+-                .redirectOutput(ProcessBuilder.Redirect.PIPE);
+-
+-        this.process = pb.start();
+-
+-        writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+-        reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+-    }
+-
+-    @Override
+-    public String getId() {
+-        return id;
+-    }
+-
+-    @Override
+-    public State getState() {
+-        return state;
+-    }
+-
+-    @Override
+-    public long getLastActivity() {
+-        return this.lastActivity;
+-    }
+-
+-    @Override
+-    synchronized public List<Statement> getStatements() {
+-        return Lists.newArrayList(statements);
+-    }
+-
+-    @Override
+-    synchronized public List<Statement> getStatementRange(Integer fromIndex, Integer toIndex) {
+-        return statements.subList(fromIndex, toIndex);
+-    }
+-
+-    @Override
+-    synchronized public Statement getStatement(int index) {
+-        return statements.get(index);
+-    }
+-
+-    @Override
+-    synchronized public Statement executeStatement(String statementStr) throws IOException, ClosedSessionException, InterruptedException {
+-        if (isClosed) {
+-            throw new ClosedSessionException();
+-        }
+-
+-        touchLastActivity();
+-
+-        Statement statement = new Statement(statements.size());
+-        statements.add(statement);
+-
+-        statement.addInput(statementStr);
+-
+-        ObjectNode request = objectMapper.createObjectNode();
+-        request.put("type", "stdin");
+-        request.put("statement", statementStr);
+-
+-        state = State.EXECUTING_STATEMENT;
+-
+-        JsonNode response;
+-        try {
+-            response = doRequest(request);
+-        } finally {
+-            state = State.READY;
+-        }
+-
+-        if (response.has("stdout")) {
+-            statement.addOutput(response.get("stdout").asText());
+-        }
+-
+-        if (response.has("stderr")) {
+-            statement.addOutput(response.get("stderr").asText());
+-        }
+-
+-        return statement;
+-    }
+-
+-    @Override
+-    synchronized public void close() {
+-        isClosed = true;
+-        process.destroy();
+-    }
+-
+-    @Override
+-    public void interrupt() throws Exception, ClosedSessionException {
+-        // FIXME: is there a better way to do this?
+-        if (this.state == State.EXECUTING_STATEMENT) {
+-            ObjectNode request = objectMapper.createObjectNode();
+-            request.put("type", "interrupt");
+-
+-            JsonNode response = doRequest(request);
+-        }
+-    }
+-
+-    private void touchLastActivity() {
+-        this.lastActivity = System.currentTimeMillis();
+-    }
+-
+-    private JsonNode doRequest(ObjectNode request) throws IOException, InterruptedException, ClosedSessionException {
+-        writer.write(request.toString());
+-        writer.write("\n");
+-        writer.flush();
+-
+-        String line = reader.readLine();
+-
+-        if (line == null) {
+-            // The process must have shutdown on us!
+-            process.waitFor();
+-            throw new ClosedSessionException();
+-        }
+-
+-        LOG.info("[" + id + "] spark stdout: " + line);
+-
+-        return objectMapper.readTree(line);
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java b/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
+deleted file mode 100644
+index 5a30025..0000000
+--- a/apps/spark/java/livy-server/src/main/java/com/cloudera/hue/livy/server/sessions/Statement.java
++++ /dev/null
+@@ -1,70 +0,0 @@
+-package com.cloudera.hue.livy.server.sessions;
+-
+-import com.fasterxml.jackson.annotation.JsonProperty;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-
+-public class Statement {
+-
+-    public enum State {
+-        NOT_READY,
+-        READY,
+-        INCOMPLETE,
+-        RUNNING,
+-        COMPLETE,
+-    }
+-
+-    int id;
+-    State state;
+-    final List<String> input = new ArrayList<String>();
+-    final List<String> output = new ArrayList<String>();
+-
+-    final List<String> error = new ArrayList<String>();
+-
+-    public Statement(int id) {
+-        this.id = id;
+-        this.state = State.COMPLETE;
+-    }
+-
+-    @JsonProperty
+-    public int getId() {
+-        return id;
+-    }
+-
+-    @JsonProperty("state")
+-    public State getState() {
+-        return state;
+-    }
+-
+-    public void setState(State state) {
+-        this.state = state;
+-    }
+-
+-    @JsonProperty("input")
+-    public List<String> getInput() {
+-        return input;
+-    }
+-
+-    public void addInput(String input) {
+-        this.input.add(input);
+-    }
+-
+-    @JsonProperty("output")
+-    public List<String> getOutput() {
+-        return output;
+-    }
+-
+-    public void addOutput(String output) {
+-        this.output.add(output);
+-    }
+-
+-    @JsonProperty("error")
+-    public List<String> getError() {
+-        return error;
+-    }
+-
+-    public void addError(String error) {
+-        this.error.add(error);
+-    }
+-}
+diff --git a/apps/spark/java/livy-server/src/main/resources/logback-access.xml b/apps/spark/java/livy-server/src/main/resources/logback-access.xml
+new file mode 100644
+index 0000000..e365e91
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/resources/logback-access.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<configuration>
++    <!-- always a good activate OnConsoleStatusListener -->
++    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" />
++
++    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
++        <encoder>
++            <pattern>%h %l %u %user %date "%r" %s %b</pattern>
++        </encoder>
++    </appender>
++
++    <appender-ref ref="STDOUT" />
++</configuration>
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-server/src/main/resources/logback.xml b/apps/spark/java/livy-server/src/main/resources/logback.xml
+new file mode 100644
+index 0000000..b531df5
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/resources/logback.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<configuration>
++    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
++        <encoder>
++            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
++        </encoder>
++    </appender>
++
++    <root level="info">
++        <appender-ref ref="STDOUT" />
++    </root>
++</configuration>
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+new file mode 100644
+index 0000000..f453831
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -0,0 +1,115 @@
++package com.cloudera.hue.livy.server
++
++import javax.servlet.ServletContext
++
++import _root_.akka.util.Timeout
++import com.cloudera.hue.livy.WebServer
++import com.cloudera.hue.livy.server.sessions.Session
++import org.json4s.{DefaultFormats, Formats}
++import org.scalatra.json.JacksonJsonSupport
++import org.scalatra.servlet.ScalatraListener
++import org.scalatra._
++
++import scala.concurrent.duration.Duration
++import scala.concurrent.{Await, Future, ExecutionContext, ExecutionContextExecutor}
++
++object Main {
++  def main(args: Array[String]): Unit = {
++    val port = sys.env.getOrElse("PORT", "8998").toInt
++    val server = new WebServer(port)
++
++    server.context.setResourceBase("src/main/com/cloudera/hue/livy/server")
++    server.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
++    server.context.addEventListener(new ScalatraListener)
++
++    server.start()
++    server.join()
++    server.stop()
++  }
++}
++
++class ScalatraBootstrap extends LifeCycle {
++
++  val sessionFactory = new ProcessSessionFactory
++  val sessionManager = new SessionManager(sessionFactory)
++
++  override def init(context: ServletContext): Unit = {
++    context.mount(new WebApp(sessionManager), "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++    sessionManager.close()
++  }
++}
++
++class WebApp(sessionManager: SessionManager) extends ScalatraServlet with FutureSupport with MethodOverride with JacksonJsonSupport with UrlGeneratorSupport {
++
++  override protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++  override protected implicit def jsonFormats: Formats = DefaultFormats
++
++  protected implicit def defaultTimeout: Timeout = Timeout(10)
++
++  before() {
++    contentType = formats("json")
++  }
++
++  get("/sessions") {
++    sessionManager.getSessionIds
++  }
++
++  post("/sessions") {
++    val createSessionRequest = parsedBody.extract[CreateSessionRequest]
++
++    val sessionFuture = createSessionRequest.lang match {
++      case "scala" => sessionManager.createSparkSession()
++      case lang => halt(400, "unsupported language: " + lang)
++    }
++
++    val rep = for {
++      session <- sessionFuture
++    } yield redirect(url(getSession, "sessionId" -> session.id))
++
++    new AsyncResult { val is = rep }
++  }
++
++  val getSession = get("/sessions/:sessionId") {
++    sessionManager.get(params("sessionId"))
++  }
++
++  delete("/sessions/:sessionId") {
++    sessionManager.close(params("sessionId"))
++    NoContent
++  }
++
++  get("/sessions/:sessionId/statements") {
++    val rep = sessionManager.get(params("sessionId")) match {
++      case Some(session) => session.statements()
++      case None => NotFound
++    }
++
++    new AsyncResult() { val is = rep }
++  }
++
++  post("/sessions/:sessionId/statements") {
++    val req = parsedBody.extract[ExecuteStatementRequest]
++
++    val rep = sessionManager.get(params("sessionId")) match {
++      case Some(session) => session.executeStatement(req.statement)
++      case None => NotFound
++    }
++
++    new AsyncResult() { val is = rep }
++  }
++
++  val getStatement = get("/sessions/:sessionId/statements/:statementId") {
++    val rep = sessionManager.get(params("sessionId")) match {
++      case Some(session) => session.statement(params("statementId").toInt)
++      case None => NotFound
++    }
++
++    new AsyncResult() { val is = rep }
++  }
++}
++
++case class CreateSessionRequest(lang: String)
++case class ExecuteStatementRequest(statement: String)
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
+new file mode 100644
+index 0000000..fd50702
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Session.scala
+@@ -0,0 +1,30 @@
++package com.cloudera.hue.livy.server
++
++import com.cloudera.hue.livy.ExecuteResponse
++
++import scala.concurrent.Future
++
++trait Session {
++  sealed trait State
++  case class Running() extends State
++  case class Stopping() extends State
++  case class Stopped() extends State
++
++  def id: String
++
++  def lastActivity: Long
++
++  def state: State
++
++  def executeStatement(statement: String): Future[ExecuteResponse]
++
++  def statement(statementId: Int): Future[ExecuteResponse]
++
++  def statements(): Future[List[ExecuteResponse]]
++
++  def statements(fromIndex: Integer, toIndex: Integer): Future[List[ExecuteResponse]]
++
++  def interrupt(): Unit
++
++  def close(): Unit
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+new file mode 100644
+index 0000000..bfc8a84
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -0,0 +1,24 @@
++package com.cloudera.hue.livy.server
++
++import java.util.UUID
++import java.util.concurrent.Executors
++
++import com.cloudera.hue.livy.server.sessions.{Session, SparkSession}
++
++import scala.concurrent.{ExecutionContext, Future, future}
++
++trait SessionFactory {
++  def createSparkSession: Future[Session]
++}
++
++class ProcessSessionFactory extends SessionFactory {
++
++  implicit def executor: ExecutionContext = ExecutionContext.global //ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
++
++  override def createSparkSession: Future[Session] = {
++    future {
++      val id = UUID.randomUUID().toString
++      new SparkSession(id)
++    }
++  }
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+new file mode 100644
+index 0000000..03a965c
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+@@ -0,0 +1,84 @@
++package com.cloudera.hue.livy.server
++
++import com.cloudera.hue.livy.server.sessions.Session
++
++import scala.collection.concurrent.TrieMap
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
++
++object SessionManager {
++  // Time in milliseconds; TODO: make configurable
++  val TIMEOUT = 60000
++
++  // Time in milliseconds; TODO: make configurable
++  val GC_PERIOD = 1000 * 60 * 60
++}
++
++class SessionManager(factory: SessionFactory) {
++
++  private implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++
++  private val sessions = new TrieMap[String, Session]()
++
++  private val garbageCollector = new GarbageCollector(this)
++  garbageCollector.start()
++
++  def get(id: String): Option[Session] = {
++    sessions.get(id)
++  }
++
++  def getSessionIds = {
++    sessions.keys
++  }
++
++  def createSparkSession(): Future[Session] = {
++    val session = factory.createSparkSession
++
++    session.map({ case(session: Session) =>
++        sessions.put(session.id, session)
++        session
++    })
++  }
++
++  def close(): Unit = {
++    sessions.values.foreach(close)
++    garbageCollector.shutdown()
++  }
++
++  def close(sessionId: String): Unit = {
++    sessions.remove(sessionId) match {
++      case Some(session) => session.close()
++      case None =>
++    }
++  }
++
++  def close(session: Session): Unit = {
++    sessions.remove(session.id)
++    session.close()
++  }
++
++  def collectGarbage() = {
++    def expired(session: Session): Boolean = {
++      System.currentTimeMillis() - session.lastActivity > SessionManager.TIMEOUT
++    }
++
++    sessions.values.filter(expired).foreach(close)
++  }
++}
++
++class SessionNotFound extends Exception
++
++private class GarbageCollector(sessionManager: SessionManager) extends Thread {
++
++  private var finished = false
++
++  override def run(): Unit = {
++    while (!finished) {
++      sessionManager.collectGarbage()
++      Thread.sleep(SessionManager.GC_PERIOD)
++    }
++  }
++
++  def shutdown(): Unit = {
++    finished = true
++  }
++}
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
+new file mode 100644
+index 0000000..d9aaaff
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SparkProcessSession.scala
+@@ -0,0 +1,161 @@
++package com.cloudera.hue.livy.server
++
++import java.util.concurrent.TimeoutException
++
++import com.cloudera.hue.livy.{ExecuteRequest, ExecuteResponse, Logging}
++import dispatch._
++import org.json4s.JsonDSL._
++import org.json4s._
++import org.json4s.jackson.JsonMethods._
++import org.json4s.jackson.Serialization.write
++
++import scala.annotation.tailrec
++import scala.concurrent.duration._
++import scala.concurrent.{Await, Future}
++import scala.io.Source
++
++object SparkProcessSession {
++  val LIVY_HOME = System.getenv("LIVY_HOME")
++  val SPARK_SHELL = LIVY_HOME + "/spark-shell"
++
++  // Loop until we've started a process with a valid port.
++  private def startProcess(): (Process, Int) = {
++    val regex = """Starting livy-repl on port (\d+)""".r
++
++    @tailrec
++    def parsePort(lines: Iterator[String]): Option[Int] = {
++      if (lines.hasNext) {
++        val line = lines.next()
++        line match {
++          case regex(port_) => Some(port_.toInt)
++          case _ => parsePort(lines)
++        }
++      } else {
++        None
++      }
++    }
++
++    def startProcess(): (Process, Int) = {
++      val pb = new ProcessBuilder(SPARK_SHELL)
++      pb.environment().put("PORT", "0")
++      val process = pb.start()
++
++      val source = Source.fromInputStream(process.getInputStream)
++      val lines = source.getLines()
++
++      parsePort(lines) match {
++        case Some(port) => {
++          source.close()
++          process.getInputStream.close()
++          (process, port)
++        }
++        case None =>
++          // Make sure to reap the process.
++          process.waitFor()
++          throw new Exception("Couldn't start livy-repl")
++      }
++    }
++
++    startProcess()
++  }
++}
++
++class SparkProcessSession(val id: String) extends Session with Logging {
++
++  import com.cloudera.hue.livy.server.SparkProcessSession._
++
++  private[this] var _lastActivity = Long.MaxValue
++  private[this] var _state: State = Running()
++  private[this] val (process, port) = startProcess()
++  private[this] val svc = host("localhost", port)
++
++  override def lastActivity: Long = _lastActivity
++
++  override def state: State = _state
++
++  override def executeStatement(statement: String): Future[ExecuteResponse] = {
++    ensureRunning {
++      touchLastActivity()
++
++      val req = (svc / "statements")
++        .POST
++        .setContentType("application/json", "UTF-8")
++        .setBody(compact(write(ExecuteRequest(statement))))
++
++      for {
++        rep <- Http(req OK as.String)
++      } yield parse(rep).extract
++    }
++  }
++
++  override def statement(statementId: Int): Future[ExecuteResponse] = {
++    ensureRunning {
++      val req = svc / "statements" / statementId
++
++      for {
++        rep <- Http(req OK as.String)
++      } yield parse(rep).extract
++    }
++  }
++
++  override def statements(): Future[List[ExecuteResponse]] = {
++    ensureRunning {
++      val req = svc / "statements"
++
++      for {
++        rep <- Http(req OK as.String)
++      } yield parse(rep).extract
++    }
++  }
++
++  override def statements(fromIndex: Integer, toIndex: Integer): Future[List[ExecuteResponse]] = {
++    ensureRunning {
++      val req = (svc / "statements")
++        .addQueryParameter("from", fromIndex.toString)
++        .addQueryParameter("to", toIndex.toString)
++
++      for {
++        rep <- Http(req OK as.String)
++      } yield parse(rep).extract
++    }
++  }
++    override def interrupt(): Unit = {
++    close()
++  }
++
++  override def close(): Unit = {
++    synchronized {
++      _state match {
++        case Running() => {
++          _state = Stopping()
++
++          // Give the repl some time to shut down cleanly.
++          try {
++            Await.ready(Http(svc.DELETE OK as.String), 5 seconds)
++          } catch {
++            // Ignore timeouts
++            case TimeoutException | InterruptedException =>
++          }
++
++          process.destroy()
++          _state = Stopped()
++        }
++        case Stopping() | Stopped() =>
++      }
++    }
++  }
++
++  private def touchLastActivity() = {
++    _lastActivity = System.currentTimeMillis()
++  }
++
++  private def ensureRunning[A](f: => A) = {
++    synchronized {
++      if (_state == Running()) {
++        f
++      } else {
++        throw new IllegalStateException("Session is in state %s" format _state)
++      }
++    }
++  }
++}
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index 0d8d486..9656d18 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -1,12 +1,13 @@
+ package com.cloudera.hue.livy.yarn
+ 
+-import com.cloudera.hue.livy.Logging
+-import com.cloudera.hue.livy.repl.WebServer
++import com.cloudera.hue.livy.repl.ScalatraBootstrap
++import com.cloudera.hue.livy.{WebServer, Logging}
+ import org.apache.hadoop.yarn.api.ApplicationConstants
+ import org.apache.hadoop.yarn.api.records.FinalApplicationStatus
+ import org.apache.hadoop.yarn.client.api.AMRMClient
+ import org.apache.hadoop.yarn.conf.YarnConfiguration
+ import org.apache.hadoop.yarn.util.ConverterUtils
++import org.scalatra.servlet.ScalatraListener
+ 
+ object AppMaster extends Logging {
+ 
+@@ -36,6 +37,10 @@ class AppMasterService(yarnConfig: YarnConfiguration, nodeHostString: String) ex
+   val amRMClient = AMRMClient.createAMRMClient()
+   amRMClient.init(yarnConfig)
+ 
++  webServer.context.setResourceBase("src/main/com/cloudera/hue/livy/repl")
++  webServer.context.setInitParameter(ScalatraListener.LifeCycleKey, classOf[ScalatraBootstrap].getCanonicalName)
++  webServer.context.addEventListener(new ScalatraListener)
++
+   def run(): Unit = {
+     webServer.start()
+     try {
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 0bb5f48..aca77b9 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -50,6 +50,8 @@
+     <properties>
+         <javaVersion>1.7</javaVersion>
+         <hadoop.version>2.5.0</hadoop.version>
++        <logback.version>1.1.2</logback.version>
++        <jetty.version>8.1.14.v20131031</jetty.version>
+         <scala.binary.version>2.10.3</scala.binary.version>
+         <scala.macros.version>2.0.1</scala.macros.version>
+         <scala.version>2.10.3</scala.version>
+@@ -58,12 +60,11 @@
+     </properties>
+ 
+     <modules>
++        <module>livy-core</module>
++        <module>livy-repl</module>
+         <!--
+-        <module>livy-assembly</module>
+         <module>livy-server</module>
+         -->
+-        <module>livy-core</module>
+-        <module>livy-repl</module>
+         <module>livy-yarn</module>
+     </modules>
+ 
+diff --git a/apps/spark/livy-server b/apps/spark/livy-server
+new file mode 100755
+index 0000000..fffe60c
+--- /dev/null
++++ b/apps/spark/livy-server
+@@ -0,0 +1,27 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Livy server.
++
++set -e
++
++export LIVY_HOME=$(dirname $0)
++
++exec java \
++	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 \
++	-cp "livy-server/target/lib/*:livy-server/target/livy-server-3.7.0-SNAPSHOT.jar" \
++	com.cloudera.hue.livy.server.Main "$@"
+diff --git a/apps/spark/livy_server.sh b/apps/spark/livy_server.sh
+deleted file mode 100755
+index 0d9a4f7..0000000
+--- a/apps/spark/livy_server.sh
++++ /dev/null
+@@ -1,31 +0,0 @@
+-#!/bin/bash
+-# Licensed to Cloudera, Inc. under one
+-# or more contributor license agreements.  See the NOTICE file
+-# distributed with this work for additional information
+-# regarding copyright ownership.  Cloudera, Inc. licenses this file
+-# to you under the Apache License, Version 2.0 (the
+-# "License"); you may not use this file except in compliance
+-# with the License.  You may obtain a copy of the License at
+-#
+-#     http://www.apache.org/licenses/LICENSE-2.0
+-#
+-# Unless required by applicable law or agreed to in writing, software
+-# distributed under the License is distributed on an "AS IS" BASIS,
+-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-# See the License for the specific language governing permissions and
+-# limitations under the License.
+-#
+-# Runs Livy server.
+-
+-set -o errexit
+-
+-LIVY_ROOT=$(dirname $0)
+-LIVY_JAR=$LIVY_ROOT/java/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar
+-
+-export LIVY_HOME=$(dirname $0)
+-
+-# Note: I've had trouble running this with just "java -jar" with the classpath
+-# determined with a seemingly appropriate find command.
+-echo CWD=$(pwd)
+-echo Executing java -jar $LIVY_JAR "$@"
+-exec java -jar $LIVY_JAR "$@"
+diff --git a/apps/spark/spark-shell b/apps/spark/spark-shell
+new file mode 100755
+index 0000000..6da0513
+--- /dev/null
++++ b/apps/spark/spark-shell
+@@ -0,0 +1,8 @@
++#!/bin/bash
++
++cd `dirname $0`
++
++exec java \
++	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006 \
++	-cp "java/livy-repl/target/lib/*:java/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar" \
++	com.cloudera.hue.livy.repl.Main -usejavacp "$@" 2>/dev/null
+-- 
+1.7.9.5
+

@@ -60,7 +60,7 @@ ${ header.menubar() }
                 <div id="check-config-section" style="margin-bottom:20px">
                   <div class="spinner">
                     <!--[if !IE]> --><i class="fa fa-spinner fa-spin" style="font-size: 60px; color: #DDD"></i><!-- <![endif]-->
-                    <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+                    <!--[if IE]><img src="${ static('desktop/art/spinner.gif') }" /><![endif]-->
                   </div>
                   <div class="info hide"></div>
                 </div>
@@ -70,23 +70,8 @@ ${ header.menubar() }
           </div>
 
           <div id="step2" class="stepDetails hide">
-            <div class="card card-tab card-listcontent">
-              <h2 class="card-heading simple">${ _('Install all the application examples') }</h2>
 
-              <div class="card-body">
-                <p>
-                <ul>
-                  <li>
-                    <a href="javascript:void(0)" class="installAllBtn" data-loading-text="${ _('Installing...') }">
-                      <i class="fa fa-download"></i> ${ _('All') }
-                    </a>
-                  </li>
-                </ul>
-                </p>
-              </div>
-            </div>
-
-          <div class="card card-home card-tab card-tab-bordertop card-listcontent">
+          <div class="card card-home card-tab card-listcontent">
             <h2 class="card-heading simple">${ _('Install individual application examples') }</h2>
           <div class="card-body">
             <p>
@@ -112,6 +97,14 @@ ${ header.menubar() }
                 <a href="javascript:void(0)" class="installBtn" data-loading-text="${ _('Installing...') }"
                    data-sample-url="${ url('search:install_examples') }">
                   <i class="fa fa-download"></i> ${ apps['search'].nice_name }
+                </a>
+              </li>
+          % endif
+          % if 'spark' in app_names:
+              <li>
+                <a href="javascript:void(0)" class="installBtn" data-loading-text="${ _('Installing...') }"
+                   data-sample-url="${ url('spark:install_examples') }">
+                  <i class="fa fa-download"></i> ${ apps['spark'].nice_name }
                 </a>
               </li>
           % endif
@@ -160,7 +153,7 @@ ${ header.menubar() }
                 <div class="card-body">
                   <p>
                     <a href="${ url('useradmin.views.list_users') }" target="_blank" style="padding-left: 2px"><img
-                        src="/useradmin/static/art/icon_useradmin_48.png" class="app-icon"
+                        src="${ static('useradmin/art/icon_useradmin_48.png') }" class="app-icon"
                         style="margin-right: 4px;"> ${ _('User Admin') }</a>
                   </p>
                 </div>
@@ -282,7 +275,7 @@ ${ header.menubar() }
 
 </style>
 
-<script src="/static/ext/js/routie-0.3.0.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/routie-0.3.0.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
 
@@ -321,7 +314,11 @@ $(document).ready(function(){
     var button = $(this);
     $(button).button('loading');
     var calls = jQuery.map($("[data-sample-url]"), function(app) {
-      return $.post($(app).data("sample-url"));
+      return $.post($(app).data("sample-url"), function(data) {
+        if (data.status != 0) {
+          $(document).trigger('error', data.message);
+        }
+      });
     });
     $.when.apply(this, calls)
       .then(function() {

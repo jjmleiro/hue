@@ -1,0 +1,54 @@
+From f2115684d3c944a83213019e409624b560506695 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 14:43:51 -0500
+Subject: [PATCH 1104/1173] [oozie] Display and select available workflow
+ credentials
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    2 +-
+ .../oozie/templates/editor2/common_workflow.mako   |    2 +-
+ .../templates/editor2/gen/workflow-common.xml.mako |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index f3a213b..b0b0a0b 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -481,7 +481,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.previewColumns = ko.observable("");
+   self.workflow = new Workflow(self, workflow_json);
+-  self.credentials = ko.mapping.fromJSON(credentials_json);
++  self.credentials = ko.mapping.fromJS(credentials_json);
+ 
+   self.inited = ko.observable(self.oozieColumns().length > 0);
+   self.init = function (callback) {
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index a3cce65..57be4a8 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -498,7 +498,7 @@
+ 
+ <script type="text/html" id="common-action-credentials">
+   <em data-bind="visible: $root.credentials() == null || $root.credentials().length == 0">${ _('No available credentials.') }</em>
+-  <select data-bind="visible: $root.credentials() != null && $root.credentials().length > 0, options: $root.credentials, value: properties.credentials" size="5" multiple="true"></select>
++  <select data-bind="visible: $root.credentials() != null && $root.credentials().length > 0, options: $root.credentials, selectedOptions: properties.credentials" size="5" multiple="true"></select>
+ </script>
+ 
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako b/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
+index 3afb729..1afc4ca 100644
+--- a/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
+@@ -24,7 +24,7 @@
+ <%def name="filelink(path)">${ '#' in path and path or path + '#' + posixpath.basename(path) }</%def>
+ 
+ 
+-<%def name="credentials(credentials)">${ ' cred="%s"' % ','.join([cred['name'] for cred in credentials if cred['value']]) if credentials else '' | n,unicode }</%def>
++<%def name="credentials(credentials)">${ ' cred="%s"' % ','.join(credentials) if credentials else '' | n,unicode }</%def>
+ 
+ 
+ <%def name="prepares(prepares)">
+-- 
+1.7.9.5
+

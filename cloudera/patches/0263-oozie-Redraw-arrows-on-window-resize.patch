@@ -1,0 +1,32 @@
+From 7a861f71fa8026fa4c9a85b1e81f8329e52a2f03 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 6 Nov 2014 13:21:34 +0100
+Subject: [PATCH 0263/1173] [oozie] Redraw arrows on window resize
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 39d952c..38943a1 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -875,6 +875,15 @@ ${ dashboard.import_bindings() }
+ 
+   $(document).ready(function(){
+     renderChangeables();
++
++    var resizeTimeout = -1;
++    $(window).on("resize", function () {
++      window.clearTimeout(resizeTimeout);
++      resizeTimeout = window.setTimeout(function () {
++        renderChangeables();
++      }, 200);
++    });
++
+   });
+ 
+ </script>
+-- 
+1.7.9.5
+

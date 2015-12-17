@@ -1,0 +1,77 @@
+From 5e92fdece2d8e9fce7017bc9a3486087bb78f4e7 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 15 Oct 2014 20:20:16 -0700
+Subject: [PATCH 0061/1173] HUE-2412 [core] partially optimize the desktop
+ home view
+
+This cuts the rendering time from the home view from 17s to 11s.
+---
+ apps/oozie/src/oozie/models.py  |    2 +-
+ desktop/core/src/desktop/api.py |   24 ++++++++++++++++--------
+ 2 files changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index 2127a07..a01b66d 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -480,7 +480,7 @@ class Workflow(Job):
+     return 'workflow.xml'
+ 
+   def get_absolute_url(self):
+-    if self.doc.get().extra == 'jobsub':
++    if self.doc.only('extra').get().extra == 'jobsub':
+       return '/jobsub/#edit-design/%s' % self.id
+     else:
+       return reverse('oozie:edit_workflow', kwargs={'workflow': self.id}) + '#editWorkflow'
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index d0e4d3b..2a91e39 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -43,18 +43,26 @@ def _get_docs(user):
+         .exclude(tags__in=[trash_tag])
+         .filter(tags__in=[history_tag])
+         .select_related(
+-          'DocumentTag',
+-          'User',
+-          'DocumentPermission',
++          'owner',
++          'content_type',
+         )
++        .prefetch_related(
++          'tags',
++          'documentpermission_set',
++        )
++        .defer(None)
+         .order_by('-last_modified')[:500],
+       Document.objects.get_docs(user)
+         .exclude(tags__in=[history_tag])
+         .select_related(
+-          'DocumentTag',
+-          'User',
+-          'DocumentPermission',
++          'owner',
++          'content_type',
++        )
++        .prefetch_related(
++          'tags',
++          'documentpermission_set',
+         )
++        .defer(None)
+         .order_by('-last_modified')[:100]
+   )
+   return list(docs)
+@@ -168,9 +176,9 @@ def massaged_documents_for_json(documents, user):
+       'perms': {
+         'read': {
+           'users': [{'id': perm_user.id, 'username': perm_user.username} \
+-                    for perm_user in read_perms.users.all()],
++                    for perm_user in read_perms.users.all().only('id', 'username')],
+           'groups': [{'id': perm_group.id, 'name': perm_group.name} \
+-                     for perm_group in read_perms.groups.all()]
++                     for perm_group in read_perms.groups.all().only('id', 'name')]
+         },
+         'write': {
+           'users': [{'id': perm_user.id, 'username': perm_user.username} for perm_user in write_perms.users.all()],
+-- 
+1.7.9.5
+

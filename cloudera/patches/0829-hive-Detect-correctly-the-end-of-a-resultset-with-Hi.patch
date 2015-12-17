@@ -1,0 +1,35 @@
+From 5e382b1723e708f6468a58f132d920f6e66fea50 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Feb 2015 19:05:39 -0800
+Subject: [PATCH 0829/1173] [hive] Detect correctly the end of a resultset
+ with Hive 1.0
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index 587c788..0ea475c 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -170,7 +170,7 @@ class HiveServerTRowSet2:
+     self.startRowOffset = row_set.startRowOffset
+ 
+   def is_empty(self):
+-    return len(self.row_set.columns) == 0
++    return not self.row_set.columns or not HiveServerTColumnValue2(self.row_set.columns[0]).val
+ 
+   def cols(self, col_names):
+     cols_rows = []
+@@ -235,7 +235,7 @@ class HiveServerTColumnValue2:
+       return self.column_value.i64Val.values
+     elif self.column_value.doubleVal is not None:
+       return self.column_value.doubleVal.values
+-    elif self.column_value.stringVal is not None:
++    elif self.column_value.stringVal != []:
+       return self.column_value.stringVal.values
+ 
+ 
+-- 
+1.7.9.5
+

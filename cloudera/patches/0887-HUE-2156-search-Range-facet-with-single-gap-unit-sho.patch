@@ -1,0 +1,98 @@
+From 5a59a62752e85c327612dc8aebf3bae6adaf6fad Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 19 Feb 2015 13:59:47 -0800
+Subject: [PATCH 0887/1173] HUE-2156 [search] Range facet with single gap unit
+ should display only start value
+
+---
+ apps/search/src/search/models.py                   |    8 +++++---
+ apps/search/src/search/templates/search.mako       |    4 ++--
+ .../src/useradmin/templates/list_groups.mako       |    2 +-
+ desktop/core/static/js/ko.hue-bindings.js          |    2 +-
+ 4 files changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 35cf74f..824ed63 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -434,10 +434,11 @@ def pairwise2(cat, fq_filter, iterable):
+     })
+   return pairs
+ 
+-def range_pair(cat, fq_filter, iterable, end):
++def range_pair(cat, fq_filter, iterable, end, collection_facet):
+   # e.g. counts":["0",17430,"1000",1949,"2000",671,"3000",404,"4000",243,"5000",165],"gap":1000,"start":0,"end":6000}
+   pairs = []
+   selected_values = [f['value'] for f in fq_filter]
++  is_single_unit_gap = re.match('^[\+\-]?1[A-Za-z]*$', str(collection_facet['properties']['gap']))
+   a, to = itertools.tee(iterable)
+   next(to, None)
+   for element in a:
+@@ -445,7 +446,8 @@ def range_pair(cat, fq_filter, iterable, end):
+     to_value = next(to, end)
+     pairs.append({
+         'field': cat, 'from': element, 'value': next(a), 'to': to_value, 'selected': element in selected_values,
+-        'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element])
++        'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element]),
++        'label': element if is_single_unit_gap else '%s - %s' % (element, to_value)
+     })
+   return pairs
+ 
+@@ -483,7 +485,7 @@ def augment_solr_response(response, collection, query):
+         collection_facet = get_facet_field(category, name, collection['facets'])
+         counts = response['facet_counts']['facet_ranges'][name]['counts']
+         end = response['facet_counts']['facet_ranges'][name]['end']
+-        counts = range_pair(name, selected_values.get((facet['id'], name, 'range'), []), counts, end)
++        counts = range_pair(name, selected_values.get((facet['id'], name, 'range'), []), counts, end, collection_facet)
+         if collection_facet['properties']['sort'] == 'asc':
+           counts.reverse()
+         facet = {
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index ee69ef2..a5a724c 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -386,13 +386,13 @@ ${ dashboard.layout_skeleton() }
+         <div data-bind="foreach: $parent.counts">
+           <div class="trigger-exclude">
+               <!-- ko if: ! selected -->
+-                <a class="pointer" data-bind="text: $data.from + ' - ' + $data.to, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
++                <a class="pointer" data-bind="text: $data.label, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
+                 <span class="pointer counter" data-bind="text: ' (' + $data.value + ')', click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></span>
+                 <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
+               <!-- /ko -->
+               <!-- ko if: selected -->
+                 <span class="pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }">
+-                  <strong data-bind="text: $data.from + ' - ' + $data.to"></strong>
++                  <strong data-bind="text: $data.label"></strong>
+                   <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
+                   <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
+                 </span>
+diff --git a/apps/useradmin/src/useradmin/templates/list_groups.mako b/apps/useradmin/src/useradmin/templates/list_groups.mako
+index 5731abd..5199ed6 100644
+--- a/apps/useradmin/src/useradmin/templates/list_groups.mako
++++ b/apps/useradmin/src/useradmin/templates/list_groups.mako
+@@ -47,7 +47,7 @@ ${layout.menubar(section='groups')}
+             <a id="addLdapGroupBtn" href="${url('useradmin.views.add_ldap_groups')}" class="btn"><i
+                 class="fa fa-refresh"></i> ${_('Add/Sync LDAP group')}</a>
+           % endif
+-          <a href="http://gethue.tumblr.com/post/75499679342/making-hadoop-accessible-to-your-employees-with-ldap" class="btn"
++          <a href="http://gethue.com/making-hadoop-accessible-to-your-employees-with-ldap/" class="btn"
+             title="${ ('Learn how to integrate Hue with your company') }" target="_blank">
+             <i class="fa fa-question-circle"> LDAP</i>
+           </a>
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index 5edf758..40bf585 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -332,7 +332,7 @@ ko.bindingHandlers.daterangepicker = {
+             '<span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span>' +
+             '<input type="text" class="input-large form-control start-date-custom" />' +
+             '</div>' +
+-            '<a class="custom-popover" href="javascript:void(0)" data-trigger="hover" data-toggle="popover" data-placement="right" rel="popover" data-html="true"' +
++            '<a class="custom-popover" href="javascript:void(0)" data-trigger="focus" data-toggle="popover" data-placement="right" rel="popover" data-html="true"' +
+             '       title="' + KO_DATERANGEPICKER_LABELS.CUSTOM_POPOVER_TITLE + '"' +
+             '       data-content="' + KO_DATERANGEPICKER_LABELS.CUSTOM_POPOVER_CONTENT + '">' +
+             '&nbsp;&nbsp;<i class="fa fa-question-circle"></i>' +
+-- 
+1.7.9.5
+

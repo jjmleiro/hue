@@ -1,0 +1,882 @@
+From 6afb63a730dfbd08b8894a9fd9c47de420514e74 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 29 Jan 2015 10:30:27 +0800
+Subject: [PATCH 0712/1173] [livy] Add %table magic to python sessions, fix
+ passing python exceptions
+
+---
+ .../com/cloudera/hue/livy/ExecuteResponse.scala    |    9 -
+ .../main/scala/com/cloudera/hue/livy/msgs.scala    |   46 +++++
+ .../scala/com/cloudera/hue/livy/requests.scala     |    6 -
+ .../livy-repl/src/main/resources/fake_shell.py     |  213 ++++++++++++--------
+ .../scala/com/cloudera/hue/livy/repl/Session.scala |    9 +-
+ .../scala/com/cloudera/hue/livy/repl/WebApp.scala  |   27 ++-
+ .../hue/livy/repl/python/PythonSession.scala       |   98 ++-------
+ .../hue/livy/repl/scala/ScalaSession.scala         |   28 ++-
+ .../com/cloudera/hue/livy/server/Statement.scala   |    5 +-
+ .../com/cloudera/hue/livy/server/WebApp.scala      |    8 +-
+ .../hue/livy/server/sessions/WebSession.scala      |   13 +-
+ .../hue/livy/server/sessions/session.scala         |    4 +-
+ apps/spark/src/spark/job_server_api.py             |    6 +-
+ apps/spark/src/spark/models.py                     |   43 +++-
+ 14 files changed, 285 insertions(+), 230 deletions(-)
+ delete mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+ create mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/msgs.scala
+ delete mode 100644 apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
+
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
+deleted file mode 100644
+index 6e1c16d..0000000
+--- a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/ExecuteResponse.scala
++++ /dev/null
+@@ -1,9 +0,0 @@
+-package com.cloudera.hue.livy
+-
+-case class ExecuteResponse(id: Int /*, state: State*/, input: Seq[String], output: Seq[String])
+-
+-sealed trait State
+-case class Ready() extends State
+-case class Incomplete() extends State
+-case class Running() extends State
+-case class Complete() extends State
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/msgs.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/msgs.scala
+new file mode 100644
+index 0000000..eed59f5
+--- /dev/null
++++ b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/msgs.scala
+@@ -0,0 +1,46 @@
++package com.cloudera.hue.livy.msgs
++
++sealed trait MsgType {
++}
++object MsgType {
++  case object execute_request extends MsgType
++  case object execute_reply extends MsgType
++}
++
++case class Msg[T <: Content](msg_type: MsgType, content: T)
++
++sealed trait Content
++
++case class ExecuteRequest(code: String) extends Content {
++  val msg_type = MsgType.execute_request
++}
++
++sealed trait ExecutionStatus
++object ExecutionStatus {
++  case object ok extends ExecutionStatus
++  case object error extends ExecutionStatus
++  case object abort extends ExecutionStatus
++}
++
++sealed trait ExecuteReply extends Content {
++  val msg_type = MsgType.execute_reply
++
++  val status: ExecutionStatus
++  val execution_count: Int
++}
++
++case class ExecuteReplyOk(execution_count: Int,
++                          payload: Map[String, String]) extends ExecuteReply {
++  val status = ExecutionStatus.ok
++}
++
++case class ExecuteReplyError(execution_count: Int,
++                             ename: String,
++                             evalue: String,
++                             traceback: List[String]) extends ExecuteReply {
++  val status = ExecutionStatus.error
++}
++
++case class ExecuteResponse(id: Int, input: Seq[String], output: Seq[String])
++
++case class ShutdownRequest() extends Content
+diff --git a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala b/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
+deleted file mode 100644
+index afd402f..0000000
+--- a/apps/spark/java/livy-core/src/main/scala/com/cloudera/hue/livy/requests.scala
++++ /dev/null
+@@ -1,6 +0,0 @@
+-package com.cloudera.hue.livy
+-
+-trait Request
+-
+-case class ExecuteRequest(statement: String) extends Request
+-case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+index 1d711fb..1f4639c 100644
+--- a/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
++++ b/apps/spark/java/livy-repl/src/main/resources/fake_shell.py
+@@ -23,32 +23,40 @@ global_dict = {}
+ 
+ execution_count = 0
+ 
+-def execute_request(msg):
++
++def execute_reply(status, content):
+     global execution_count
++    execution_count += 1
+ 
+-    try:
+-        code = msg['code']
+-    except KeyError:
+-        logger.error('missing code', exc_info=True)
+-        return
++    return {
++        'msg_type': 'execute_reply',
++        'content': dict(
++            content,
++            status=status,
++            execution_count=execution_count - 1
++        )
++    }
+ 
+-    execution_count += 1
++def execute_reply_ok(data):
++    return execute_reply('ok', {
++        'data': data,
++    })
++
++def execute_reply_error(exc_type, exc_value, tb):
++    logger.error('execute_reply', exc_info=True)
++    return execute_reply('error', {
++        'ename': unicode(exc_type.__name__),
++        'evalue': unicode(exc_value),
++        'traceback': traceback.format_exception(exc_type, exc_value, tb, -1),
++    })
+ 
++
++def execute(code):
+     try:
+         code = compile(code, '<stdin>', 'single')
+         exec code in global_dict
+     except:
+-        exc_type, exc_value, tb = sys.exc_info()
+-        return {
+-            'msg_type': 'execute_reply',
+-            'execution_count': execution_count - 1,
+-            'content': {
+-                'status': 'error',
+-                'ename': exc_type.__name__,
+-                'evalue': str(exc_value),
+-                'traceback': traceback.extract_tb(tb),
+-            }
+-        }
++        return execute_reply_error(*sys.exc_info())
+ 
+     stdout = fake_stdout.getvalue()
+     stderr = fake_stderr.getvalue()
+@@ -61,73 +69,100 @@ def execute_request(msg):
+     if stderr:
+         output += stderr
+ 
+-    return {
+-        'msg_type': 'execute_result',
+-        'execution_count': execution_count,
+-        'content': {
+-            'status': 'ok',
+-            'execution_count': execution_count - 1,
+-            'data': {
+-                'text/plain': output,
+-            },
+-        }
+-    }
++    return execute_reply_ok({
++        'text/plain': output.rstrip(),
++        })
++
+ 
+-def inspect_value(name):
++def execute_request(content):
+     try:
+-        value = global_dict[name]
++        code = content['code']
+     except KeyError:
+-        return {
+-            'msg_type': 'inspect_reply',
+-            'execution_count': execution_count - 1,
+-            'content': {
+-                'status': 'error',
+-                'ename': 'KeyError',
+-                'evalue': 'unknown variable %s' % name,
+-            }
+-        }
++        exc_type, exc_value, tb = sys.exc_info()
++        return execute_reply_error(exc_type, exc_value, [])
+ 
+-    return {
+-        'msg_type': 'inspect_result',
+-        'content': {
+-            'data': {
+-                'application/json': value,
+-            },
+-        }
+-    }
++    if code.startswith('%'):
++        parts = code[1:].split(' ', 1)
++        if len(parts) == 1:
++            magic, rest = parts[0], ()
++        else:
++            magic, rest = parts[0], (parts[1],)
+ 
++        try:
++            handler = magic_router[magic]
++        except KeyError:
++            exc_type, exc_value, tb = sys.exc_info()
++            return execute_reply_error(exc_type, exc_value, [])
++        else:
++            return handler(*rest)
++    else:
++        return execute(code)
+ 
+-inspect_router = {
+-    '%inspect': inspect_value,
+-}
+ 
+-def inspect_request(msg):
++def table_magic(name):
+     try:
+-        code = msg['code']
++        value = global_dict[name]
+     except KeyError:
+-        logger.error('missing code', exc_info=True)
+-        return
++        exc_type, exc_value, tb = sys.exc_info()
++        return execute_reply_error(exc_type, exc_value, [])
++
++    max_list_cols = 0
++    dict_headers = set()
++
++    if isinstance(value, list):
++        for row in value:
++            if isinstance(row, dict):
++                dict_headers.update(row.iterkeys())
++            elif isinstance(row, list):
++                max_list_cols = max(max_list_cols, len(row))
++            else:
++                return execute_reply_error(Exception, 'row is not a list or dict', [])
++    elif isinstance(value, dict):
++        dict_headers = value.keys()
++        value = [value]
++    else:
++        return execute_reply_error(Exception, 'value is not a list or dict', [])
++
++    headers = [i for i in xrange(max_list_cols)]
++    dict_header_offset = len(headers)
++    dict_header_index = {}
++
++    for i, key in enumerate(sorted(dict_headers)):
++        headers.append(key)
++        dict_header_index[key] = dict_header_offset + i
++
++    table = []
++
++    for row in value:
++        table_row = [None] * len(headers)
++        table.append(table_row)
++
++        if isinstance(row, list):
++            for i, col in enumerate(row):
++                table_row[i] = col
++        else:
++            for key, col in row.iteritems():
++                i = dict_header_index[key]
++                table_row[i] = col
++
++    return execute_reply_ok({
++        'application/vnd.livy.table.v1+json': {
++            'headers': headers,
++            'data': table,
++        }
++    })
+ 
+-    try:
+-        inspect_magic, code = code.split(' ', 1)
+-    except ValueError:
+-        logger.error('invalid magic', exc_info=True)
+-        return
+ 
+-    try:
+-        handler = inspect_router[inspect_magic]
+-    except KeyError:
+-        logger.error('unknown magic', exc_info=True)
+-        return
+-
+-    return handler(code)
++magic_router = {
++    'table': table_magic,
++}
+ 
+ 
+ msg_type_router = {
+     'execute_request': execute_request,
+-    'inspect_request': inspect_request,
+ }
+ 
++
+ try:
+     while True:
+         fake_stdout.truncate(0)
+@@ -148,7 +183,13 @@ try:
+         try:
+             msg_type = msg['msg_type']
+         except KeyError:
+-            logger.error('missing message type')
++            logger.error('missing message type', exc_info=True)
++            continue
++
++        try:
++            content = msg['content']
++        except KeyError:
++            logger.error('missing content', exc_info=True)
+             continue
+ 
+         try:
+@@ -157,23 +198,23 @@ try:
+             logger.error('unknown message type: %s', msg_type)
+             continue
+ 
+-        response = handler(msg)
+-        if response is not None:
+-            try:
+-                response = json.dumps(response)
+-            except ValueError:
+-                response = json.dumps({
+-                    'msg_type': 'inspect_reply',
+-                    'execution_count': execution_count - 1,
+-                    'content': {
+-                        'status': 'error',
+-                        'ename': 'ValueError',
+-                        'evalue': 'cannot json-ify %s' % name,
+-                    }
+-                })
+-
+-            print >> sys_stdout, response
+-            sys_stdout.flush()
++        response = handler(content)
++        try:
++            response = json.dumps(response)
++        except ValueError, e:
++            response = json.dumps({
++                'msg_type': 'inspect_reply',
++                'execution_count': execution_count - 1,
++                'content': {
++                    'status': 'error',
++                    'ename': 'ValueError',
++                    'evalue': 'cannot json-ify %s' % response,
++                    'traceback': [],
++                }
++            })
++
++        print >> sys_stdout, response
++        sys_stdout.flush()
+ finally:
+     sys.stdin = sys_stdin
+     sys.stdout = sys_stdout
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+index b1807c7..7638126 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Session.scala
+@@ -1,15 +1,16 @@
+ package com.cloudera.hue.livy.repl
+ 
+-import com.cloudera.hue.livy.ExecuteResponse
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import org.json4s.JValue
+ 
+ import _root_.scala.concurrent.Future
+ 
+ trait Session {
+-  def statements: Seq[ExecuteResponse]
++  def statements: Seq[JValue]
+ 
+-  def statement(id: Int): Option[ExecuteResponse]
++  def statement(id: Int): Option[JValue]
+ 
+-  def execute(command: String): Future[ExecuteResponse]
++  def execute(request: ExecuteRequest): Future[JValue]
+ 
+   def close(): Unit
+ }
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+index 14b9be4..8c29141 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/WebApp.scala
+@@ -1,23 +1,21 @@
+ package com.cloudera.hue.livy.repl
+ 
+-import _root_.akka.util.Timeout
+-import com.cloudera.hue.livy.{ExecuteRequest, Logging}
++import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.fasterxml.jackson.core.JsonParseException
+-import org.json4s.{DefaultFormats, Formats, MappingException}
++import org.json4s.{DefaultFormats, MappingException}
+ import org.scalatra._
+ import org.scalatra.json.JacksonJsonSupport
+ 
+-import _root_.scala.concurrent.{ExecutionContextExecutor, Future, ExecutionContext}
++import _root_.scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ 
+-object WebApp extends Logging {}
++object WebApp extends Logging
+ 
+ class WebApp(session: Session) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
+ 
+   override protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+   override protected implicit val jsonFormats = DefaultFormats
+ 
+-  protected implicit def defaultTimeout: Timeout = Timeout(10)
+-
+   sealed trait State
+   case class Starting() extends State
+   case class Running() extends State
+@@ -38,18 +36,17 @@ class WebApp(session: Session) extends ScalatraServlet with FutureSupport with J
+     Map("state" -> state)
+   }
+ 
+-  get("/statements") {
+-    session.statements
+-  }
+-
+-  post("/statements") {
++  post("/execute") {
+     val req = parsedBody.extract[ExecuteRequest]
+-    val statement: String = req.statement
+-    val rep = session.execute(statement)
++    val rep = session.execute(req)
+     new AsyncResult { val is = rep }
+   }
+ 
+-  get("/statements/:statementId") {
++  get("/history") {
++    session.statements
++  }
++
++  get("/history/:statementId") {
+     val statementId = params("statementId").toInt
+ 
+     session.statement(statementId) match {
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+index 9604b9f..07e793a 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/python/PythonSession.scala
+@@ -1,13 +1,14 @@
+ package com.cloudera.hue.livy.repl.python
+ 
+ import java.io._
++import java.lang.ProcessBuilder.Redirect
+ import java.nio.file.Files
+ 
+-import com.cloudera.hue.livy.ExecuteResponse
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.repl.Session
+-import org.json4s.DefaultFormats
+-import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
++import org.json4s.jackson.Serialization.write
++import org.json4s.{DefaultFormats, JValue}
+ 
+ import scala.collection.mutable.ArrayBuffer
+ import scala.concurrent.{ExecutionContext, Future}
+@@ -16,6 +17,7 @@ object PythonSession {
+   def create(): Session = {
+     val file = createScript()
+     val pb = new ProcessBuilder("python", file.toString)
++    pb.redirectError(Redirect.INHERIT)
+     val process = pb.start()
+     val in = process.getInputStream
+     val out = process.getOutputStream
+@@ -81,55 +83,25 @@ private class PythonSession(process: Process, in: InputStream, out: OutputStream
+   private[this] val stdin = new PrintWriter(out)
+   private[this] val stdout = new BufferedReader(new InputStreamReader(in), 1)
+ 
+-  private[this] var executedStatements = 0
+-  private[this] var _statements = ArrayBuffer[ExecuteResponse]()
++  private[this] var _statements = ArrayBuffer[JValue]()
+ 
+-  override def statements: Seq[ExecuteResponse] = _statements
++  override def statements: Seq[JValue] = _statements
+ 
+-  override def execute(command: String): Future[ExecuteResponse] = {
+-    val request = Map(
+-      "msg_type" -> "execute_request",
+-      "code" -> command
+-    )
++  override def execute(content: ExecuteRequest): Future[JValue] = {
++    Future {
++      val msg = Map("msg_type" -> "execute_request", "content" -> content)
+ 
+-    stdin.println(compact(render(request)))
+-    stdin.flush()
++      stdin.println(write(msg))
++      stdin.flush()
+ 
+-    val line = stdout.readLine()
+-
+-    val response = parse(line)
+-
+-    val content = response \ "content"
+-    val status = (content\ "status").extract[String]
+-    val executionCount = (content \ "execution_count").extract[Int]
+-
+-    val executeResponse = status match {
+-      case "ok" =>
+-        val output = (content \ "data" \ "text/plain").extract[String]
+-        ExecuteResponse(executionCount, Seq(command), Seq(output))
+-      case "error" =>
+-        val ename = (content \ "ename").extract[String]
+-        val evalue = (content \ "evalue").extract[String]
+-        val traceback = (content \ "traceback").extract[Seq[String]]
+-
+-        val output = traceback :+ ("%s: %s" format(ename, evalue))
++      val line = stdout.readLine()
++      val rep = parse(line)
+ 
+-        ExecuteResponse(executionCount, Seq(command), output)
++      rep \ "content"
+     }
+-
+-    Future.successful(executeResponse)
+-
+-    /*
+-    val response = ExecuteResponse(executedStatements - 1, Seq(command), output)
+-    _statements += response
+-
+-    executedStatements += 1
+-
+-    Future.successful(response)
+-    */
+   }
+ 
+-  override def statement(id: Int): Option[ExecuteResponse] = {
++  override def statement(id: Int): Option[JValue] = {
+     if (id < _statements.length) {
+       Some(_statements(id))
+     } else {
+@@ -141,43 +113,5 @@ private class PythonSession(process: Process, in: InputStream, out: OutputStream
+     process.getInputStream.close()
+     process.getOutputStream.close()
+     process.destroy()
+-    /*
+-    if (!process.waitFor(10l, TimeUnit.SECONDS)) {
+-      process.destroyForcibly()
+-      process.waitFor()
+-    }
+-    */
+-  }
+-
+-
+-  /*
+-  private def readLines(): Seq[String] = {
+-    var sb = new StringBuilder
+-    var output = new ArrayBuffer[String]()
+-
+-    @tailrec
+-    def aux(): Unit = {
+-      stdout.
+-
+-
+-      val line = stdout.readLine()
+-      if (line != null && !line.startsWith(">>> ") && !line.startsWith("... ")) {
+-        output += line
+-        aux()
+-      }
+-    }
+-
+-    aux()
+-
+-    output
+-
+-    /*
+-    val output = stdout.takeWhile({
+-      case line: String =>
+-        println(line)
+-        line.startsWith(">>> ") || line.startsWith("... ")
+-    }).toSeq
+-    */
+   }
+-  */
+ }
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
+index 00ecada..b7f9ebf 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/ScalaSession.scala
+@@ -2,8 +2,11 @@ package com.cloudera.hue.livy.repl.scala
+ 
+ import java.util.concurrent.SynchronousQueue
+ 
+-import com.cloudera.hue.livy.ExecuteResponse
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.repl.Session
++import org.json4s.jackson.JsonMethods._
++import org.json4s.jackson.Serialization.write
++import org.json4s.{JValue, _}
+ 
+ import scala.collection.mutable
+ import scala.concurrent.duration.Duration
+@@ -16,9 +19,11 @@ object ScalaSession {
+ private class ScalaSession extends Session {
+   private implicit def executor: ExecutionContext = ExecutionContext.global
+ 
++  implicit val formats = DefaultFormats
++
+   private[this] val inQueue = new SynchronousQueue[ILoop.Request]
+   private[this] var executedStatements = 0
+-  private[this] var statements_ = new mutable.ArrayBuffer[ExecuteResponse]
++  private[this] var statements_ = new mutable.ArrayBuffer[JValue]
+ 
+   org.apache.spark.repl.Main.interp = new ILoop(inQueue)
+ 
+@@ -31,11 +36,11 @@ private class ScalaSession extends Session {
+   }
+   thread.start()
+ 
+-  override def statements: List[ExecuteResponse] = synchronized {
++  override def statements: List[JValue] = synchronized {
+     statements_.toList
+   }
+ 
+-  override def statement(id: Int): Option[ExecuteResponse] = synchronized {
++  override def statement(id: Int): Option[JValue] = synchronized {
+     if (id < statements_.length) {
+       Some(statements_(id))
+     } else {
+@@ -43,17 +48,22 @@ private class ScalaSession extends Session {
+     }
+   }
+ 
+-  override def execute(statement: String): Future[ExecuteResponse] = {
++  override def execute(content: ExecuteRequest): Future[JValue] = {
+     executedStatements += 1
+ 
+     val promise = Promise[ILoop.ExecuteResponse]()
+-    inQueue.put(ILoop.ExecuteRequest(statement, promise))
++    inQueue.put(ILoop.ExecuteRequest(content.code, promise))
+ 
+     promise.future.map {
+       case rep =>
+-        val executeResponse = ExecuteResponse(executedStatements - 1, List(statement), List(rep.output))
+-        synchronized { statements_ += executeResponse }
+-        executeResponse
++        val x = executedStatements - 1
++        parse(write(Map(
++          "status" -> "ok",
++          "execution_count" -> x,
++          "payload" -> Map(
++            "text/plain" -> rep.output
++          )
++        )))
+     }
+   }
+ 
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+index ccea297..6e3ff1f 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Statement.scala
+@@ -1,9 +1,12 @@
+ package com.cloudera.hue.livy.server
+ 
++import com.cloudera.hue.livy.msgs.ExecuteRequest
++import org.json4s.JValue
++
+ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ import scala.util.{Failure, Success}
+ 
+-class Statement(val id: Int, val input: String, val output: Future[Seq[String]]) {
++class Statement(val id: Int, val request: ExecuteRequest, val output: Future[JValue]) {
+   sealed trait State
+   case class Running() extends State
+   case class Available() extends State
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+index c3135e3..0b0dc17 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -1,6 +1,7 @@
+ package com.cloudera.hue.livy.server
+ 
+ import com.cloudera.hue.livy.Logging
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.sessions.{SessionFailedToStart, Session}
+ import com.fasterxml.jackson.core.JsonParseException
+ import org.json4s.{DefaultFormats, Formats, MappingException}
+@@ -12,7 +13,6 @@ import scala.concurrent.duration._
+ 
+ object WebApp extends Logging {
+   case class CreateSessionRequest(lang: String)
+-  case class ExecuteStatementRequest(statement: String)
+ }
+ 
+ class WebApp(sessionManager: SessionManager)
+@@ -110,11 +110,11 @@ class WebApp(sessionManager: SessionManager)
+   }
+ 
+   post("/sessions/:sessionId/statements") {
+-    val req = parsedBody.extract[ExecuteStatementRequest]
++    val req = parsedBody.extract[ExecuteRequest]
+ 
+     sessionManager.get(params("sessionId")) match {
+       case Some(session) =>
+-        val statement = session.executeStatement(req.statement)
++        val statement = session.executeStatement(req)
+ 
+         Created(formatStatement(statement),
+           headers = Map(
+@@ -145,7 +145,7 @@ class WebApp(sessionManager: SessionManager)
+   private def formatStatement(statement: Statement) = {
+     // Take a couple milliseconds to see if the statement has finished.
+     val output = try {
+-      Await.result(statement.output, 10 milliseconds)
++      Await.result(statement.output, 100 milliseconds)
+     } catch {
+       case _: TimeoutException => null
+     }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+index ba7cd48..91fcb19 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/WebSession.scala
+@@ -1,10 +1,11 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+ import com.cloudera.hue.livy._
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
+ import dispatch._
+ import org.json4s.jackson.Serialization.write
+-import org.json4s.{DefaultFormats, Formats}
++import org.json4s.{JValue, DefaultFormats, Formats}
+ 
+ import scala.annotation.tailrec
+ import scala.collection.mutable.ArrayBuffer
+@@ -26,22 +27,22 @@ abstract class WebSession(val id: String, hostname: String, port: Int) extends S
+ 
+   override def state: State = _state
+ 
+-  override def executeStatement(input: String): Statement = {
++  override def executeStatement(content: ExecuteRequest): Statement = {
+     ensureIdle {
+       _state = Busy()
+       touchLastActivity()
+ 
+-      var req = (svc / "statements").setContentType("application/json", "UTF-8")
+-      req = req << write(ExecuteRequest(input))
++      var req = (svc / "execute").setContentType("application/json", "UTF-8")
++      req = req << write(content)
+ 
+       val future = Http(req OK as.json4s.Json).map { case (resp) =>
+         synchronized {
+           transition(Idle())
+-          resp.extract[ExecuteResponse].output
++          resp
+         }
+       }
+ 
+-      var statement = new Statement(executedStatements, input, future)
++      var statement = new Statement(executedStatements, content, future)
+ 
+       executedStatements += 1
+       statements_ += statement
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+index 0ebe11b..690370d 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/session.scala
+@@ -1,6 +1,6 @@
+ package com.cloudera.hue.livy.server.sessions
+ 
+-import com.cloudera.hue.livy.ExecuteResponse
++import com.cloudera.hue.livy.msgs.ExecuteRequest
+ import com.cloudera.hue.livy.server.Statement
+ 
+ import scala.concurrent.Future
+@@ -12,7 +12,7 @@ trait Session {
+ 
+   def state: State
+ 
+-  def executeStatement(statement: String): Statement
++  def executeStatement(content: ExecuteRequest): Statement
+ 
+   def statement(statementId: Int): Option[Statement]
+ 
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index d2de5e6..aacd975 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -84,9 +84,13 @@ class JobServerApi(object):
+     return self._root.post('sessions', data=json.dumps(kwargs), contenttype='application/json')
+ 
+   def submit_statement(self, uuid, statement):
+-    data = {'statement': statement}
++    data = {'code': statement}
+     return self._root.post('sessions/%s/statements' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
+ 
++  def inspect(self, uuid, statement):
++    data = {'code': statement}
++    return self._root.post('sessions/%s/inspect' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
++
+   def fetch_data(self, session, statement):
+     return self._root.get('sessions/%s/statements/%s' % (session, statement))
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 800c8ba..c2f71db 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -317,7 +317,7 @@ class SparkApi():
+     cell = snippet['result']['handle']['id']
+ 
+     try:
+-      data = api.fetch_data(session['id'], cell)
++      response = api.fetch_data(session['id'], cell)
+     except Exception, e:
+       message = force_unicode(str(e)).lower()
+       if 'session not found' in message:
+@@ -325,10 +325,43 @@ class SparkApi():
+       else:
+         raise e
+ 
+-    return {
+-        'data': [data['output']] if start_over else [], # start_over not supported yet
+-        'meta': [{'name': 'Header', 'type': 'String', 'comment': ''}]
+-    }
++    content = response['output']
++
++    if content['status'] == 'ok':
++      # The frontend expects a table, so simulate that by putting our text
++      # into a single cell.
++
++      data = content['data']
++
++      try:
++        table = data['application/vnd.livy.table.v1+json']
++        data = table['data']
++        meta = [{'name': name, 'type': 'String', 'comment': ''} for name in table['headers']]
++      except KeyError:
++        data = [[data['text/plain']]]
++        meta = [{'name': 'Header', 'type': 'String', 'comment': ''}]
++
++      # start_over not supported
++      if not start_over:
++        data = []
++
++      return {
++          'data': data,
++          'meta': meta,
++      }
++    elif content['status'] == 'error':
++      tb = content.get('traceback', None)
++
++      if tb is None:
++        msg = content.get('ename', 'unknown error')
++
++        evalue = content.get('evalue')
++        if evalue is not None:
++          msg = '%s: %s' % (msg, evalue)
++      else:
++        msg = ''.join(tb)
++
++      raise QueryError(msg)
+ 
+   def cancel(self, notebook, snippet):
+     api = get_spark_api(self.user)
+-- 
+1.7.9.5
+

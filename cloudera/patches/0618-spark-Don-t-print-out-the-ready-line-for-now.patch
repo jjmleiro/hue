@@ -1,0 +1,25 @@
+From e1c0998de7bb569b14a56fc4462764f97a00292d Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 16:17:36 -0800
+Subject: [PATCH 0618/1173] [spark] Don't print out the ready line for now
+
+---
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+index 8245a89..746d0d1 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+@@ -67,7 +67,7 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+   }
+ 
+   override def loop(): Unit = {
+-    println(compact(render(Map("state" -> "ready"))))
++    //println(compact(render(Map("state" -> "ready"))))
+ 
+     def readOneLine() = {
+       out.flush()
+-- 
+1.7.9.5
+

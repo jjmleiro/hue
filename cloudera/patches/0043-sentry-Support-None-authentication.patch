@@ -1,0 +1,25 @@
+From 1a10c243f6cc955ec81aec873bf9481639b9864b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 14 Oct 2014 14:58:55 -0700
+Subject: [PATCH 0043/1173] [sentry] Support None authentication
+
+---
+ desktop/libs/libsentry/src/libsentry/client.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsentry/src/libsentry/client.py b/desktop/libs/libsentry/src/libsentry/client.py
+index 5187cd4..3bb0971 100644
+--- a/desktop/libs/libsentry/src/libsentry/client.py
++++ b/desktop/libs/libsentry/src/libsentry/client.py
+@@ -54,7 +54,7 @@ struct TSentryAuthorizable {
+ """
+ 
+ class SentryClient(object):
+-  SENTRY_MECHANISMS = {'KERBEROS': 'GSSAPI', 'NOSASL': 'NOSASL'}
++  SENTRY_MECHANISMS = {'KERBEROS': 'GSSAPI', 'NOSASL': 'NOSASL', 'NONE': 'NONE'}
+ 
+   def __init__(self, host, port, username):
+     self.username = username
+-- 
+1.7.9.5
+

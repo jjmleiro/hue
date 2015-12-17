@@ -1,0 +1,62 @@
+From 88c433943d253ddbad428a4823439c60881be634 Mon Sep 17 00:00:00 2001
+From: bc Wong <bcwalrus@cloudera.com>
+Date: Fri, 24 Oct 2014 16:54:32 -0700
+Subject: [PATCH 0077/1173] [core] HUE-2334. Make cx_Oracle compilation
+ optional
+
+(cherry picked from commit 1b64d0c761db0199f9e23287208fdf44888bad28)
+---
+ desktop/core/ext-py/cx_Oracle-5.1.2/setup.py |    6 +++---
+ desktop/core/src/desktop/tests.py            |   15 +++++++++++++++
+ 2 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/desktop/core/ext-py/cx_Oracle-5.1.2/setup.py b/desktop/core/ext-py/cx_Oracle-5.1.2/setup.py
+index 63a1459..7e7595c 100644
+--- a/desktop/core/ext-py/cx_Oracle-5.1.2/setup.py
++++ b/desktop/core/ext-py/cx_Oracle-5.1.2/setup.py
+@@ -118,7 +118,7 @@ def CheckOracleHome(directoryToCheck):
+     return False
+ 
+ # try to determine the Oracle home
+-userOracleHome = os.environ.get("ORACLE_HOME")
++userOracleHome = os.environ.get("ORACLE_HOME", os.environ.get("ORACLE_INSTANTCLIENT_HOME"))
+ if userOracleHome is not None:
+     if not CheckOracleHome(userOracleHome):
+         messageFormat = "Oracle home (%s) does not refer to an " \
+@@ -129,8 +129,8 @@ else:
+         if CheckOracleHome(path):
+             break
+     if oracleHome is None:
+-        raise DistutilsSetupError("cannot locate an Oracle software " \
+-                "installation")
++        print >>sys.stderr, "cannot locate an Oracle software installation. skipping"
++        sys.exit(0)
+ 
+ # define some variables
+ if sys.platform == "win32":
+diff --git a/desktop/core/src/desktop/tests.py b/desktop/core/src/desktop/tests.py
+index f7632e9..baf02dc 100644
+--- a/desktop/core/src/desktop/tests.py
++++ b/desktop/core/src/desktop/tests.py
+@@ -627,3 +627,18 @@ def test_check_config_ajax():
+   c = make_logged_in_client()
+   response = c.get(reverse(check_config))
+   assert_true("misconfiguration" in response.content, response.content)
++
++
++def test_cx_Oracle():
++  """
++  Tests that cx_Oracle (external dependency) is built correctly.
++  """
++  try:
++    import cx_Oracle
++    return
++  except ImportError, ex:
++    if "No module named" in ex.message:
++      assert_true(False, "cx_Oracle skipped its build. This happens if "
++          "env var ORACLE_HOME or ORACLE_INSTANTCLIENT_HOME is not defined. "
++          "So ignore this test failure if your build does not need to work "
++          "with an oracle backend.")
+-- 
+1.7.9.5
+

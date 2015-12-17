@@ -1,0 +1,116 @@
+From 8249ca38ef0130fb769b5b12efd897de078eba12 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 21:00:52 +0100
+Subject: [PATCH 0252/1173] [oozie] Drop on existing fork does not create a
+ new fork anymore
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   67 ++++++++++----------
+ 2 files changed, 36 insertions(+), 33 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f7111cf..b2fcd79 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -29,7 +29,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <%def name="widgets()">
+     <div data-bind="css: { 'draggable-widget': true },
+                     draggable: {data: draggableHiveAction(), isEnabled: true,
+-                    options: {'start': function(event, ui){$root.setCurrentDraggedWidget(draggableHiveAction()); lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
++                    options: {'refreshPositions': true, 'start': function(event, ui){$root.setCurrentDraggedWidget(draggableHiveAction()); lastWindowScrollPosition = $(window).scrollTop();$('.card-body').slideUp('fast');},
+                               'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});}}}"
+          title="${_('Hive Script')}" rel="tooltip" data-placement="top">
+          <a class="draggable-icon"><img src="/oozie/static/art/icon_beeswax_48.png" class="app-icon"></a>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index a6fb6ef..c7fb0a2 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -412,20 +412,24 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         }
+       });
+ 
+-      var _forkRow = _parentCol.addEmptyRow(false, _rowIdx);
+-      var _id = UUID();
+-      var _fork = new Widget({
+-        size: 12,
+-        id: _id,
+-        name: 'fork' + '-' + _id.slice(0, 4),
+-        widgetType: "fork-widget",
+-        properties: {},
+-        offset: 0,
+-        loading: true,
+-        vm: self
+-      });
++      var _addForkAndJoin = (row.columns().length == 0);
++
++      if (_addForkAndJoin){
++        var _forkRow = _parentCol.addEmptyRow(false, _rowIdx);
++        var _id = UUID();
++        var _fork = new Widget({
++          size: 12,
++          id: _id,
++          name: 'fork' + '-' + _id.slice(0, 4),
++          widgetType: "fork-widget",
++          properties: {},
++          offset: 0,
++          loading: true,
++          vm: self
++        });
+ 
+-      _forkRow.widgets([_fork]);
++        _forkRow.widgets([_fork]);
++      }
+ 
+       var _w = new Widget({
+         size: self.currentlyDraggedWidget.size(),
+@@ -442,28 +446,27 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       var _row = new Row([_w], self);
+       _col.addRow(_row);
+ 
+-      var _joinRow = _parentCol.addEmptyRow(false, _rowIdx + 2);
+-      var _id = UUID();
+-      var _join = new Widget({
+-        size: 12,
+-        id: _id,
+-        name: "join" + '-' + _id.slice(0, 4),
+-        widgetType: "join-widget",
+-        properties: {},
+-        offset: 0,
+-        loading: true,
+-        vm: self
+-      });
++      if (_addForkAndJoin) {
++        var _joinRow = _parentCol.addEmptyRow(false, _rowIdx + 2);
++        var _id = UUID();
++        var _join = new Widget({
++          size: 12,
++          id: _id,
++          name: "join" + '-' + _id.slice(0, 4),
++          widgetType: "join-widget",
++          properties: {},
++          offset: 0,
++          loading: true,
++          vm: self
++        });
+ 
+-      _joinRow.widgets([_join]);
++        _joinRow.widgets([_join]);
++        self.currentlyCreatingFork = true;
++        self.currentlyCreatedFork = ko.mapping.toJS(_fork);
++        self.currentlyCreatedJoin = ko.mapping.toJS(_join);
++      }
+ 
+       self.currentlyDraggedWidget = null;
+-      self.currentlyCreatingFork = true;
+-      self.currentlyCreatedFork = ko.mapping.toJS(_fork);
+-      self.currentlyCreatedJoin = ko.mapping.toJS(_join);
+-
+-      linkWidgets(_fork.id(), _w.id());
+-      linkWidgets(_w.id(), _join.id());
+ 
+       return _w;
+     }
+-- 
+1.7.9.5
+

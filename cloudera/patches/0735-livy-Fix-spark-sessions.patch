@@ -1,0 +1,39 @@
+From 15710a70155b9d84353912b7a32d61e9028c4b16 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 31 Jan 2015 22:13:57 +0800
+Subject: [PATCH 0735/1173] [livy] Fix spark sessions
+
+---
+ .../scala/com/cloudera/hue/livy/repl/Main.scala    |    2 +-
+ .../hue/livy/repl/scala/SparkSession.scala         |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+index f74a185..e2196d9 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/Main.scala
+@@ -27,7 +27,7 @@ object Main extends Logging {
+     val session_kind = args(0)
+ 
+     session_kind match {
+-      case PYTHON_SESSION | PYSPARK_SESSION | SPARK_SESSION =>
++      case PYTHON_SESSION | PYSPARK_SESSION | SCALA_SESSION | SPARK_SESSION =>
+       case _ =>
+         println("Unknown session kind: " + session_kind)
+         sys.exit(1)
+diff --git a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+index 9a58d77..56d8a43 100644
+--- a/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
++++ b/apps/spark/java/livy-repl/src/main/scala/com/cloudera/hue/livy/repl/scala/SparkSession.scala
+@@ -60,7 +60,7 @@ private class SparkSession extends Session {
+         parse(write(Map(
+           "status" -> "ok",
+           "execution_count" -> x,
+-          "payload" -> Map(
++          "data" -> Map(
+             "text/plain" -> rep.output
+           )
+         )))
+-- 
+1.7.9.5
+

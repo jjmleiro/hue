@@ -1,0 +1,103 @@
+From 2dcafd3f5f71530ce6e2c147ed0f613e98a3cbd6 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 19 Mar 2015 07:50:47 -0500
+Subject: [PATCH 1125/1173] HUE-2639 [spark] Only propose changing snippet
+ type in edit mode
+
+Externalized icon rendering to a template
+---
+ apps/spark/src/spark/templates/editor.mako |   65 ++++++++++++++++------------
+ 1 file changed, 38 insertions(+), 27 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index b5ad7ec..61bcfeb 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -279,6 +279,38 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+ </script>
+ 
++<script type="text/html" id="snippetIcon">
++
++  <!-- ko if: type() == 'text' -->
++  <i class="fa fa-header snippet-icon"></i><sup style="color: #338bb8; margin-left: -2px">${ _('Text') }</sup>
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'hive' -->
++  <img src="${ static('beeswax/art/icon_beeswax_48.png') }" class="snippet-icon">
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'impala' -->
++  <img src="${ static('impala/art/icon_impala_48.png') }" class="snippet-icon">
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'scala' -->
++  <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">scala</sup>
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'python' -->
++  <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">python</sup>
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'sql' -->
++  <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">sql</sup>
++  <!-- /ko -->
++
++  <!-- ko if: type() == 'pig' -->
++  <img src="${ static('pig/art/icon_pig_48.png') }" class="snippet-icon">
++  <!-- /ko -->
++
++</script>
++
+ 
+ <script type="text/html" id="snippet">
+   <div class="row-fluid">
+@@ -293,39 +325,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           &nbsp;
+         </span>
+         <div class="dropdown inline widget-type">
++          <!-- ko if: $root.isEditing() -->
+           <a class="dropdown-toggle no-underline" data-toggle="dropdown" href="javascript:void(0)">
+-            <!-- ko if: type() == 'text' -->
+-            <i class="fa fa-header snippet-icon"></i><sup style="color: #338bb8; margin-left: -2px">${ _('Text') }</sup>
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'hive' -->
+-            <img src="${ static('beeswax/art/icon_beeswax_48.png') }" class="snippet-icon">
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'impala' -->
+-            <img src="${ static('impala/art/icon_impala_48.png') }" class="snippet-icon">
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'scala' -->
+-            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">scala</sup>
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'python' -->
+-            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">python</sup>
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'sql' -->
+-            <img src="${ static('spark/art/icon_spark_48.png') }" class="snippet-icon"><sup style="color: #338bb8; margin-left: -2px">sql</sup>
+-            <!-- /ko -->
+-
+-            <!-- ko if: type() == 'pig' -->
+-            <img src="${ static('pig/art/icon_pig_48.png') }" class="snippet-icon">
+-            <!-- /ko -->
++            <span data-bind="template: { name: 'snippetIcon', data: $data }"></span>
+             <b class="caret" data-bind="visible: $root.isEditing()"></b>
+           </a>
+           <ul class="dropdown-menu" data-bind="foreach: $root.availableSnippets">
+             <li><a class="pointer" data-bind="click: function(){ $parent.type($data.type()); }, text: name"></a></li>
+           </ul>
++          <!-- /ko -->
++          <!-- ko ifnot: $root.isEditing() -->
++          <span data-bind="template: { name: 'snippetIcon', data: $data }"></span>
++          <!-- /ko -->
+         </div>
+ 
+         <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+-- 
+1.7.9.5
+

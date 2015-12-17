@@ -1,0 +1,28 @@
+From 81cf76731660163d5e3e41cc0131cd1618708c24 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 8 Jan 2015 17:56:00 +0100
+Subject: [PATCH 0415/1173] [oozie] Display just the name of the file on
+ common-fs-link
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index e7501c2..aee6af8 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -655,8 +655,8 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+ <script type="text/html" id="common-fs-link">
+   <!-- ko if: with_label -->
+-    <a data-bind="attr: {href: '/filebrowser/view' + $data.path }" target="_blank" title="${ _('Open') }">
+-      <pan data-bind="text: $data.path"></span>
++    <a data-bind="attr: {href: '/filebrowser/view' + $data.path , title: '${ _('Open') } '+ $data.path }" target="_blank">
++      <pan data-bind="text: $data.path.split('/').pop()"></span>
+     </a>
+   <!-- /ko -->
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,37 @@
+From 048e1e3e3aecd0abac0b7947e64893a098a202c5 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 17 Feb 2015 16:52:32 +0100
+Subject: [PATCH 0846/1173] HUE-2569 [home] Delete project is broken
+
+Moved click handler to jQuery
+---
+ desktop/core/src/desktop/templates/home.mako |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/templates/home.mako b/desktop/core/src/desktop/templates/home.mako
+index d5bdc87..55e5a4e 100644
+--- a/desktop/core/src/desktop/templates/home.mako
++++ b/desktop/core/src/desktop/templates/home.mako
+@@ -314,7 +314,7 @@ ${ commonheader(_('Welcome Home'), "home", user) | n,unicode }
+     </div>
+     <div class="modal-footer">
+         <a class="btn" data-dismiss="modal">${_('No')}</a>
+-        <a data-bind="click: removeTagFinal" class="btn btn-danger">${_('Yes')}</a>
++        <a id="tagRemoveBtn" class="pointer btn btn-danger disable-feedback">${_('Yes')}</a>
+     </div>
+ </div>
+ 
+@@ -393,6 +393,10 @@ ${ commonshare() | n,unicode }
+       });
+     });
+ 
++    $("#tagRemoveBtn").on("click", function(){
++      removeTagFinal();
++    });
++
+     $("a[rel='tooltip']").tooltip();
+ 
+   });
+-- 
+1.7.9.5
+

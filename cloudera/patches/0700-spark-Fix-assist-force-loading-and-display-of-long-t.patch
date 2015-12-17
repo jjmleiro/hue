@@ -1,0 +1,87 @@
+From 8bdb009d20ca02b26250f3e3c0573aa60840dee0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 28 Jan 2015 08:07:13 +0100
+Subject: [PATCH 0700/1173] [spark] Fix assist force loading and display of
+ long tables
+
+---
+ apps/spark/src/spark/templates/editor.mako |   13 ++++++++-----
+ apps/spark/static/js/assist.js             |    7 ++-----
+ 2 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index fbd4901..b291a56 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -207,7 +207,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <div data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length == 0">${_('The selected database has no tables.')}</div>
+           <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: $root.assistContent().filteredFirstLevelObjects()" class="unstyled assist-main">
+             <li data-bind="event: { mouseover: function(){ $('#assistHover_' + $data).show(); }, mouseout: function(){ $('#assistHover_' + $data).hide(); } }">
+-              <a href="javascript:void(0)" class="pull-right" data-bind="attr: {'id': 'assistHover_' + $data}, click: showTablePreview" style="padding-right:5px; display: none"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
++              <a href="javascript:void(0)" class="pull-rsight" data-bind="attr: {'id': 'assistHover_' + $data}, click: showTablePreview" style="padding-right:5px; display: none; position: absolute; right: 4px; margin-left: auto"><i class="fa fa-list" title="${'Preview Sample data'}" style="margin-left:5px"></i></a>
+               <a href="javascript:void(0)" data-bind="click: loadAssistSecondLevel"><span data-bind="text: $data"></span></a>
+ 
+               <div data-bind="visible: $root.assistContent().firstLevelObjects()[$data].loaded() && $root.assistContent().firstLevelObjects()[$data].open()">
+@@ -1023,7 +1023,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     loadAssistFirstLevel();
+   });
+ 
+-  function loadAssistSecondLevel(first) {
++  function loadAssistSecondLevel(first, force) {
+     if (!viewModel.assistContent().firstLevelObjects()[first].loaded()) {
+       viewModel.assistContent().isLoading(true);
+       assist.options.onDataReceived = function (data) {
+@@ -1040,7 +1040,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     window.setTimeout(resizeAssist, 100);
+   }
+ 
+-  function loadAssistFirstLevel() {
++  function loadAssistFirstLevel(force) {
+     assist.options.onDataReceived = function (data) {
+       if (data.tables) {
+         var _obj = {};
+@@ -1055,14 +1055,17 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       }
+       viewModel.assistContent().isLoading(false);
+     }
+-    assist.getData(viewModel.assistContent().selectedMainObject());
++    assist.getData(viewModel.assistContent().selectedMainObject(), force);
+   }
+ 
+   function loadAssistMain(force) {
+     assist.options.onDataReceived = function (data) {
+       if (data.databases) {
+         viewModel.assistContent().mainObjects(data.databases);
+-        if (viewModel.assistContent().mainObjects().length > 0 && !viewModel.assistContent().selectedMainObject()) {
++        if (force) {
++          loadAssistFirstLevel(force);
++        }
++        else if (viewModel.assistContent().mainObjects().length > 0 && !viewModel.assistContent().selectedMainObject()) {
+           viewModel.assistContent().selectedMainObject(viewModel.assistContent().mainObjects()[0]);
+           viewModel.assistSelectedMainObject(viewModel.assistContent().selectedMainObject());
+           loadAssistFirstLevel();
+diff --git a/apps/spark/static/js/assist.js b/apps/spark/static/js/assist.js
+index a8e0067..2433bcc 100644
+--- a/apps/spark/static/js/assist.js
++++ b/apps/spark/static/js/assist.js
+@@ -86,15 +86,12 @@ var Assist = function (options) {
+               timestamp: (new Date()).getTime()
+             }
+             $.totalStorage(_cachePath, _obj);
+-            if (!_returnCached) {
+-              options.onDataReceived($.totalStorage(_cachePath).data);
+-            }
++            options.onDataReceived($.totalStorage(_cachePath).data);
+           }
+         },
+         error: function (error) {
+           $(document).trigger('error', error);
+-        },
+-        async: typeof options.async != "undefined" && optons.async
++        }
+       });
+     }
+ 
+-- 
+1.7.9.5
+

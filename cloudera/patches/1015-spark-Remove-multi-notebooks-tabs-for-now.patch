@@ -1,0 +1,39 @@
+From 5aa18768be51e7542a7c7c5a17e4f920e6dbe0eb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 9 Mar 2015 18:58:18 -0700
+Subject: [PATCH 1015/1173] [spark] Remove multi notebooks tabs for now
+
+---
+ apps/oozie/src/oozie/models2.py            |    2 +-
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 5d5ba8f..603acef 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1103,7 +1103,7 @@ class SparkAction(Action):
+           'name': 'mode',
+           'label': _('Mode'),
+           'value': 'client',
+-          'help_text': _('Where to run spark driver. Ex: client,cluster.'),
++          'help_text': _('e.g. client,cluster'),
+           'type': ''
+      },
+      'app_name': {
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index ddd1d0e..445fd19 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -162,7 +162,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </li>
+     <!-- /ko -->
+     <li>
+-      <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
++      ## <a href="javascript:void(0)" data-bind="click: newNotebook"><i class="fa fa-plus" title="${ _('Add a new notebook') }"></i></a>
+     </li>
+   </ul>
+ </div>
+-- 
+1.7.9.5
+

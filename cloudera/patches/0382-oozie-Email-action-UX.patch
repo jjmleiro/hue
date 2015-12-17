@@ -1,0 +1,110 @@
+From 6f663eb9ccacc2e731e3c677ee346bdea5fdc4d4 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 30 Dec 2014 17:07:35 -0800
+Subject: [PATCH 0382/1173] [oozie] Email action UX
+
+---
+ apps/oozie/src/oozie/models2.py                    |   10 +++----
+ .../oozie/templates/editor/workflow_editor.mako    |   28 +++++++++++++-------
+ 2 files changed, 24 insertions(+), 14 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index eecdc2e..81517ce 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -948,28 +948,28 @@ class EmailAction(Action):
+           'name': 'to',
+           'label': _('To addresses'),
+           'value': '',
+-          'help_text': _('Comma-separated values.'),
++          'help_text': _('Comma-separated values'),
+           'type': 'text'
+      },         
+      'cc': { 
+           'name': 'cc',
+           'label': _('Cc addresses (optional)'),
+           'value': '',
+-          'help_text': _('Comma-separated values.'),
++          'help_text': _('Comma-separated values'),
+           'type': 'text'
+      },    
+      'subject': {
+           'name': 'subject',
+           'label': _('Subject'),
+-          'value': 'Subject',
+-          'help_text': _('Plain-text.'),
++          'value': '',
++          'help_text': _('Plain-text'),
+           'type': 'text'
+      },
+      'body': { 
+           'name': 'body',
+           'label': _('Body'),
+           'value': '',
+-          'help_text': _('Plain-text.'),
++          'help_text': _('Plain-text'),
+           'type': 'textarea'
+      },
+   }
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index e4904ab..84b09e7 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1413,16 +1413,26 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()">
+-        <span data-bind="text: $root.workflow_properties.to.label"></span>
+-        <input type="text" data-bind="value: properties.to" />
++        <span data-bind="text: $root.workflow_properties.to.label" style="display: inline-block; width: 80px"></span>
++        <input type="text" data-bind="value: properties.to, attr: { placeholder: $root.workflow_properties.to.help_text }" />
+         <br/>
+-        <span data-bind="text: $root.workflow_properties.subject.label"></span>
+-        <input type="text" data-bind="value: properties.subject" />
++        
++        <span data-bind="text: $root.workflow_properties.subject.label" style="display: inline-block; width: 80px"></span>
++        <input type="text" data-bind="value: properties.subject, attr: { placeholder: $root.workflow_properties.subject.help_text }" />
+         <br/>
+-        <span data-bind="text: $root.workflow_properties.body.label"></span>
+-        <input type="text" data-bind="value: properties.body" />
++        
++        <span data-bind="text: $root.workflow_properties.body.label" style="display: inline-block; width: 80px"></span>
++        <textarea data-bind="value: properties.body, attr: { placeholder: $root.workflow_properties.body.help_text }"></textarea>
+       </div>
+     </div>
++    
++    <div data-bind="visible: ! $root.isEditing()">
++      ${ _('To') }
++      <span data-bind="text: properties.to"/>
++      <br/>
++      ${ _('About') }
++      <span data-bind="text: properties.subject"/>
++    </div>
+ 
+     <div data-bind="visible: $parent.ooziePropertiesExpanded">
+       <ul class="nav nav-tabs">
+@@ -1434,7 +1444,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <div class="tab-content">
+         <div class="tab-pane active" data-bind="attr: { id: 'properties-' + id() }">
+           <span data-bind="text: $root.workflow_properties.cc.label"></span>
+-          <input type="text" data-bind="value: properties.cc" />
++          <input type="text" data-bind="value: properties.cc, attr: { placeholder: $root.workflow_properties.cc.help_text }" />
+         </div>
+ 
+         <div class="tab-pane" data-bind="attr: { id: 'sla-' + id() }">
+@@ -1590,10 +1600,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+           <input type="text" class="filechooser-input" data-bind="value: value, filechooser: value, attr: { placeholder: help_text }">
+           <!-- /ko -->
+           <!-- ko if: type() == 'text' -->
+-          <input data-bind="value: value" class="input-xlarge"/>
++          <input data-bind="value: value, attr: { placeholder: help_text }" class="input-xlarge"/>
+           <!-- /ko -->          
+           <!-- ko if: type() == 'textarea' -->
+-          <input data-bind="value: value" class="input-xlarge"/>
++          <textarea data-bind="value: value" class="input-xlarge"></textarea>
+           <!-- /ko -->
+           <!-- ko if: type() == 'workflow' -->
+           <select data-bind="options: $root.subworfklows, optionsText: 'name', optionsValue: 'value', value: value"></select>
+-- 
+1.7.9.5
+

@@ -1,0 +1,55 @@
+From 25b00a185a13336b4e6bc70e7de3274f0516f4a2 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 5 Dec 2014 09:41:26 -0600
+Subject: [PATCH 0560/1173] [spark] Support fetching incomplete results from
+ resultset
+
+---
+ apps/spark/src/spark/models.py             |    3 ++-
+ apps/spark/src/spark/templates/editor.mako |    1 +
+ apps/spark/static/js/spark.vm.js           |    2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 08cac6e..c6636b6 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -184,8 +184,9 @@ class HS2Api():
+       else:
+         raise e
+     
+-    # no escaping...
++    # No escaping...
+     return {
++        'has_more': results.has_more,
+         'data': list(results.rows()),
+         'meta': [{
+           'name': column.name,
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 24c7b53..84e26d1 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -188,6 +188,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <span data-bind="editable: name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+         <div class="inline pull-right">
+           <strong class="muted" data-bind="text: status"></strong> &nbsp;
++          <strong class="muted">Took 1s</strong> &nbsp;
+           <a href="javascript:void(0)" data-bind="visible: $root.isEditing, click: function(){ remove($parent, $data);}"><i class="fa fa-times"></i></a>
+         </div>
+       </h2>
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 7f402a5..59230e6 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -259,7 +259,7 @@ var Snippet = function (notebook, snippet) {
+ 
+         $(document).trigger("renderData", {data: _tempData, snippet: self, initial: _initialIndex == 0});
+ 
+-        if (data.result.hasMore && rows > 0) {
++        if (data.result.has_more && rows > 0) {
+           setTimeout(function () {
+             self.fetchResultData(rows, false);
+           }, 500);
+-- 
+1.7.9.5
+

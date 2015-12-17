@@ -1,0 +1,22 @@
+From c7e5e1724c6d539de893d86c176d5f22260f76a5 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 11:30:04 -0800
+Subject: [PATCH 0607/1173] [spark] Don't suspend the server
+
+---
+ apps/spark/spark_server.sh |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/spark_server.sh b/apps/spark/spark_server.sh
+index 34686c3..6869caa 100755
+--- a/apps/spark/spark_server.sh
++++ b/apps/spark/spark_server.sh
+@@ -78,4 +78,4 @@ export SPARKER_HOME=$(dirname $0)
+ # determined with a seemingly appropriate find command.
+ echo CWD=$(pwd)
+ echo Executing java -jar $SPARK_JAR "$@"
+-exec java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005 -jar $SPARK_JAR "$@"
++exec java -jar $SPARK_JAR "$@"
+-- 
+1.7.9.5
+

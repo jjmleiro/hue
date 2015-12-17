@@ -44,6 +44,7 @@ ${ layout.menubar(section='workflows') }
           <div class="card-body">
             <p>
               <form class="form-horizontal" id="workflowForm" action="${ url('oozie:create_workflow') }" method="POST">
+                ${ csrf_token(request) | n,unicode }
               <fieldset>
               ${ utils.render_field(workflow_form['name']) }
               ${ utils.render_field(workflow_form['description']) }
@@ -83,7 +84,7 @@ ${ layout.menubar(section='workflows') }
 
 ${ utils.path_chooser_libs(True, True) }
 
-<link rel="stylesheet" href="/oozie/static/css/workflow.css">
+<link rel="stylesheet" href="${ static('oozie/css/workflow.css') }">
 
 <script>
   $(document).ready(function(){

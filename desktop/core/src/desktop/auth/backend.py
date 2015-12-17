@@ -98,19 +98,29 @@ class DefaultUserAugmentor(object):
   def has_hue_permission(self, action, app):
     return self._get_profile().has_hue_permission(action=action, app=app)
 
-def find_or_create_user(username, password=None):
+def find_user(username):
   try:
     user = User.objects.get(username=username)
     LOG.debug("Found user %s in the db" % username)
   except User.DoesNotExist:
-    LOG.info("Materializing user %s in the database" % username)
-    user = User(username=username)
-    if password is None:
-      user.set_unusable_password()
-    else:
-      user.set_password(password)
-    user.is_superuser = True
-    user.save()
+    user = None
+  return user
+
+def create_user(username, password):
+  LOG.info("Materializing user %s in the database" % username)
+  user = User(username=username)
+  if password is None:
+    user.set_unusable_password()
+  else:
+    user.set_password(password)
+  user.is_superuser = True
+  user.save()
+  return user
+
+def find_or_create_user(username, password=None):
+  user = find_user(username)
+  if user is None:
+    user = create_user(username, password)
   return user
 
 class DesktopBackendBase(object):
@@ -215,15 +225,20 @@ class AllowAllBackend(DesktopBackendBase):
   """
   Authentication backend that allows any user to login as long
   as they have a username. The users will be added to the 'default_user_group'.
+
+  We want to ensure that already created users (e.g., from other backends)
+  retain their superuser status, and any new users are not super users by default.
   """
   def check_auth(self, username, password):
-    user = find_or_create_user(username, None)
-    user.is_superuser = False
-    user.save()
+    user = find_user(username)
+    if user is None:
+      user = create_user(username, password)
+      user.is_superuser = False
+      user.save()
+      
     default_group = get_default_user_group()
     if default_group is not None:
       user.groups.add(default_group)
-
     return user
 
   @classmethod
@@ -341,7 +356,10 @@ class LdapBackend(object):
       if ldap_config.BIND_DN.get():
         bind_dn = ldap_config.BIND_DN.get()
         setattr(self._backend.settings, 'BIND_DN', bind_dn)
+
         bind_password = ldap_config.BIND_PASSWORD.get()
+        if bind_password is None:
+          password = ldap_config.BIND_PASSWORD_SCRIPT.get()
         setattr(self._backend.settings, 'BIND_PASSWORD', bind_password)
 
       if user_filter is None:
@@ -371,6 +389,11 @@ class LdapBackend(object):
     else:
       setattr(self._backend.settings, 'START_TLS', False)
       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+
+    if ldap_config.FOLLOW_REFERRALS.get():
+      ldap.set_option(ldap.OPT_REFERRALS, 1)
+    else:
+      ldap.set_option(ldap.OPT_REFERRALS, 0)
 
   def add_ldap_config_for_server(self, server):
     if desktop.conf.LDAP.LDAP_SERVERS.get():

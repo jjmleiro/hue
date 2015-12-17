@@ -1,0 +1,25 @@
+From d147859674f527c76ecd58628bd4bda0dedec658 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 19 Nov 2014 15:47:51 +0100
+Subject: [PATCH 0294/1173] [oozie] Join widget should not be movable
+
+---
+ desktop/core/static/js/ko.layout.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index 8645c57..86c3836 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -199,7 +199,7 @@ var Widget = function (params) {
+   self.isLoading = ko.observable(typeof params.loading != "undefined" && params.loading != null ? params.loading : false);
+ 
+   self.oozieMovable = ko.computed(function() {
+-    return ["end-widget", "start-widget", "fork-widget", "decision-widget", "kill-widget"].indexOf(self.widgetType()) == - 1
++    return ["end-widget", "start-widget", "fork-widget", "decision-widget", "kill-widget", "join-widget"].indexOf(self.widgetType()) == - 1
+   });
+ 
+   self.klass = ko.computed(function () {
+-- 
+1.7.9.5
+

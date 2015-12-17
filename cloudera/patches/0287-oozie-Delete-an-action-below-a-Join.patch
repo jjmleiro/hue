@@ -1,0 +1,97 @@
+From 647a588a8a39010afe8fd681c793a1774b930a3f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 18 Nov 2014 16:46:41 -0800
+Subject: [PATCH 0287/1173] [oozie] Delete an action below a Join
+
+---
+ apps/oozie/src/oozie/models2.py                    |   17 ++++++++++++++++-
+ .../oozie/templates/editor/workflow_editor.mako    |    2 ++
+ apps/oozie/static/js/workflow-editor.ko.js         |   14 ++++++--------
+ 3 files changed, 24 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 000bded..df89310 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -522,14 +522,29 @@ class KillAction():
+     return [cls.FIELDS['message']]
+ 
+ 
++class JoinAction():
++  TYPE = 'join'
++  FIELDS = {}
++
++  @classmethod
++  def get_fields(cls):
++    return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()]
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return []
++
++
+ NODES = {
+   'pig-widget': PigAction,
+   'java-widget': JavaAction,
+   'hive-widget': HiveAction,
+   'subworkflow-widget': SubWorkflowAction,
+-  'kill-widget': KillAction
++  'kill-widget': KillAction,
++  'join-widget': JoinAction,
+ }
+ 
++
+ WORKFLOW_NODE_PROPERTIES = {}
+ for node in NODES.itervalues():
+   WORKFLOW_NODE_PROPERTIES.update(node.FIELDS)
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 4ad85e8..452f9b6 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -351,7 +351,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
++      <!-- ko if: children().length == 1 -->
+       Then --> <span data-bind="text: children()[0]['to']" /></span>
++      <!-- /ko -->
+     </div>
+   </div>
+   <!-- /ko -->
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index d93d744..60f2aca 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -299,7 +299,7 @@ var Workflow = function (vm, workflow) {
+ 	
+     var childLink = node.get_link('to');
+     var childId = ko.mapping.toJS(childLink)['to'];
+-    
++
+     parent.remove_link('to', node_id);
+     parent.children.unshift({'to': childId});
+ 
+@@ -333,15 +333,13 @@ var Workflow = function (vm, workflow) {
+   };
+   
+   self.moveNode = function(widget) {
+-    if (! vm.currentlyCreatingFork) {
+-      var node = self.getNodeById(widget.id());
+-      self.movedNode = node;
++    var node = self.getNodeById(widget.id());
++    self.movedNode = node;
+       
+-      self.removeNode(node.id());
+-      self.addNode(widget);
++    self.removeNode(node.id());
++    self.addNode(widget);
+       
+-      self.movedNode = null;
+-    }
++    self.movedNode = null;
+   };
+   
+   self.getParents = function(node_id) { // Only one for now
+-- 
+1.7.9.5
+

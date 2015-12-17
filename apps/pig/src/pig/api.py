@@ -39,7 +39,7 @@ def get(fs, jt, user):
   return OozieApi(fs, jt, user)
 
 
-class OozieApi:
+class OozieApi(object):
   """
   Oozie submission.
   """
@@ -50,6 +50,7 @@ class OozieApi:
   MAX_DASHBOARD_JOBS = 100
 
   def __init__(self, fs, jt, user):
+    self.oozie_api = get_oozie(user)
     self.fs = fs
     self.jt = jt
     self.user = user
@@ -106,8 +107,12 @@ class OozieApi:
         params=json.dumps(pig_params),
         files=json.dumps(files),
         archives=json.dumps(archives),
-        job_properties=json.dumps(job_properties),
+        job_properties=json.dumps(job_properties)
     )
+
+    if pig_script.use_hcatalog and self.oozie_api.security_enabled:
+      action.credentials = [{'name': 'hcat', 'value': True}]
+      action.save()
 
     action.add_node(workflow.end)
 
@@ -133,14 +138,16 @@ class OozieApi:
     return pig_params
 
   def stop(self, job_id):
-    return get_oozie(self.user).job_control(job_id, 'kill')
+    return self.oozie_api.job_control(job_id, 'kill')
 
   def get_jobs(self):
     kwargs = {'cnt': OozieApi.MAX_DASHBOARD_JOBS,}
-    kwargs['user'] = self.user.username
-    kwargs['name'] = OozieApi.WORKFLOW_NAME
+    kwargs['filters'] = [
+        ('user', self.user.username),
+        ('name', OozieApi.WORKFLOW_NAME)
+    ]
 
-    return get_oozie(self.user).get_workflows(**kwargs).jobs
+    return self.oozie_api.get_workflows(**kwargs).jobs
 
   def get_log(self, request, oozie_workflow):
     logs = {}
@@ -156,7 +163,8 @@ class OozieApi:
             is_really_done = OozieApi.RE_LOG_END.search(data['logs'][1]) is not None
 
       except Exception, e:
-        LOG.error('An error happen while watching the demo running: %(error)s' % {'error': e})
+        LOG.error('An error happen while watching the job running: %(error)s' % {'error': e})
+        is_really_done = True
 
     workflow_actions = []
 
@@ -213,14 +221,14 @@ class OozieApi:
 
     for job in oozie_jobs:
       if job.is_running():
-        job = get_oozie(self.user).get_job(job.id)
+        job = self.oozie_api.get_job(job.id)
         get_copy = request.GET.copy() # Hacky, would need to refactor JobBrowser get logs
         get_copy['format'] = 'python'
         request.GET = get_copy
         try:
-          logs, workflow_action = self.get_log(request, job)
+          logs, workflow_action, is_really_done = self.get_log(request, job)
           progress = workflow_action[0]['progress']
-        except Exception:
+        except:
           progress = 0
       else:
         progress = 100

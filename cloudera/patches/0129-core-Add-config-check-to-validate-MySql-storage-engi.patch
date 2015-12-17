@@ -1,0 +1,69 @@
+From 9ccfd236a57dcc82920bb9fde84f19409a89702c Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Wed, 19 Nov 2014 17:02:40 -0800
+Subject: [PATCH 0129/1173] [core] Add config check to validate MySql storage
+ engine
+
+---
+ desktop/core/src/desktop/conf.py |   33 +++++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 92a2079..42bf02b 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -18,6 +18,7 @@
+ import os
+ import socket
+ import stat
++import logging
+ 
+ from django.utils.translation import ugettext_lazy as _
+ 
+@@ -792,6 +793,35 @@ def validate_ldap(user, config):
+ 
+   return res
+ 
++def validate_mysql_storage():
++
++  from django.db import connection
++
++  LOG = logging.getLogger(__name__)
++  res = []
++
++  if connection.vendor == 'mysql':
++      cursor = connection.cursor();
++
++      try:
++        innodb_table_count = cursor.execute('''
++            SELECT *
++            FROM information_schema.tables
++            WHERE table_schema=DATABASE() AND engine = "innodb"''')
++
++        total_table_count = cursor.execute('''
++            SELECT *
++            FROM information_schema.tables
++            WHERE table_schema=DATABASE()''')
++
++        if innodb_table_count != 0 and innodb_table_count != total_table_count:
++          res.append(('MYSQL_STORAGE_ENGINE', unicode(_('''All tables in the database must be of the same
++                                                        storage engine type (preferably InnoDB).'''))))
++      except Exception, ex:
++        LOG.exception("Error in config validation of MYSQL_STORAGE_ENGINE: %s", ex)
++
++  return res
++
+ 
+ def config_validator(user):
+   """
+@@ -836,4 +866,7 @@ def config_validator(user):
+   else:
+     res.extend(validate_ldap(user, LDAP))
+ 
++  # Validate MYSQL storage engine of all tables
++  res.extend(validate_mysql_storage())
++
+   return res
+-- 
+1.7.9.5
+

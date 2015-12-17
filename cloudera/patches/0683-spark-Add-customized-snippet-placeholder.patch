@@ -1,0 +1,130 @@
+From d10b5a32f84530681a5e6df6312c12daf6a2d432 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 27 Jan 2015 11:22:43 +0800
+Subject: [PATCH 0683/1173] [spark] Add customized snippet placeholder
+
+Need to reset it with a binding when clicking on it.
+---
+ apps/spark/src/spark/templates/editor.mako |    3 ++-
+ apps/spark/src/spark/views.py              |   12 +++++++++++-
+ apps/spark/static/js/spark.ko.js           |   14 ++++++++------
+ 3 files changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index aba845b..3ed6d34 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -309,7 +309,8 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                 <input type="text" data-bind="value: value" />
+               </div>
+             </div>
+-            <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'viewportMargin': Infinity, 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }"></textarea>
++            <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'viewportMargin': Infinity, 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }">
++            </textarea>
+             <a href="javascript:void(0)" title="${ _('CTRL + ENTER') }" data-bind="click: execute, visible: status() != 'running' && status() != 'loading'" class="btn codeMirror-overlaybtn">
+               ${ _('Go!') }
+             </a>
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index 4a6017e..c221384 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -18,6 +18,8 @@
+ import json
+ import logging
+ 
++from django.utils.translation import ugettext as _
++
+ from desktop.lib.django_util import render
+ from desktop.lib.json_utils import JSONEncoderForHTML
+ from desktop.models import Document2
+@@ -38,7 +40,15 @@ def editor(request):
+     
+   return render('editor.mako', request, {
+       'notebooks_json': json.dumps([notebook.get_data()]),
+-      'options_json': json.dumps({'languages': LANGUAGES.get()})
++      'options_json': json.dumps({
++          'languages': LANGUAGES.get(),
++          'snippet_placeholders' : {
++              'scala': _('Example: 1 + 1, or press CTRL + space'),
++              'python': _('Example: 1 + 1, or press CTRL + space'),
++              'impala': _('Example: SELECT * FROM tablename, or press CTRL + space'),
++              'hive': _('Example: SELECT * FROM tablename, or press CTRL + space'),
++          }
++      })
+   })
+ 
+ 
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 0d82ec2..94f73dd 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -93,14 +93,14 @@ var TYPE_EDITOR_MAP = {
+   'pig': 'text/x-pig'
+ }
+ 
+-var Snippet = function (notebook, snippet) {
++var Snippet = function (vm, notebook, snippet) {
+   var self = this;
+   
+   self.id = ko.observable(typeof snippet.id != "undefined" && snippet.id != null ? snippet.id : UUID());
+   self.name = ko.observable(typeof snippet.name != "undefined" && snippet.name != null ? snippet.name : '');
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+-  self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : '');
++  self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : vm.snippetPlaceholders[self.type()]);
+   //self.statement_raw.extend({ rateLimit: 150 });
+   self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
+   self.settings = ko.mapping.fromJS(typeof snippet.settings != "undefined" && snippet.settings != null ? snippet.settings : {});
+@@ -150,7 +150,7 @@ var Snippet = function (notebook, snippet) {
+       var rightIndex = newVal.indexOf(right.name());
+       return leftIndex == rightIndex ? 0 : (leftIndex < rightIndex ? -1 : 1);
+     });
+-  });
++  });  
+   self.statement = ko.computed(function () {
+     var statement = self.statement_raw();
+     $.each(self.variables(), function (index, variable) {
+@@ -163,7 +163,7 @@ var Snippet = function (notebook, snippet) {
+   self.showChart = ko.observable(typeof snippet.showChart != "undefined" && snippet.showChart != null ? snippet.showChart : false);
+   self.showLogs = ko.observable(typeof snippet.showLogs != "undefined" && snippet.showLogs != null ? snippet.showLogs : false);
+   self.progress =  ko.observable(typeof snippet.progress != "undefined" && snippet.progress != null ? snippet.progress : 0);
+-
++  
+   self.progress.subscribe(function (val){
+     $(document).trigger("progress", {data: val, snippet: self});
+   });
+@@ -485,7 +485,7 @@ var Notebook = function (vm, notebook) {
+   };  
+   
+   self.addSnippet = function(snippet) {
+-	var _snippet = new Snippet(self, snippet);
++	var _snippet = new Snippet(vm, self, snippet);
+ 	self.snippets.push(_snippet);
+ 	
+ 	if (self.getSession(_snippet.type()) == null) {
+@@ -498,7 +498,7 @@ var Notebook = function (vm, notebook) {
+   };  
+ 
+   self.newSnippet = function() {
+-	var _snippet = new Snippet(self, {type: self.selectedSnippet(), result: {}});	  
++	var _snippet = new Snippet(vm, self, {type: self.selectedSnippet(), result: {}});	  
+ 	self.snippets.push(_snippet);
+ 	  
+ 	if (self.getSession(self.selectedSnippet()) == null) {
+@@ -554,11 +554,13 @@ function EditorViewModel(notebooks, options) {
+     self.isAssistVisible(! self.isAssistVisible());
+     $(document).trigger("toggleAssist");
+   };
++  self.isAssistVisible = ko.observable(options.assistVisible);
+ 
+   self.assistContent = ko.observable();
+   self.assistSelectedMainObject = ko.observable();
+ 
+   self.availableSnippets = ko.mapping.fromJS(options.languages);
++  self.snippetPlaceholders = options.snippet_placeholders;
+   
+   self.init = function() {
+     $.each(notebooks, function(index, notebook) {
+-- 
+1.7.9.5
+

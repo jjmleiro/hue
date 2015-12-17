@@ -1,0 +1,54 @@
+From 0d138e86d240fa0a8349a4a37c898143f402a0dc Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Tue, 14 Oct 2014 16:27:36 -0700
+Subject: [PATCH 0045/1173] [jb] failsafe in cases where applicationType may
+ not be available
+
+---
+ apps/jobbrowser/src/jobbrowser/api.py    |    2 +-
+ apps/jobbrowser/src/jobbrowser/models.py |    2 +-
+ apps/jobbrowser/src/jobbrowser/views.py  |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/api.py b/apps/jobbrowser/src/jobbrowser/api.py
+index b1c5a4d..73961ca 100644
+--- a/apps/jobbrowser/src/jobbrowser/api.py
++++ b/apps/jobbrowser/src/jobbrowser/api.py
+@@ -264,7 +264,7 @@ class YarnApi(JobBrowserApi):
+       elif job['state'] == 'KILLED':
+         return KilledYarnJob(self.resource_manager_api, job)
+ 
+-      if job['applicationType'] == 'SPARK':
++      if job.get('applicationType') == 'SPARK':
+         job = SparkJob(job)
+       else:
+         # MR id, assume 'applicationType': 'MAPREDUCE'
+diff --git a/apps/jobbrowser/src/jobbrowser/models.py b/apps/jobbrowser/src/jobbrowser/models.py
+index f02cd20..86a6799 100644
+--- a/apps/jobbrowser/src/jobbrowser/models.py
++++ b/apps/jobbrowser/src/jobbrowser/models.py
+@@ -131,7 +131,7 @@ class Job(JobLinkage):
+     self._init_attributes()
+     self.is_retired = hasattr(thriftJob, 'is_retired')
+     self.is_mr2 = False
+-    self.applicationType = thriftJob['applicationType']
++    self.applicationType = 'MR2'
+ 
+   @property
+   def counters(self):
+diff --git a/apps/jobbrowser/src/jobbrowser/views.py b/apps/jobbrowser/src/jobbrowser/views.py
+index 7ad34a0..f1c4543 100644
+--- a/apps/jobbrowser/src/jobbrowser/views.py
++++ b/apps/jobbrowser/src/jobbrowser/views.py
+@@ -127,7 +127,7 @@ def massage_job_for_json(job, request):
+     'cleanupProgress': hasattr(job, 'cleanupProgress') and job.cleanupProgress or '',
+     'desiredMaps': job.desiredMaps,
+     'desiredReduces': job.desiredReduces,
+-    'applicationType': job.applicationType,
++    'applicationType': hasattr(job, 'applicationType') and job.applicationType or None,
+     'mapsPercentComplete': int(job.maps_percent_complete) if job.maps_percent_complete else '',
+     'finishedMaps': job.finishedMaps,
+     'finishedReduces': job.finishedReduces,
+-- 
+1.7.9.5
+

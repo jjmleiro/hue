@@ -1,0 +1,87 @@
+From 2cae99ce94c653b6d54237beb05a6f1b9ac73cb7 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 8 Jan 2015 14:55:08 +0100
+Subject: [PATCH 0413/1173] [core] Added file filter to jHueFileChooser
+
+---
+ desktop/core/static/js/jquery.filechooser.js |   40 ++++++++++++++++----------
+ desktop/core/static/js/ko.hue-bindings.js    |    3 +-
+ 2 files changed, 27 insertions(+), 16 deletions(-)
+
+diff --git a/desktop/core/static/js/jquery.filechooser.js b/desktop/core/static/js/jquery.filechooser.js
+index 47498db..42e2240 100644
+--- a/desktop/core/static/js/jquery.filechooser.js
++++ b/desktop/core/static/js/jquery.filechooser.js
+@@ -32,6 +32,7 @@
+             suppressErrors:false,
+             showExtraHome:false,
+             extraHomeProperties:{},
++            filterExtensions:"",
+             labels: {
+                 BACK: "Back",
+                 SELECT_FOLDER: "Select this folder",
+@@ -171,23 +172,32 @@
+                 _breadcrumbs.appendTo($(_parent.element));
+ 
+                 $(data.files).each(function (cnt, file) {
+-                    var _f = $("<li>");
+-                    var _flink = $("<a>");
+-                    _flink.attr("href", "javascript:void(0)").text(" " + (file.name != "" ? file.name : "..")).appendTo(_f);
+-                    if (file.type == "dir") {
+-                        $("<i class='fa fa-folder'></i>").prependTo(_flink);
+-                        _f.click(function () {
+-                            _parent.options.onFolderChange(file.path);
+-                            _parent.navigateTo(file.path);
+-                        });
++                    var _addFile = true;
++                    if (_parent.options.filterExtensions != "" && file.type == "file"){
++                        var _allowedExtensions = _parent.options.filterExtensions.split(",");
++                        var _fileExtension = file.name.split(".").pop();
++                        _addFile = _allowedExtensions.indexOf(_fileExtension) > -1;
+                     }
+-                    if (file.type == "file") {
+-                        $("<i class='fa fa-file-o'></i>").prependTo(_flink);
+-                        _f.click(function () {
+-                            _parent.options.onFileChoose(file.path);
+-                        });
++                    if (_addFile){
++                        var _f = $("<li>");
++                        var _flink = $("<a>");
++                        
++                        _flink.attr("href", "javascript:void(0)").text(" " + (file.name != "" ? file.name : "..")).appendTo(_f);
++                        if (file.type == "dir") {
++                            $("<i class='fa fa-folder'></i>").prependTo(_flink);
++                            _f.click(function () {
++                                _parent.options.onFolderChange(file.path);
++                                _parent.navigateTo(file.path);
++                            });
++                        }
++                        if (file.type == "file") {
++                            $("<i class='fa fa-file-o'></i>").prependTo(_flink);
++                            _f.click(function () {
++                                _parent.options.onFileChoose(file.path);
++                            });
++                        }
++                        _f.appendTo(_flist);
+                     }
+-                    _f.appendTo(_flist);
+                 });
+                 _flist.appendTo($(_parent.element));
+                 var _actions = $("<div>").addClass("jHueFilechooserActions");
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index 231a812..cc7087a 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -1071,7 +1071,8 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+         errorRedirectPath: "",
+         forceRefresh: true,
+         showExtraHome: allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.showExtraHome,
+-        extraHomeProperties: allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.extraHomeProperties ? allBindingsAccessor().filechooserOptions.extraHomeProperties : {}
++        extraHomeProperties: allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.extraHomeProperties ? allBindingsAccessor().filechooserOptions.extraHomeProperties : {},
++        filterExtensions: allBindingsAccessor().filechooserFilter ? allBindingsAccessor().filechooserFilter : ""
+       });
+       $("#chooseFile").modal("show");
+     }
+-- 
+1.7.9.5
+

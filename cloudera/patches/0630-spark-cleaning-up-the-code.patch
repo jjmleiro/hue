@@ -1,0 +1,537 @@
+From 4e0d242da4a0ab71b90a12b21923ada65520b624 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 15 Dec 2014 13:05:29 -0800
+Subject: [PATCH 0630/1173] [spark] cleaning up the code
+
+---
+ apps/spark/java/sparker-repl/pom.xml               |    9 +-
+ .../sparker-repl/src/main/scala/Scalatra.scala     |    3 +-
+ .../cloudera/hue/sparker/repl/HelloWorldApp.scala  |   73 ----------
+ .../cloudera/hue/sparker/repl/Interpreter.scala    |  154 ++++++++++++++++++++
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |  154 --------------------
+ .../com/cloudera/hue/sparker/repl/WebApp.scala     |   70 +++++++++
+ 6 files changed, 234 insertions(+), 229 deletions(-)
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+ create mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+ delete mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+ create mode 100644 apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+index ea6372a..617d58a 100644
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -33,7 +33,7 @@
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+-            <artifactId>json4s-core_2.10</artifactId>
++            <artifactId>json4s-jackson_2.10</artifactId>
+             <version>3.2.11</version>
+         </dependency>
+ 
+@@ -44,6 +44,13 @@
+             <scope>compile</scope>
+         </dependency>
+ 
++        <dependency>
++            <groupId>org.scalatra</groupId>
++            <artifactId>scalatra-json_2.10</artifactId>
++            <version>${scalatra.version}</version>
++            <scope>compile</scope>
++        </dependency>
++
+     </dependencies>
+ 
+     <build>
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+index 2bf8731..9eab302 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+@@ -1,7 +1,8 @@
+ import javax.servlet.ServletContext
+ 
+ import _root_.akka.actor.ActorSystem
+-import com.cloudera.hue.sparker.repl.{HelloWorldApp, SparkerInterpreter}
++import com.cloudera.hue.sparker.repl.interpreter.SparkerInterpreter
++import com.cloudera.hue.sparker.repl.webapp.HelloWorldApp
+ import org.scalatra.LifeCycle
+ 
+ class ScalatraBootstrap extends LifeCycle {
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+deleted file mode 100644
+index c3296c8..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
++++ /dev/null
+@@ -1,73 +0,0 @@
+-package com.cloudera.hue.sparker.repl
+-
+-import java.io._
+-import java.util.concurrent.SynchronousQueue
+-
+-import akka.actor.{Actor, ActorSystem}
+-import akka.util.Timeout
+-import org.json4s.JsonDSL._
+-import org.json4s.jackson.JsonMethods._
+-import org.scalatra.{ScalatraServlet, AsyncResult, FutureSupport, ScalatraFilter}
+-
+-import scala.concurrent.{ExecutionContextExecutor, ExecutionContext}
+-
+-class HelloWorldApp(interpreter: SparkerInterpreter) extends ScalatraServlet with FutureSupport {
+-
+-  implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+-  implicit def defaultTimeout: Timeout = Timeout(10)
+-
+-  get("/") {
+-    <h1>Hello {params("name")}</h1>
+-  }
+-
+-  get("/async") {
+-    new AsyncResult { val is =
+-      interpreter.execute("1 + 1")
+-    }
+-  }
+-
+-  /*
+-  get("/fire-forget") {
+-    sparkActor ! "wee"
+-    Accepted()
+-  }
+-  */
+-}
+-
+-/*
+-class SparkActor extends Actor {
+-
+-  val queue = new SynchronousQueue[Map[String, String]]
+-
+-  val inWriter = new PipedWriter()
+-  val inReader = new PipedReader(inWriter)
+-
+-  /*
+-  protected def inWriter = new PipedWriter()
+-  protected def inReader = new PipedReader(inWriter)
+-  */
+-
+-  protected def out = new StringWriter
+-
+-  val thread = new Thread {
+-    override def run(): Unit = {
+-      org.apache.spark.repl.Main.interp = new SparkerILoop(
+-        queue,
+-        new BufferedReader(inReader),
+-        out)
+-      val args = Array("-usejavacp")
+-      org.apache.spark.repl.Main.interp.process(args)
+-    }
+-  }
+-  thread.start()
+-
+-  def receive = {
+-    case msg : String => {
+-      inWriter.write(msg)
+-      val response = queue.take()
+-      val s = compact(render(response))
+-      sender ! s
+-    }
+-  }
+-}
+-*/
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+new file mode 100644
+index 0000000..b4282be
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Interpreter.scala
+@@ -0,0 +1,154 @@
++package com.cloudera.hue.sparker.repl.interpreter
++
++import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
++import java.util.concurrent.{BlockingQueue, SynchronousQueue}
++
++import org.apache.spark.repl.SparkILoop
++import org.json4s.DefaultFormats
++import org.json4s.JsonDSL._
++import org.json4s.jackson.JsonMethods._
++
++import scala.concurrent._
++import scala.tools.nsc.SparkHelper
++import scala.tools.nsc.interpreter.{Formatting, _}
++import scala.tools.nsc.util.ClassPath
++
++class SparkerInterpreter {
++  private implicit def executor: ExecutionContext = ExecutionContext.global
++
++  private val inQueue = new SynchronousQueue[Request]
++
++  private val inWriter = new PipedWriter()
++
++  // Launch the real interpreter thread.
++  private val thread = new Thread {
++    override def run(): Unit = {
++      org.apache.spark.repl.Main.interp = new SparkerILoop(
++        inQueue,
++        new BufferedReader(new PipedReader(inWriter)),
++        new StringWriter)
++      val args = Array("-usejavacp")
++      org.apache.spark.repl.Main.interp.process(args)
++    }
++  }
++  thread.start()
++
++  def execute(statement: String): Future[String] = {
++    val promise = Promise[Map[String, String]]()
++    inQueue.put(ExecuteRequest(statement, promise))
++    promise.future.map {
++      case(response) => {
++        compact(render(response))
++      }
++    }
++  }
++
++  def close(): Unit = {
++    inQueue.put(ShutdownRequest())
++    thread.join()
++  }
++}
++
++class SparkerILoop(inQueue: BlockingQueue[Request], in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
++
++  class SparkerILoopInterpreter extends SparkILoopInterpreter {
++    outer =>
++
++    override lazy val formatting = new Formatting {
++      def prompt = SparkerILoop.this.prompt
++    }
++    override protected def parentClassLoader = SparkHelper.explicitParentLoader(settings).getOrElse(classOf[SparkILoop].getClassLoader)
++  }
++
++  /** Create a new interpreter. */
++  override def createInterpreter() {
++    require(settings != null)
++
++    if (addedClasspath != "") settings.classpath.append(addedClasspath)
++    // work around for Scala bug
++    val totalClassPath = SparkILoop.getAddedJars.foldLeft(
++      settings.classpath.value)((l, r) => ClassPath.join(l, r))
++    this.settings.classpath.value = totalClassPath
++
++    intp = new SparkerILoopInterpreter
++  }
++
++  private val replayQuestionMessage =
++    """|That entry seems to have slain the compiler.  Shall I replay
++      |your session? I can re-run each line except the last one.
++      |[y/n]
++    """.trim.stripMargin
++
++  private def crashRecovery(ex: Throwable): Boolean = {
++    echo(ex.toString)
++    ex match {
++      case _: NoSuchMethodError | _: NoClassDefFoundError =>
++        echo("\nUnrecoverable error.")
++        throw ex
++      case _  =>
++        def fn(): Boolean =
++          try in.readYesOrNo(replayQuestionMessage, { echo("\nYou must enter y or n.") ; fn() })
++          catch { case _: RuntimeException => false }
++
++        if (fn()) replay()
++        else echo("\nAbandoning crashed session.")
++    }
++    true
++  }
++
++  override def prompt = ""
++
++  override def loop(): Unit = {
++    def readOneLine() = {
++      inQueue.take()
++    }
++    // return false if repl should exit
++    def processLine(request: Request): Boolean = {
++      if (isAsync) {
++        if (!awaitInitialized()) return false
++        runThunks()
++      }
++
++      request match {
++        case ExecuteRequest(statement, promise) => {
++          command(statement) match {
++            case Result(false, _) => false
++            case Result(true, finalLine) => {
++              finalLine match {
++                case Some(line) => addReplay(line)
++                case _ =>
++              }
++
++              var output: String = outString.getBuffer.toString
++              output = output.substring(0, output.length - 1)
++              outString.getBuffer.setLength(0)
++
++              promise.success(Map("type" -> "stdout", "stdout" -> output))
++
++              true
++            }
++          }
++        }
++        case ShutdownRequest() => false
++      }
++    }
++    def innerLoop() {
++      outString.getBuffer.setLength(0)
++
++      val shouldContinue = try {
++        processLine(readOneLine())
++      } catch {
++        case t: Throwable => crashRecovery(t)
++      }
++
++      if (shouldContinue) {
++        innerLoop()
++      }
++    }
++    innerLoop()
++  }
++}
++
++sealed trait Request
++case class ExecuteRequest(statement: String, promise: Promise[Map[String, String]]) extends Request
++case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+deleted file mode 100644
+index 4039e06..0000000
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ /dev/null
+@@ -1,154 +0,0 @@
+-package com.cloudera.hue.sparker.repl
+-
+-import java.io.{BufferedReader, PipedReader, PipedWriter, StringWriter}
+-import java.util.concurrent.{BlockingQueue, SynchronousQueue}
+-
+-import org.apache.spark.repl.SparkILoop
+-import org.json4s.DefaultFormats
+-import org.json4s.JsonDSL._
+-import org.json4s.jackson.JsonMethods._
+-
+-import scala.concurrent._
+-import scala.tools.nsc.SparkHelper
+-import scala.tools.nsc.interpreter.{Formatting, _}
+-import scala.tools.nsc.util.ClassPath
+-
+-class SparkerInterpreter {
+-  private implicit def executor: ExecutionContext = ExecutionContext.global
+-
+-  private val inQueue = new SynchronousQueue[Request]
+-
+-  private val inWriter = new PipedWriter()
+-
+-  // Launch the real interpreter thread.
+-  private val thread = new Thread {
+-    override def run(): Unit = {
+-      org.apache.spark.repl.Main.interp = new SparkerILoop(
+-        inQueue,
+-        new BufferedReader(new PipedReader(inWriter)),
+-        new StringWriter)
+-      val args = Array("-usejavacp")
+-      org.apache.spark.repl.Main.interp.process(args)
+-    }
+-  }
+-  thread.start()
+-
+-  def execute(statement: String): Future[String] = {
+-    val promise = Promise[Map[String, String]]()
+-    inQueue.put(ExecuteRequest(statement, promise))
+-    promise.future.map {
+-      case(response) => {
+-        compact(render(response))
+-      }
+-    }
+-  }
+-
+-  def close(): Unit = {
+-    inQueue.put(ShutdownRequest())
+-    thread.join()
+-  }
+-}
+-
+-class SparkerILoop(inQueue: BlockingQueue[Request], in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
+-
+-  class SparkerILoopInterpreter extends SparkILoopInterpreter {
+-    outer =>
+-
+-    override lazy val formatting = new Formatting {
+-      def prompt = SparkerILoop.this.prompt
+-    }
+-    override protected def parentClassLoader = SparkHelper.explicitParentLoader(settings).getOrElse(classOf[SparkILoop].getClassLoader)
+-  }
+-
+-  /** Create a new interpreter. */
+-  override def createInterpreter() {
+-    require(settings != null)
+-
+-    if (addedClasspath != "") settings.classpath.append(addedClasspath)
+-    // work around for Scala bug
+-    val totalClassPath = SparkILoop.getAddedJars.foldLeft(
+-      settings.classpath.value)((l, r) => ClassPath.join(l, r))
+-    this.settings.classpath.value = totalClassPath
+-
+-    intp = new SparkerILoopInterpreter
+-  }
+-
+-  private val replayQuestionMessage =
+-    """|That entry seems to have slain the compiler.  Shall I replay
+-      |your session? I can re-run each line except the last one.
+-      |[y/n]
+-    """.trim.stripMargin
+-
+-  private def crashRecovery(ex: Throwable): Boolean = {
+-    echo(ex.toString)
+-    ex match {
+-      case _: NoSuchMethodError | _: NoClassDefFoundError =>
+-        echo("\nUnrecoverable error.")
+-        throw ex
+-      case _  =>
+-        def fn(): Boolean =
+-          try in.readYesOrNo(replayQuestionMessage, { echo("\nYou must enter y or n.") ; fn() })
+-          catch { case _: RuntimeException => false }
+-
+-        if (fn()) replay()
+-        else echo("\nAbandoning crashed session.")
+-    }
+-    true
+-  }
+-
+-  override def prompt = ""
+-
+-  override def loop(): Unit = {
+-    def readOneLine() = {
+-      inQueue.take()
+-    }
+-    // return false if repl should exit
+-    def processLine(request: Request): Boolean = {
+-      if (isAsync) {
+-        if (!awaitInitialized()) return false
+-        runThunks()
+-      }
+-
+-      request match {
+-        case ExecuteRequest(statement, promise) => {
+-          command(statement) match {
+-            case Result(false, _) => false
+-            case Result(true, finalLine) => {
+-              finalLine match {
+-                case Some(line) => addReplay(line)
+-                case _ =>
+-              }
+-
+-              var output: String = outString.getBuffer.toString
+-              output = output.substring(0, output.length - 1)
+-              outString.getBuffer.setLength(0)
+-
+-              promise.success(Map("type" -> "stdout", "stdout" -> output))
+-
+-              true
+-            }
+-          }
+-        }
+-        case ShutdownRequest() => false
+-      }
+-    }
+-    def innerLoop() {
+-      outString.getBuffer.setLength(0)
+-
+-      val shouldContinue = try {
+-        processLine(readOneLine())
+-      } catch {
+-        case t: Throwable => crashRecovery(t)
+-      }
+-
+-      if (shouldContinue) {
+-        innerLoop()
+-      }
+-    }
+-    innerLoop()
+-  }
+-}
+-
+-sealed trait Request
+-case class ExecuteRequest(statement: String, promise: Promise[Map[String, String]]) extends Request
+-case class ShutdownRequest() extends Request
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+new file mode 100644
+index 0000000..e081f90
+--- /dev/null
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/WebApp.scala
+@@ -0,0 +1,70 @@
++package com.cloudera.hue.sparker.repl.webapp
++
++import akka.util.Timeout
++import com.cloudera.hue.sparker.repl.interpreter.SparkerInterpreter
++import org.json4s.{DefaultFormats, Formats}
++import org.scalatra.json._
++import org.scalatra.{AsyncResult, FutureSupport, ScalatraServlet}
++
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
++
++class HelloWorldApp(interpreter: SparkerInterpreter) extends ScalatraServlet with FutureSupport with JacksonJsonSupport {
++
++  protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++  protected implicit def defaultTimeout: Timeout = Timeout(10)
++  protected implicit val jsonFormats: Formats = DefaultFormats
++
++  before() {
++    contentType = formats("json")
++  }
++
++  get("/") {
++    <h1>Hello {params("name")}</h1>
++  }
++
++  post("/statement") {
++    val request = parsedBody.extract[ExecuteRequest]
++    val statement = request.statement
++    new AsyncResult { def is = interpreter.execute(statement) }
++  }
++}
++
++case class ExecuteRequest(statement: String)
++
++/*
++class SparkActor extends Actor {
++
++  val queue = new SynchronousQueue[Map[String, String]]
++
++  val inWriter = new PipedWriter()
++  val inReader = new PipedReader(inWriter)
++
++  /*
++  protected def inWriter = new PipedWriter()
++  protected def inReader = new PipedReader(inWriter)
++  */
++
++  protected def out = new StringWriter
++
++  val thread = new Thread {
++    override def run(): Unit = {
++      org.apache.spark.repl.Main.interp = new SparkerILoop(
++        queue,
++        new BufferedReader(inReader),
++        out)
++      val args = Array("-usejavacp")
++      org.apache.spark.repl.Main.interp.process(args)
++    }
++  }
++  thread.start()
++
++  def receive = {
++    case msg : String => {
++      inWriter.write(msg)
++      val response = queue.take()
++      val s = compact(render(response))
++      sender ! s
++    }
++  }
++}
++*/
+-- 
+1.7.9.5
+

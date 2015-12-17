@@ -1,0 +1,43 @@
+From 9bd33a535b33e082d95826ca6ebcafcbd9c14c64 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Feb 2015 07:48:13 -0800
+Subject: [PATCH 0856/1173] [oozie] Make submit popup work with Django 1.6
+
+---
+ apps/oozie/src/oozie/views/editor2.py |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index ee9fa48..d814c39 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -351,7 +351,7 @@ def submit_workflow(request, doc_id):
+                      'name': workflow.name,
+                      'action': reverse('oozie:editor_submit_workflow', kwargs={'doc_id': workflow.id})
+                    }, force_template=True).content
+-    return JsonResponse(popup)
++    return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_workflow(user, fs, jt, workflow, mapping):
+@@ -554,7 +554,7 @@ def submit_coordinator(request, doc_id):
+                  'name': coordinator.name,
+                  'action': reverse('oozie:editor_submit_coordinator',  kwargs={'doc_id': coordinator.id})
+                 }, force_template=True).content
+-  return JsonResponse(popup)
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_coordinator(request, coordinator, mapping):
+@@ -711,7 +711,7 @@ def submit_bundle(request, doc_id):
+                  'name': bundle.name,
+                  'action': reverse('oozie:editor_submit_bundle',  kwargs={'doc_id': bundle.id})
+                 }, force_template=True).content
+-  return JsonResponse(popup)
++  return JsonResponse(popup, safe=False)
+ 
+ 
+ def _submit_bundle(request, bundle, properties):
+-- 
+1.7.9.5
+

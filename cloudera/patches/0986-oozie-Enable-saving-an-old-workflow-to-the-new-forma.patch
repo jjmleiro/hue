@@ -1,0 +1,27 @@
+From e0186fe918882f67e33f4cc4fba90e6d903ad471 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Mar 2015 15:00:32 -0800
+Subject: [PATCH 0986/1173] [oozie] Enable saving an old workflow to the new
+ format
+
+---
+ apps/oozie/src/oozie/views/editor2.py |    3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index bcae27c..3f019a3 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -200,9 +200,6 @@ def save_workflow(request):
+   if workflow['properties'].get('imported'): # Old workflow format
+     workflow['properties']['imported'] = False
+     response['url'] = reverse('oozie:edit_workflow') + '?workflow=' + str(workflow_doc.id)
+-    workflow.set_workspace(request.user)
+-    workflow.check_workspace(request.fs, request.user)
+-
+ 
+   workflow_doc.update_data({'workflow': workflow})
+   workflow_doc.update_data({'layout': layout})
+-- 
+1.7.9.5
+

@@ -17,6 +17,7 @@
 
 import json
 import logging
+import math
 import re
 import sys
 import time
@@ -34,6 +35,7 @@ from django.core.urlresolvers import reverse
 from desktop.appmanager import get_apps_dict
 from desktop.context_processors import get_app_name
 from desktop.lib.paginator import Paginator
+from desktop.lib.django_util import JsonResponse
 from desktop.lib.django_util import copy_query_dict, format_preserving_redirect, render
 from desktop.lib.django_util import login_notrequired, get_desktop_uri_prefix
 from desktop.lib.exceptions_renderable import PopupException
@@ -121,6 +123,7 @@ def _save_design(user, design, type_, design_obj, explicit_save, name=None, desc
       design.name = models.SavedQuery.DEFAULT_NEW_DESIGN_NAME
     design.is_auto = True
 
+  design.name = design.name[:64]
   design.type = type_
   design.data = new_data
 
@@ -137,7 +140,6 @@ def _save_design(user, design, type_, design_obj, explicit_save, name=None, desc
     design.doc.get().add_to_history()
 
   return design
-
 
 def delete_design(request):
   if request.method == 'POST':
@@ -325,7 +327,7 @@ def list_query_history(request):
     resp = {
       'queries': [massage_query_history_for_json(app_name, query_history) for query_history in page.object_list]
     }
-    return HttpResponse(json.dumps(resp), mimetype="application/json")
+    return JsonResponse(resp)
 
 
   return render('list_history.mako', request, {
@@ -401,6 +403,7 @@ def execute_query(request, design_id=None, query_history_id=None):
     design = safe_get_design(request, query_type, design_id)
     query_history = None
 
+  doc = design and design.id and design.doc.get()
   context = {
     'design': design,
     'query': query_history, # Backward
@@ -408,7 +411,8 @@ def execute_query(request, design_id=None, query_history_id=None):
     'autocomplete_base_url': reverse(get_app_name(request) + ':api_autocomplete_databases', kwargs={}),
     'autocomplete_base_url_hive': reverse('beeswax:api_autocomplete_databases', kwargs={}),
     'can_edit_name': design and design.id and not design.is_auto,
-    'can_edit': design and design.id and design.doc.get().can_write(request.user),
+    'doc_id': doc and doc.id or -1,
+    'can_edit': doc and doc.can_write(request.user),
     'action': action,
     'on_success_url': request.GET.get('on_success_url'),
     'has_metastore': 'metastore' in get_apps_dict(request.user)
@@ -455,7 +459,6 @@ def view_results(request, id, first_row=0):
   query_context = parse_query_context(context_param)
 
   # Update the status as expired should not be accessible
-  # Impala does not support startover for now
   expired = state == models.QueryHistory.STATE.expired
 
   # Retrieve query results or use empty result if no result set
@@ -472,7 +475,10 @@ def view_results(request, id, first_row=0):
         escaped_row = []
         for field in row:
           if isinstance(field, (int, long, float, complex, bool)):
-            escaped_field = field
+            if math.isnan(field) or math.isinf(field):
+              escaped_field = json.dumps(field)
+            else:
+              escaped_field = field
           elif field is None:
             escaped_field = 'NULL'
           else:
@@ -543,7 +549,7 @@ def view_results(request, id, first_row=0):
     del context['save_form']
   if 'query' in context:
     del context['query']
-  return HttpResponse(json.dumps(context), mimetype="application/json")
+  return JsonResponse(context)
 
 
 def configuration(request):
@@ -567,7 +573,7 @@ def install_examples(request):
   if request.method == 'POST':
     try:
       app_name = get_app_name(request)
-      beeswax.management.commands.beeswax_install_examples.Command().handle_noargs(app_name=app_name, user=request.user)
+      beeswax.management.commands.beeswax_install_examples.Command().handle(app_name=app_name, user=request.user)
       response['status'] = 0
     except Exception, err:
       LOG.exception(err)
@@ -575,7 +581,7 @@ def install_examples(request):
   else:
     response['message'] = _('A POST request is required.')
 
-  return HttpResponse(json.dumps(response), mimetype="application/json")
+  return JsonResponse(response)
 
 
 @login_notrequired
@@ -952,7 +958,7 @@ def _list_query_history(user, querydict, page_size, prefix=""):
       sort_dir, sort_attr = DEFAULT_SORT
   else:
     sort_dir, sort_attr = DEFAULT_SORT
-  db_queryset = db_queryset.order_by(sort_dir + SORT_ATTR_TRANSLATION[sort_attr])
+  db_queryset = db_queryset.order_by(sort_dir + SORT_ATTR_TRANSLATION[sort_attr], '-id')
 
   # Get the total return count before slicing
   total_count = db_queryset.count()

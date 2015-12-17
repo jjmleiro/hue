@@ -1,0 +1,26 @@
+From 16af1d81825d522f9159ad3a615eb0095dd5986e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 7 Nov 2014 16:47:18 -0800
+Subject: [PATCH 0102/1173] HUE-2458 [core] Fix the import order
+
+---
+ desktop/libs/libsaml/src/libsaml/views.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/libsaml/src/libsaml/views.py b/desktop/libs/libsaml/src/libsaml/views.py
+index 2a2295b..7682593 100644
+--- a/desktop/libs/libsaml/src/libsaml/views.py
++++ b/desktop/libs/libsaml/src/libsaml/views.py
+@@ -14,8 +14,8 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+-from django.views.decorators.http import require_POST
+ from django.views.decorators.csrf import csrf_exempt
++from django.views.decorators.http import require_POST
+ 
+ from djangosaml2.views import login, echo_attributes, metadata,\
+                               assertion_consumer_service, logout_service
+-- 
+1.7.9.5
+

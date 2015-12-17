@@ -1,0 +1,96 @@
+From 9a6c8ce823184358223a33e0dcff3a06bd2580bd Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 9 Feb 2015 17:10:06 -0800
+Subject: [PATCH 0780/1173] [livy] Use the hadoop versions specified in the
+ hue-parent maven pom.xml
+
+Conflicts:
+
+	maven/pom.xml
+---
+ apps/spark/java/pom.xml |    9 +++------
+ maven/pom.xml           |   10 ++++++----
+ 2 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index ef80e7a..1e59fa1 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -48,15 +48,12 @@
+     </organization>
+ 
+     <properties>
+-        <javaVersion>1.7</javaVersion>
+-        <hadoop.version>2.5.0</hadoop.version>
+         <guava.version>11.0.2</guava.version>
+         <jetty.version>8.1.14.v20131031</jetty.version>
+         <json4s.version>3.2.11</json4s.version>
+         <logback.version>1.1.2</logback.version>
+         <scala.version>2.10.3</scala.version>
+         <scalatra.version>2.2.1</scalatra.version>
+-        <spark.version>1.1.0</spark.version>
+         <dispatch.version>0.11.2</dispatch.version>
+     </properties>
+ 
+@@ -184,7 +181,7 @@
+                             <version>[3.0.0,)</version>
+                         </requireMavenVersion>
+                         <requireJavaVersion>
+-                            <version>[${javaVersion}.0,${javaVersion}.1000}]</version>
++                            <version>[${minJavaVersion}.0,${maxJavaVersion}.1000}]</version>
+                         </requireJavaVersion>
+                         <requireOS>
+                             <family>unix</family>
+@@ -219,8 +216,8 @@
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-compiler-plugin</artifactId>
+                 <configuration>
+-                    <source>${javaVersion}</source>
+-                    <target>${javaVersion}</target>
++                    <source>${sourceJavaVersion}</source>
++                    <target>${targetJavaVersion}</target>
+                 </configuration>
+             </plugin>
+ 
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 4da9958..0c93a6e 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -43,7 +43,9 @@
+   </licenses>
+ 
+   <properties>
+-    <hadoop.version>${cdh.mr1.version}</hadoop.version>
++    <hadoop-mr1.version>${cdh.mr1.version}</hadoop.version>
++    <hadoop.version>2.5.0-cdh5.3.0-SNAPSHOT</hadoop.version> ## To UPDATE
++    <spark.version>1.1.0</spark.version>
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+     <thrift.version>0.9.0</thrift.version>
+@@ -129,12 +131,12 @@
+       <dependency>
+         <groupId>org.apache.hadoop</groupId>
+         <artifactId>hadoop-core</artifactId>
+-        <version>${hadoop.version}</version>
++        <version>${hadoop-mr1.version}</version>
+       </dependency>
+       <dependency>
+         <groupId>org.apache.hadoop</groupId>
+         <artifactId>hadoop-client</artifactId>
+-        <version>${hadoop.version}</version>
++        <version>${hadoop-mr1.version}</version>
+       </dependency>
+       <dependency>
+         <groupId>org.slf4j</groupId>
+@@ -154,7 +156,7 @@
+       <dependency>
+         <groupId>org.apache.hadoop</groupId>
+         <artifactId>hadoop-test</artifactId>
+-        <version>${hadoop.version}</version>
++        <version>${hadoop-mr1.version}</version>
+       </dependency>
+       <dependency>
+         <groupId>commons-logging</groupId>
+-- 
+1.7.9.5
+

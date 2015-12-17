@@ -1,0 +1,40 @@
+From 9b855a66dcf2a6dbc29e990517c610c657a3c410 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 3 Oct 2014 22:43:43 -0700
+Subject: [PATCH 0195/1173] [impala] Fix facet toggling
+
+---
+ apps/impala/static/js/impala-dashboard.ko.js |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/apps/impala/static/js/impala-dashboard.ko.js b/apps/impala/static/js/impala-dashboard.ko.js
+index fbd0ccd..612f662 100644
+--- a/apps/impala/static/js/impala-dashboard.ko.js
++++ b/apps/impala/static/js/impala-dashboard.ko.js
+@@ -62,19 +62,19 @@ var Query = function (vm, query) {
+       self.fqs.push(ko.mapping.fromJS({
+         'id': data.widget.id(),
+         'field': data.widget.field(),
+-        'filter': [data.facet['value']],
++        'filter': [data.facet.value()],
+         'type': 'field'
+       }));
+     } else {
+       $.each(self.fqs(), function (index, fq) {
+         if (fq.id() == data.widget.id()) {
+-          if (fq.filter.indexOf(data.facet['value']) > -1) {
+-            fq.filter.remove(data.facet['value']);
++          if (fq.filter.indexOf(data.facet.value()) > -1) {
++            fq.filter.remove(data.facet.value());
+             if (fq.filter().length == 0) {
+               self.fqs.remove(fq);
+             }
+           } else {
+-            fq.filter.push(data.facet['value']);
++            fq.filter.push(data.facet.value());
+           }
+         }
+       });
+-- 
+1.7.9.5
+

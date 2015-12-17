@@ -1,0 +1,63 @@
+From 25f29054798869d2c60ba55ec85683d46e37558b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 20 Mar 2015 14:32:55 +0100
+Subject: [PATCH 1134/1173] [oozie] UX fixes for Firefox and IE on workflow
+ editor
+
+Enabled copy of the widgets
+Fixed offset of the move helpers
+Fixed offset of the title and description for older FF
+Fixed backdrop CSS problem with older FF
+---
+ .../oozie/templates/editor2/common_workflow.mako   |    2 +-
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    2 ++
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index ce72293..0b49abe 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -141,7 +141,7 @@
+ 
+ <script type="text/html" id="widget-template">
+   <div data-bind="attr: {'id': 'wdg_'+ id(),}, css: klass() + (ooziePropertiesExpanded()?' expanded-widget':'') + ($root.isRunning() && status() == ''?' widget-running':''),
+-      draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.setCurrentlyDraggedWidget($data, event.toElement); $root.isDragging(true); }, 'stop': function(event, ui){ $root.enableSideDrop($data); $root.isDragging(false); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.currentTarget).find('h2').text());_title.appendTo(_par);_par.css('minHeight', '10px');_par.width(120);return _par;}}}">
++      draggable: {data: $data, isEnabled: true, options: {'handle': '.move-widget', 'opacity': 0.7, 'refreshPositions': true, 'start': function(event, ui){ $root.setCurrentlyDraggedWidget($data, event.toElement || event.originalEvent.originalEvent.target); $root.isDragging(true); if ($.browser.mozilla || $.browser.msie) { ui.helper.css('margin-top', -$(window).scrollTop() ); } }, 'beforestop': function (event, ui) { if ($.browser.mozilla || $.browser.msie) { ui.helper.css('margin-top', 0 ); } }, 'stop': function(event, ui){ $root.enableSideDrop($data); $root.isDragging(false); }, 'helper': function(event){lastWindowScrollPosition = $(window).scrollTop();  var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.currentTarget).find('h2 a.pointer').text());_title.appendTo(_par);_par.css('minHeight', '10px');_par.css('overflow', 'hidden');_par.width(180);return _par;}}}">
+     <h2 class="card-heading simple" data-bind="visible: widgetType() != 'start-widget' && widgetType() != 'end-widget' &&
+         id() != '17c9c895-5a16-7443-bb81-f34b30b21548' && (['fork-widget', 'join-widget', 'decision-widget'].indexOf(widgetType()) == -1 || $root.isEditing())">
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index bda8435..a9eb5b2 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -212,7 +212,7 @@ ${ layout.menubar(section='workflows', is_editor=True, pullright=buttons) }
+ 
+   <div class="container-fluid">
+   <div class="row-fluid">
+-    <div class="span12" data-bind="style:{'margin-top' : $root.isEditing() ? '120px': '50px'}">
++    <div class="span12" data-bind="style:{'marginTop' : $root.isEditing() ? '120px': '50px'}">
+     <div class="object-name" style="text-align: center">
+       <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
+     </div>
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index e535f29..29e5c37 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -1205,11 +1205,13 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+           handleChoice(filePath, stripHdfsPrefix);
+           if (selectFolder) {
+             $("#chooseFile").modal("hide");
++            $(".modal-backdrop").remove();
+           }
+         },
+         onFileChoose: function (filePath) {
+           handleChoice(filePath, stripHdfsPrefix);
+           $("#chooseFile").modal("hide");
++          $(".modal-backdrop").remove();
+         },
+         createFolder: allBindingsAccessor && allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.createFolder,
+         uploadFile: allBindingsAccessor && allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.uploadFile,
+-- 
+1.7.9.5
+

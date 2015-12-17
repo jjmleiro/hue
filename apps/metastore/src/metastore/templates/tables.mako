@@ -24,8 +24,8 @@ from django.utils.translation import ugettext as _
 ${ commonheader(_('Tables'), 'metastore', user) | n,unicode }
 ${ components.menubar() }
 
-<link rel="stylesheet" href="/static/ext/chosen/chosen.min.css">
-<script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
+<link rel="stylesheet" href="${ static('desktop/ext/chosen/chosen.min.css') }">
+<script src="${ static('desktop/ext/chosen/chosen.jquery.min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <div class="container-fluid" id="tables">
   <div class="row-fluid">
@@ -35,6 +35,7 @@ ${ components.menubar() }
           <li class="nav-header">${_('database')}</li>
           <li class="white">
             <form action="${ url('metastore:show_tables') }" id="db_form" method="POST" style="margin-bottom: 0">
+              ${ csrf_token(request) | n,unicode }
               ${ db_form | n,unicode }
             </form>
           </li>
@@ -94,6 +95,7 @@ ${ components.menubar() }
 
 <div id="dropTable" class="modal hide fade">
   <form id="dropTableForm" action="${ url('metastore:drop_table', database=database) }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="dropTableMessage">${_('Confirm action')}</h3>
@@ -108,9 +110,9 @@ ${ components.menubar() }
   </form>
 </div>
 
-<link rel="stylesheet" href="/metastore/static/css/metastore.css" type="text/css">
+<link rel="stylesheet" href="${ static('metastore/css/metastore.css') }" type="text/css">
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script type="text/javascript" charset="utf-8">
   $(document).ready(function () {

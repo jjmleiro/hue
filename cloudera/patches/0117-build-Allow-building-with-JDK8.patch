@@ -1,0 +1,36 @@
+From 35092d5a02f1c01cbd991b8f9dda1bcf10e50617 Mon Sep 17 00:00:00 2001
+From: bc Wong <bcwalrus@cloudera.com>
+Date: Fri, 14 Nov 2014 07:46:29 -0800
+Subject: [PATCH 0117/1173] [build] Allow building with JDK8
+
+(cherry picked from commit 5c81fd88336195d3ce14ee9addfbd9f625881cfe)
+---
+ maven/pom.xml |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/maven/pom.xml b/maven/pom.xml
+index 33e391d..4da9958 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -47,7 +47,8 @@
+     <slf4j.version>1.6.1</slf4j.version>
+     <commons-logging.version>1.0.4</commons-logging.version>
+     <thrift.version>0.9.0</thrift.version>
+-    <javaVersion>1.7</javaVersion>
++    <minJavaVersion>1.7</minJavaVersion>
++    <maxJavaVersion>1.8</maxJavaVersion>
+     <sourceJavaVersion>1.7</sourceJavaVersion>
+     <targetJavaVersion>1.7</targetJavaVersion>
+   </properties>
+@@ -92,7 +93,7 @@
+               <version>[2.0.0,)</version>
+             </requireMavenVersion>
+             <requireJavaVersion>
+-              <version>[${javaVersion}.0,${javaVersion}.1000]</version>
++              <version>[${minJavaVersion}.0,${maxJavaVersion}.1000]</version>
+             </requireJavaVersion>
+           </rules>
+         </configuration>
+-- 
+1.7.9.5
+

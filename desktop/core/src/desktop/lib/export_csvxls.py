@@ -21,7 +21,7 @@ import gc
 import logging
 import tablib
 
-from django.http import HttpResponse
+from django.http import StreamingHttpResponse
 from django.utils.encoding import smart_str
 from desktop.lib import i18n
 
@@ -82,12 +82,18 @@ def make_response(generator, format, name, encoding=None):
   @param encoding Unicode encoding for data
   """
   if format == 'csv':
-    mimetype = 'application/csv'
+    content_type = 'application/csv'
   elif format == 'xls':
-    mimetype = 'application/xls'
+    content_type = 'application/xls'
   else:
     raise Exception("Unknown format: %s" % format)
 
-  resp = HttpResponse(generator, mimetype=mimetype)
+  resp = StreamingHttpResponse(generator, content_type=content_type)
   resp['Content-Disposition'] = 'attachment; filename=%s.%s' % (name, format)
+
+  try:
+    del resp['Content-Length']
+  except KeyError:
+    pass
+
   return resp

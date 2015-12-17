@@ -1,0 +1,42 @@
+From 80b4e7277f717f7589a130d95e74badf44ca4f7f Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 13 Oct 2014 12:17:57 +0200
+Subject: [PATCH 0032/1173] HUE-2395 [search] Broken widget in Solr Apache
+ logs example
+
+Fixed call to a possibly undefined JS method
+Fixed z-index of Search Bar
+---
+ apps/search/static/css/search.css   |    2 +-
+ desktop/core/static/js/ko.charts.js |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/search/static/css/search.css b/apps/search/static/css/search.css
+index b740c64..07fc05b 100644
+--- a/apps/search/static/css/search.css
++++ b/apps/search/static/css/search.css
+@@ -39,7 +39,7 @@
+   width: 100%;
+   position: fixed;
+   top: 28px;
+-  z-index: 1000;
++  z-index: 1010;
+ }
+ 
+ .search-bar input {
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index 0b210c2..79c69c8 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -523,7 +523,7 @@ function barChartBuilder(element, options, isTimeline) {
+           });
+         }
+       }
+-      if ($(element).width() < 300){
++      if ($(element).width() < 300 && typeof _chart.showLegend != "undefined"){
+         _chart.showLegend(false);
+       }
+       _chart.transitionDuration(0);
+-- 
+1.7.9.5
+

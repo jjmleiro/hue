@@ -1,0 +1,27 @@
+From 97c4a088752d1984f52bed09f796e0466d8ee4e3 Mon Sep 17 00:00:00 2001
+From: Sean Mackrory <sean@cloudera.com>
+Date: Thu, 26 Feb 2015 10:55:30 -0800
+Subject: [PATCH 0925/1173] Revert "CDH-23745. Blacklist ZooKeeper apps in
+ Hue's default packaging configuration"
+
+This reverts commit 2c69490a084b4a9dce1a9ef7db1ae31b4218aa2d.
+---
+ desktop/conf.dist/hue.ini |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 885039b..b0d4189 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -95,7 +95,7 @@
+ 
+   # Comma separated list of apps to not load at server startup.
+   # e.g.: pig,zookeeper
+-  app_blacklist=zookeeper
++  ## app_blacklist=
+ 
+   # The directory where to store the auditing logs. Auditing is disable if the value is empty.
+   # e.g. /var/log/hue/audit.log
+-- 
+1.7.9.5
+

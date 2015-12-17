@@ -1,0 +1,59 @@
+From 96f658cfdae50bf2d0851c6d156efab21f41ffc3 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 11 Mar 2015 11:20:34 -0700
+Subject: [PATCH 1032/1173] [load-balancer] Add static file caching to nginx
+ config
+
+---
+ tools/load-balancer/etc/nginx.conf              |   17 +++++++++++++++++
+ tools/load-balancer/etc/supervisor.d/nginx.conf |    2 +-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/tools/load-balancer/etc/nginx.conf b/tools/load-balancer/etc/nginx.conf
+index f4d629a..71250ec 100644
+--- a/tools/load-balancer/etc/nginx.conf
++++ b/tools/load-balancer/etc/nginx.conf
+@@ -10,6 +10,10 @@ events {
+ http {
+     sendfile on;
+ 
++    # This may be different depending on the platform.
++    include /etc/nginx/mime.types;
++    default_type application/octet-stream;
++
+     access_log logs/nginx_access.log;
+ 
+     server {
+@@ -20,6 +24,19 @@ http {
+         location / {
+             proxy_pass http://hue;
+         }
++
++        location /static/ {
++            autoindex on;
++
++            # The default Hue staticfile packaging installation directory.
++            alias /usr/lib/hue/build/static/;
++
++            # The default Hue staticfile parcel installation directory.
++            ## /opt/cloudera/parcels/CDH/lib/hue/build/static/;
++
++            expires 30d;
++            add_header Cache-Control public;
++        }
+     }
+ 
+     include ../var/nginx-hue.conf;
+diff --git a/tools/load-balancer/etc/supervisor.d/nginx.conf b/tools/load-balancer/etc/supervisor.d/nginx.conf
+index fabe7d6..9fc7389 100644
+--- a/tools/load-balancer/etc/supervisor.d/nginx.conf
++++ b/tools/load-balancer/etc/supervisor.d/nginx.conf
+@@ -1,4 +1,4 @@
+ [program:nginx]
+-command=nginx -p %(here)s/.. -c etc/nginx.conf
++command=nginx -p %(here)s/../ -c etc/nginx.conf
+ autostart=true
+ autorestart=false
+-- 
+1.7.9.5
+

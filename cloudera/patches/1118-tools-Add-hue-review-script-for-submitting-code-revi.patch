@@ -1,0 +1,40 @@
+From 2699b6f862d4c610f4c670a20418766e8c469f0a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 18 Mar 2015 14:25:01 -0700
+Subject: [PATCH 1118/1173] [tools] Add hue-review script for submitting code
+ reviews
+
+---
+ tools/scripts/hue-review |   20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+ create mode 100755 tools/scripts/hue-review
+
+diff --git a/tools/scripts/hue-review b/tools/scripts/hue-review
+new file mode 100755
+index 0000000..6041bc1
+--- /dev/null
++++ b/tools/scripts/hue-review
+@@ -0,0 +1,20 @@
++#!/bin/sh
++
++if [ $# -lt 3 ]; then
++	echo "Usage: hue-review rev-list reviewer(s) summary ..." 1>&2
++	exit 1
++fi
++
++RBT=`which rbt`
++if [ "$?" -ne "0" ]; then
++	echo "Please install rbt from https://www.reviewboard.org/" 1>&2
++	exit 1
++fi
++
++REVLIST=$1;
++REVRANGE=${REVLIST//\.\./:};
++REVIEWER=$2;
++SUMMARY=$3;
++shift 3;
++
++exec $RBT post -o --description="$(git whatchanged $REVLIST)" --target-groups=hue --target-people="$REVIEWER" --summary="$SUMMARY" $REVLIST $@
+-- 
+1.7.9.5
+

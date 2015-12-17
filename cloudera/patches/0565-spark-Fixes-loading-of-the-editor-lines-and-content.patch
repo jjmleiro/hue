@@ -1,0 +1,38 @@
+From d6d8d192604b6d1ee6fc72afcfc104a6a016fa40 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 8 Dec 2014 19:02:23 +0100
+Subject: [PATCH 0565/1173] [spark] Fixes loading of the editor lines and
+ content
+
+---
+ apps/spark/src/spark/templates/editor.mako |    7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index dd0e8b1..ec6cf4a 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -796,9 +796,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       element.editor = editor;
+       $("#snippet_" + options.id).data("editor", editor);
+       editor.setValue(allBindingsAccessor().value());
+-      window.setTimeout(function () {
+-        editor.refresh();
+-      }, 200);
+       editor.setSize("100%", "100px");
+       var wrapperElement = $(editor.getWrapperElement());
+ 
+@@ -1049,6 +1046,10 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         }
+       });
+     });
++
++    $(".CodeMirror").each(function(){
++      $(this)[0].CodeMirror.refresh();
++    });
+   });
+ 
+ 
+-- 
+1.7.9.5
+

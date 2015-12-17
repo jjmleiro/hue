@@ -1,0 +1,35 @@
+From 64424f59b8545c440ab89dcafc659a576838e1ce Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 5 Feb 2015 13:35:39 -0800
+Subject: [PATCH 0799/1173] HUE-2436 [desktop] Django-1.6: fix export tests to
+ work with StreamingHttpResponse
+
+---
+ desktop/core/src/desktop/lib/test_export_csvxls.py |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/core/src/desktop/lib/test_export_csvxls.py b/desktop/core/src/desktop/lib/test_export_csvxls.py
+index 8099d7c..523193e 100644
+--- a/desktop/core/src/desktop/lib/test_export_csvxls.py
++++ b/desktop/core/src/desktop/lib/test_export_csvxls.py
+@@ -32,7 +32,8 @@ def test_export_csv():
+   generator = create_generator(content_generator(header, data), "csv")
+   response = make_response(generator, "csv", "foo")
+   assert_equal("application/csv", response["content-type"])
+-  assert_equal('x,y\r\n1,2\r\n3,4\r\n"5,6",7\r\nNULL,NULL\r\n', response.content)
++  content = ''.join(response.streaming_content)
++  assert_equal('x,y\r\n1,2\r\n3,4\r\n"5,6",7\r\nNULL,NULL\r\n', content)
+   assert_equal("attachment; filename=foo.csv", response["content-disposition"])
+ 
+ def test_export_xls():
+@@ -47,5 +48,6 @@ def test_export_xls():
+   generator = create_generator(content_generator(header, data), "xls")
+   response = make_response(generator, "xls", "foo")
+   assert_equal("application/xls", response["content-type"])
+-  assert_equal(dataset.xls, response.content)
++  content = ''.join(response.streaming_content)
++  assert_equal(dataset.xls, content)
+   assert_equal("attachment; filename=foo.xls", response["content-disposition"])
+-- 
+1.7.9.5
+

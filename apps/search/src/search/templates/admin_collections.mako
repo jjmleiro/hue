@@ -24,7 +24,7 @@
 
 ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
 
-<link rel="stylesheet" href="/search/static/css/admin.css">
+<link rel="stylesheet" href="${ static('search/css/admin.css') }">
 
 <div class="search-bar" style="height: 30px">
   <div class="pull-right">
@@ -45,8 +45,8 @@ ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
       </%def>
 
       <%def name="actions()">
-        <a class="btn" data-bind="visible: collections().length > 0 && !isLoading(), click: $root.copyCollections, clickBubble: false"><i class="fa fa-files-o"></i> ${_('Copy')}</a>
-        <a class="btn" data-bind="visible: collections().length > 0 && !isLoading(), click: $root.markManyForDeletion, clickBubble: false"><i class="fa fa-times"></i> ${_('Delete')}</a>
+        <a data-bind="visible: collections().length > 0 && !isLoading(), click: $root.copyCollections, clickBubble: false, css: {'btn': true, 'disabled': ! atLeastOneSelected()}"><i class="fa fa-files-o"></i> ${_('Copy')}</a>
+        <a data-bind="visible: collections().length > 0 && !isLoading(), click: $root.markManyForDeletion, clickBubble: false, css: {'btn': true, 'disabled': ! atLeastOneSelected()}"><i class="fa fa-times"></i> ${_('Delete')}</a>
       </%def>
 
       <%def name="creation()">
@@ -80,6 +80,7 @@ ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
               </th>
               <th>${ _('Name') }</th>
               <th>${ _('Solr Index') }</th>
+              <th width="15%">${ _('Owner') }</th>
               <th width="1%" class="center">${ _('Shared') }</th>
             </tr>
           </thead>
@@ -90,6 +91,7 @@ ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
               </td>
               <td><a data-bind="text: label, click: $root.editCollection" title="${ _('Click to edit') }" class="pointer"></a></td>
               <td><a data-bind="text: name, click: $root.editIndex" title="${ _('Click to edit the index') }" class="pointer"></a></td>
+              <td><span data-bind="text: owner"></span></td>
               <td class="center"><span data-bind="css: { 'fa fa-check': enabled }"></span></td>
             </tr>
           </tbody>
@@ -122,9 +124,9 @@ ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
   </div>
 </div>
 
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
-<script src="/search/static/js/collections.ko.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout.mapping-2.3.2.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('search/js/collections.ko.js') }" type="text/javascript" charset="utf-8"></script>
 
 <script>
   var appProperties = {
@@ -172,11 +174,11 @@ ${ commonheader(_('Search'), "search", user, "29px") | n,unicode }
     $(document).on("collectionDeleted", function () {
       $("#deleteModal").modal("hide");
       $("#deleteModalBtn").button("reset");
-      $(document).trigger("info", "${ _("Dashboard deleted successfully.") }");
+      $(document).trigger("info", "${ _("Dashboard(s) deleted successfully.") }");
     });
 
     $(document).on("collectionCopied", function () {
-      $(document).trigger("info", "${ _("Dashboard copied successfully.") }");
+      $(document).trigger("info", "${ _("Dashboard(s) copied successfully.") }");
     });
 
     $(document).on("confirmDelete", function () {

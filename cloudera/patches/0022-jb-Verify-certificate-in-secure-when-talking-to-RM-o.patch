@@ -1,0 +1,138 @@
+From 983ac224879216bdbf3b00f8bdfc0c75a33dc319 Mon Sep 17 00:00:00 2001
+From: Suhas Satish <ssatish@maprtech.com>
+Date: Thu, 9 Oct 2014 17:11:37 -0700
+Subject: [PATCH 0022/1173] [jb] Verify certificate in secure when talking to
+ RM over rest https (ssl)
+
+---
+ desktop/conf.dist/hue.ini                          |   10 +++++++---
+ desktop/conf/pseudo-distributed.ini.tmpl           |    8 ++++++--
+ desktop/core/src/desktop/lib/rest/http_client.py   |    4 ++++
+ desktop/libs/hadoop/src/hadoop/conf.py             |    4 ++++
+ .../hadoop/src/hadoop/yarn/resource_manager_api.py |    7 +++++--
+ 5 files changed, 26 insertions(+), 7 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 4015ef1..dc06a85 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -616,14 +616,18 @@
+       ## proxy_api_url=http://localhost:8088
+ 
+       # URL of the HistoryServer API
+-      # history_server_api_url=http://localhost:19888
++      ## history_server_api_url=http://localhost:19888
++
++      # In secure mode (HTTPS), if SSL certificates from Resource Manager's
++      # Rest Server have to be verified against certificate authority
++      ## ssl_cert_ca_verify=False
+ 
+     # HA support by specifying multiple clusters
+     # e.g.
+ 
+     # [[[ha]]]
+       # Resource Manager logical name (required for HA)
+-      # logical_name=my-rm-name
++      ## logical_name=my-rm-name
+ 
+   # Configuration for MapReduce (MR1)
+   # ------------------------------------------------------------------------
+@@ -653,7 +657,7 @@
+ 
+     # [[[ha]]]
+       # Enter the logical name of the JobTrackers
+-      # logical_name=my-jt-name
++      ## logical_name=my-jt-name
+ 
+ 
+ ###########################################################################
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 2887f12..784c235 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -623,7 +623,11 @@
+       ## proxy_api_url=http://localhost:8088
+ 
+       # URL of the HistoryServer API
+-      # history_server_api_url=http://localhost:19888
++      ## history_server_api_url=http://localhost:19888
++
++      # In secure mode (HTTPS), if SSL certificates from Resource Manager's
++      # Rest Server have to be verified against certificate authority
++      ## ssl_cert_ca_verify=False
+ 
+     # HA support by specifying multiple clusters
+     # e.g.
+@@ -660,7 +664,7 @@
+ 
+     # [[[ha]]]
+       # Enter the logical name of the JobTrackers
+-      # logical_name=my-jt-name
++      ## logical_name=my-jt-name
+ 
+ 
+ ###########################################################################
+diff --git a/desktop/core/src/desktop/lib/rest/http_client.py b/desktop/core/src/desktop/lib/rest/http_client.py
+index f4882c1..60596ab 100644
+--- a/desktop/core/src/desktop/lib/rest/http_client.py
++++ b/desktop/core/src/desktop/lib/rest/http_client.py
+@@ -107,6 +107,10 @@ class HttpClient(object):
+   def logger(self):
+     return self._logger
+ 
++  def set_verify(self, verify=True):
++    self._session.verify = verify
++    return self
++      
+   def _get_headers(self, headers):
+     if headers:
+       self._session.headers.update(headers)
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index e81307c..45d45b8 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -141,6 +141,10 @@ YARN_CLUSTERS = UnspecifiedConfigSection(
+       HISTORY_SERVER_API_URL=Config("history_server_api_url",
+                   default='http://localhost:19888',
+                   help="URL of the HistoryServer API"),
++      SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
++                  help="In secure mode (HTTPS), if SSL certificates from Resource Manager Rest Server have to be verified against certificate authority",
++                  default=False,
++                  type=coerce_bool)
+     )
+   )
+ )
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+index 5ecfe54..aec95e0 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+@@ -48,21 +48,24 @@ def get_resource_manager():
+         yarn_cluster = cluster.get_cluster_conf_for_job_submission()
+         if yarn_cluster is None:
+           raise PopupException(_('No Resource Manager are available.'))
+-        _api_cache = ResourceManagerApi(yarn_cluster.RESOURCE_MANAGER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get())
++        _api_cache = ResourceManagerApi(yarn_cluster.RESOURCE_MANAGER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get(), yarn_cluster.SSL_CERT_CA_VERIFY.get())
+     finally:
+       _api_cache_lock.release()
+   return _api_cache
+ 
+ 
+ class ResourceManagerApi(object):
+-  def __init__(self, oozie_url, security_enabled=False):
++  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+     self._url = posixpath.join(oozie_url, 'ws', _API_VERSION)
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+     self._security_enabled = security_enabled
++    self._ssl_cert_ca_verify = ssl_cert_ca_verify
+ 
+     if self._security_enabled:
+       self._client.set_kerberos_auth()
++      if ssl_cert_ca_verify:
++        self._client.set_verify(True)
+ 
+   def __str__(self):
+     return "ResourceManagerApi at %s" % (self._url,)
+-- 
+1.7.9.5
+

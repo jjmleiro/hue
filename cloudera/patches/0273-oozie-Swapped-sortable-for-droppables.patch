@@ -1,0 +1,108 @@
+From a118da47890618e785c04afdb35d5024e72b945d Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 10 Nov 2014 15:39:20 +0100
+Subject: [PATCH 0273/1173] [oozie] Swapped sortable for droppables
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   10 ++++----
+ apps/oozie/static/js/workflow-editor.ko.js         |   24 ++++++++++++--------
+ desktop/core/static/js/ko.layout.js                |    2 +-
+ 3 files changed, 21 insertions(+), 15 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index b647b11..21807e2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -168,12 +168,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div data-bind="template: { name: 'row-template', data: oozieStartRow }"></div>
+ 
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && oozieRows().length > 0">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true, 1); _r.addWidget(widget); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: oozieRows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing() && rows().length > 0">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(false, $data.rows().length - 1); _r.addWidget(widget); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+ 
+     <div data-bind="template: { name: 'row-template', data: oozieEndRow }"></div>
+@@ -184,12 +184,12 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ <script type="text/html" id="internal-column-template">
+   <div data-bind="css: klass">
+     <div class="container-fluid" data-bind="visible: $root.isEditing()">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(true); _r.addWidget(widget); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+     <div data-bind="template: { name: 'internal-row-template', foreach: rows}">
+     </div>
+     <div class="container-fluid" data-bind="visible: $root.isEditing()">
+-      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, sortable: { data: drops, isEnabled: $root.isEditing, 'afterMove': function(event){var widget=event.item; var _r = $data.addEmptyRow(); _r.addWidget(widget); columnDropAdditionalHandler(widget)}, options: {'placeholder': 'drop-target-highlight', 'greedy': true, 'stop': function(event, ui){}}}"></div>
++      <div data-bind="css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, false); widgetDraggedAdditionalHandler(_w); } }"></div>
+     </div>
+   </div>
+ </script>
+@@ -216,7 +216,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     <div class="row-fluid" data-bind="visible: $index() > 0 && $root.isEditing() && ! $root.isRowBeforeJoin($data) && ! $root.isRowAfterFork($data)" style="margin-bottom: 10px">
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+       <div data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+-        <div style="text-align: left" data-bind="visible: $root.isEditing(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div style="text-align: left" data-bind="visible: $root.isEditing(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+     </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 807db7d..4f42e78 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -389,18 +389,24 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     self.currentlyDraggedWidget = widget;
+   }
+ 
+-  self.addDraggedWidget = function (row, atBeginning) {
++  self.addDraggedWidget = function (target, atBeginning) {
+     if (self.currentlyDraggedWidget != null) {
+-      var _parentCol = self.getRowParentColumn(row.id());
++      var _parentCol = target instanceof Column ? target : self.getRowParentColumn(target.id());
+ 
+-      var _rowIdx = 0;
+-      $.each(_parentCol.rows(), function (i, irow) {
+-        if (irow.id() == row.id()) {
+-          _rowIdx = i;
+-        }
+-      });
++      var _newRow = null;
++      if (typeof atBeginning != "undefined"){
++        _newRow = _parentCol.addEmptyRow(atBeginning);
++      }
++      else {
++        var _rowIdx = 0;
++        $.each(_parentCol.rows(), function (i, irow) {
++          if (irow.id() == target.id()) {
++            _rowIdx = i;
++          }
++        });
+ 
+-      var _newRow = _parentCol.addEmptyRow(false, _rowIdx);
++        _newRow = _parentCol.addEmptyRow(false, _rowIdx);
++      }
+       var _w = new Widget({
+         size: self.currentlyDraggedWidget.size(),
+         id: UUID(),
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index 41f1217..a3c56dc 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -76,7 +76,7 @@ var Column = function (size, rows) {
+       self.rows.splice(atIndex, 0, row);
+     }
+     else {
+-      if (typeof atBeginning == "undefined" || atBeginning == null) {
++      if (typeof atBeginning == "undefined" || atBeginning == null || !atBeginning) {
+         self.rows.push(row);
+       }
+       else {
+-- 
+1.7.9.5
+

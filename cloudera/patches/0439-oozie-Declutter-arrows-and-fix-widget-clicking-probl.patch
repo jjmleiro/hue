@@ -1,0 +1,37 @@
+From fb24f4c4e379f74f1ae8685435a9b2ac2863ebee Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 18:12:18 +0100
+Subject: [PATCH 0439/1173] [oozie] Declutter arrows and fix widget clicking
+ problem on IE
+
+---
+ apps/oozie/static/css/workflow-editor.css |    2 ++
+ 1 file changed, 2 insertions(+)
+ mode change 100755 => 100644 desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js
+
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index c8c9759..497001d 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -346,6 +346,7 @@
+ 
+ .card-widget {
+   position: relative;
++  z-index: 11;
+   overflow-x: auto;
+   border: 1px solid #d8d8d8 !important;
+ }
+@@ -538,6 +539,7 @@ em {
+ 
+ canvas {
+   pointer-events: none;
++  z-index: 10;
+ }
+ 
+ ul.unstyled li {
+diff --git a/desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js b/desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js
+old mode 100755
+new mode 100644
+-- 
+1.7.9.5
+

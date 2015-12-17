@@ -1,0 +1,228 @@
+From 6f9ef4fc5dbefe205ad7133fc57dd93bdcfc1a04 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 1 Dec 2014 16:41:11 -0600
+Subject: [PATCH 0530/1173] [spark] Restart a Spark session when it has
+ expired
+
+---
+ apps/spark/src/spark/api.py      |   29 +++++++++++++--------
+ apps/spark/static/js/spark.vm.js |   52 +++++++++++++++++++++++++-------------
+ 2 files changed, 52 insertions(+), 29 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index e1310d1..d687b19 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -32,7 +32,7 @@ from spark.models import get_api, Notebook
+ LOG = logging.getLogger(__name__)
+ 
+ 
+-@json_error_handler
++
+ def create_session(request):
+   response = {'status': -1}
+ 
+@@ -43,12 +43,11 @@ def create_session(request):
+     response['session'] = get_api(request.user, snippet).create_session(lang=snippet['type'])
+     response['status'] = 0
+   except Exception, e:
+-    raise PopupException(e, title=_('Error while accessing query server'))
+     response['error'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+-@json_error_handler
++
+ def execute(request):
+   response = {'status': -1}
+ 
+@@ -59,13 +58,15 @@ def execute(request):
+     response['handle'] = get_api(request.user, snippet).execute(notebook, snippet)
+     response['status'] = 0
+   except Exception, e:
+-    raise PopupException(e, title=_('Error while accessing query server'))
+-    response['error'] = force_unicode(str(e))
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['error'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+-@json_error_handler
+ def check_status(request):
+   response = {'status': -1}
+ 
+@@ -76,13 +77,15 @@ def check_status(request):
+     response['query_status'] = get_api(request.user, snippet).check_status(notebook, snippet)
+     response['status'] = 0
+   except Exception, e:
+-    raise PopupException(e, title=_('Error while accessing query server'))
+-    response['error'] = force_unicode(str(e))
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['error'] = force_unicode(str(e))
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+-@json_error_handler
+ def fetch_result(request):
+   response = {'status': -1}
+ 
+@@ -93,8 +96,12 @@ def fetch_result(request):
+     response['result'] = get_api(request.user, snippet).fetch_result(notebook, snippet)
+     response['status'] = 0
+   except Exception, e:
+-    raise PopupException(e, title=_('Error while accessing query server'))
+-    response['error'] = force_unicode(str(e))
++    message = force_unicode(str(e))
++    if 'session not found' in message:
++      response['status'] = -2
++    else:
++      response['error'] = force_unicode(str(e))
++
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 6ebee50..a932f8c 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -24,7 +24,7 @@ var Result = function (snippet, result) {
+   self.meta = ko.mapping.fromJS(typeof result.meta != "undefined" && result.meta != null ? result.meta : []);
+   self.data = ko.mapping.fromJS(typeof result.data != "undefined" && result.data != null ? result.data : []);
+   
+-  if (typeof result.handle!= "undefined" && result.handle != null) {
++  if (typeof result.handle != "undefined" && result.handle != null) {
+     $.each(result.handle, function(key, val) {
+       self.handle()[key] = val;
+     });
+@@ -54,8 +54,11 @@ var Snippet = function (notebook, snippet) {
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement = ko.observable(typeof snippet.statement != "undefined" && snippet.statement != null ? snippet.statement : '');
+-  self.statement = ko.observable("");
+-  self.status = ko.observable("loading");
++  self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
++  self.variables = ko.computed(function() {
++	return self.statement().match(/\$[^\d'"](\w*)/g);  
++  });
++  self.result = new Result(snippet, snippet.result);
+ 
+   self.size = ko.observable(typeof snippet.size != "undefined" && snippet.size != null ? snippet.size : 12).extend({ numeric: 0 });
+   self.offset = ko.observable(typeof snippet.offset != "undefined" && snippet.offset != null ? snippet.offset : 0).extend({ numeric: 0 });
+@@ -95,21 +98,17 @@ var Snippet = function (notebook, snippet) {
+   self.remove = function (notebook, snippet) {
+     notebook.snippets.remove(snippet);
+   }
+-
+-
+-  self.result = new Result(snippet, snippet.result);
+   
+   // init()
+   // checkStatus()
+ 
+   self.create_session = function() {
+-
+     $.post("/spark/api/create_session", {
+     	notebook: ko.mapping.toJSON(notebook),
+         snippet: ko.mapping.toJSON(self)
+ 	  }, function (data) {
+ 	    if (data.status == 0) {
+-		  notebook.sessions.push(ko.mapping.fromJS(data.session));
++		  notebook.addSession(ko.mapping.fromJS(data.session));
+ 	      self.status('ready');
+ 	    }
+ 	    else {
+@@ -117,9 +116,7 @@ var Snippet = function (notebook, snippet) {
+ 	    }
+ 	}).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+-    });
+-    
+-    
++    }); 
+   };
+   
+   self.execute = function() {
+@@ -140,7 +137,9 @@ var Snippet = function (notebook, snippet) {
+ 
+           self.checkStatus();
+         }
+-        else {
++        else if (data.status == -2) {
++          self.create_session();          
++        } else {
+           $(document).trigger("error", data.message);
+         }
+     }).fail(function (xhr, textStatus, errorThrown) {
+@@ -161,8 +160,9 @@ var Snippet = function (notebook, snippet) {
+           } else {
+         	self.fetchResult();
+           }
+-	    }
+-	    else {
++	    } else if (data.status == -2) {
++	      self.create_session();  
++	    } else {
+ 	      $(document).trigger("error", data.message);
+ 	    }
+ 	}).fail(function (xhr, textStatus, errorThrown) {
+@@ -181,8 +181,9 @@ var Snippet = function (notebook, snippet) {
+ 
+           // move resultsets to n rows
+           // check if N rows fetched...
+- 	    }
+- 	    else {
++ 	    } else if (data.status == -2) {
++ 	      self.create_session();  
++ 	    } else {
+  	      $(document).trigger("error", data.message);
+  	    }
+  	}).fail(function (xhr, textStatus, errorThrown) {
+@@ -209,7 +210,7 @@ var Notebook = function (vm, notebook) {
+   self.name = ko.observable(typeof notebook.name != "undefined" && notebook.name != null ? notebook.name : 'My Notebook');
+   self.snippets = ko.observableArray();
+   self.selectedSnippet = ko.observable('scala');
+-  self.availableSnippets = ko.observableArray(['hive', 'scala', 'sql', 'python', 'pig', 'impala']); // presto, mysql, oracle, sqlite, postgres, phoenix
++  self.availableSnippets = ko.observableArray(['hive', 'scala', 'sql', 'python', 'text', 'pig', 'impala']); // presto, mysql, oracle, sqlite, postgres, phoenix
+   self.sessions = ko.mapping.fromJS(typeof notebook.sessions != "undefined" && notebook.sessions != null ? notebook.sessions : []); 
+ 
+   self.getSession = function(session_type) {
+@@ -223,6 +224,21 @@ var Notebook = function (vm, notebook) {
+     return _s;
+   };
+   
++  self.addSession = function(session) {
++	var toRemove = []
++    $.each(self.sessions(), function (index, s) {
++      if (s.type() == session.type()) {
++    	toRemove.push(s);
++      }
++    });
++	
++	$.each(toRemove, function (index, s) {
++	  self.sessions.remove(s);
++	});
++	
++    self.sessions.push(session);
++  };  
++  
+   self.addSnippet = function(snippet) {
+ 	var _snippet = new Snippet(self, snippet);
+ 	self.snippets.push(_snippet);
+@@ -312,4 +328,4 @@ function logGA(page) {
+   if (typeof trackOnGA == 'function') {
+     trackOnGA('editor/' + page);
+   }
+-}
+\ No newline at end of file
++}
+-- 
+1.7.9.5
+

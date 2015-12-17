@@ -1,0 +1,25 @@
+From 5cf3daecfb000514ee3872461f5b65cdd1ace65b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 19 Nov 2014 15:42:05 +0100
+Subject: [PATCH 0292/1173] [oozie] Disabled drop after decision node
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index ca4a74b..fe1f7a1 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -715,7 +715,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       _prevRow = _currentRow;
+     }
+     if (_prevRow != null){
+-      return _prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "fork-widget";
++      return _prevRow.widgets().length > 0 && (_prevRow.widgets()[0].widgetType() == "fork-widget" || _prevRow.widgets()[0].widgetType() == "decision-widget");
+     }
+     return false;
+   }
+-- 
+1.7.9.5
+

@@ -1,0 +1,62 @@
+From 98f07e5b7d92e630c2659279ce69db774643d841 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 24 Nov 2014 20:27:51 +0100
+Subject: [PATCH 0306/1173] [oozie] Disable drop zones for forks with two
+ nodes
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |   26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index d27fa51..4c2d821 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -432,23 +432,39 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         _row.enableOozieDropOnSide(enable);
+         _row.enableOozieDropOnBefore(enable);
+ 
++        var _parentRow = self.getRowParentRow(_row.id());
++        if (_parentRow) {
++          _parentRow.enableOozieDropOnSide(enable);
++          if (_parentRow.columns().length <= 2) {
++            _parentRow.columns().forEach(function (col) {
++              col.enableOozieDropOnBefore(enable);
++              col.enableOozieDropOnAfter(enable);
++              col.rows()[0].enableOozieDropOnSide(enable);
++            });
++            var _prevParentRow = self.getPrevRow(_parentRow);
++            if (_prevParentRow && _prevParentRow.widgets().length > 0 && _prevParentRow.widgets()[0].widgetType() == "fork-widget") {
++              _prevParentRow.enableOozieDropOnSide(enable);
++            }
++          }
++        }
++
+         var _col = self.getRowParentColumn(_row.id());
+-        if (self.getColumnParentRow(_col.id())!=null){
++        if (self.getColumnParentRow(_col.id()) != null) {
+           _col.enableOozieDropOnBefore(enable);
+           _col.enableOozieDropOnAfter(enable);
+         }
+ 
+         var _prevRow = self.getPrevRow(_row);
+-        if (_prevRow){
+-          if (_prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "start-widget"){
++        if (_prevRow) {
++          if (_prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "start-widget") {
+             _prevRow.enableOozieDropOnSide(enable);
+             self.getRowParentColumn(_prevRow.id()).enableOozieDropOnBefore(enable);
+           }
+         }
+         var _nextRow = self.getNextRow(_row);
+-        if (_nextRow){
++        if (_nextRow) {
+           _nextRow.enableOozieDropOnBefore(enable);
+-          if (_nextRow.widgets().length > 0 && _nextRow.widgets()[0].widgetType() == "end-widget"){
++          if (_nextRow.widgets().length > 0 && _nextRow.widgets()[0].widgetType() == "end-widget") {
+             _nextRow.enableOozieDropOnSide(enable);
+             self.getRowParentColumn(_nextRow.id()).enableOozieDropOnAfter(enable);
+           }
+-- 
+1.7.9.5
+

@@ -1,0 +1,161 @@
+From 81b09450dfae6e597670cc3afcdfc4abd5822bee Mon Sep 17 00:00:00 2001
+From: Peter Slawski <petersla@amazon.com>
+Date: Sat, 1 Nov 2014 17:10:03 -0700
+Subject: [PATCH 0188/1173] HUE-2514 [oozie] Add more reducers when running
+ terasort on larger cluster
+
+This fixes test_submit_java_action when run on larger
+clusters by fixing the number of reducers used when
+running the terasort java action.
+
+The following argument is added to the TeraSort action in
+workflow.zip/workflow.xml:
+
+     <action name="TeraSort">
+         <java>
+             <job-tracker>${jobTracker}</job-tracker>
+             <name-node>${nameNode}</name-node>
+             <main-class>org.apache.hadoop.examples.terasort.TeraSort</main-class>
++            <arg>-Dmapred.reduce.tasks=${terasort_reducers}</arg>
+             <arg>${output_dir}/teragen</arg>
+             <arg>${output_dir}/terasort</arg>
+         </java>
+         <ok to="end"/>
+         <error to="kill"/>
+     </action>
+---
+ apps/oozie/examples/managed/terasort/workflow.zip  |  Bin 860 -> 883 bytes
+ .../0.4/test-java-different-error-links.xml        |    3 ++-
+ .../workflows/0.4/test-java-multiple-kill.xml      |    3 ++-
+ .../oozie/test_data/workflows/0.4/test-java.xml    |    3 ++-
+ apps/oozie/src/oozie/tests.py                      |    9 +++++----
+ 5 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/apps/oozie/examples/managed/terasort/workflow.zip b/apps/oozie/examples/managed/terasort/workflow.zip
+index 9b26b89bd028af6a8bdc1847c4de6a41c0c053d4..6e30544d29377e8df310bf7104fc588eb06242c7 100644
+GIT binary patch
+delta 539
+zcmcb^_L*%14`co3)<jngmbJ%=85tN-Sr{027-SgA^NX_6a`MadDspo|LpT|jB@07C
+zK)AGmn}Lxfnq_ea3nSBlkgFlS-iI9o_I?j<x!}y5_V{412XoUSPkk|)jwyySw;9R{
+zr<rey_;vs8*}U5<e~wIUY@IvPJU{JzbI&8*!i_qa!VZ_~D@;QyK0iNE;J>COKYHrc
+zIX`uu3to)wyT~Xzx0~Buvhr8=Ql_wZO1CSTzcw@fT<Gkus%Ta9o7xFSOLmA?v<7Dc
+zf05B>+v4DN%v$zr?uP!ub(uF(*jP<dS45xr>la^oSkty8e8P3dsHQ2LAH5uyUrHU7
+zGFs&JKy1}A7tJa6qU*ClTdEyozWr)zIiPJj(@^!?61kj5{Q_53Eeq||d0w0GBD}4X
+z;o5qc458q{kX@TK-dvq9bBDHgWu)9y{<VMRS6;mM$6NT!v->*)VnQz%q&dwub6w~l
+zR%CWhwnEJ8e0}jt?hS9s{!CmRk-mTX<tcM!%C5Q|zi>*`%_o<v_O<LeV)W+B<}K@f
+zSlr8<7C3#^)|s7sTW7qw^`s|#^2?I{OH#{n@;Hsp-2HklkNJC(#hd>jlP+3MUcwX;
+qgBfiS3?KlEMTRAfOh5`X5?LXUh!%kX-mGjOT}(i@2uSZ{0`UOytmPj7
+
+delta 516
+zcmey&c86^P4`Y3>&wH1TIg%G+7#SFpSr{027-SgA^NX_6a`MadDspo|LpT|j<syy-
+z%K~v}1vdjD%L`@(1~73o#Mb|?1JB*x+KW~=Yfo%x)bvs|R8Wgpail@O=;T)3p9N2L
+zU+P-*U-mxxTURX+H>0_4pQrz})m)s@9HK9E$K}Fz$9nd)Gg^xsKQt^klyKW@?wr=_
+zRY6Dky_Uqk_+qq=>vQ0Ncs0=pTq3uQMPIbF3YcNRBC_hxx#aJTV#x*hANY=6SoXm*
+zh{aV`L;k(RtlJ6mRqHZuEMa$*oz@in<@db#cM5#?AL@q0hL|X%_HF4|*q)^NNOVd^
+zt<JU!-+Cu(e6&}!eznkU=1oUlOA9gSRvL9Ot(;;LaeTSJj<CN`d#8xL753eKWeu}I
+zyyXRz!@m}6*{Ja`tBK>}l-H{=`Ch4q{d>R1z~uiWmc2hC#m{B`VUC!^xxdJz<mvsh
+z7gW<*9V`E?oiJ(o+4XDVxmQR9#<5JhCOZGv?z2j!E3IeGEI1RiLVE6H=`R0em;V}f
+zKe=&7sA@*_=X-g~<&M*S>~E?0!Z~?2Q%nqI{75i>05G~38XB2^6l!d-LShRorUJZK
+R*+9COfN&9zUcv<80RZ49)g%A_
+
+diff --git a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-different-error-links.xml b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-different-error-links.xml
+index 998c529..35f71ac 100644
+--- a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-different-error-links.xml
++++ b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-different-error-links.xml
+@@ -17,6 +17,7 @@
+             <job-tracker>${jobTracker}</job-tracker>
+             <name-node>${nameNode}</name-node>
+             <main-class>org.apache.hadoop.examples.terasort.TeraSort</main-class>
++            <arg>-Dmapred.reduce.tasks=${terasort_reducers}</arg>
+             <arg>${output_dir}/teragen</arg>
+             <arg>${output_dir}/terasort</arg>
+         </java>
+@@ -24,4 +25,4 @@
+         <error to="nonsense"/>
+     </action>
+     <end name="end"/>
+-</workflow-app>
+\ No newline at end of file
++</workflow-app>
+diff --git a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-multiple-kill.xml b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-multiple-kill.xml
+index 5a50ba5..73595cb 100644
+--- a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-multiple-kill.xml
++++ b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java-multiple-kill.xml
+@@ -17,6 +17,7 @@
+             <job-tracker>${jobTracker}</job-tracker>
+             <name-node>${nameNode}</name-node>
+             <main-class>org.apache.hadoop.examples.terasort.TeraSort</main-class>
++            <arg>-Dmapred.reduce.tasks=${terasort_reducers}</arg>
+             <arg>${output_dir}/teragen</arg>
+             <arg>${output_dir}/terasort</arg>
+         </java>
+@@ -30,4 +31,4 @@
+         <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+     </kill>
+     <end name="end"/>
+-</workflow-app>
+\ No newline at end of file
++</workflow-app>
+diff --git a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java.xml b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java.xml
+index 128d7ff..e3307cd 100644
+--- a/apps/oozie/src/oozie/test_data/workflows/0.4/test-java.xml
++++ b/apps/oozie/src/oozie/test_data/workflows/0.4/test-java.xml
+@@ -17,6 +17,7 @@
+             <job-tracker>${jobTracker}</job-tracker>
+             <name-node>${nameNode}</name-node>
+             <main-class>org.apache.hadoop.examples.terasort.TeraSort</main-class>
++            <arg>-Dmapred.reduce.tasks=${terasort_reducers}</arg>
+             <arg>${output_dir}/teragen</arg>
+             <arg>${output_dir}/terasort</arg>
+         </java>
+@@ -27,4 +28,4 @@
+         <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+     </kill>
+     <end name="end"/>
+-</workflow-app>
+\ No newline at end of file
++</workflow-app>
+diff --git a/apps/oozie/src/oozie/tests.py b/apps/oozie/src/oozie/tests.py
+index 015e8b0..e5e998a 100644
+--- a/apps/oozie/src/oozie/tests.py
++++ b/apps/oozie/src/oozie/tests.py
+@@ -2277,7 +2277,7 @@ class TestImportWorkflow04(OozieMockBase):
+     assert_equal('org.apache.hadoop.examples.terasort.TeraGen', nodes[0].main_class)
+     assert_equal('${records} ${output_dir}/teragen', nodes[0].args)
+     assert_equal('org.apache.hadoop.examples.terasort.TeraSort', nodes[1].main_class)
+-    assert_equal('${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
++    assert_equal('-Dmapred.reduce.tasks=${terasort_reducers} ${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
+     assert_true(nodes[0].capture_output)
+     assert_false(nodes[1].capture_output)
+     workflow.delete(skip_trash=True)
+@@ -2382,7 +2382,7 @@ class TestImportWorkflow04(OozieMockBase):
+     assert_equal('org.apache.hadoop.examples.terasort.TeraGen', nodes[0].main_class)
+     assert_equal('${records} ${output_dir}/teragen', nodes[0].args)
+     assert_equal('org.apache.hadoop.examples.terasort.TeraSort', nodes[1].main_class)
+-    assert_equal('${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
++    assert_equal('-Dmapred.reduce.tasks=${terasort_reducers} ${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
+     assert_true(nodes[0].capture_output)
+     assert_false(nodes[1].capture_output)
+     workflow.delete(skip_trash=True)
+@@ -2406,7 +2406,7 @@ class TestImportWorkflow04(OozieMockBase):
+     assert_equal('org.apache.hadoop.examples.terasort.TeraGen', nodes[0].main_class)
+     assert_equal('${records} ${output_dir}/teragen', nodes[0].args)
+     assert_equal('org.apache.hadoop.examples.terasort.TeraSort', nodes[1].main_class)
+-    assert_equal('${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
++    assert_equal('-Dmapred.reduce.tasks=${terasort_reducers} ${output_dir}/teragen ${output_dir}/terasort', nodes[1].args)
+     assert_true(nodes[0].capture_output)
+     assert_false(nodes[1].capture_output)
+     assert_equal(1, len(Link.objects.filter(parent__workflow=workflow).filter(parent__name='TeraGenWorkflow').filter(name='error').filter(child__node_type='java')))
+@@ -3028,7 +3028,8 @@ class TestOozieSubmissions(OozieBase):
+                            data={u'form-MAX_NUM_FORMS': [u''],
+                                 u'form-0-name': [u'records'], u'form-0-value': [u'10'],
+                                 u'form-1-name': [u' output_dir '], u'form-1-value': [u'${nameNode}/user/test/out/terasort'],
+-                                u'form-INITIAL_FORMS': [u'2'], u'form-TOTAL_FORMS': [u'2']},
++                                u'form-2-name': [u'terasort_reducers'], u'form-2-value': [u'3'],
++                                u'form-INITIAL_FORMS': [u'3'], u'form-TOTAL_FORMS': [u'3']},
+                            follow=True)
+     job = OozieServerProvider.wait_until_completion(response.context['oozie_workflow'].id)
+     assert_equal('SUCCEEDED', job.status)
+-- 
+1.7.9.5
+

@@ -1,0 +1,29 @@
+From 8e4d4354a4fefafa26a9b8b492c4ed452e0d3694 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 9 Dec 2014 16:29:01 -0800
+Subject: [PATCH 0156/1173] [core] Add ConditionalGetMiddleware
+
+This middleware adds Content-Length to the response, and
+adds ETag awareness, which we can eventually use to allow
+the browser to cache pages.
+---
+ desktop/core/src/desktop/settings.py |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 3c9dfba..4a2e054 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -128,7 +128,8 @@ MIDDLEWARE_CLASSES = [
+     'desktop.middleware.ClusterMiddleware',
+     'django.middleware.transaction.TransactionMiddleware',
+     # 'debug_toolbar.middleware.DebugToolbarMiddleware'
+-    'django.middleware.csrf.CsrfViewMiddleware'
++    'django.middleware.csrf.CsrfViewMiddleware',
++    'django.middleware.http.ConditionalGetMiddleware',
+ ]
+ 
+ if os.environ.get(ENV_DESKTOP_DEBUG):
+-- 
+1.7.9.5
+

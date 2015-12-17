@@ -1,0 +1,104 @@
+From 33606420e5ac2f895c3f5b6b040b53175da8c9bf Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 5 Feb 2015 15:56:02 -0800
+Subject: [PATCH 0761/1173] [oozie] Integrate new coordinator with their
+ dashboard
+
+---
+ apps/oozie/src/oozie/models2.py                    |    6 +++++-
+ .../dashboard/list_oozie_coordinator.mako          |   12 +++++++-----
+ .../templates/editor2/coordinator_editor.mako      |    1 +
+ apps/oozie/src/oozie/views/dashboard.py            |   10 +++++-----
+ 4 files changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 2c10460..0e5424a 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1638,7 +1638,11 @@ class Coordinator(Job):
+ 
+   @property
+   def workflow(self):
+-    return Document2.objects.get(uuid=self.data['properties']['workflow'])
++    wf_doc = Document2.objects.get(uuid=self.data['properties']['workflow'])
++    return Workflow(document=wf_doc)
++
++  def get_absolute_url(self):
++    return reverse('oozie:edit_coordinator') + '?coordinator=%s' % self.id
+ 
+ 
+ class Dataset():
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+index f13e329..0f5bb43 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_coordinator.mako
+@@ -71,10 +71,12 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+ 
+               % if coordinator:
+                   <li class="nav-header">${ _('Datasets') }</li>
+-                % for dataset in coordinator.dataset_set.all():
+-                  <li rel="tooltip" title="${ dataset.name } : ${ dataset.uri }" class="white"><i class="fa fa-eye"></i> <span class="dataset">${ dataset.name }</span></li>
++                % for dataset in coordinator.datasets:
++                  <li rel="tooltip" title="${ dataset.data['dataset_variable'] }" class="white">
++                    <i class="fa fa-eye"></i> <span class="dataset">${ dataset.data['dataset_variable'][:20] }</span>
++                  </li>
+                 % endfor
+-                % if not coordinator.dataset_set.all():
++                % if not coordinator.datasets:
+                   <li class="white">${ _('No available datasets') }</li>
+                 % endif
+               % endif
+@@ -191,7 +193,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+                     </td>
+                   </tr>
+                   <tr data-bind="visible: actions().length == 0 && !isLoading()">
+-                    <td colspan="2">
++                    <td colspan="3">
+                       <div class="alert">
+                         ${ _('There are no actions to be shown.') }
+                       </div>
+@@ -246,7 +248,7 @@ ${ layout.menubar(section='coordinators', dashboard=True) }
+                   </td>
+                 </tr>
+                 <tr data-bind="visible: !isLoading() && actions().length == 0">
+-                  <td colspan="10">
++                  <td colspan="11">
+                     <div class="alert">
+                       ${ _('There are no actions to be shown.') }
+                     </div>
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 3cf93c3..ef3e268 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -459,6 +459,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+ 
+ <div id="submit-coord-modal" class="modal hide"></div>
++
+ <div id="chooseFile" class="modal hide fade">
+   <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+diff --git a/apps/oozie/src/oozie/views/dashboard.py b/apps/oozie/src/oozie/views/dashboard.py
+index d0cb0b8..0eab3b6 100644
+--- a/apps/oozie/src/oozie/views/dashboard.py
++++ b/apps/oozie/src/oozie/views/dashboard.py
+@@ -270,11 +270,11 @@ def list_oozie_coordinator(request, job_id):
+   oozie_coordinator = check_job_access_permission(request, job_id)
+ 
+   # Cross reference the submission history (if any)
+-  coordinator = None
+-  try:
+-    coordinator = History.objects.get(oozie_job_id=job_id).job.get_full_node()
+-  except History.DoesNotExist:
+-    pass
++  coordinator = History.get_coordinator_from_config(oozie_coordinator.conf_dict)
++#  try:
++#    coordinator = History.objects.get(oozie_job_id=job_id).job.get_full_node()
++#  except History.DoesNotExist:
++#    pass
+ 
+   oozie_bundle = None
+   if request.GET.get('bundle_job_id'):
+-- 
+1.7.9.5
+

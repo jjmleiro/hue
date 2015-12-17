@@ -1,0 +1,29 @@
+From 133857da0a61e55405c3dcde0eff692f421a5959 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 10 Nov 2014 15:09:09 +0100
+Subject: [PATCH 0272/1173] [oozie] Fixed side drop zone height change
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f265bc2..b647b11 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -864,7 +864,11 @@ ${ dashboard.import_bindings() }
+ 
+   function resizeDrops() {
+     $(".drop-target-side").each(function () {
+-      $(this).height($(this).parent().parent().innerHeight() - 12);
++      var _el = $(this);
++      _el.height(0);
++      window.setTimeout(function(){
++        _el.height(_el.parent().parent().innerHeight() - 12);
++      }, 20);
+     });
+   }
+ 
+-- 
+1.7.9.5
+

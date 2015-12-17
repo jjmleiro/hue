@@ -1,0 +1,185 @@
+From 461d81ba0f28fde9c1f299751084f2c22fdbd95c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 29 Jan 2015 00:16:12 +0100
+Subject: [PATCH 0702/1173] [spark] Resize handle for Codemirror
+
+---
+ apps/spark/src/spark/templates/editor.mako |   85 +++++++++++++++++++++-------
+ apps/spark/static/css/spark.css            |    6 ++
+ apps/spark/static/js/spark.ko.js           |   13 +++--
+ 3 files changed, 77 insertions(+), 27 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 59a9fe9..703777b 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -313,13 +313,14 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+             </div>
+             <textarea data-bind="value: statement_raw, codemirror: { 'id': id(), 'viewportMargin': Infinity, 'lineNumbers': true, 'matchBrackets': true, 'mode': editorMode(), 'enter': execute }">
+             </textarea>
+-            <a href="javascript:void(0)" title="${ _('CTRL + ENTER') }" data-bind="click: execute, visible: status() != 'running' && status() != 'loading'" class="btn codeMirror-overlaybtn">
++            <a title="${ _('CTRL + ENTER') }" data-bind="click: execute, visible: status() != 'running' && status() != 'loading'" class="btn codeMirror-overlaybtn pointer">
+               ${ _('Go!') }
+             </a>
+-            <a href="javascript:void(0)" data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn">${ _('Cancel') }</a>
++            <a data-bind="click: cancel, visible: status() == 'running'" class="btn codeMirror-overlaybtn pointer">${ _('Cancel') }</a>
+             <div class="progress" data-bind="css: {'progress-neutral': progress() == 0, 'progress-warning': progress() > 0 && progress() < 100, 'progress-success': progress() == 100}" style="height: 1px">
+               <div class="bar" data-bind="style: {'width': progress() + '%'}"></div>
+             </div>
++            <div class="resize-panel center"><a href="javascript:void(0)"><i class="fa fa-ellipsis-h"></i></a></div>
+           </div>
+         </div>
+ 
+@@ -953,34 +954,34 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       element.editor = editor;
+       $("#snippet_" + options.id).data("editor", editor);
+       editor.setValue(allBindingsAccessor().value());
+-      editor.setSize("100%", "100px");
++      editor.setSize("100%", snippet.codemirrorSize());
+       var wrapperElement = $(editor.getWrapperElement());
+ 
+       var _changeTimeout = -1;
+       var _previousLineCount = 7;
+       editor.on("change", function () {
+-        var _redraw = false;
+-        if (editor.lineCount() <= 7 && _previousLineCount > 7) {
+-          editor.setSize("100%", "100px");
+-        }
+-        else if (editor.lineCount() > 7 && editor.lineCount() < 21 && (_previousLineCount <=7 || _previousLineCount >= 20)) {
+-          editor.setSize("100%", "auto");
+-        }
+-        else if (_previousLineCount >= 20) {
+-          editor.setSize("100%", "270px");
+-        }
+-        if (_previousLineCount != editor.lineCount()){
+-          $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
+-            fixedHeader: true,
+-            includeNavigator: false,
+-            parentId: snippet.id()
+-          });
+-        }
+-        _previousLineCount = editor.lineCount();
++        // var _redraw = false;
++        // if (editor.lineCount() <= 7 && _previousLineCount > 7) {
++        //   editor.setSize("100%", snippet.codemirrorSize());
++        // }
++        // else if (editor.lineCount() > 7 && editor.lineCount() < 21 && (_previousLineCount <=7 || _previousLineCount >= 20)) {
++        //   editor.setSize("100%", "auto");
++        // }
++        // else if (_previousLineCount >= 20) {
++        //   editor.setSize("100%", "270px");
++        // }
++        // if (_previousLineCount != editor.lineCount()){
++        //   $("#snippet_" + snippet.id()).find(".resultTable").jHueTableExtender({
++        //     fixedHeader: true,
++        //     includeNavigator: false,
++        //     parentId: snippet.id()
++        //   });
++        // }
++        // _previousLineCount = editor.lineCount();
+         window.clearTimeout(_changeTimeout);
+         _changeTimeout = window.setTimeout(function(){
+           allBindingsAccessor().value(editor.getValue());
+-        }, 600);
++        }, 300);
+       });
+ 
+       editor.on("focus", function () {
+@@ -1493,6 +1494,46 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   $(document).ready(function () {
+     resizeAssist();
+ 
++    var INITIAL_RESIZE_POSITION = 100;
++
++    function getDraggableOptions(minY) {
++      return {
++        axis: "y",
++        start: function(e, ui) {
++          INITIAL_RESIZE_POSITION = ui.offset.top;
++        },
++        drag: function(e, ui) {
++          draggableHelper($(this), e, ui);
++          $(".jHueTableExtenderClonedContainer").hide();
++        },
++        stop: function(e, ui) {
++          $(".jHueTableExtenderClonedContainer").show();
++          draggableHelper($(this), e, ui, true);
++          redrawFixedHeaders();
++        },
++        containment: [0, minY, 4000, minY + 400]
++      }
++    };
++
++    $(".resize-panel a").each(function(){
++      $(this).draggable(getDraggableOptions($(this).parents(".snippet").offset().top + 128));
++    });
++
++    function draggableHelper(el, e, ui, setSize) {
++      var _snippet = ko.dataFor(el.parents(".snippet")[0]);
++      var _cm = $("#snippet_" + _snippet.id()).data("editor");
++      var _newSize = _snippet.codemirrorSize() + (ui.offset.top - INITIAL_RESIZE_POSITION);
++      _cm.setSize("99%", _newSize);
++      if (setSize) {
++        _snippet.codemirrorSize(_newSize);
++      }
++    }
++
++    $(document).on("snippetAdded", function(e, snippet) {
++      var _handle = $("#snippet_" + snippet.id()).find(".resize-panel a");
++      _handle.draggable(getDraggableOptions(_handle.offset().top));
++    });
++
+     $(document).on("toggleAssist", function(){
+       $.totalStorage("sparkAssistVisible", viewModel.isAssistVisible());
+       resizeAssist();
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index 38bc259..c0fed25 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -233,3 +233,9 @@ h1.empty {
+   width: 15px;
+   text-align: center;
+ }
++
++.resize-panel a {
++  cursor: ns-resize;
++  color: #666;
++  position: absolute;
++}
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index d35410f..abc28e4 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -101,6 +101,7 @@ var Snippet = function (vm, notebook, snippet) {
+   self.type = ko.observable(typeof snippet.type != "undefined" && snippet.type != null ? snippet.type : "hive");
+   self.editorMode = ko.observable(TYPE_EDITOR_MAP[self.type()]);
+   self.statement_raw = ko.observable(typeof snippet.statement_raw != "undefined" && snippet.statement_raw != null ? snippet.statement_raw : vm.snippetPlaceholders[self.type()]);
++  self.codemirrorSize = ko.observable(typeof snippet.codemirrorSize != "undefined" && snippet.codemirrorSize != null ? snippet.codemirrorSize : 100);
+   //self.statement_raw.extend({ rateLimit: 150 });
+   self.status = ko.observable(typeof snippet.status != "undefined" && snippet.status != null ? snippet.status : 'loading');
+   self.settings = ko.mapping.fromJS(typeof snippet.settings != "undefined" && snippet.settings != null ? snippet.settings : {});
+@@ -523,14 +524,16 @@ var Notebook = function (vm, notebook) {
+   };  
+ 
+   self.newSnippet = function() {
+-	var _snippet = new Snippet(vm, self, {type: self.selectedSnippet(), result: {}});	  
+-	self.snippets.push(_snippet);
++	 var _snippet = new Snippet(vm, self, {type: self.selectedSnippet(), result: {}});	  
++	 self.snippets.push(_snippet);
+ 	  
+-	if (self.getSession(self.selectedSnippet()) == null) {
+-	  _snippet.create_session();
+-	} else {
++  	if (self.getSession(self.selectedSnippet()) == null) {
++  	  _snippet.create_session();
++  	}
++    else {
+       _snippet.status('ready');
+     }
++    $(document).trigger("snippetAdded", _snippet);
+   };  
+   
+   if (notebook.snippets) {
+-- 
+1.7.9.5
+

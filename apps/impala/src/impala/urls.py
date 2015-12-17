@@ -15,19 +15,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
 
 from beeswax.urls import urlpatterns as beeswax_urls
 
 
 urlpatterns = patterns('impala.views',
   url(r'^api/refresh_tables$', 'refresh_tables', name='refresh_tables'),
+)
 
+urlpatterns += patterns('impala.dashboards',
   url(r'^dashboard/$', 'dashboard', name='dashboard'),
   url(r'^dashboard/query', 'query', name='query'),
   
   url(r'^dashboard/new_facet$', 'new_facet', name='new_facet'),
   url(r'^dashboard/new_search$', 'new_search', name='new_search'),
+  url(r'^dashboard/save$', 'save', name='save'),
   url(r'^dashboard/get_fields', 'get_fields', name='get_fields'),
 )
 

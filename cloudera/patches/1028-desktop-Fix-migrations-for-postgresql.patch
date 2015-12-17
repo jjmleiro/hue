@@ -1,0 +1,195 @@
+From 4ed22c61f6bd90bf8e9acc07283f9b9b396e4085 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 10 Mar 2015 17:16:46 -0700
+Subject: [PATCH 1028/1173] [desktop] Fix migrations for postgresql
+
+This migration referenced the "Document" table before it was created.
+It also called Document.object.sync() before those tables may have
+been created. So instead of failing the whole transaction (which then
+fails the migration), it'll just put syncing the other models in their
+own sub-transaction and continue on if they fail.
+---
+ ...entpermission__add_documenttag__add_document.py |   30 +++---
+ desktop/core/src/desktop/models.py                 |  103 ++++++++++----------
+ 2 files changed, 68 insertions(+), 65 deletions(-)
+
+diff --git a/desktop/core/src/desktop/migrations/0007_auto__add_documentpermission__add_documenttag__add_document.py b/desktop/core/src/desktop/migrations/0007_auto__add_documentpermission__add_documenttag__add_document.py
+index 0cdfd74..6b9dd3f 100644
+--- a/desktop/core/src/desktop/migrations/0007_auto__add_documentpermission__add_documenttag__add_document.py
++++ b/desktop/core/src/desktop/migrations/0007_auto__add_documentpermission__add_documenttag__add_document.py
+@@ -10,6 +10,21 @@ class Migration(SchemaMigration):
+ 
+     def forwards(self, orm):
+ 
++        # Adding model 'Document'
++        if 'desktop_document' not in connection.introspection.table_names():
++            db.create_table('desktop_document', (
++                ('description', self.gf('django.db.models.fields.TextField')(default='')),
++                ('extra', self.gf('django.db.models.fields.TextField')(default='')),
++                ('object_id', self.gf('django.db.models.fields.PositiveIntegerField')()),
++                ('last_modified', self.gf('django.db.models.fields.DateTimeField')(auto_now=True, db_index=True, blank=True)),
++                ('content_type', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['contenttypes.ContentType'])),
++                ('version', self.gf('django.db.models.fields.SmallIntegerField')(default=1)),
++                ('owner', self.gf('django.db.models.fields.related.ForeignKey')(related_name='doc_owner', to=orm['auth.User'])),
++                ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
++                ('name', self.gf('django.db.models.fields.TextField')(default='')),
++            ))
++            db.send_create_signal('desktop', ['Document'])
++
+         # Adding model 'DocumentPermission'
+         if 'desktop_documentpermission' not in connection.introspection.table_names():
+             db.create_table('desktop_documentpermission', (
+@@ -46,21 +61,6 @@ class Migration(SchemaMigration):
+             ))
+             db.send_create_signal('desktop', ['DocumentTag'])
+ 
+-        # Adding model 'Document'
+-        if 'desktop_document' not in connection.introspection.table_names():
+-            db.create_table('desktop_document', (
+-                ('description', self.gf('django.db.models.fields.TextField')(default='')),
+-                ('extra', self.gf('django.db.models.fields.TextField')(default='')),
+-                ('object_id', self.gf('django.db.models.fields.PositiveIntegerField')()),
+-                ('last_modified', self.gf('django.db.models.fields.DateTimeField')(auto_now=True, db_index=True, blank=True)),
+-                ('content_type', self.gf('django.db.models.fields.related.ForeignKey')(to=orm['contenttypes.ContentType'])),
+-                ('version', self.gf('django.db.models.fields.SmallIntegerField')(default=1)),
+-                ('owner', self.gf('django.db.models.fields.related.ForeignKey')(related_name='doc_owner', to=orm['auth.User'])),
+-                ('id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
+-                ('name', self.gf('django.db.models.fields.TextField')(default='')),
+-            ))
+-            db.send_create_signal('desktop', ['Document'])
+-
+         # Adding M2M table for field tags on 'Document'
+         if 'desktop_document_tags' not in connection.introspection.table_names():
+             db.create_table('desktop_document_tags', (
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 7c8d400..6051665 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -27,7 +27,7 @@ from django.contrib.contenttypes import generic
+ from django.contrib.contenttypes.models import ContentType
+ from django.contrib.staticfiles.storage import staticfiles_storage
+ from django.core.urlresolvers import reverse
+-from django.db import models
++from django.db import models, transaction
+ from django.db.models import Q
+ from django.utils.translation import ugettext as _, ugettext_lazy as _t
+ 
+@@ -262,63 +262,66 @@ class DocumentManager(models.Manager):
+   def sync(self):
+ 
+     try:
+-      from oozie.models import Workflow, Coordinator, Bundle
+-
+-      for job in list(chain(Workflow.objects.all(), Coordinator.objects.all(), Bundle.objects.all())):
+-        if job.doc.count() > 1:
+-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+-          job.doc.all().delete()
+-
+-        if not job.doc.exists():
+-          doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description)
+-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
+-          doc.tags.add(tag)
+-          if job.is_trashed:
+-            doc.send_to_trash()
+-          if job.is_shared:
+-            doc.share_to_default()
+-          if hasattr(job, 'managed'):
+-            if not job.managed:
+-              doc.extra = 'jobsub'
+-              doc.save()
+-        if job.owner.username == SAMPLE_USERNAME:
+-          job.doc.get().share_to_default()
++      with transaction.atomic():
++        from oozie.models import Workflow, Coordinator, Bundle
++
++        for job in list(chain(Workflow.objects.all(), Coordinator.objects.all(), Bundle.objects.all())):
++          if job.doc.count() > 1:
++            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
++            job.doc.all().delete()
++
++          if not job.doc.exists():
++            doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.description)
++            tag = DocumentTag.objects.get_example_tag(user=job.owner)
++            doc.tags.add(tag)
++            if job.is_trashed:
++              doc.send_to_trash()
++            if job.is_shared:
++              doc.share_to_default()
++            if hasattr(job, 'managed'):
++              if not job.managed:
++                doc.extra = 'jobsub'
++                doc.save()
++          if job.owner.username == SAMPLE_USERNAME:
++            job.doc.get().share_to_default()
+     except Exception, e:
+       LOG.warn(force_unicode(e))
+ 
+     try:
+-      from beeswax.models import SavedQuery
+-
+-      for job in SavedQuery.objects.all():
+-        if job.doc.count() > 1:
+-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+-          job.doc.all().delete()
+-
+-        if not job.doc.exists():
+-          doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.desc, extra=job.type)
+-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
+-          doc.tags.add(tag)
+-          if job.is_trashed:
+-            doc.send_to_trash()
+-        if job.owner.username == SAMPLE_USERNAME:
+-          job.doc.get().share_to_default()
++      with transaction.atomic():
++        from beeswax.models import SavedQuery
++
++        for job in SavedQuery.objects.all():
++          if job.doc.count() > 1:
++            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
++            job.doc.all().delete()
++
++          if not job.doc.exists():
++            doc = Document.objects.link(job, owner=job.owner, name=job.name, description=job.desc, extra=job.type)
++            tag = DocumentTag.objects.get_example_tag(user=job.owner)
++            doc.tags.add(tag)
++            if job.is_trashed:
++              doc.send_to_trash()
++          if job.owner.username == SAMPLE_USERNAME:
++            job.doc.get().share_to_default()
+     except Exception, e:
+       LOG.warn(force_unicode(e))
+ 
+     try:
+-      from pig.models import PigScript
+-
+-      for job in PigScript.objects.all():
+-        if job.doc.count() > 1:
+-          LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
+-          job.doc.all().delete()
+-
+-        if not job.doc.exists():
+-          doc = Document.objects.link(job, owner=job.owner, name=job.dict['name'], description='')
+-          tag = DocumentTag.objects.get_example_tag(user=job.owner)
+-          doc.tags.add(tag)
+-        if job.owner.username == SAMPLE_USERNAME:
+-          job.doc.get().share_to_default()
++      with transaction.atomic():
++        from pig.models import PigScript
++
++        for job in PigScript.objects.all():
++          if job.doc.count() > 1:
++            LOG.warn('Deleting duplicate document %s for %s' % (job.doc.all(), job))
++            job.doc.all().delete()
++
++          if not job.doc.exists():
++            doc = Document.objects.link(job, owner=job.owner, name=job.dict['name'], description='')
++            tag = DocumentTag.objects.get_example_tag(user=job.owner)
++            doc.tags.add(tag)
++          if job.owner.username == SAMPLE_USERNAME:
++            job.doc.get().share_to_default()
+     except Exception, e:
+       LOG.warn(force_unicode(e))
+ 
+-- 
+1.7.9.5
+

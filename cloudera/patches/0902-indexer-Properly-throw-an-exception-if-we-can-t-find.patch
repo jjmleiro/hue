@@ -1,0 +1,121 @@
+From 4b3a4dc897defa4f045f1a95beb544c1c722f731 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 14:49:44 -0800
+Subject: [PATCH 0902/1173] [indexer] Properly throw an exception if we can't
+ find solrctl
+
+---
+ desktop/libs/indexer/src/indexer/conf.py       |   13 +++----
+ desktop/libs/indexer/src/indexer/controller.py |   43 +++++++++++++++---------
+ 2 files changed, 35 insertions(+), 21 deletions(-)
+
+diff --git a/desktop/libs/indexer/src/indexer/conf.py b/desktop/libs/indexer/src/indexer/conf.py
+index 9723998..5af0b6e 100644
+--- a/desktop/libs/indexer/src/indexer/conf.py
++++ b/desktop/libs/indexer/src/indexer/conf.py
+@@ -16,7 +16,6 @@
+ # limitations under the License.
+ 
+ import os
+-import subprocess
+ from urlparse import urlparse
+ 
+ from django.utils.translation import ugettext_lazy as _t
+@@ -28,11 +27,13 @@ def solrctl():
+   """
+   solrctl path
+   """
+-  try:
+-    proc = subprocess.Popen(['which', 'solrctl'], stdout=subprocess.PIPE)
+-    return proc.stdout.read().strip()
+-  except subprocess.CalledProcessError:
+-    return '/usr/bin/solrctl'
++  for dirname in os.environ.get('PATH', '').split(os.path.pathsep):
++    path = os.path.join(dirname, 'solrctl')
++
++    if os.path.exists(path):
++      return path
++
++  return None
+ 
+ 
+ def zkensemble():
+diff --git a/desktop/libs/indexer/src/indexer/controller.py b/desktop/libs/indexer/src/indexer/controller.py
+index c1f5f9d..5571451 100644
+--- a/desktop/libs/indexer/src/indexer/controller.py
++++ b/desktop/libs/indexer/src/indexer/controller.py
+@@ -37,6 +37,15 @@ ALLOWED_FIELD_ATTRIBUTES = set(['name', 'type', 'indexed', 'stored'])
+ FLAGS = [('I', 'indexed'), ('T', 'tokenized'), ('S', 'stored')]
+ 
+ 
++def get_solrctl_path():
++  solrctl_path = conf.SOLRCTL_PATH.get()
++  if solrctl_path is None:
++    LOG.error("Could not find solrctl executable")
++    raise PopupException(_('Could not find solrctl executable'))
++
++  return solrctl_path
++
++
+ class CollectionManagerController(object):
+   """
+   Glue the models to the views.
+@@ -113,7 +122,9 @@ class CollectionManagerController(object):
+       tmp_path, solr_config_path = utils.copy_configs(fields, unique_key_field, df, True)
+ 
+       # Create instance directory.
+-      process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--create", name, solr_config_path],
++      solrctl_path = get_solrctl_path()
++
++      process = subprocess.Popen([solrctl_path, "instancedir", "--create", name, solr_config_path],
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  env={
+@@ -132,7 +143,7 @@ class CollectionManagerController(object):
+       api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
+       if not api.create_collection(name):
+         # Delete instance directory if we couldn't create a collection.
+-        process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--delete", name],
++        process = subprocess.Popen([solrctl_path, "instancedir", "--delete", name],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    env={
+@@ -164,20 +175,22 @@ class CollectionManagerController(object):
+     api = SolrApi(SOLR_URL.get(), self.user, SECURITY_ENABLED.get())
+     if core:
+       raise PopupException(_('Cannot remove Solr cores.'))
++
++    if api.remove_collection(name):
++      # Delete instance directory.
++      solrctl_path = get_solrctl_path()
++
++      process = subprocess.Popen([solrctl_path, "instancedir", "--delete", name],
++                                 stdout=subprocess.PIPE,
++                                 stderr=subprocess.PIPE,
++                                 env={
++                                   'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
++                                 })
++      if process.wait() != 0:
++        LOG.error("Cloud not delete instance directory.\nOutput stream: %s\nError stream: %s" % process.communicate())
++        raise PopupException(_('Could not create instance directory. Check error logs for more info.'))
+     else:
+-      if api.remove_collection(name):
+-        # Delete instance directory.
+-        process = subprocess.Popen([conf.SOLRCTL_PATH.get(), "instancedir", "--delete", name],
+-                                   stdout=subprocess.PIPE,
+-                                   stderr=subprocess.PIPE,
+-                                   env={
+-                                     'SOLR_ZK_ENSEMBLE': conf.SOLR_ZK_ENSEMBLE.get()
+-                                   })
+-        if process.wait() != 0:
+-          LOG.error("Cloud not delete instance directory.\nOutput stream: %s\nError stream: %s" % process.communicate())
+-          raise PopupException(_('Could not create instance directory. Check error logs for more info.'))
+-      else:
+-        raise PopupException(_('Could not remove collection. Check error logs for more info.'))
++      raise PopupException(_('Could not remove collection. Check error logs for more info.'))
+ 
+   def update_collection(self, name, fields):
+     """
+-- 
+1.7.9.5
+

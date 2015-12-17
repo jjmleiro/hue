@@ -1,0 +1,27 @@
+From fe2f1985442678ce1f672e57717f80d87b4fece3 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Wed, 3 Dec 2014 17:02:18 -0800
+Subject: [PATCH 0140/1173] [hbase] Tell user when HBase kerberos principal is
+ missing from hbase-site.xml in secure mode
+
+---
+ apps/hbase/src/hbase/api.py |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/apps/hbase/src/hbase/api.py b/apps/hbase/src/hbase/api.py
+index 80aba52..c75f23f 100644
+--- a/apps/hbase/src/hbase/api.py
++++ b/apps/hbase/src/hbase/api.py
+@@ -103,6 +103,9 @@ class HbaseApi(object):
+       kerberos_principal_short_name = None
+     use_sasl = get_server_authentication() == 'KERBEROS'
+ 
++    if use_sasl and kerberos_principal_short_name is None:
++      raise PopupException(_("The kerberos principal name is missing from the hbase-site.xml configuration file."))
++
+     return {
+         'kerberos_principal_short_name': kerberos_principal_short_name,
+         'use_sasl': use_sasl,
+-- 
+1.7.9.5
+

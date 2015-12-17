@@ -1,0 +1,644 @@
+From 67fc413ac11eefd0de135ad420ab23eef39fffff Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 12 Jan 2015 17:56:29 -0800
+Subject: [PATCH 0493/1173] HUE-2538 [desktop] Add support for log redaction
+
+---
+ desktop/conf.dist/hue.ini                       |   22 +++
+ desktop/conf/pseudo-distributed.ini.tmpl        |   22 +++
+ desktop/core/src/desktop/conf.py                |   24 +++
+ desktop/core/src/desktop/log/tests.py           |    1 +
+ desktop/core/src/desktop/redaction/__init__.py  |   41 +++++
+ desktop/core/src/desktop/redaction/engine.py    |  144 ++++++++++++++++
+ desktop/core/src/desktop/redaction/logfilter.py |   63 +++++++
+ desktop/core/src/desktop/redaction/tests.py     |  201 +++++++++++++++++++++++
+ desktop/core/src/desktop/settings.py            |    5 +
+ 9 files changed, 523 insertions(+)
+ create mode 100644 desktop/core/src/desktop/redaction/__init__.py
+ create mode 100644 desktop/core/src/desktop/redaction/engine.py
+ create mode 100644 desktop/core/src/desktop/redaction/logfilter.py
+ create mode 100644 desktop/core/src/desktop/redaction/tests.py
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 6b2f9a9..6744cd0 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -104,6 +104,28 @@
+   # Size in KB/MB/GB for audit log to rollover.
+   ## audit_log_max_file_size=100MB
+ 
++  # A file containing a list of log redaction rules for cleaning sensitive data
++  # from log files. Each rule is defined as:
++  #
++  #     `[TRIGGER]::[REGEX]::[REDACTION_MASK]`.
++  #
++  # Redaction works by searching a string for the [TRIGGER] string. If found,
++  # the [REGEX] is used to replace sensitive information with the
++  # [REDACTION_MASK].  If specified with `log_redaction_string`, the
++  # `log_redaction_string` rules will be executed after the
++  # `log_redaction_file` rules.
++  #
++  # For example, here is a file that would redact passwords and social security numbers:
++  #
++  #     password=::password=".*"::password="???"
++  #     ::\d{3}-\d{2}\{4}::XXX-XXX-XXXX
++  ## log_redaction_file=
++
++  # A string containing a list of redaction rules. It uses the same rules as
++  # described in `log_redaction_file`, but each rule is separated by `||`
++  # instead of newlines.
++  ## log_redaction_string=
++
+   # Administrators
+   # ----------------
+   [[django_admins]]
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index a11fca0..89e130c 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -113,6 +113,28 @@
+   # Size in KB/MB/GB for audit log to rollover.
+   ## audit_log_max_file_size=100MB
+ 
++  # A file containing a list of log redaction rules for cleaning sensitive data
++  # from log files. Each rule is defined as:
++  #
++  #     `[TRIGGER]::[REGEX]::[REDACTION_MASK]`.
++  #
++  # Redaction works by searching a string for the [TRIGGER] string. If found,
++  # the [REGEX] is used to replace sensitive information with the
++  # [REDACTION_MASK].  If specified with `log_redaction_string`, the
++  # `log_redaction_string` rules will be executed after the
++  # `log_redaction_file` rules.
++  #
++  # For example, here is a file that would redact passwords and social security numbers:
++  #
++  #     password=::password=".*"::password="???"
++  #     ::\d{3}-\d{2}\{4}::XXX-XXX-XXXX
++  ## log_redaction_file=
++
++  # A string containing a list of redaction rules. It uses the same rules as
++  # described in `log_redaction_file`, but each rule is separated by `||`
++  # instead of newlines.
++  ## log_redaction_string=
++
+ #poll_enabled=false
+ 
+   # Administrators
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 43cbb8c..30835c5 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -22,6 +22,8 @@ import logging
+ 
+ from django.utils.translation import ugettext_lazy as _
+ 
++from desktop.redaction.engine import parse_redaction_rules_from_file, \
++                                     parse_redaction_rules_from_string
+ from desktop.lib.conf import Config, ConfigSection, UnspecifiedConfigSection,\
+                              coerce_bool, coerce_csv, coerce_json_dict,\
+                              validate_path, list_of_compiled_res, coerce_str_lowercase
+@@ -169,6 +171,18 @@ DEMO_ENABLED = Config( # Internal and Temporary
+   private=True,
+   default=False)
+ 
++LOG_REDACTION_FILE = Config(
++  key="log_redaction_file",
++  help=_("Use this file to parse and redact log message."),
++  type=parse_redaction_rules_from_file,
++  default=None)
++
++LOG_REDACTION_STRING = Config(
++  key="log_redaction_string",
++  help=_("Use this string to parse and redact log message."),
++  type=parse_redaction_rules_from_string,
++  default=None)
++
+ def is_https_enabled():
+   return bool(SSL_CERTIFICATE.get() and SSL_PRIVATE_KEY.get())
+ 
+@@ -870,3 +884,13 @@ def config_validator(user):
+   res.extend(validate_mysql_storage())
+ 
+   return res
++
++def get_redaction_rules():
++  """
++  Return a list of redaction rules.
++  """
++
++  file_rules = LOG_REDACTION_FILE.get() or []
++  string_rules = LOG_REDACTION_STRING.get() or []
++
++  return file_rules + string_rules
+diff --git a/desktop/core/src/desktop/log/tests.py b/desktop/core/src/desktop/log/tests.py
+index 285a025..e85b08b 100644
+--- a/desktop/core/src/desktop/log/tests.py
++++ b/desktop/core/src/desktop/log/tests.py
+@@ -16,6 +16,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import logging
+ import tempfile
+ 
+ from nose.tools import assert_true, assert_false, assert_equal, assert_not_equal
+diff --git a/desktop/core/src/desktop/redaction/__init__.py b/desktop/core/src/desktop/redaction/__init__.py
+new file mode 100644
+index 0000000..a5a611c
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/__init__.py
+@@ -0,0 +1,41 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import logging
++from desktop.redaction import logfilter
++from desktop.redaction.engine import RedactionEngine
++
++
++global_redaction_engine = RedactionEngine()
++
++def redact(string):
++  """
++  Redact a string using the global redaction engine.
++  """
++
++  return global_redaction_engine.redact(string)
++
++
++def register_log_filtering(rules):
++  """
++  `add_redaction_filter` injects the redaction filter into all of the `logger`
++  handlers. This must be called after all of the handlers have been added to
++  `logger`, otherwise those handlers may expose unredacted strings.
++  """
++
++  global_redaction_engine.add_rules(rules)
++  logfilter.add_log_redaction_filter_to_logger(global_redaction_engine, logging.root)
+diff --git a/desktop/core/src/desktop/redaction/engine.py b/desktop/core/src/desktop/redaction/engine.py
+new file mode 100644
+index 0000000..0e55c9b
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/engine.py
+@@ -0,0 +1,144 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import re
++
++
++class RedactionEngine(object):
++  """
++  `RedactionEngine` applies a list of `RedactionRule`s to redact a string.
++  """
++
++  def __init__(self, rules=None):
++    if rules is None:
++      rules = []
++
++    self.rules = rules
++
++  def add_rule(self, rule):
++    self.rules.append(rule)
++
++  def add_rules(self, rules):
++    self.rules.extend(rules)
++
++  def add_rules_from_string(self, string):
++    self.rules.extend(parse_redaction_rules_from_string(string))
++
++  def add_rules_from_file(self, filename):
++    self.rules.extend(parse_redaction_rules_from_filename(filename))
++
++  def redact(self, message):
++    """
++    Apply the redaction rules to this message. If the message was not redacted
++    it will return the original string unmodified.
++    """
++
++    for rule in self.rules:
++      message = rule.redact(message)
++
++    return message
++
++  def is_enabled(self):
++    """
++    Return if the redaction engine contains any redaction rules.
++    """
++    return bool(self.rules)
++
++  def __repr__(self):
++    return 'RedactionEngine(%r)' % self.rules
++
++  def __eq__(self, other):
++    return \
++        isinstance(other, self.__class__) and \
++        self.rules == other.rules
++
++  def __ne__(self, other):
++    return not self == other
++
++
++class RedactionRule(object):
++  """
++  `RedactionRule` implements the logic to parse a log message and redact out
++  any sensitive information. It does this by searching a log message for a
++  `trigger` string. If found, then it will use the specified `regex` to search
++  for the sensitive information and replace it with the `redaction_mask`.
++  """
++
++  def __init__(self, trigger, regex, redaction_mask):
++    self.trigger = trigger
++    self.regex = re.compile(regex)
++    self.redaction_mask = redaction_mask
++
++  def redact(self, message):
++    """
++    Perform the message redaction. If the message does not contain the
++    `trigger` string then it will return the original string unmodified.
++    """
++
++    if self.trigger in message:
++      return self.regex.sub(self.redaction_mask, message)
++    else:
++      return message
++
++  def __repr__(self):
++    return 'RedactionRule(%r, %r, %r)' % (
++        self.trigger,
++        self.regex.pattern,
++        self.redaction_mask)
++
++  def __eq__(self, other):
++    return \
++        isinstance(other, self.__class__) and \
++        self.trigger == other.trigger and \
++        self.regex == other.regex and \
++        self.redaction_mask == other.redaction_mask
++
++  def __ne__(self, other):
++    return not self == other
++
++
++def parse_redaction_rules_from_string(string):
++  """
++  Parse a string into a `RedactionFilter`, where each rule is separated by
++  `||`, and each rule uses the format specified in `parse_one_rule_from_string`.
++  """
++
++  return [parse_one_rule_from_string(line.rstrip()) for line in string.split('||')]
++
++
++def parse_redaction_rules_from_file(filename):
++  """
++  Parse a file into a `RedactionFilter`, where each line comprises a redaction
++  rule string as described in `parse_rules_from_string`.
++  """
++
++  with open(filename) as f:
++    return [parse_one_rule_from_string(line.rstrip()) for line in f]
++
++
++def parse_one_rule_from_string(string):
++  """
++  `parse_one_rule_from_string` parses a `Rule` from a string comprised of:
++
++    [TRIGGER]::[REGEX]::[REDACTION_MASK]
++
++  Where the `TRIGGER` and `REDACTION_MASK` are strings, and `REGEX` is a python
++  regular expression.
++  """
++
++  trigger, regex, redaction_mask = string.split('::', 3)
++  return RedactionRule(trigger, regex, redaction_mask)
+diff --git a/desktop/core/src/desktop/redaction/logfilter.py b/desktop/core/src/desktop/redaction/logfilter.py
+new file mode 100644
+index 0000000..cfdb652
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/logfilter.py
+@@ -0,0 +1,63 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import logging
++
++
++class RedactionFilter(logging.Filter):
++  """
++  This is a filter that can be configured to automatically redact any
++  information logged by Hue.
++  """
++
++  def __init__(self, engine):
++    self._redaction_engine = engine
++
++  def add_rule(self, *args, **kwargs):
++    self._redaction_engine.add_rule(*args, **kwargs)
++
++  def filter(self, record):
++    """
++    Apply the redaction rules to the record. This is done by calling
++    `record.getMessage()` to get the evaluated message string and applying the
++    redaction rules to it. If it turns out there is nothing to be redacted in
++    this string, the record is returned unmodified. Otherwise, the record's
++    `msg` is replaced with the redacted message, and it's `args` is set to
++    `None`.
++    """
++    original_message = record.getMessage()
++    message = self._redaction_engine.redact(original_message)
++
++    if message != original_message:
++      record.msg = message
++      record.args = None
++
++    return True
++
++
++def add_log_redaction_filter_to_logger(engine, logger):
++  """
++  `add_redaction_filter` injects the redaction filter into all of the `logger`
++  handlers. This must be called after all of the handlers have been added to
++  `logger`, otherwise those handlers may expose unredacted strings.
++  """
++
++  if engine.rules:
++    redaction_filter = RedactionFilter(engine)
++
++    for handler in logger.handlers:
++      handler.addFilter(redaction_filter)
+diff --git a/desktop/core/src/desktop/redaction/tests.py b/desktop/core/src/desktop/redaction/tests.py
+new file mode 100644
+index 0000000..a597408
+--- /dev/null
++++ b/desktop/core/src/desktop/redaction/tests.py
+@@ -0,0 +1,201 @@
++#!/usr/bin/env python
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++import logging
++import tempfile
++
++from desktop.redaction.engine import RedactionEngine, \
++                                     RedactionRule, \
++                                     parse_redaction_rules_from_string, \
++                                     parse_redaction_rules_from_file
++from desktop.redaction.logfilter import add_log_redaction_filter_to_logger
++from nose.tools import assert_is, assert_equal, assert_not_equal
++
++
++class MockLoggingHandler(logging.Handler):
++  def __init__(self, *args, **kwargs):
++    super(MockLoggingHandler, self).__init__(*args, **kwargs)
++
++    self.records = []
++
++  def emit(self, record):
++    self.records.append(record)
++
++  def reset(self):
++    del self.records[:]
++
++
++class TestRedactionRule(object):
++  def test_redaction_rule_works(self):
++    rule = RedactionRule('password=', 'password=".*"', 'password="???"')
++
++    test_strings = [
++        ('message', 'message'),
++        ('password="a password"', 'password="???"'),
++        ('before password="a password" after', 'before password="???" after'),
++    ]
++
++    for message, redacted_message in test_strings:
++      assert_equal(rule.redact(message), redacted_message)
++
++  def test_non_redacted_string_returns_same_string(self):
++    rule = RedactionRule('password=', 'password=".*"', 'password="???"')
++
++    message = 'message'
++    assert_is(rule.redact(message), message)
++
++  def test_equality(self):
++    rule1 = RedactionRule('password=', 'password=".*"', 'password="???"')
++    rule2 = RedactionRule('password=', 'password=".*"', 'password="???"')
++    rule3 = RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++
++    assert_equal(rule1, rule2)
++    assert_not_equal(rule1, rule3)
++
++  def test_parse_redaction_rules_from_string(self):
++    string = \
++        r'password=::password=".*"::password="???"' \
++        r'||' \
++        r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
++
++    rules = parse_redaction_rules_from_string(string)
++
++    assert_equal(rules, [
++      RedactionRule('password=', 'password=".*"', 'password="???"'),
++      RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++    ])
++
++  def test_parse_redaction_rules_from_file(self):
++    with tempfile.NamedTemporaryFile() as f:
++      print >> f, r'password=::password=".*"::password="???"'
++      print >> f, r'ssn=::ssn=\d{3}-\d{2}-\d{4}::ssn=XXX-XX-XXXX'
++
++      f.flush()
++
++      rules = parse_redaction_rules_from_file(f.name)
++
++      assert_equal(rules, [
++        RedactionRule('password=', 'password=".*"', 'password="???"'),
++        RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++      ])
++
++
++class TestRedactionEngine(object):
++  def test_redaction_works(self):
++    redaction_engine = RedactionEngine([
++      RedactionRule('password=', 'password=".*"', 'password="???"'),
++      RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++    ])
++
++    test_strings = [
++        ('message', 'message'),
++        ('password="a password"', 'password="???"'),
++        ('before password="a password" after', 'before password="???" after'),
++        ('an ssn=123-45-6789', 'an ssn=XXX-XX-XXXX'),
++    ]
++
++    for message, redacted_message in test_strings:
++      assert_equal(redaction_engine.redact(message), redacted_message)
++
++  def test_equality(self):
++    engine1 = RedactionEngine([
++        RedactionRule('password=', 'password=".*"', 'password="???"'),
++    ])
++    engine2 = RedactionEngine([
++        RedactionRule('password=', 'password=".*"', 'password="???"'),
++    ])
++    engine3 = RedactionEngine([
++        RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++    ])
++
++    assert_equal(engine1, engine2)
++    assert_not_equal(engine1, engine3)
++
++
++class TestRedactionLogFilter(object):
++
++  @classmethod
++  def setUpClass(cls):
++    cls.logger = logging.getLogger(cls.__name__)
++
++    cls.handler = MockLoggingHandler()
++    cls.logger.addHandler(cls.handler)
++
++    engine = RedactionEngine([
++      RedactionRule('password=', 'password=".*"', 'password="???"'),
++      RedactionRule('ssn=', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
++    ])
++
++    add_log_redaction_filter_to_logger(engine, cls.logger)
++
++  @classmethod
++  def tearDownClass(cls):
++    cls.logger.handlers = []
++
++  def tearDown(self):
++    self.handler.reset()
++
++  def test_redaction_filter(self):
++    test_strings = [
++        {
++          'message': 'message',
++          'result_message': 'message',
++          'result_msg': 'message',
++          'result_args': (),
++        },
++        {
++          'message': 'message %s',
++          'args': ['an arg'],
++          'result_message': 'message an arg',
++          'result_msg': 'message %s',
++          'result_args': ('an arg',),
++        },
++        {
++          'message': 'password="a password"',
++          'result_message': 'password="???"',
++        },
++        {
++          'message': 'password="%s"',
++          'args': ['a password'],
++          'result_message': 'password="???"',
++        },
++        {
++          'message': 'password=%s',
++          'args': ['"a password"'],
++          'result_message': 'password="???"',
++        },
++        {
++          'message': 'before password="%s" after',
++          'args': ['a password'],
++          'result_message': 'before password="???" after',
++        },
++
++        {
++          'message': 'ssn=%s-%s-%s',
++          'args': ['123', '45', '6789'],
++          'result_message': 'ssn=XXX-XX-XXXX',
++        },
++    ]
++
++    for test in test_strings:
++      self.logger.debug(test['message'], *test.get('args', ()))
++
++    for test, record in zip(test_strings, self.handler.records):
++      assert_equal(record.getMessage(), test['result_message'])
++      assert_equal(record.message, test['result_message'])
++      assert_equal(record.msg, test.get('result_msg', test['result_message']))
++      assert_equal(record.args, test.get('result_args'))
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 5ceb380..205b503 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -28,6 +28,7 @@ from guppy import hpy
+ 
+ import desktop.conf
+ import desktop.log
++import desktop.redaction
+ from desktop.lib.paths import get_desktop_root
+ from desktop.lib.python_util import force_dict_to_strings
+ 
+@@ -220,6 +221,10 @@ LOCALE_PATHS.extend([app.locale_path for app in appmanager.DESKTOP_LIBS])
+ _desktop_conf_modules = [dict(module=desktop.conf, config_key=None)]
+ conf.initialize(_desktop_conf_modules, _config_dir)
+ 
++# Register the redaction filters into the root logger as soon as possible.
++desktop.redaction.register_log_filtering(desktop.conf.get_redaction_rules())
++
++
+ # Activate l10n
+ # Install apps
+ appmanager.load_apps(desktop.conf.APP_BLACKLIST.get())
+-- 
+1.7.9.5
+

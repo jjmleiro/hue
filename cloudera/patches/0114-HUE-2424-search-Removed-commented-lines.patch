@@ -1,0 +1,39 @@
+From 5d9ed5fe6c3410300a4fc147c50d35df4acefa11 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 14 Nov 2014 13:08:19 +0100
+Subject: [PATCH 0114/1173] HUE-2424 [search] Removed commented lines
+
+---
+ apps/search/static/js/search.ko.js |   16 +++++++---------
+ 1 file changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index f5b60db..129b3d9 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -770,15 +770,13 @@ var Collection = function (vm, collection) {
+     var facet = self.getFacetById(typeof facet_json.id == "function" ? facet_json.id() : facet_json.id);
+ 
+     vm.query.removeFilter(ko.mapping.fromJS({'id': facet_json.id}));
+-    //if (facet && facet.properties) {
+-      if (facet.properties.gap() != null) { // Bar, line charts don't have gap
+-        facet.properties.gap(facet.properties.initial_gap());
+-      }
+-      if (facet.properties.initial_start() != null) { // Bar and line charts
+-        facet.properties.start(facet.properties.initial_start());
+-        facet.properties.end(facet.properties.initial_end());
+-      }
+-    //}
++    if (facet.properties.gap() != null) { // Bar, line charts don't have gap
++      facet.properties.gap(facet.properties.initial_gap());
++    }
++    if (facet.properties.initial_start() != null) { // Bar and line charts
++      facet.properties.start(facet.properties.initial_start());
++      facet.properties.end(facet.properties.initial_end());
++    }
+ 
+     vm.search();
+   }
+-- 
+1.7.9.5
+

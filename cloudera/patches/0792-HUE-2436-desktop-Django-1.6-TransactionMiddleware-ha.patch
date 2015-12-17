@@ -1,0 +1,35 @@
+From 77de21440b16eac841f7318492b6b66fdba90978 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 15 Jan 2015 19:40:13 -0800
+Subject: [PATCH 0792/1173] HUE-2436 [desktop] Django-1.6:
+ TransactionMiddleware has been deprecated
+
+---
+ desktop/core/src/desktop/settings.py |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 49c84d2..3686b64 100755
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -127,7 +127,6 @@ MIDDLEWARE_CLASSES = [
+     'desktop.middleware.NotificationMiddleware',
+     'desktop.middleware.ExceptionMiddleware',
+     'desktop.middleware.ClusterMiddleware',
+-    'django.middleware.transaction.TransactionMiddleware',
+     # 'debug_toolbar.middleware.DebugToolbarMiddleware'
+     'django.middleware.csrf.CsrfViewMiddleware',
+ 
+@@ -205,6 +204,9 @@ FILE_UPLOAD_HANDLERS = (
+   'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+ )
+ 
++# Wrap each request in a transaction.
++ATOMIC_REQUESTS = True
++
+ 
+ ############################################################
+ # Part 4: Installation of apps
+-- 
+1.7.9.5
+

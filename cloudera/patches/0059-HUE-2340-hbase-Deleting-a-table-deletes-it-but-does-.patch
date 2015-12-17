@@ -1,0 +1,119 @@
+From 94d713c07c27e3ee365a06578538e8bad4dd3deb Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 21 Oct 2014 23:49:53 +0200
+Subject: [PATCH 0059/1173] HUE-2340 [hbase] Deleting a table deletes it but
+ does not refresh the UI
+
+Keeps track of the deleted tables to avoid false positives from the HBase API
+Gets rid of the reload UI alert
+---
+ apps/hbase/src/hbase/templates/app.mako |   23 ++++++++++++-----------
+ apps/hbase/static/js/app.js             |   18 +++++++++++++++++-
+ apps/hbase/static/js/base.js            |    5 ++++-
+ 3 files changed, 33 insertions(+), 13 deletions(-)
+
+diff --git a/apps/hbase/src/hbase/templates/app.mako b/apps/hbase/src/hbase/templates/app.mako
+index 3a560a6..74bca75 100644
+--- a/apps/hbase/src/hbase/templates/app.mako
++++ b/apps/hbase/src/hbase/templates/app.mako
+@@ -55,18 +55,19 @@ ${ commonheader(None, "hbase", user) | n,unicode }
+ 
+       </tbody>
+       <tfoot>
+-      <tr data-bind="visible: ${datasource}.isLoading()">
+-          <td colspan="8" class="left">
+-              <img src="/static/art/spinner.gif" />
+-          </td>
+-      </tr>
+-          <tr data-bind="visible: ${datasource}.items().length == 0 && !${datasource}.isLoading()">
+-              <td colspan="8">
+-                  <div class="alert">
+-                      ${_('There are no tables matching the search criteria.')}
+-                  </div>
++        <tr data-bind="visible: ${datasource}.isLoading() || ${datasource}.isReLoading()">
++            <td colspan="8" class="left">
++              <!--[if !IE]><!--><i class="fa fa-spinner fa-spin" style="font-size: 20px; color: #BBB"></i><!--<![endif]-->
++              <!--[if IE]><img src="/static/art/spinner.gif"/><![endif]-->
+             </td>
+-          </tr>
++        </tr>
++        <tr data-bind="visible: ${datasource}.items().length == 0 && !${datasource}.isLoading() && !${datasource}.isReLoading()">
++            <td colspan="8">
++                <div class="alert">
++                    ${_('There are no tables matching the search criteria.')}
++                </div>
++          </td>
++        </tr>
+       </tfoot>
+   </table>
+ </%def>
+diff --git a/apps/hbase/static/js/app.js b/apps/hbase/static/js/app.js
+index 8573925..28ed015 100644
+--- a/apps/hbase/static/js/app.js
++++ b/apps/hbase/static/js/app.js
+@@ -35,15 +35,31 @@ var AppViewModel = function() {
+   self.views = {
+     tables: new DataTableViewModel({columns:['Table Name', 'Enabled'], el: 'views.tables', reload: function(callback) {
+       var d_self = this;
++      d_self.isReLoading(true);
+       d_self.items.removeAll();
+       API.queryCluster("getTableList").done(function(data) {
+         d_self.items.removeAll(); //need to remove again before callback executes
++        function _isDropped (tableName) {
++          var _found = false;
++          d_self.droppedTables.forEach(function(t){
++            if (t.name == tableName){
++              _found = true;
++            }
++          });
++          return _found;
++        }
++        var _items = [];
+         for(q=0; q<data.length; q++) {
+-          d_self.items.push(new TableDataRow(data[q]));
++          if (!_isDropped(data[q].name)) {
++            _items.push(new TableDataRow(data[q]));
++          }
+         }
++        d_self.droppedTables = [];
++        d_self.items(_items);
+         d_self._el.find('a[data-row-selector=true]').jHueRowSelector();
+         if(callback!=null)
+           callback();
++        d_self.isReLoading(false);
+       });
+     }}),
+     tabledata: new SmartViewModel({'canWrite': canWrite, el: 'views.tabledata', reload: function(callback) //move inside SmartViewModel class?
+diff --git a/apps/hbase/static/js/base.js b/apps/hbase/static/js/base.js
+index 83a655f..bae5134 100644
+--- a/apps/hbase/static/js/base.js
++++ b/apps/hbase/static/js/base.js
+@@ -99,6 +99,7 @@ var ListViewModel = function(options) {
+     confirm("Confirm Delete", "Are you sure you want to drop the selected items? (WARNING: This cannot be undone!)", function() {
+       self.batchSelected(function() {
+         var s = this;
++        self.droppedTables.push(s);
+         if(s.enabled && s.enabled()) {
+           self.isLoading(true);
+           return s.disable(function() {
+@@ -114,14 +115,16 @@ var ListViewModel = function(options) {
+     self.items.removeAll();
+     self.isLoading(true);
+     options.reload.apply(self,[function() {
+-      self.isLoading(false);
+       if(callback!=null)
+         callback();
+       self.sortDropDown.sort();
++      self.isLoading(false);
+     }]);
+   };
+   self.searchQuery = ko.observable("");
+   self.isLoading = ko.observable(false);
++  self.isReLoading = ko.observable(false);
++  self.droppedTables = [];
+ };
+ 
+ var DataRow = function(options) {
+-- 
+1.7.9.5
+

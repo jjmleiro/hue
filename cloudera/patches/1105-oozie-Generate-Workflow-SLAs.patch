@@ -1,0 +1,96 @@
+From 645daad4cad0be17652ba3a34f080199cb1fb8cb Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 17 Mar 2015 16:23:53 -0500
+Subject: [PATCH 1105/1173] [oozie] Generate Workflow SLAs
+
+---
+ apps/oozie/src/oozie/models2.py                    |   14 ++++++++------
+ .../templates/editor2/gen/workflow-common.xml.mako |    4 ++--
+ .../oozie/templates/editor2/gen/workflow.xml.mako  |    2 +-
+ 3 files changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 0d54900..16b6db2 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -84,7 +84,7 @@ class Workflow(Job):
+   XML_FILE_NAME = 'workflow.xml'
+   PROPERTY_APP_PATH = 'oozie.wf.application.path'
+   SLA_DEFAULT = [
+-      {'key': 'enabled', 'value': False},
++      {'key': 'enabled', 'value': False}, # Always first element
+       {'key': 'nominal-time', 'value': '${nominal_time}'},
+       {'key': 'should-start', 'value': ''},
+       {'key': 'should-end', 'value': '${30 * MINUTES}'},
+@@ -123,7 +123,6 @@ class Workflow(Job):
+                   "job_xml": "",
+                   "sla_enabled": False,
+                   "schema_version": "uri:oozie:workflow:0.5",
+-                  "sla_workflow_enabled": False,
+                   "credentials": [],
+                   "properties": [],
+                   "sla": Workflow.SLA_DEFAULT,
+@@ -223,7 +222,11 @@ class Workflow(Job):
+   @property
+   def sla_enabled(self):
+     _data = self.get_data()
+-    return _data['workflow']['properties']['sla_enabled']
++    return _data['workflow']['properties']['sla'][0].get('value')
++
++  @property
++  def has_some_slas(self):
++    return self.sla_enabled or any([node.sla_enabled for node in self.nodes])
+ 
+   @property
+   def sla(self):
+@@ -320,8 +323,7 @@ class Node():
+ 
+   @property
+   def sla_enabled(self):
+-    _data = self.get_data()
+-    return _data['workflow']['properties']['sla_enabled']
++    return 'sla' in self.data['properties'] and self.data['properties']['sla'] and self.data['properties']['sla'][0].get('value')
+ 
+   def _augment_data(self):
+     self.data['type'] = self.data['type'].replace('-widget', '')
+@@ -351,7 +353,7 @@ class Node():
+     return 'editor2/gen/workflow-%s.xml.mako' % self.data['type']
+ 
+   def find_parameters(self):
+-    return find_parameters(self)
++    return find_parameters(self) + find_parameters(self, ['sla']) if self.sla_enabled else []
+ 
+ 
+ class Action(object):
+diff --git a/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako b/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
+index 1afc4ca..2cecbd4 100644
+--- a/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor2/gen/workflow-common.xml.mako
+@@ -71,9 +71,9 @@
+ 
+ 
+ <%def name="sla(element)">
+-        % if element['properties']['sla_enabled']:
++        % if element['properties']['sla'][0].get('value'):
+           <sla:info>
+-          % for sla in element['sla']:
++          % for sla in element['properties']['sla']:
+             % if sla['value'] and sla['key'] != 'enabled':
+             <sla:${ sla['key'] }>${ sla['value'] }</sla:${ sla['key'] }>
+             % endif
+diff --git a/apps/oozie/src/oozie/templates/editor2/gen/workflow.xml.mako b/apps/oozie/src/oozie/templates/editor2/gen/workflow.xml.mako
+index 4383e6b..713cb46 100644
+--- a/apps/oozie/src/oozie/templates/editor2/gen/workflow.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor2/gen/workflow.xml.mako
+@@ -18,7 +18,7 @@
+ <%namespace name="common" file="workflow-common.xml.mako" />
+ 
+ 
+-<workflow-app name="${ wf.validated_name }" xmlns="${ 'uri:oozie:workflow:0.5' if workflow['properties']['sla_workflow_enabled'] else workflow['properties']['schema_version'] | n,unicode }"${ ' xmlns:sla="uri:oozie:sla:0.2"' if workflow['properties']['sla_workflow_enabled'] else '' | n,unicode }>
++<workflow-app name="${ wf.validated_name }" xmlns="${ 'uri:oozie:workflow:0.5' if wf.has_some_slas else workflow['properties']['schema_version'] | n,unicode }"${ ' xmlns:sla="uri:oozie:sla:0.2"' if wf.has_some_slas else '' | n,unicode }>
+   % if workflow['properties']['job_xml'] or workflow['properties']['properties']:
+   <global>
+     % if workflow['properties']['job_xml']:
+-- 
+1.7.9.5
+

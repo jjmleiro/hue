@@ -1,0 +1,124 @@
+From d4546bb3204c15dea168b93a16a610e22f396c15 Mon Sep 17 00:00:00 2001
+From: Christopherwq Conner <cconner@cloudera.com>
+Date: Fri, 13 Feb 2015 07:54:17 -0800
+Subject: [PATCH 0838/1173] HUE-1663 [core] Option to either follow or not
+ LDAP referrals for auth
+
+---
+ apps/useradmin/src/useradmin/ldap_access.py |    5 ++++-
+ desktop/conf.dist/hue.ini                   |    6 ++++++
+ desktop/conf/pseudo-distributed.ini.tmpl    |    6 ++++++
+ desktop/core/src/desktop/auth/backend.py    |    5 +++++
+ desktop/core/src/desktop/conf.py            |    9 +++++++++
+ 5 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/apps/useradmin/src/useradmin/ldap_access.py b/apps/useradmin/src/useradmin/ldap_access.py
+index 2affe68..dd7dfae 100644
+--- a/apps/useradmin/src/useradmin/ldap_access.py
++++ b/apps/useradmin/src/useradmin/ldap_access.py
+@@ -106,7 +106,10 @@ class LdapConnection(object):
+       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_ALLOW)
+       ldap.set_option(ldap.OPT_X_TLS_CACERTFILE, cert_file)
+ 
+-    ldap.set_option(ldap.OPT_REFERRALS, 0)
++    if self.ldap_config.FOLLOW_REFERRALS.get():
++      ldap.set_option(ldap.OPT_REFERRALS, 1)
++    else:
++      ldap.set_option(ldap.OPT_REFERRALS, 0)
+ 
+     self.ldap_handle = ldap.initialize(ldap_url)
+ 
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 99a4da0..246f924 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -266,6 +266,9 @@
+     # Define the number of levels to search for nested members.
+     ## nested_members_search_depth=10
+ 
++    # Whether or not to follow referrals
++    ## follow_referrals=false
++
+     [[[users]]]
+ 
+       # Base filter for searching for users
+@@ -318,6 +321,9 @@
+         ## Use search bind authentication.
+         ## search_bind_authentication=true
+ 
++	# Whether or not to follow referrals
++	## follow_referrals=false
++
+         ## [[[[[users]]]]]
+ 
+           # Base filter for searching for users
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 091a15b..aa4dc0a 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -275,6 +275,9 @@
+     # Define the number of levels to search for nested members.
+     ## nested_members_search_depth=10
+ 
++    # Whether or not to follow referrals
++    ## follow_referrals=false
++
+     [[[users]]]
+ 
+       # Base filter for searching for users
+@@ -324,6 +327,9 @@
+         ## Use search bind authentication.
+         ## search_bind_authentication=true
+ 
++        # Whether or not to follow referrals
++        ## follow_referrals=false
++
+         ## [[[[[users]]]]]
+ 
+           # Base filter for searching for users
+diff --git a/desktop/core/src/desktop/auth/backend.py b/desktop/core/src/desktop/auth/backend.py
+index ae70d63..7965107 100644
+--- a/desktop/core/src/desktop/auth/backend.py
++++ b/desktop/core/src/desktop/auth/backend.py
+@@ -387,6 +387,11 @@ class LdapBackend(object):
+       setattr(self._backend.settings, 'START_TLS', False)
+       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+ 
++    if ldap_config.FOLLOW_REFERRALS.get():
++      ldap.set_option(ldap.OPT_REFERRALS, 1)
++    else:
++      ldap.set_option(ldap.OPT_REFERRALS, 0)
++
+   def add_ldap_config_for_server(self, server):
+     if desktop.conf.LDAP.LDAP_SERVERS.get():
+       # Choose from multiple server configs
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 4f72042..f25069b 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -496,6 +496,11 @@ LDAP = ConfigSection(
+       help=_("Define the number of levels to search for nested members."),
+       type=int,
+       default=10),
++    FOLLOW_REFERRALS = Config("follow_referrals",
++      help=_("Whether or not to follow referrals."),
++      type=coerce_bool,
++      default=False),
++
+ 
+     LDAP_SERVERS = UnspecifiedConfigSection(
+       key="ldap_servers",
+@@ -532,6 +537,10 @@ LDAP = ConfigSection(
+                                             default=True,
+                                             type=coerce_bool,
+                                             help=_("Use search bind authentication.")),
++          FOLLOW_REFERRALS = Config("follow_referrals",
++                                    help=_("Whether or not to follow referrals."),
++                                    type=coerce_bool,
++                                    default=False),
+ 
+           USERS = ConfigSection(
+             key="users",
+-- 
+1.7.9.5
+

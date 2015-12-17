@@ -1,0 +1,318 @@
+From d59796aeb2bcfe480abe8d0019f5f9ed37387caf Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 22 Oct 2014 09:49:51 -0700
+Subject: [PATCH 0066/1173] HUE-2342 [impala] SSL encryption
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |   18 +++--
+ apps/impala/src/impala/conf.py                     |   42 +++++++++-
+ desktop/conf.dist/hue.ini                          |   84 ++++++++++++--------
+ desktop/conf/pseudo-distributed.ini.tmpl           |   84 ++++++++++++--------
+ 4 files changed, 154 insertions(+), 74 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index f7f2562..ecab681 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -314,10 +314,18 @@ class HiveServerClient:
+     self.impersonation_enabled = impersonation_enabled
+ 
+     if self.query_server['server_name'] == 'impala':
+-      ssl_enabled = False
++      ssl_enabled = impala_conf.SSL.ENABLED.get()
++      ca_certs = impala_conf.SSL.CACERTS.get()
++      keyfile = impala_conf.SSL.KEY.get()
++      certfile = impala_conf.SSL.CERT.get()
++      validate = impala_conf.SSL.VALIDATE.get()
+       timeout = impala_conf.SERVER_CONN_TIMEOUT.get()
+     else:
+       ssl_enabled = beeswax_conf.SSL.ENABLED.get()
++      ca_certs = beeswax_conf.SSL.CACERTS.get()
++      keyfile = beeswax_conf.SSL.KEY.get()
++      certfile = beeswax_conf.SSL.CERT.get()
++      validate = beeswax_conf.SSL.VALIDATE.get()
+       timeout = beeswax_conf.SERVER_CONN_TIMEOUT.get()
+ 
+     if ldap_username:
+@@ -338,10 +346,10 @@ class HiveServerClient:
+ 					                                password=password,
+                                           timeout_seconds=timeout,
+                                           use_ssl=ssl_enabled,
+-                                          ca_certs=beeswax_conf.SSL.CACERTS.get(),
+-                                          keyfile=beeswax_conf.SSL.KEY.get(),
+-                                          certfile=beeswax_conf.SSL.CERT.get(),
+-                                          validate=beeswax_conf.SSL.VALIDATE.get())
++                                          ca_certs=ca_certs,
++                                          keyfile=keyfile,
++                                          certfile=certfile,
++                                          validate=validate)
+ 
+ 
+   def get_security(self):
+diff --git a/apps/impala/src/impala/conf.py b/apps/impala/src/impala/conf.py
+index e0e352e..1fbec08 100644
+--- a/apps/impala/src/impala/conf.py
++++ b/apps/impala/src/impala/conf.py
+@@ -19,7 +19,7 @@ import sys
+ import socket
+ 
+ from django.utils.translation import ugettext_lazy as _t, ugettext as _
+-from desktop.lib.conf import Config, coerce_bool
++from desktop.lib.conf import ConfigSection, Config, coerce_bool
+ 
+ from impala.settings import NICE_NAME
+ 
+@@ -77,6 +77,46 @@ QUERY_TIMEOUT_S = Config(
+   default=600
+ )
+ 
++SSL = ConfigSection(
++  key='ssl',
++  help=_t('SSL configuration for the server.'),
++  members=dict(
++    ENABLED = Config(
++      key="enabled",
++      help=_t("SSL communication enabled for this server."),
++      type=coerce_bool,
++      default=False
++    ),
++
++    CACERTS = Config(
++      key="cacerts",
++      help=_t("Path to Certificate Authority certificates."),
++      type=str,
++      default="/etc/hue/cacerts.pem"
++    ),
++
++    KEY = Config(
++      key="key",
++      help=_t("Path to the private key file."),
++      type=str,
++      default="/etc/hue/key.pem"
++    ),
++
++    CERT = Config(
++      key="cert",
++      help=_t("Path to the public certificate file."),
++      type=str,
++      default="/etc/hue/cert.pem"
++    ),
++
++    VALIDATE = Config(
++      key="validate",
++      help=_t("Choose whether Hue should validate certificates received from the server."),
++      type=coerce_bool,
++      default=True
++    )
++  )
++)
+ 
+ def config_validator(user):
+   # dbms is dependent on beeswax.conf (this file)
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 0e2ad41..90ad44c 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -762,6 +762,56 @@
+ 
+ 
+ ###########################################################################
++# Settings to configure Impala
++###########################################################################
++
++[impala]
++  # Host of the Impala Server (one of the Impalad)
++  ## server_host=localhost
++
++  # Port of the Impala Server
++  ## server_port=21050
++
++  # Kerberos principal
++  ## impala_principal=impala/hostname.foo.com
++
++  # Turn on/off impersonation mechanism when talking to Impala
++  ## impersonation_enabled=False
++
++  # Number of initial rows of a result set to ask Impala to cache in order
++  # to support re-fetching them for downloading them.
++  # Set to 0 for disabling the option and backward compatibility.
++  ## querycache_rows=50000
++
++  # Timeout in seconds for thrift calls
++  ## server_conn_timeout=120
++
++  # Hue will try to close the Impala query when the user leaves the editor page.
++  # This will free all the query resources in Impala, but also make its results inaccessible.
++  ## close_queries=true
++
++  # If QUERY_TIMEOUT_S > 0, the query will be timed out (i.e. cancelled) if Impala does not do any work
++  # (compute or send back results) for that query within QUERY_TIMEOUT_S seconds.
++  ## query_timeout_s=600
++
++  [[ssl]]
++    # SSL communication enabled for this server.
++    ## enabled=false
++
++    # Path to Certificate Authority certificates.
++    ## cacerts=/etc/hue/cacerts.pem
++
++    # Path to the private key file.
++    ## key=/etc/hue/key.pem
++
++    # Path to the public certificate file.
++    ## cert=/etc/hue/cert.pem
++
++    # Choose whether Hue should validate certificates received from the server.
++    ## validate=true
++
++
++###########################################################################
+ # Settings to configure Pig
+ ###########################################################################
+ 
+@@ -800,40 +850,6 @@
+ 
+ 
+ ###########################################################################
+-# Settings to configure Impala
+-###########################################################################
+-
+-[impala]
+-  # Host of the Impala Server (one of the Impalad)
+-  ## server_host=localhost
+-
+-  # Port of the Impala Server
+-  ## server_port=21050
+-
+-  # Kerberos principal
+-  ## impala_principal=impala/hostname.foo.com
+-
+-  # Turn on/off impersonation mechanism when talking to Impala
+-  ## impersonation_enabled=False
+-
+-  # Number of initial rows of a result set to ask Impala to cache in order
+-  # to support re-fetching them for downloading them.
+-  # Set to 0 for disabling the option and backward compatibility.
+-  ## querycache_rows=50000
+-
+-  # Timeout in seconds for thrift calls
+-  ## server_conn_timeout=120
+-
+-  # Hue will try to close the Impala query when the user leaves the editor page.
+-  # This will free all the query resources in Impala, but also make its results inaccessible.
+-  ## close_queries=true
+-
+-  # If QUERY_TIMEOUT_S > 0, the query will be timed out (i.e. cancelled) if Impala does not do any work
+-  # (compute or send back results) for that query within QUERY_TIMEOUT_S seconds.
+-  ## query_timeout_s=600
+-
+-
+-###########################################################################
+ # Settings to configure HBase Browser
+ ###########################################################################
+ 
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 708e728..cc36ed1 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -769,6 +769,56 @@
+ 
+ 
+ ###########################################################################
++# Settings to configure Impala
++###########################################################################
++
++[impala]
++  # Host of the Impala Server (one of the Impalad)
++  ## server_host=localhost
++
++  # Port of the Impala Server
++  ## server_port=21050
++
++  # Kerberos principal
++  ## impala_principal=impala/hostname.foo.com
++
++  # Turn on/off impersonation mechanism when talking to Impala
++  ## impersonation_enabled=False
++
++  # Number of initial rows of a result set to ask Impala to cache in order
++  # to support re-fetching them for downloading them.
++  # Set to 0 for disabling the option and backward compatibility.
++  ## querycache_rows=50000
++
++  # Timeout in seconds for thrift calls
++  ## server_conn_timeout=120
++
++  # Hue will try to close the Impala query when the user leaves the editor page.
++  # This will free all the query resources in Impala, but also make its results inaccessible.
++  ## close_queries=true
++
++  # If QUERY_TIMEOUT_S > 0, the query will be timed out (i.e. cancelled) if Impala does not do any work
++  # (compute or send back results) for that query within QUERY_TIMEOUT_S seconds.
++  ## query_timeout_s=600
++
++  [[ssl]]
++    # SSL communication enabled for this server.
++    ## enabled=false
++
++    # Path to Certificate Authority certificates.
++    ## cacerts=/etc/hue/cacerts.pem
++
++    # Path to the private key file.
++    ## key=/etc/hue/key.pem
++
++    # Path to the public certificate file.
++    ## cert=/etc/hue/cert.pem
++
++    # Choose whether Hue should validate certificates received from the server.
++    ## validate=true
++
++
++###########################################################################
+ # Settings to configure Pig
+ ###########################################################################
+ 
+@@ -807,40 +857,6 @@
+ 
+ 
+ ###########################################################################
+-# Settings to configure Impala
+-###########################################################################
+-
+-[impala]
+-  # Host of the Impala Server (one of the Impalad)
+-  ## server_host=localhost
+-
+-  # Port of the Impala Server
+-  ## server_port=21050
+-
+-  # Kerberos principal
+-  ## impala_principal=impala/hostname.foo.com
+-
+-  # Turn on/off impersonation mechanism when talking to Impala
+-  ## impersonation_enabled=False
+-
+-  # Number of initial rows of a result set to ask Impala to cache in order
+-  # to support re-fetching them for downloading them.
+-  # Set to 0 for disabling the option and backward compatibility.
+-  ## querycache_rows=50000
+-
+-  # Timeout in seconds for thrift calls
+-  ## server_conn_timeout=120
+-
+-  # Hue will try to close the Impala query when the user leaves the editor page.
+-  # This will free all the query resources in Impala, but also make its results inaccessible.
+-  ## close_queries=true
+-
+-  # If QUERY_TIMEOUT_S > 0, the query will be timed out (i.e. cancelled) if Impala does not do any work
+-  # (compute or send back results) for that query within QUERY_TIMEOUT_S seconds.
+-  ## query_timeout_s=600
+-
+-
+-###########################################################################
+ # Settings to configure HBase Browser
+ ###########################################################################
+ 
+-- 
+1.7.9.5
+

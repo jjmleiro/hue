@@ -1,0 +1,63 @@
+From 9343076041e0d2cef3695a7ec4f4435da3fdf92a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 23 Feb 2015 13:30:49 +0100
+Subject: [PATCH 0890/1173] [spark] Hide and not load Assist if Beeswax is
+ blacklisted
+
+---
+ apps/spark/src/spark/templates/editor.mako |   12 +++++++++---
+ apps/spark/static/js/spark.ko.js           |    3 ++-
+ 2 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 2af9283..61cce02 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -168,7 +168,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ </div>
+ 
+ 
+-<a title="${_('Toggle Assist')}" class="pointer show-assist" data-bind="visible: !$root.isAssistVisible(), click: $root.toggleAssist">
++<a title="${_('Toggle Assist')}" class="pointer show-assist" data-bind="visible: !$root.isAssistVisible() && $root.isAssistAvailable(), click: $root.toggleAssist">
+   <i class="fa fa-chevron-right"></i>
+ </a>
+ 
+@@ -1116,8 +1116,14 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     assist.getData(null, force);
+   }
+ 
+-  loadAssistMain();
+-
++  if (assist.options.baseURL != ""){
++    loadAssistMain();  
++  }
++  else {
++    viewModel.isAssistVisible(false);
++    viewModel.isAssistAvailable(false);
++  }
++  
+   function reloadAssist() {
+     loadAssistMain(true);
+   }
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 2dffe51..37ddbbf 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -617,12 +617,13 @@ function EditorViewModel(notebooks, options) {
+     self.isEditing(! self.isEditing());
+   };
+ 
++  self.isAssistAvailable = ko.observable(true);
++  
+   self.isAssistVisible = ko.observable(options.assistVisible);
+   self.toggleAssist = function () {
+     self.isAssistVisible(! self.isAssistVisible());
+     $(document).trigger("toggleAssist");
+   };
+-  self.isAssistVisible = ko.observable(options.assistVisible);
+ 
+   self.assistContent = ko.observable();
+   self.assistSelectedMainObject = ko.observable();
+-- 
+1.7.9.5
+

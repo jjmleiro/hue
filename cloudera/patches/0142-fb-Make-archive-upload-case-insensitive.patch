@@ -1,0 +1,32 @@
+From 1ced11cffe3a2add1260aadc6ab2d3f5ff887951 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 9 Dec 2014 11:56:06 -0800
+Subject: [PATCH 0142/1173] "[fb] Make archive upload case insensitive"
+
+---
+ apps/filebrowser/src/filebrowser/views.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index ec0d7cf..0797392 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -1229,13 +1229,13 @@ def _upload_archive(request):
+         try:
+             # Extract if necessary
+             # Make sure dest path is without the extension
+-            if dest.endswith('.zip'):
++            if dest.lower().endswith('.zip'):
+                 temp_path = archive_factory(uploaded_file, 'zip').extract()
+                 if not temp_path:
+                     raise PopupException(_('Could not extract contents of file.'))
+                 # Move the file to where it belongs
+                 dest = dest[:-4]
+-            elif dest.endswith('.tar.gz') or dest.endswith('.tgz'):
++            elif dest.lower().endswith('.tar.gz') or dest.lower().endswith('.tgz'):
+                 print uploaded_file
+                 temp_path = archive_factory(uploaded_file, 'tgz').extract()
+                 if not temp_path:
+-- 
+1.7.9.5
+

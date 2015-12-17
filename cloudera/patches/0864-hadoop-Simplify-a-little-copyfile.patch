@@ -1,0 +1,38 @@
+From 3f81ce15f5bd4a872792d46c81e2237581e9b21a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Feb 2015 18:31:19 -0800
+Subject: [PATCH 0864/1173] [hadoop] Simplify a little copyfile
+
+We had a series of bug about this, making the method a slightly
+simpler to read.
+
+No removing the while true as it works now.
+---
+ desktop/libs/hadoop/src/hadoop/fs/webhdfs.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+index 7fbb7c2..0ff53e5 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/webhdfs.py
+@@ -560,6 +560,7 @@ class WebHdfs(Hdfs):
+     while True:
+       data = self.read(src, offset, UPLOAD_CHUNK_SIZE.get())
+       cnt = len(data)
++
+       if offset == 0:
+         if skip_header:
+           n = data.index('\n')
+@@ -571,8 +572,7 @@ class WebHdfs(Hdfs):
+                     replication=sb.replication,
+                     permission=oct(stat.S_IMODE(sb.mode)),
+                     data=data)
+-
+-      if offset != 0:
++      else:
+         self.append(dst, data)
+ 
+       if cnt < UPLOAD_CHUNK_SIZE.get():
+-- 
+1.7.9.5
+

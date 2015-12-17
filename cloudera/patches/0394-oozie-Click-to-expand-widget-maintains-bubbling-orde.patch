@@ -1,0 +1,72 @@
+From 6c5edfc4831c3408ecc10aabb18bb8d3ae2f6953 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 5 Jan 2015 11:21:16 +0100
+Subject: [PATCH 0394/1173] [oozie] Click to expand widget maintains bubbling
+ order now
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   16 ++++++++--------
+ apps/oozie/static/css/workflow-editor.css          |    1 -
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 063d46e..8ce73aa 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -402,13 +402,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         </div>
+       <!-- /ko -->
+     </h2>
+-    <div class="card-body" style="padding: 0;">
++    <div class="card-body" style="padding: 0; position: relative">
+       <div class="advanced-triangle-container" data-bind="visible: $root.isEditing() && ! ooziePropertiesExpanded() && oozieMovable(), click: toggleProperties">
+         <div class="advanced-triangle">
+           <a href="javascript:void(0)"><i class="fa fa-cogs"></i></a>
+         </div>
+       </div>
+-      <div data-bind="click: function(widget, e){ highlightWidget(widget, e); }, template: { name: function() { return widgetType(); }}" class="widget-main-section"></div>
++      <div data-bind="template: { name: function() { return widgetType(); }}" class="widget-main-section"></div>
+     </div>
+   </div>
+ </script>
+@@ -1985,12 +1985,6 @@ ${ dashboard.import_bindings() }
+     }
+   }
+ 
+-  function highlightWidget(widget, e) {
+-    if (! $(e.target).is("a") && ! $(e.target).is("input") && ! $(e.target).is("i") && ! $(e.target).is("button")){
+-      setLastExpandedWidget(widget);
+-    }
+-  }
+-
+   function exposeOverlayClickHandler() {
+     if (lastExpandedWidget) {
+       var _el = $("#wdg_" + lastExpandedWidget.id());
+@@ -2025,6 +2019,12 @@ ${ dashboard.import_bindings() }
+       }, 200);
+     });
+ 
++    $(document).on("click", ".widget-main-section", function(e){
++      if (! $(e.target).is("a") && ! $(e.target).is("input") && ! $(e.target).is("i") && ! $(e.target).is("button")){
++        setLastExpandedWidget(ko.dataFor($(e.target).parents(".card-widget")[0]));
++      }
++    });
++
+   });
+ 
+ </script>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 1b2cce8..05fd70b 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -462,7 +462,6 @@ input[type="text"].filechooser-input, input[type="text"].half {
+   width: 50%;
+ }
+ 
+-
+ .fileChooserBtn {
+   height: 31px;
+ }
+-- 
+1.7.9.5
+

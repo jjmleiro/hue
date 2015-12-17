@@ -1,0 +1,45 @@
+From 0b6eb96fc70673567232e4a3b96827bc707bd022 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 12 Mar 2015 15:03:05 +0100
+Subject: [PATCH 1065/1173] [oozie] Hide deployment dir on filechooser
+
+---
+ .../oozie/templates/editor2/workflow_editor.mako   |    3 ++-
+ .../desktop/static/desktop/js/ko.hue-bindings.js   |    7 +++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 92c75e1..8e57107 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -402,7 +402,8 @@ ${ dashboard.import_bindings() }
+       label: '${ _('Workspace') }',
+       icon: 'fa-folder-open',
+       path: viewModel.workflow.properties.deployment_dir()
+-    }
++    },
++    deploymentDir: viewModel.workflow.properties.deployment_dir()
+   }
+ 
+   function columnDropAdditionalHandler(widget) {
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+index 90ae860..c753dea 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.hue-bindings.js
+@@ -1210,6 +1210,13 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdf
+       if (allBindingsAccessor && allBindingsAccessor().filechooserPrefixSeparator){
+         filePath = inputElement.val().split(allBindingsAccessor().filechooserPrefixSeparator)[0] + '=' + filePath;
+       }
++      if (allBindingsAccessor && allBindingsAccessor().filechooserOptions && allBindingsAccessor().filechooserOptions.deploymentDir){
++        inputElement.data("fullPath", filePath);
++        inputElement.attr("data-original-title", filePath);
++        if (filePath.indexOf(allBindingsAccessor().filechooserOptions.deploymentDir) == 0){
++          filePath = filePath.substr(allBindingsAccessor().filechooserOptions.deploymentDir.length + 1);
++        }
++      }
+       if (stripHdfsPrefix){
+         inputElement.val(filePath);
+       }
+-- 
+1.7.9.5
+

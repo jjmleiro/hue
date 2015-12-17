@@ -1,0 +1,26 @@
+From a845fce220e6e4ad3c579369b9d00d8d42d6780f Mon Sep 17 00:00:00 2001
+From: Luca Natali <lucan@amazon.com>
+Date: Wed, 15 Oct 2014 00:32:30 +0000
+Subject: [PATCH 0184/1173] HUE-2518 [pig] Fix typo in logging error: Change
+ "demo" to "job"
+
+---
+ apps/pig/src/pig/api.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/pig/src/pig/api.py b/apps/pig/src/pig/api.py
+index 9f4b903..a2c3630 100644
+--- a/apps/pig/src/pig/api.py
++++ b/apps/pig/src/pig/api.py
+@@ -162,7 +162,7 @@ class OozieApi:
+             is_really_done = OozieApi.RE_LOG_END.search(data['logs'][1]) is not None
+ 
+       except Exception, e:
+-        LOG.error('An error happen while watching the demo running: %(error)s' % {'error': e})
++        LOG.error('An error happen while watching the job running: %(error)s' % {'error': e})
+         is_really_done = True
+ 
+     workflow_actions = []
+-- 
+1.7.9.5
+

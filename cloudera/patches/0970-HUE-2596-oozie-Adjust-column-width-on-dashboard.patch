@@ -1,0 +1,39 @@
+From a1df3d2045518cab5c70ec97511124cc0b437eea Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Mon, 2 Mar 2015 12:02:24 -0800
+Subject: [PATCH 0970/1173] HUE-2596 [oozie] Adjust column width on dashboard
+
+---
+ .../templates/dashboard/list_oozie_workflows.mako  |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+index 17584ee..de8aee5 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/list_oozie_workflows.mako
+@@ -74,11 +74,11 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+           <th width="1%"><div class="select-all hueCheckbox fa"></div></th>
+           <th width="14%">${ _('Submission') }</th>
+           <th width="5%">${ _('Status') }</th>
+-          <th width="21%">${ _('Name') }</th>
++          <th width="31%">${ _('Name') }</th>
+           <th width="7%">${ _('Progress') }</th>
+           <th width="7%">${ _('Submitter') }</th>
+           <th width="7%">${ _('Last Modified') }</th>
+-          <th width="20%">${ _('Id') }</th>
++          <th width="23%">${ _('Id') }</th>
+           <th width="5%">${ _('Parent') }</th>
+         </tr>
+       </thead>
+@@ -106,7 +106,7 @@ ${ layout.menubar(section='workflows', dashboard=True) }
+         <tr>
+           <th width="15%">${ _('Completion') }</th>
+           <th width="7%">${ _('Status') }</th>
+-          <th width="25%">${ _('Name') }</th>
++          <th width="31%">${ _('Name') }</th>
+           <th width="7%">${ _('Duration') }</th>
+           <th width="10%">${ _('Submitter') }</th>
+           <th width="25%">${ _('Id') }</th>
+-- 
+1.7.9.5
+

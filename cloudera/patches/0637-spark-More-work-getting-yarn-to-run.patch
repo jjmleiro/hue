@@ -1,0 +1,220 @@
+From 11f0107671f41943ddb2cac26bcf4cccff762e0a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 20 Dec 2014 22:45:56 -0800
+Subject: [PATCH 0637/1173] [spark] More work getting yarn to run
+
+---
+ apps/spark/java/livy-yarn/pom.xml                  |   17 +++-
+ apps/spark/java/livy-yarn/src/main/bash/run-am.sh  |    2 +-
+ .../java/livy-yarn/src/main/bash/run-class.sh      |    2 +-
+ apps/spark/java/livy-yarn/src/main/bash/run-job.sh |    2 +-
+ apps/spark/livy-client.py                          |   93 ++++++++++++++++++++
+ apps/spark/livy_server.sh                          |   31 +++++++
+ 6 files changed, 141 insertions(+), 6 deletions(-)
+ create mode 100755 apps/spark/livy-client.py
+ create mode 100755 apps/spark/livy_server.sh
+
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index fb7e02c..1160c7f 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -87,9 +87,20 @@
+             <plugin>
+                 <artifactId>maven-assembly-plugin</artifactId>
+                 <version>2.4</version>
+-                <configuration>
+-                    <descriptor>src/main/assembly/dist.xml</descriptor>
+-                </configuration>
++                <executions>
++                    <execution>
++                        <id>make-bundles</id>
++                        <goals>
++                            <goal>single</goal>
++                        </goals>
++                        <phase>package</phase>
++                        <configuration>
++                            <descriptors>
++                                <descriptor>src/main/assembly/dist.xml</descriptor>
++                            </descriptors>
++                        </configuration>
++                    </execution>
++                </executions>
+             </plugin>
+ 
+             <plugin>
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-am.sh b/apps/spark/java/livy-yarn/src/main/bash/run-am.sh
+index a598fa3..67089c7 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-am.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-am.sh
+@@ -18,4 +18,4 @@
+ 
+ [[ $JAVA_OPTS != *-server* ]] && export JAVA_OPTS="$JAVA_OPTS -server"
+ 
+-exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.AppMaster $@
+\ No newline at end of file
++exec $(dirname $0)/run-class.sh com.cloudera.hue.livy.yarn.AppMaster $@
+\ No newline at end of file
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+index d59e9f2..12321ad 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+@@ -6,7 +6,7 @@ cd $base_dir
+ base_dir=`pwd`
+ cd $home_dir
+ 
+-HADOOP_YARN_HOME="${HADOOP_YARN_HOME:-$HOME/.sparker}"
++HADOOP_YARN_HOME="${HADOOP_YARN_HOME:-$HOME/.livy}"
+ HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-$HADOOP_YARN_HOME/conf}"
+ CLASSPATH=$HADOOP_CONF_DIR
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-job.sh b/apps/spark/java/livy-yarn/src/main/bash/run-job.sh
+index bd3a98d..3621f96 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-job.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-job.sh
+@@ -16,4 +16,4 @@
+ # specific language governing permissions and limitations
+ # under the License.
+ 
+-exec $(dirname $0)/run-class.sh com.cloudera.hue.sparker.yarn.Client $@
+\ No newline at end of file
++exec $(dirname $0)/run-class.sh com.cloudera.hue.livy.yarn.Client $@
+\ No newline at end of file
+diff --git a/apps/spark/livy-client.py b/apps/spark/livy-client.py
+new file mode 100755
+index 0000000..c5b458f
+--- /dev/null
++++ b/apps/spark/livy-client.py
+@@ -0,0 +1,93 @@
++#! /usr/bin/env python
++
++import json
++import httplib
++import urllib
++
++livy_client_default_host = 'localhost'
++livy_client_default_port = 8080
++
++class LivyClient:
++    # Configuration
++    host = livy_client_default_host
++    port = livy_client_default_port
++    # State
++    connection = None
++    session_id = None
++    output_cursor = 0
++    # Constants
++    POST = 'POST'
++    GET = 'GET'
++    DELETE = 'DELETE'
++    ROOT = '/'
++    OK = 200
++    def __init__(self, host=livy_client_default_host, port=livy_client_default_port, lang=None):
++        self.host = host
++        self.port = port
++        self.connection = self.create_connection()
++        self.session_id = self.create_session(lang)
++    def http_json(self, method, url, body=''):
++        self.connection.request(method, url, body)
++        response = self.connection.getresponse()
++        if response.status != self.OK:
++            raise Exception(str(response.status) + ' ' + response.reason)
++        response_text = response.read()
++        if len(response_text) != 0:
++            return json.loads(response_text)
++        return ''
++    def create_connection(self):
++        return httplib.HTTPConnection(self.host, self.port)
++    def create_session(self, lang):
++        return self.http_json(self.POST, self.ROOT, urllib.urlencode({'lang': lang}))
++    def get_sessions(self):
++        return self.http_json(self.GET, self.ROOT)
++    def get_session(self):
++        return self.http_json(self.GET, self.ROOT + self.session_id)
++    def post_input(self, command):
++        self.http_json(self.POST, self.ROOT + self.session_id, command)
++    def get_output(self):
++        output = self.get_session()[self.output_cursor:]
++        self.output_cursor += len(output)
++        return output
++    def delete_session(self):
++        self.http_json(self.DELETE, self.ROOT + self.session_id)
++    def close_connection(self):
++        self.connection.close()
++
++import threading
++import time
++import sys
++
++class LivyPoller(threading.Thread):
++    keep_polling = True
++    def __init__(self, livy_client):
++        threading.Thread.__init__(self)
++        self.livy_client = livy_client
++    def stop_polling(self):
++        self.keep_polling = False
++    def run(self):
++        while self.keep_polling:
++            output = self.livy_client.get_output()
++            for line in output:
++                print(line)
++            time.sleep(1)
++
++if len(sys.argv) == 2:
++    lang = sys.argv[1]
++else:
++    lang = 'scala'
++
++client = LivyClient(lang=lang)
++poller = LivyPoller(client)
++poller.start()
++
++try:
++    while True:
++        line = raw_input()
++        client.post_input(line)
++except:
++    poller.stop_polling()
++    client.delete_session()
++    client.close_connection()
++
++sys.exit(0)
+diff --git a/apps/spark/livy_server.sh b/apps/spark/livy_server.sh
+new file mode 100755
+index 0000000..0d9a4f7
+--- /dev/null
++++ b/apps/spark/livy_server.sh
+@@ -0,0 +1,31 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Livy server.
++
++set -o errexit
++
++LIVY_ROOT=$(dirname $0)
++LIVY_JAR=$LIVY_ROOT/java/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar
++
++export LIVY_HOME=$(dirname $0)
++
++# Note: I've had trouble running this with just "java -jar" with the classpath
++# determined with a seemingly appropriate find command.
++echo CWD=$(pwd)
++echo Executing java -jar $LIVY_JAR "$@"
++exec java -jar $LIVY_JAR "$@"
+-- 
+1.7.9.5
+

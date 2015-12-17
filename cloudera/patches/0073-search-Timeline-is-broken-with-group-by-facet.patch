@@ -1,0 +1,25 @@
+From ad650fa3ccc8c59d6584c616cdc2d1b1fef9de4c Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 23 Oct 2014 15:11:22 -0700
+Subject: [PATCH 0073/1173] [search] Timeline is broken with group by facet
+
+---
+ apps/search/src/search/models.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index bf00eac..5ec3a50 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -531,7 +531,7 @@ def augment_solr_response(response, collection, query):
+         escaped_value = escape(value)
+       doc[field] = escaped_value
+ 
+-    if not query['download']:
++    if not query.get('download'):
+       doc['showDetails'] = False
+       doc['details'] = []
+ 
+-- 
+1.7.9.5
+

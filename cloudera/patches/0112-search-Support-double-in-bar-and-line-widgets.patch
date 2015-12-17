@@ -1,0 +1,25 @@
+From cb306629725b406f6a5804713242a5a5c944a0c7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 13 Nov 2014 09:12:24 -0500
+Subject: [PATCH 0112/1173] [search] Support double in bar and line widgets
+
+---
+ apps/search/static/js/search.ko.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index 5f0006e..f2382fd 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -858,7 +858,7 @@ var NewTemplate = function (vm, initial) {
+ 
+ 
+ var DATE_TYPES = ['date', 'tdate'];
+-var NUMBER_TYPES = ['int', 'tint', 'long', 'tlong', 'float', 'tfloat'];
++var NUMBER_TYPES = ['int', 'tint', 'long', 'tlong', 'float', 'tfloat', 'double', 'tdouble'];
+ 
+ var RANGE_SELECTABLE_WIDGETS = ['histogram-widget', 'bar-widget', 'line-widget'];
+ 
+-- 
+1.7.9.5
+

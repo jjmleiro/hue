@@ -1,0 +1,72 @@
+From ae59cf639123d084a3a2c85d8fc383d8ec43adcd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 5 Jan 2015 10:32:49 +0100
+Subject: [PATCH 0391/1173] [oozie] Improved readability on inline forms
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    6 +++---
+ apps/oozie/static/css/workflow-editor.css          |   10 ++++++++++
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index be18af3..69476ae 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -403,7 +403,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       <!-- /ko -->
+     </h2>
+     <div class="card-body" style="padding: 0;">
+-      <div class="pull-right" data-bind="visible: $root.isEditing() && ! ooziePropertiesExpanded() && oozieMovable(), click: toggleProperties">
++      <div class="advanced-triangle-container" data-bind="visible: $root.isEditing() && ! ooziePropertiesExpanded() && oozieMovable(), click: toggleProperties">
+         <div class="advanced-triangle">
+           <a href="javascript:void(0)"><i class="fa fa-cogs"></i></a>
+         </div>
+@@ -592,7 +592,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.files">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="span9 filechooser-input" data-bind="filechooser: value"/>
++      <input type="text" class="filechooser-input" data-bind="filechooser: value"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.files.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+@@ -609,7 +609,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+   </h6>
+   <ul class="unstyled" data-bind="foreach: properties.parameters">
+     <li style="margin-bottom: 3px">
+-      <input type="text" class="span11" data-bind="value: value, attr: { placeholder: $parent.actionParametersUI }"/>
++      <input type="text" class="half" data-bind="value: value, attr: { placeholder: $parent.actionParametersUI }"/>
+       <a href="#" data-bind="click: function(){ $parent.properties.parameters.remove(this); $(document).trigger('drawArrows') }">
+         <i class="fa fa-minus"></i>
+       </a>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index c9a53e6..1b2cce8 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -377,6 +377,11 @@
+   margin-right: 3px;
+ }
+ 
++.advanced-triangle-container {
++  position: absolute;
++  right: 0;
++}
++
+ .advanced-triangle {
+   width: 0;
+   height: 0;
+@@ -453,6 +458,11 @@ input[type="text"].filechooser-input {
+   margin-bottom: 0;
+ }
+ 
++input[type="text"].filechooser-input, input[type="text"].half {
++  width: 50%;
++}
++
++
+ .fileChooserBtn {
+   height: 31px;
+ }
+-- 
+1.7.9.5
+

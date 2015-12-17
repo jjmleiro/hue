@@ -1,0 +1,26 @@
+From deb380fe5fa19ef29bcf9767ab7b1599eb115ca5 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 16 Mar 2015 13:36:34 -0500
+Subject: [PATCH 1093/1173] [oozie] Preview HDFS links with the correct UTC
+ start time
+
+---
+ .../templates/editor2/coordinator_editor.mako      |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 0b81349..c261697 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -555,7 +555,7 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   function convertVariables(path) {
+-    var _startDate = moment(viewModel.coordinator.start_date.value());
++    var _startDate = moment(viewModel.coordinator.start_date.value()).utc();
+     if (_startDate.isValid()){
+       path = path.replace(/\${'$'}{YEAR}/gi, _startDate.year());
+       path = path.replace(/\${'$'}{MONTH}/gi, zeroPadding((_startDate.month() + 1)));
+-- 
+1.7.9.5
+

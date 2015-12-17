@@ -35,20 +35,26 @@ CACHED_LDAP_CONN = None
 
 
 def get_connection_from_server(server=None):
-  if server:
-    return get_connection(desktop.conf.LDAP.LDAP_SERVERS.get()[server], search_bind_authentication=desktop.conf.LDAP.SEARCH_BIND_AUTHENTICATION.get())
-  else:
-    return get_connection(desktop.conf.LDAP, search_bind_authentication=desktop.conf.LDAP.SEARCH_BIND_AUTHENTICATION.get())
 
-def get_connection(ldap_config, search_bind_authentication):
+  ldap_servers = desktop.conf.LDAP.LDAP_SERVERS.get()
+
+  if server and ldap_servers:
+    ldap_config = ldap_servers[server]
+  else:
+    ldap_config = desktop.conf.LDAP
+     
+  return get_connection(ldap_config)
+
+def get_connection(ldap_config):
   global CACHED_LDAP_CONN
   if CACHED_LDAP_CONN is not None:
     return CACHED_LDAP_CONN
 
   ldap_url = ldap_config.LDAP_URL.get()
   username = ldap_config.BIND_DN.get()
-  password = ldap_config.BIND_PASSWORD.get()
+  password = desktop.conf.get_ldap_bind_password(ldap_config)
   ldap_cert = ldap_config.LDAP_CERT.get()
+  search_bind_authentication = ldap_config.SEARCH_BIND_AUTHENTICATION.get()
 
   if ldap_url is None:
     raise Exception('No LDAP URL was specified')
@@ -107,9 +113,15 @@ class LdapConnection(object):
       ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_ALLOW)
       ldap.set_option(ldap.OPT_X_TLS_CACERTFILE, cert_file)
 
-    ldap.set_option(ldap.OPT_REFERRALS, 0)
+    if self.ldap_config.FOLLOW_REFERRALS.get():
+      ldap.set_option(ldap.OPT_REFERRALS, 1)
+    else:
+      ldap.set_option(ldap.OPT_REFERRALS, 0)
 
-    self.ldap_handle = ldap.initialize(ldap_url)
+    if ldap_config.DEBUG.get():
+      ldap.set_option(ldap.OPT_DEBUG_LEVEL, ldap_config.DEBUG_LEVEL.get())
+
+    self.ldap_handle = ldap.initialize(uri=ldap_url, trace_level=ldap_config.TRACE_LEVEL.get())
 
     if bind_user is not None:
       try:
@@ -206,9 +218,13 @@ class LdapConnection(object):
             LOG.warn('Could not find %s in ldap attributes' % group_name_attr)
             continue
 
+          group_name = data[group_name_attr][0]
+          if desktop.conf.LDAP.FORCE_USERNAME_LOWERCASE.get():
+            group_name = group_name.lower()
+
           ldap_info = {
             'dn': dn,
-            'name': data[group_name_attr][0]
+            'name': group_name
           }
 
           if group_member_attr in data and 'posixGroup' not in data['objectClass']:

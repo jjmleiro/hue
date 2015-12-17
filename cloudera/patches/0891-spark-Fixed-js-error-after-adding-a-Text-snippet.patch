@@ -1,0 +1,27 @@
+From a0692f1fff6ea1087f572314171655ed869e37f0 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 23 Feb 2015 13:33:37 +0100
+Subject: [PATCH 0891/1173] [spark] Fixed js error after adding a Text snippet
+
+---
+ apps/spark/src/spark/templates/editor.mako |    4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 61cce02..99ab390 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -1574,7 +1574,9 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+ 
+     $(document).on("snippetAdded", function(e, snippet) {
+       var _handle = $("#snippet_" + snippet.id()).find(".resize-panel a");
+-      _handle.draggable(getDraggableOptions(_handle.offset().top));
++      if (_handle.length > 0){
++        _handle.draggable(getDraggableOptions(_handle.offset().top));  
++      }
+     });
+ 
+     $(document).on("toggleAssist", function(){
+-- 
+1.7.9.5
+

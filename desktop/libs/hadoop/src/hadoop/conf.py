@@ -40,13 +40,6 @@ def find_file_recursive(desired_glob, root):
   return f
 
 
-def coerce_umask(umask):
-  if len(umask) < 4:
-    umask = "1" + umask
-
-  return int(umask, 8)
-
-
 UPLOAD_CHUNK_SIZE = Config(
   key="upload_chunk_size",
   help="Size, in bytes, of the 'chunks' Django should store into memory and feed into the handler. Default is 64MB.",
@@ -74,10 +67,18 @@ HDFS_CLUSTERS = UnspecifiedConfigSection(
                                    default="hdfs", type=str),
       SECURITY_ENABLED=Config("security_enabled", help="Is running with Kerberos authentication",
                               default=False, type=coerce_bool),
+      SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
+                  help="In secure mode (HTTPS), if SSL certificates from YARN Rest APIs have to be verified against certificate authority",
+                  default=True,
+                  type=coerce_bool),
       TEMP_DIR=Config("temp_dir", help="HDFS directory for temporary files",
                       default='/tmp', type=str),
-      UMASK=Config("umask", help="Default umask for file and directory creation, specified in an octal value",
-                   default='022', type=coerce_umask),
+      HADOOP_CONF_DIR = Config(
+        key="hadoop_conf_dir",
+        default=os.environ.get("HADOOP_CONF_DIR", "/etc/hadoop/conf"),
+        help=("Directory of the Hadoop configuration) Defaults to the environment variable " +
+              "HADOOP_CONF_DIR when set, or '/etc/hadoop/conf'.")
+      )
     )
   )
 )
@@ -141,6 +142,10 @@ YARN_CLUSTERS = UnspecifiedConfigSection(
       HISTORY_SERVER_API_URL=Config("history_server_api_url",
                   default='http://localhost:19888',
                   help="URL of the HistoryServer API"),
+      SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
+                  help="In secure mode (HTTPS), if SSL certificates from YARN Rest APIs have to be verified against certificate authority",
+                  default=True,
+                  type=coerce_bool)
     )
   )
 )
@@ -166,7 +171,7 @@ def config_validator(user):
     if name == 'default':
       has_default = True
   if not has_default:
-    res.append("hadoop.hdfs_clusters", "You should have an HDFS called 'default'.")
+    res.append(("hadoop.hdfs_clusters", "You should have an HDFS called 'default'."))
 
   # MR_CLUSTERS
   mr_down = []

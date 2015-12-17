@@ -18,6 +18,7 @@
 import errno
 import logging
 import os
+import re
 import time
 
 from django.utils.translation import ugettext as _
@@ -141,6 +142,10 @@ class Submission(object):
       LOG.exception(msg)
       raise PopupException(message=msg, detail=str(ex))
 
+    if self.api.security_enabled:
+      jt_address = cluster.get_cluster_addr_for_job_submission()
+      self._update_properties(jt_address) # Needed for coordinator deploying workflows
+
     oozie_xml = self.job.to_xml(self.properties)
     self._do_as(self.user.username , self._copy_files, deployment_dir, oozie_xml)
 
@@ -174,8 +179,8 @@ class Submission(object):
     parameters = dict([(var, '') for var in find_variables(xml, include_named=False) if not self._is_coordinator() or var not in DATASET_FREQUENCY])
 
     if properties:
-      parameters.update(dict([line.strip().split('=')
-                              for line in properties.split('\n') if not line.startswith('#') and len(line.strip().split('=')) == 2]))
+      parameters.update(dict([re.split(r'(?<!\\)=', line.strip())
+                              for line in properties.split('\n') if not line.startswith('#') and len(re.split(r'(?<!\\)=', line.strip())) == 2]))
     return parameters
 
   def _update_properties(self, jobtracker_addr, deployment_dir=None):

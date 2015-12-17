@@ -1,0 +1,29 @@
+From 298dbd272349909cd84db565016985d5acfd79bb Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 30 Apr 2015 10:48:08 +0200
+Subject: [PATCH 1166/1173] HUE-2717 [oozie] Coordinator editor does not save
+ non-default schedules
+
+Update model on cron:change event
+---
+ .../templates/editor2/coordinator_editor.mako      |    4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 5e219d0..75603fc 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -550,6 +550,10 @@ ${ dashboard.import_bindings() }
+       })
+       .jqCronGetInstance();
+ 
++  $('#jqCron-container').on('cron:change', function(e, cron){
++    viewModel.coordinator.properties.cron_frequency(cron);
++  });
++
+   function zeroPadding(value) {
+     return (value < 10 ? '0':'') + value;
+   }
+-- 
+1.7.9.5
+

@@ -1,0 +1,93 @@
+From 683111ac90d2d050b014de42e0107e92346f0767 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 26 Feb 2015 15:57:37 -0800
+Subject: [PATCH 0951/1173] Revert "[spark] Temporarily disable building livy"
+
+This reverts commit 05e8480a845e4d162c77ea9fe7f12d607464c44b.
+---
+ apps/spark/Makefile |   72 +++++++++++++++++++++++++--------------------------
+ 1 file changed, 36 insertions(+), 36 deletions(-)
+
+diff --git a/apps/spark/Makefile b/apps/spark/Makefile
+index 6edd931..9902a72 100644
+--- a/apps/spark/Makefile
++++ b/apps/spark/Makefile
+@@ -23,39 +23,39 @@ endif
+ APP_NAME = spark
+ include $(ROOT)/Makefile.sdk
+ 
+-#SPARK_ROOT := $(realpath .)
+-#JAVA_LIB = $(SPARK_ROOT)/java-lib
+-#
+-#LIVY_DIR = $(SPARK_ROOT)/java
+-#LIVY_TARGET_DIR = $(LIVY_DIR)/livy-assembly/target/scala-2.10
+-#LIVY_ASSEMBLY = livy-assembly-$(MAVEN_VERSION).jar
+-#LIVY = $(JAVA_LIB)/$(LIVY_ASSEMBLY)
+-#
+-#HAVE_JAVA_SRC = $(wildcard $(LIVY_DIR))
+-#
+-#compile: $(LIVY)
+-#
+-#ifneq (,$(HAVE_JAVA_SRC))
+-#
+-#clean::
+-#	rm -Rf $(JAVA_LIB)
+-#	cd $(LIVY_DIR) && mvn clean $(MAVEN_OPTIONS) || :
+-#
+-#$(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY): $(shell find $(LIVY_DIR) -type f)
+-#	@echo "--- Building Desktop spark"
+-#	cd $(LIVY_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
+-#
+-#$(LIVY): $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY)
+-#	mkdir -p $(JAVA_LIB)
+-#	cp $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY) $(LIVY)
+-#
+-#else
+-#$(LIVY):
+-#	$(error Cannot build spark jars without source)
+-#endif
+-#
+-#BDIST_EXCLUDES += \
+-#	--exclude=java
+-#
+-#SDIST_EXCLUDES += \
+-#	--exclude=java-lib
++SPARK_ROOT := $(realpath .)
++JAVA_LIB = $(SPARK_ROOT)/java-lib
++
++LIVY_DIR = $(SPARK_ROOT)/java
++LIVY_TARGET_DIR = $(LIVY_DIR)/livy-assembly/target/scala-2.10
++LIVY_ASSEMBLY = livy-assembly-$(MAVEN_VERSION).jar
++LIVY = $(JAVA_LIB)/$(LIVY_ASSEMBLY)
++
++HAVE_JAVA_SRC = $(wildcard $(LIVY_DIR))
++
++compile: $(LIVY)
++
++ifneq (,$(HAVE_JAVA_SRC))
++
++clean::
++	rm -Rf $(JAVA_LIB)
++	cd $(LIVY_DIR) && mvn clean $(MAVEN_OPTIONS) || :
++
++$(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY): $(shell find $(LIVY_DIR) -type f)
++	@echo "--- Building Desktop spark"
++	cd $(LIVY_DIR) && mvn clean install -DskipTests $(MAVEN_OPTIONS)
++
++$(LIVY): $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY)
++	mkdir -p $(JAVA_LIB)
++	cp $(LIVY_TARGET_DIR)/$(LIVY_ASSEMBLY) $(LIVY)
++
++else
++$(LIVY):
++	$(error Cannot build spark jars without source)
++endif
++
++BDIST_EXCLUDES += \
++	--exclude=java
++
++SDIST_EXCLUDES += \
++	--exclude=java-lib
+-- 
+1.7.9.5
+

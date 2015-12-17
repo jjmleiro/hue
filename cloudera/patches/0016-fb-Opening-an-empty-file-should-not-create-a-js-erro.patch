@@ -1,0 +1,31 @@
+From 88377df6881a0495e7754b27c05df0b928c7d3d1 Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Thu, 9 Oct 2014 11:24:19 -0700
+Subject: [PATCH 0016/1173] [fb] Opening an empty file should not create a js
+ error
+
+---
+ .../src/filebrowser/templates/display.mako         |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/display.mako b/apps/filebrowser/src/filebrowser/templates/display.mako
+index c678ae4..af5ca19 100644
+--- a/apps/filebrowser/src/filebrowser/templates/display.mako
++++ b/apps/filebrowser/src/filebrowser/templates/display.mako
+@@ -108,8 +108,11 @@ ${ fb_components.menubar() }
+   var pages = {};
+ 
+   function resizeText () {
+-    $("#fileArea").height($(window).height() - $("#fileArea").offset().top - 26);
+-    $("#loader").css("marginLeft", ($("#fileArea").width() - $("#loader").width()) / 2);
++    var _fileArea = $("#fileArea");
++    if (_fileArea.height() > 0) {
++      _fileArea.height($(window).height() - _fileArea.offset().top - 26);
++      $("#loader").css("marginLeft", (_fileArea.width() - $("#loader").width()) / 2);
++    }
+   }
+ 
+   function formatHex (number, padding) {
+-- 
+1.7.9.5
+

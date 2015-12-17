@@ -1,0 +1,26 @@
+From 485f557cb25203d7deadeb5ab248d3813da1612b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Sun, 15 Mar 2015 18:22:03 -0500
+Subject: [PATCH 1086/1173] [oozie] Space evenly the workflow parameters in
+ the coordinator editor
+
+---
+ .../templates/editor2/coordinator_editor.mako      |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index 03b106f..0b81349 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -222,7 +222,7 @@ ${ layout.menubar(section='coordinators', is_editor=True, pullright=buttons) }
+             <li style="margin-bottom: 10px">
+               <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name', optionsValue: 'name', select2: { placeholder: '${ _("Select a parameter") }', update: workflow_variable, type: 'parameter'}, visible: $root.isEditing" style="width: 250px"></select>
+ 
+-              <span data-bind="text: workflow_variable, visible: ! $root.isEditing()"/></span>
++              <div class="pull-left" style="width: 130px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; line-height: 30px;" data-bind="text: workflow_variable, visible: ! $root.isEditing(), attr:{'title': workflow_variable}"></div>
+ 
+               &nbsp;&nbsp;
+ 
+-- 
+1.7.9.5
+

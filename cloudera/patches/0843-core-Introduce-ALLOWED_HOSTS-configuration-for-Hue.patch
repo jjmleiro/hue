@@ -1,0 +1,90 @@
+From 439c11a8ae70c7c6664486a516a8037ce667746b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 16 Feb 2015 13:21:27 +0100
+Subject: [PATCH 0843/1173] [core] Introduce ALLOWED_HOSTS configuration for
+ Hue
+
+Added to pseudo_distributed.ini and hue.ini
+---
+ desktop/conf.dist/hue.ini                |    4 ++++
+ desktop/conf/pseudo-distributed.ini.tmpl |    4 ++++
+ desktop/core/src/desktop/conf.py         |    7 +++++++
+ desktop/core/src/desktop/settings.py     |    4 +++-
+ 4 files changed, 18 insertions(+), 1 deletion(-)
+ mode change 100755 => 100644 desktop/core/src/desktop/settings.py
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 7c08c98..90d4d93 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -152,6 +152,10 @@
+   # }
+   ## log_redaction_file=
+ 
++  # Comma separated list of strings representing the host/domain names that the Hue server can serve.
++  # e.g.: localhost,domain1,*
++  ## allowed_hosts=*
++
+   # Administrators
+   # ----------------
+   [[django_admins]]
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 50c082e..701c653 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -160,6 +160,10 @@
+   #   ]
+   # }
+ 
++  # Comma separated list of strings representing the host/domain names that the Hue server can serve.
++  # e.g.: localhost,domain1,*
++  ## allowed_hosts=*
++
+ #poll_enabled=false
+ 
+   # Administrators
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index 7c4adb2..baba128 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -176,6 +176,13 @@ LOG_REDACTION_FILE = Config(
+   type=parse_redaction_policy_from_file,
+   default=None)
+ 
++ALLOWED_HOSTS = Config(
++  key='allowed_hosts',
++  default=['*'],
++  type=coerce_csv,
++  help=_('Comma separated list of strings representing the host/domain names that the Hue server can serve.')
++)
++
+ def is_https_enabled():
+   return bool(SSL_CERTIFICATE.get() and SSL_PRIVATE_KEY.get())
+ 
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+old mode 100755
+new mode 100644
+index bb30635..98e4b32
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -205,7 +205,6 @@ FILE_UPLOAD_HANDLERS = (
+ # Wrap each request in a transaction.
+ ATOMIC_REQUESTS = True
+ 
+-
+ ############################################################
+ # Part 4: Installation of apps
+ ############################################################
+@@ -250,6 +249,9 @@ TEMPLATE_DEBUG = DEBUG
+ # configs.
+ ############################################################
+ 
++# Configure allowed hosts
++ALLOWED_HOSTS = desktop.conf.ALLOWED_HOSTS.get()
++
+ # Configure hue admins
+ ADMINS = []
+ for admin in desktop.conf.DJANGO_ADMINS.get():
+-- 
+1.7.9.5
+

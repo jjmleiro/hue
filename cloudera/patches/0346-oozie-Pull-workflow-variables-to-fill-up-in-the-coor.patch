@@ -1,0 +1,363 @@
+From 438a926744b209b720d4fbd926fbc3f65fba0a36 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 17 Dec 2014 14:10:13 -0800
+Subject: [PATCH 0346/1173] [oozie] Pull workflow variables to fill up in the
+ coordinator editor
+
+---
+ apps/oozie/src/oozie/models2.py                    |   74 ++++++++++++--------
+ .../oozie/templates/editor/coordinator_editor.mako |    7 +-
+ apps/oozie/src/oozie/urls.py                       |    1 +
+ apps/oozie/src/oozie/views/editor2.py              |   40 +++++++----
+ apps/oozie/static/js/coordinator-editor.ko.js      |    8 +--
+ 5 files changed, 79 insertions(+), 51 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index a5d5972..78e20a1 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -113,36 +113,19 @@ class Workflow():
+     
+     if self.document is not None:
+       _data['workflow']['id'] = self.document.id
+-      _data['workflow']['dependencies'] = list(self.document.dependencies.values())
++      _data['workflow']['dependencies'] = list(self.document.dependencies.values('uuid',))
+     else:
+       _data['workflow']['dependencies'] = []
+-
+-#    if 'properties' not in _data['workflow']:
+-#      _data['workflow']['properties'] = {}
+-#      
+-#    if 'properties' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['properties'] = []      
++      
+     if 'deployment_dir' not in _data['workflow']['properties']:
+       default_dir = Hdfs.join(REMOTE_SAMPLE_DIR.get(), 'hue-oozie-%s' % time.time()) # Could be home of user too
+       _data['workflow']['properties']['deployment_dir'] = default_dir
++
+     if 'parameters' not in _data['workflow']['properties']:
+       _data['workflow']['properties']['parameters'] = [
+           {'name': 'oozie.use.system.libpath', 'value': True},
+       ]
+ 
+-#    if 'sla_workflow_enabled' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['sla_workflow_enabled'] = False
+-#    if 'sla_enabled' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['sla_enabled'] = False            
+-#    
+-#    if 'schema_version' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['schema_version'] = 'uri:oozie:workflow:0.4'
+-#    if 'job_xml' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['job_xml'] = ''
+-#
+-#    if 'credentials' not in _data['workflow']['properties']:
+-#      _data['workflow']['properties']['credentials'] = []
+-
+     return _data
+   
+   def to_xml(self, mapping=None):
+@@ -151,7 +134,7 @@ class Workflow():
+     tmpl = 'editor/gen2/workflow.xml.mako'
+ 
+     data = self.get_data()
+-    nodes = [node for node in self.nodes if node['name'] != 'End'] + [node for node in self.nodes if node['name'] == 'End'] # End at the end
++    nodes = [node for node in self.nodes if node.name != 'End'] + [node for node in self.nodes if node.name == 'End'] # End at the end
+     node_mapping = dict([(node.id, node) for node in nodes])
+     
+     sub_wfs_ids = [node.data['properties']['workflow'] for node in nodes if node.data['type'] == 'subworkflow']
+@@ -203,13 +186,13 @@ class Workflow():
+ 
+     return dict([(param, '') for param in list(params)])
+ 
+-  def find_all_parameters(self):
++  def find_all_parameters(self, with_lib_path=True):
+     params = self.find_parameters()
+ 
+     for param in self.parameters:
+       params[param['name'].strip()] = param['value']
+ 
+-    return  [{'name': name, 'value': value} for name, value in params.iteritems()]
++    return  [{'name': name, 'value': value} for name, value in params.iteritems() if with_lib_path or name != 'oozie.use.system.libpath']
+ 
+   def check_workspace(self, fs):
+     create_directories(fs, [REMOTE_SAMPLE_DIR.get()])
+@@ -285,7 +268,7 @@ class Node():
+     return 'editor/gen2/workflow-%s.xml.mako' % self.data['type']    
+ 
+   def find_parameters(self):
+-    return find_parameters(self.data)    
++    return find_parameters(self)    
+ 
+ 
+ class Action(object):
+@@ -295,6 +278,16 @@ class Action(object):
+     return [(f['name'], f['value']) for f in cls.FIELDS.itervalues()] + [('sla', Workflow.SLA_DEFAULT), ('credentials', [])]
+ 
+ 
++class StartNode(Action):
++  TYPE = 'start'
++  FIELDS = {}
++
++
++class EndNode(Action):
++  TYPE = 'end'
++  FIELDS = {}
++
++
+ class PigAction(Action):
+   TYPE = 'pig'
+   FIELDS = {
+@@ -999,7 +992,27 @@ class JoinAction(Action):
+     return []
+ 
+ 
++class ForkNode(Action):
++  TYPE = 'fork'
++  FIELDS = {}
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return []
++
++
++class DecisionNode(Action):
++  TYPE = 'decision'
++  FIELDS = {}
++  
++  @classmethod
++  def get_mandatory_fields(cls):
++    return []
++  
++
+ NODES = {
++  'start-widget': StartNode,
++  'end-widget': EndNode,
+   'pig-widget': PigAction,
+   'java-widget': JavaAction,
+   'hive-widget': HiveAction,
+@@ -1015,6 +1028,8 @@ NODES = {
+   'distcp-widget': DistCpAction,  
+   'kill-widget': KillAction,
+   'join-widget': JoinAction,
++  'fork-widget': ForkNode,
++  'decision-widget': DecisionNode,  
+ }
+ 
+ 
+@@ -1027,12 +1042,11 @@ for node in NODES.itervalues():
+ def find_parameters(instance, fields=None):
+   """Find parameters in the given fields"""
+   if fields is None:
+-    fields = NODES[self.data['type']].FIELDS.keys()
+-    #fields = [field.name for field in instance._meta.fields]
++    fields = NODES['%s-widget' % instance.data['type']].FIELDS.keys()
+ 
+   params = []
+   for field in fields:
+-    data = getattr(instance, field)
++    data = instance.data['properties'][field]
+     if field == 'sla' and not instance.sla_enabled:
+       continue
+     if isinstance(data, list):
+@@ -1046,7 +1060,6 @@ def find_parameters(instance, fields=None):
+   return params
+ 
+ def find_json_parameters(fields):
+-  # To make smarter
+   # Input is list of json dict
+   params = []
+ 
+@@ -1244,7 +1257,8 @@ class Coordinator():
+               'sla_enabled': False,
+               'sla_workflow_enabled': False,
+               'credentials': [],
+-              'properties': [],
++              'parameters': [{'name': 'oozie.use.system.libpath', 'value': True}],
++              'properties': [], # Aka workflow paramters
+               'sla': Workflow.SLA_DEFAULT
+           }
+       }
+@@ -1367,7 +1381,7 @@ class Dataset():
+     if type(self._data['start']) == unicode: 
+       self._data['start'] = parse(self._data['start'])
+ 
+-    self._data['name'] = self._data['workflow_variable'] # Harmonize name for Oozie
++    self._data['name'] = self._data['workflow_variable'] # Todo Harmonize name for Oozie XML
+ 
+     return self._data      
+       
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index 3feed55..bb57298 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -121,6 +121,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+           <ul data-bind="foreach: coordinator.variables" class="unstyled">
+             <li>
+               <input data-bind="value: workflow_variable"/>
++              <select data-bind="options: $parent.coordinator.workflowParameters, optionsText: 'name'"></select>
+ 
+               <div class="btn-group">
+                 <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"
+@@ -264,16 +265,16 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+       <input data-bind="value: coordinator.properties.throttle"/>
+ 
+       <h4>${ _('Oozie Parameters') }</h4>
+-      <ul data-bind="foreach: coordinator.properties.properties" class="unstyled">
++      <ul data-bind="foreach: coordinator.properties.parameters" class="unstyled">
+         <li>
+           <input data-bind="value: name"/>
+           <input data-bind="value: value"/>
+-          <a href="#" data-bind="click: function(){ $root.coordinator.properties.properties.remove(this); }">
++          <a href="#" data-bind="click: function(){ $root.coordinator.properties.parameters.remove(this); }">
+             <i class="fa fa-minus"></i>
+           </a>
+         </li>
+       </ul>
+-      <a class="pointer" data-bind="click: function(){ $root.coordinator.properties.properties.push({'name': '', 'value': ''}); }">
++      <a class="pointer" data-bind="click: function(){ $root.coordinator.properties.parameters.push({'name': '', 'value': ''}); }">
+         <i class="fa fa-plus"></i> ${ _('Add parameter') }
+       </a>
+ 
+diff --git a/apps/oozie/src/oozie/urls.py b/apps/oozie/src/oozie/urls.py
+index 2df296a..298bc18 100644
+--- a/apps/oozie/src/oozie/urls.py
++++ b/apps/oozie/src/oozie/urls.py
+@@ -77,6 +77,7 @@ urlpatterns += patterns(
+   url(r'^editor/workflow/submit/(?P<doc_id>\d+)$', 'submit_workflow', name='editor_submit_workflow'),
+   url(r'^editor/workflow/new_node/$', 'new_node', name='new_node'),
+   url(r'^editor/workflow/add_node/$', 'add_node', name='add_node'),
++  url(r'^editor/workflow/parameters/$', 'workflow_parameters', name='workflow_parameters'),
+   
+   url(r'^editor/workflow/gen_xml/$', 'gen_xml_workflow', name='gen_xml_workflow'), # Temporary
+   url(r'^editor/workflow/import_workflows/$', 'import_hue_3_7_workflows', name='import_hue_3_7_workflows'), # Temporary
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 62e0591..ad93109 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -55,7 +55,7 @@ def edit_workflow(request):
+   workflow_id = request.GET.get('workflow')
+   
+   if workflow_id:
+-    workflow = Workflow(document=Document2.objects.get(id=workflow_id)) # Todo perms
++    workflow = Workflow(document=Document2.objects.get(type='oozie-workflow2', id=workflow_id)) # Todo perms
+   else:
+     workflow = Workflow()
+   
+@@ -87,12 +87,10 @@ def save_workflow(request):
+   workflow = json.loads(request.POST.get('workflow', '{}')) # TODO perms
+   layout = json.loads(request.POST.get('layout', '{}'))
+ 
+-  name = 'test'
+-
+   if workflow.get('id'):
+     workflow_doc = Document2.objects.get(id=workflow['id'])
+   else:      
+-    workflow_doc = Document2.objects.create(name=name, type='oozie-workflow2', owner=request.user)
++    workflow_doc = Document2.objects.create(name=workflow['name'], uuid=workflow['uuid'], type='oozie-workflow2', owner=request.user)
+ 
+   subworkflows = [node['properties']['subworkflow'] for node in workflow['nodes'] if node['type'] == 'subworkflow-widget']
+   if subworkflows:
+@@ -101,7 +99,7 @@ def save_workflow(request):
+ 
+   workflow_doc.update_data({'workflow': workflow})
+   workflow_doc.update_data({'layout': layout})
+-  workflow_doc.name = name
++  workflow_doc.name = workflow['name']
+   workflow_doc.save()
+   
+   workflow_instance = Workflow(document=workflow_doc)
+@@ -161,6 +159,20 @@ def add_node(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++def workflow_parameters(request):
++  response = {'status': -1}
++
++  try:
++    workflow = Workflow(document=Document2.objects.get(type='oozie-workflow2', owner=request.user, uuid=request.GET.get('uuid'))) # TODO perms 
++
++    response['status'] = 0
++    response['parameters'] = workflow.find_all_parameters(with_lib_path=False)
++  except Exception, e:
++    response['message'] = str(e)
++    
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
+ def gen_xml_workflow(request):
+   response = {'status': -1}
+ 
+@@ -174,7 +186,7 @@ def gen_xml_workflow(request):
+   except Exception, e:
+     response['message'] = str(e)
+     
+-  return HttpResponse(json.dumps(response), mimetype="application/json") 
++  return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+ def submit_workflow(request, doc_id):
+@@ -198,11 +210,11 @@ def submit_workflow(request, doc_id):
+     initial_params = ParameterForm.get_initial_params(dict([(param['name'], param['value']) for param in parameters]))
+     params_form = ParametersFormSet(initial=initial_params)
+ 
+-  popup = render('editor/submit_job_popup.mako', request, {
+-                   'params_form': params_form,
+-                   'action': reverse('oozie:editor_submit_workflow', kwargs={'doc_id': workflow.id})
+-                 }, force_template=True).content
+-  return HttpResponse(json.dumps(popup), mimetype="application/json")
++    popup = render('editor/submit_job_popup.mako', request, {
++                     'params_form': params_form,
++                     'action': reverse('oozie:editor_submit_workflow', kwargs={'doc_id': workflow.id})
++                   }, force_template=True).content
++    return HttpResponse(json.dumps(popup), mimetype="application/json")
+ 
+ 
+ def _submit_workflow(user, fs, jt, workflow, mapping):
+@@ -260,7 +272,7 @@ def edit_coordinator(request):
+   return render('editor/coordinator_editor.mako', request, {
+       'coordinator_json': coordinator.json,
+       'credentials_json': json.dumps(credentials.credentials.keys()),
+-      'workflows_json': json.dumps(list(Document2.objects.filter(type='oozie-workflow2', owner=request.user).values('uuid', 'name')))
++      'workflows_json': json.dumps(list(Document2.objects.filter(type='oozie-workflow2', owner=request.user).values('uuid', 'name'))) # Todo perms
+   })
+ 
+ 
+@@ -278,10 +290,10 @@ def save_coordinator(request):
+   if coordinator_data.get('id'):
+     coordinator_doc = Document2.objects.get(id=coordinator_data['id'])
+   else:      
+-    coordinator_doc = Document2.objects.create(name=name, type='oozie-coordinator2', owner=request.user)
++    coordinator_doc = Document2.objects.create(name=name, uuid=coordinator_data['uuid'], type='oozie-coordinator2', owner=request.user)
+ 
+   if coordinator_data['properties']['workflow']:
+-    dependencies = Document2.objects.filter(uuid=coordinator_data['properties']['workflow'])
++    dependencies = Document2.objects.filter(type='oozie-workflow2', uuid=coordinator_data['properties']['workflow'])
+     coordinator_doc.dependencies = dependencies
+ 
+   coordinator_doc.update_data(coordinator_data)
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 9a76324..dffa057 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -27,14 +27,14 @@ var Coordinator = function (vm, coordinator) {
+ 
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
+   self.showAdvancedFrequencyUI = ko.observable(typeof coordinator.showAdvancedFrequencyUI != "undefined" && coordinator.showAdvancedFrequencyUI != null ? coordinator.showAdvancedFrequencyUI : false);
++  self.workflowParameters = ko.mapping.fromJS(typeof coordinator.workflowParameters != "undefined" && coordinator.workflowParameters != null ? coordinator.workflowParameters : []);
+ 
+   self.properties.workflow.subscribe(function(newVal) {
+     if (newVal) {
+-	  $.get("/desktop/api2/doc/get", {
+-        "uuid": self.properties.workflow(),
+-        "with_data": true
++	  $.get("/oozie/editor/workflow/parameters/", {
++		"uuid": self.properties.workflow(),
+ 	   }, function (data) {
+-	    // set wf
++		 self.workflowParameters(data.parameters);
+ 	  }).fail(function (xhr, textStatus, errorThrown) {
+ 	    $(document).trigger("error", xhr.responseText);
+ 	  });
+-- 
+1.7.9.5
+

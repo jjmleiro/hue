@@ -36,8 +36,15 @@ SECURITY_ENABLED = Config(
 
 REMOTE_DEPLOYMENT_DIR = Config(
   key="remote_deployement_dir",
-  default="/user/hue/oozie/deployments",
-  help=_t("Location on HDFS where the workflows/coordinators are deployed when submitted by a non-owner."))
+  default="/user/hue/oozie/deployments/_$USER_-oozie-$JOBID-$TIME",
+  help=_t("Location on HDFS where the workflows/coordinators are deployed when submitted by a non-owner."
+          " Parameters are $TIME, $USER and $JOBID, e.g. /user/$USER/hue/deployments/$JOBID-$TIME"))
+
+SSL_CERT_CA_VERIFY=Config(
+  key="ssl_cert_ca_verify",
+  help="In secure mode (HTTPS), if SSL certificates from Oozie Rest APIs have to be verified against certificate authority",
+  default=True,
+  type=coerce_bool)
 
 
 def get_oozie_status(user):

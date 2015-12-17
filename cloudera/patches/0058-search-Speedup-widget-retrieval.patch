@@ -1,0 +1,32 @@
+From 7eb3b221616351e477c067d2014decbfd9391ca6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 21 Oct 2014 12:08:28 -0700
+Subject: [PATCH 0058/1173] [search] Speedup widget retrieval
+
+---
+ apps/search/static/js/search.ko.js |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index 4b2ab9b..07178b4 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -1122,6 +1122,7 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+         $.each(row.widgets(), function (z, widget) {
+           if (widget.id() == widget_id){
+             _widget = widget;
++            return false;
+           }
+         });
+       });
+@@ -1136,6 +1137,7 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+           if (widget && widget.id() == widget_id){
+             row.widgets.remove(widget);
+             row.autosizeWidgets();
++            return false;
+           }
+         });
+       });
+-- 
+1.7.9.5
+

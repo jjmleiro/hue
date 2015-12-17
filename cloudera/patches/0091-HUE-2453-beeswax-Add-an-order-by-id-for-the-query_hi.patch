@@ -1,0 +1,27 @@
+From d6139b8f9b21b7a58dee6a42fee10d738e539400 Mon Sep 17 00:00:00 2001
+From: Ivan Orlov <ivanorlo@amazon.com>
+Date: Thu, 30 Oct 2014 11:34:31 -0700
+Subject: [PATCH 0091/1173] HUE-2453 [beeswax] Add an order by id for the
+ query_history
+
+Additionally sort by id DESC when queries have the same submission time (another key).
+---
+ apps/beeswax/src/beeswax/views.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/beeswax/src/beeswax/views.py b/apps/beeswax/src/beeswax/views.py
+index bffc8ac..ae487d3 100644
+--- a/apps/beeswax/src/beeswax/views.py
++++ b/apps/beeswax/src/beeswax/views.py
+@@ -953,7 +953,7 @@ def _list_query_history(user, querydict, page_size, prefix=""):
+       sort_dir, sort_attr = DEFAULT_SORT
+   else:
+     sort_dir, sort_attr = DEFAULT_SORT
+-  db_queryset = db_queryset.order_by(sort_dir + SORT_ATTR_TRANSLATION[sort_attr])
++  db_queryset = db_queryset.order_by(sort_dir + SORT_ATTR_TRANSLATION[sort_attr], '-id')
+ 
+   # Get the total return count before slicing
+   total_count = db_queryset.count()
+-- 
+1.7.9.5
+

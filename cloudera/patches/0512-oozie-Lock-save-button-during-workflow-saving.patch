@@ -1,0 +1,24 @@
+From bd13af7b460b25f12b71fe6565f2ed2980a62b8f Mon Sep 17 00:00:00 2001
+From: Mariusz Strzelecki <mariusz.strzelecki@allegro.pl>
+Date: Tue, 3 Feb 2015 11:26:37 +0100
+Subject: [PATCH 0512/1173] [oozie] Lock "save" button during workflow saving
+
+---
+ .../src/oozie/templates/editor/edit_workflow.mako  |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+index 6c778c8..06a17f7 100644
+--- a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+@@ -686,6 +686,7 @@ function save_workflow(callback) {
+     _callbackFn = callback;
+   }
+   workflow.loading(true);
++  $("#btn-save-wf").button('loading');
+   if (kill_view_model.enabled()) {
+     if (kill_view_model.isValid()) {
+       workflow.save({ success: _callbackFn, error: workflow_save_error });
+-- 
+1.7.9.5
+

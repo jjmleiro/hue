@@ -1,0 +1,36 @@
+From 8ca58bd56c01dc605fd1cb5b5faacbf97f302499 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 18 Feb 2015 22:35:11 +0100
+Subject: [PATCH 0859/1173] HUE-2653 [indexer] Selected checkboxes are not
+ visually checked
+
+Changed to the right property for the selected bit
+---
+ .../indexer/src/indexer/templates/collections.mako |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/desktop/libs/indexer/src/indexer/templates/collections.mako b/desktop/libs/indexer/src/indexer/templates/collections.mako
+index c92afb6..1d9abc9 100644
+--- a/desktop/libs/indexer/src/indexer/templates/collections.mako
++++ b/desktop/libs/indexer/src/indexer/templates/collections.mako
+@@ -180,7 +180,7 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
+             <thead>
+               <tr>
+                 <th>
+-                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(filteredCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
++                  <span data-bind="click: toggleSelectAll, css: {'fa-check': !ko.utils.arrayFilter(displayCollections(), function(collection) {return !collection.selected()}).length}" class="hueCheckbox fa"></span>
+                 </th>
+                 <th width="100%">${_('Name')}</th>
+               </tr>
+@@ -188,7 +188,7 @@ ${ commonheader(_('Search Indexes'), "indexer", user, "29px") | n,unicode }
+             <tbody data-bind="foreach: displayCollections">
+               <tr data-bind="routie: 'edit/' + name()" class="pointer">
+                 <td data-bind="click: $parent.toggleCollectionSelect.bind($parent), clickBubble: false">
+-                  <span data-bind="css: {'fa-check': $parent.filteredCollections()[$index()].selected()}" class="hueCheckbox fa"></span>
++                  <span data-bind="css: {'fa-check': $parent.displayCollections()[$index()].selected()}" class="hueCheckbox fa"></span>
+                 </td>
+                 <td data-bind="text: name" style="cursor: pointer"></td>
+               </tr>
+-- 
+1.7.9.5
+

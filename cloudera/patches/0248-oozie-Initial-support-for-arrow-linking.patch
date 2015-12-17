@@ -1,0 +1,182 @@
+From df4858b060edc08565df75acb1d59aa28018d790 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 5 Nov 2014 12:37:49 +0100
+Subject: [PATCH 0248/1173] [oozie] Initial support for arrow linking
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   40 +++++++++
+ apps/oozie/static/js/workflow-editor.ko.js         |    3 +
+ .../ext/js/jquery/plugins/jquery.curvedarrow.js    |   89 ++++++++++++++++++++
+ 3 files changed, 132 insertions(+)
+ create mode 100755 desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 88867b5..589eea4 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -732,6 +732,7 @@ ${ dashboard.import_layout() }
+ ${ dashboard.import_bindings() }
+ 
+ <script src="/oozie/static/js/workflow-editor.ko.js" type="text/javascript" charset="utf-8"></script>
++<script src="/static/ext/js/jquery/plugins/jquery.curvedarrow.js" type="text/javascript" charset="utf-8"></script>
+ 
+ 
+ <script type="text/javascript">
+@@ -778,6 +779,45 @@ ${ dashboard.import_bindings() }
+     viewModel.removeWidgetById(newAction.id());
+   }
+ 
++  function linkWidgets(fromId, toId) {
++    var _from = $("#wdg_" + fromId);
++    var _to = $("#wdg_" + toId);
++
++    var _fromCenter = {
++      x: _from.position().left + _from.outerWidth() / 2,
++      y: _from.position().top + _from.outerHeight()
++    }
++
++    var _toCenter = {
++      x: _to.position().left + _to.outerWidth() / 2,
++      y: _to.position().top
++    }
++
++    var _curveCoords = {};
++
++    if (_fromCenter.x == _toCenter.x) {
++      _curveCoords.x = _fromCenter.x;
++      _curveCoords.y = _fromCenter.y + (_toCenter.y - _fromCenter.y) / 2;
++    }
++    else {
++      _curveCoords.x = _fromCenter.x - (_fromCenter.x - _toCenter.x) / 4;
++      _curveCoords.y = _fromCenter.y + (_toCenter.y - _fromCenter.y) / 2;
++    }
++
++    $(document.body).curvedArrow({
++      p0x: _fromCenter.x,
++      p0y: _fromCenter.y,
++      p1x: _curveCoords.x,
++      p1y: _curveCoords.y,
++      p2x: _toCenter.x,
++      p2y: _toCenter.y,
++      lineWidth: 2,
++      size: 10,
++      strokeStyle: '#CCCCCC'
++    });
++
++  }
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index b34c3a4..fc387a9 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -417,6 +417,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       self.currentlyCreatedFork = ko.mapping.toJS(_fork);
+       self.currentlyCreatedJoin = ko.mapping.toJS(_join);
+ 
++      linkWidgets(_fork.id(), _w.id());
++      linkWidgets(_w.id(), _join.id());
++
+       return _w;
+     }
+   }
+diff --git a/desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js b/desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js
+new file mode 100755
+index 0000000..1e536f9
+--- /dev/null
++++ b/desktop/core/static/ext/js/jquery/plugins/jquery.curvedarrow.js
+@@ -0,0 +1,89 @@
++(function($){
++    $.fn.curvedArrow = function(options){
++        var settings = $.extend({
++            p0x: 50,
++            p0y: 50,
++            p1x: 70,
++            p1y: 10,
++            p2x: 100,
++            p2y: 100,
++            size: 30,
++            lineWidth: 10,
++            strokeStyle: 'rgb(245,238,49)'
++        }, options);
++        
++        var canvas = document.createElement('canvas');
++        $(canvas).appendTo(this);
++        
++        var x_min_max = quadraticCurveMinMax(settings.p0x, settings.p1x, settings.p2x);
++        var y_min_max = quadraticCurveMinMax(settings.p0y, settings.p1y, settings.p2y);
++        var padding = settings.size - settings.lineWidth;
++
++        var x_min = x_min_max[0] - padding;
++        var x_max = x_min_max[1] + padding;
++        var y_min = y_min_max[0] - padding;
++        var y_max = y_min_max[1] + padding;
++
++        var p0x = settings.p0x - x_min;
++        var p0y = settings.p0y - y_min;
++        var p1x = settings.p1x - x_min;
++        var p1y = settings.p1y - y_min;
++        var p2x = settings.p2x - x_min;
++        var p2y = settings.p2y - y_min;
++
++        canvas.style.position = 'absolute';
++        canvas.style.top = y_min + 'px';
++        canvas.style.left = x_min + 'px';
++        canvas.width = x_max - x_min;
++        canvas.height = y_max - y_min;
++
++
++        var ctx = canvas.getContext('2d');
++        
++        // Styling
++        ctx.strokeStyle = settings.strokeStyle;
++        ctx.lineWidth = settings.lineWidth;
++        ctx.lineJoin = 'round';
++        ctx.lineCap = 'round';
++
++        // Arrow body
++        ctx.beginPath();
++        ctx.moveTo(p0x, p0y);
++        ctx.quadraticCurveTo(p1x, p1y, p2x, p2y);
++        ctx.stroke();
++        
++        // Arrow head
++        var angle = Math.atan2(p2y - p1y, p2x - p1x);
++        ctx.translate(p2x, p2y);
++        
++        // Right side
++        ctx.rotate(angle + 1);
++        ctx.beginPath();
++        ctx.moveTo(0, settings.size);
++        ctx.lineTo(0, 0);
++        ctx.stroke();
++        
++        // Left side
++        ctx.rotate(-2);
++        ctx.lineTo(0, -settings.size);
++        ctx.stroke();
++
++        // Restore context
++        ctx.rotate(1 - angle);
++        ctx.translate(-p2x, -p2y);
++
++        return $(canvas).addClass('curved_arrow');
++    }
++
++    function quadraticCurveMinMax(p0, p1, p2){
++        var min = p0;
++        var max = p2;
++        var t_step = 0.0001;
++        for (var t=t_step; t <= 1; t += t_step){
++            var f = (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + (t * t * p2);
++            if (f < min) min = f;
++            if (f > max) max = f;
++        }
++        return [Math.round(min), Math.round(max)];
++    }
++}(jQuery));
+-- 
+1.7.9.5
+

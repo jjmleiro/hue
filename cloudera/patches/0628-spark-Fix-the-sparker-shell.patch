@@ -1,0 +1,388 @@
+From bca1d7c37675e3546594320e83cffe89d49d81ba Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 10 Dec 2014 16:32:35 -0800
+Subject: [PATCH 0628/1173] [spark] Fix the sparker-shell
+
+---
+ apps/spark/java/sparker-repl/pom.xml               |   79 +-------------------
+ .../sparker-repl/src/main/scala/Scalatra.scala     |   21 +++++-
+ .../cloudera/hue/sparker/repl/HelloWorldApp.scala  |   68 ++++++++++++++++-
+ .../scala/com/cloudera/hue/sparker/repl/Main.scala |   11 ---
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |   30 +++-----
+ apps/spark/sparker-shell                           |    2 +-
+ 6 files changed, 97 insertions(+), 114 deletions(-)
+
+diff --git a/apps/spark/java/sparker-repl/pom.xml b/apps/spark/java/sparker-repl/pom.xml
+index 8213f48..ea6372a 100644
+--- a/apps/spark/java/sparker-repl/pom.xml
++++ b/apps/spark/java/sparker-repl/pom.xml
+@@ -29,24 +29,7 @@
+             <groupId>org.apache.spark</groupId>
+             <artifactId>spark-repl_2.10</artifactId>
+             <version>${spark.version}</version>
+-
+-            <!--
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>commons-beanutils</groupId>
+-                    <artifactId>commons-beanutils</artifactId>
+-                </exclusion>
+-            </exclusions>
+-            -->
+-        </dependency>
+-
+-        <!--
+-        <dependency>
+-            <groupId>commons-beanutils</groupId>
+-            <artifactId>commons-beanutils</artifactId>
+-            <version>1.8.0</version>
+         </dependency>
+-        -->
+ 
+         <dependency>
+             <groupId>org.json4s</groupId>
+@@ -59,73 +42,13 @@
+             <artifactId>scalatra_2.10</artifactId>
+             <version>${scalatra.version}</version>
+             <scope>compile</scope>
+-            <!--
+-            <exclusions>
+-                <exclusion>
+-                    <groupId>com.typesafe.akka</groupId>
+-                    <artifactId>akka-actor_2.10</artifactId>
+-                </exclusion>
+-            </exclusions>
+-            -->
+-        </dependency>
+-
+-        <!--
+-        <dependency>
+-            <groupId>org.scalatra</groupId>
+-            <artifactId>scalatra_2.10</artifactId>
+-            <version>${scalatra.version}</version>
+-            <scope>compile</scope>
+         </dependency>
+-        -->
+ 
+     </dependencies>
+ 
+     <build>
+         <plugins>
+ 
+-            <!--
+-            <plugin>
+-                <groupId>org.apache.maven.plugins</groupId>
+-                <artifactId>maven-shade-plugin</artifactId>
+-                <version>1.6</version>
+-                <configuration>
+-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+-                    <filters>
+-                        <filter>
+-                            <artifact>*:*</artifact>
+-                            <excludes>
+-                                <exclude>META-INF/*.SF</exclude>
+-                                <exclude>META-INF/*.DSA</exclude>
+-                                <exclude>META-INF/*.RSA</exclude>
+-                            </excludes>
+-                        </filter>
+-                    </filters>
+-                </configuration>
+-                <executions>
+-                    <execution>
+-                        <phase>package</phase>
+-                        <goals>
+-                            <goal>shade</goal>
+-                        </goals>
+-                        <configuration>
+-                            <transformers>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+-                                    <mainClass>com.cloudera.hue.sparker.repl.Main</mainClass>
+-                                </transformer>
+-                            </transformers>
+-                        </configuration>
+-                    </execution>
+-                </executions>
+-            </plugin>
+-            -->
+-
+-            <plugin>
+-                <groupId>org.eclipse.jetty</groupId>
+-                <artifactId>jetty-maven-plugin</artifactId>
+-                <version>9.0.2.v20130417</version>
+-            </plugin>
+-
+             <plugin>
+                 <groupId>org.scala-tools</groupId>
+                 <artifactId>maven-scala-plugin</artifactId>
+@@ -197,4 +120,4 @@
+         </plugins>
+     </reporting>
+ 
+-</project>
+\ No newline at end of file
++</project>
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+index 35339fb..32b3458 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/Scalatra.scala
+@@ -1,19 +1,32 @@
+-import java.io.StringWriter
+ import javax.servlet.ServletContext
+ 
+-import com.cloudera.hue.sparker.repl.{HelloWorldApp, SparkerILoop}
++import akka.actor.{ActorSystem, Props}
++import com.cloudera.hue.sparker.repl.{HelloWorldApp, SparkActor}
+ import org.scalatra.LifeCycle
+ 
+ trait SparkerILoopInit {
+   def configureSparkerILoop() {
++    /*
+     org.apache.spark.repl.Main.interp = new SparkerILoop(Console.in, new StringWriter)
+-    org.apache.spark.repl.Main.interp.process(new Array[String](0))
++
++    val args = Array("-usejavacp")
++    org.apache.spark.repl.Main.interp.process(args)
++    */
+   }
+ }
+ 
+ class ScalatraBootstrap extends LifeCycle with SparkerILoopInit {
++
++  val system = ActorSystem()
++
+   override def init(context: ServletContext): Unit = {
++    val myActor = system.actorOf(Props[SparkActor])
++
+     configureSparkerILoop()
+-    context.mount(new HelloWorldApp, "/*")
++    context.mount(new HelloWorldApp(system, myActor), "/*")
++  }
++
++  override def destroy(context: ServletContext): Unit = {
++    system.shutdown()
+   }
+ }
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+index f889f15..bee22e0 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/HelloWorldApp.scala
+@@ -1,9 +1,73 @@
+ package com.cloudera.hue.sparker.repl
+ 
+-import org.scalatra.ScalatraFilter
++import java.io._
++import java.util.concurrent.{ArrayBlockingQueue, SynchronousQueue, TimeUnit}
++
++import akka.actor.{Actor, ActorRef, ActorSystem}
++import akka.pattern.ask
++import akka.util.Timeout
++import org.json4s.JsonDSL._
++import org.json4s.jackson.JsonMethods._
++import org.scalatra.{Accepted, FutureSupport, ScalatraFilter}
++
++import scala.concurrent.duration.Duration
++import scala.concurrent.{Await, ExecutionContext}
++
++class HelloWorldApp(system: ActorSystem, sparkActor: ActorRef) extends ScalatraFilter with FutureSupport {
++
++  protected implicit def executor: ExecutionContext = system.dispatcher
++
++  implicit val defaultTimeout = Timeout(10)
+ 
+-class HelloWorldApp extends ScalatraFilter {
+   get("/") {
+     <h1>Hello {params("name")}</h1>
+   }
++
++  get("/async") {
++    val future = ask(sparkActor, "1 + 1")
++
++    implicit val timeout = akka.util.Timeout(60, TimeUnit.SECONDS)
++    Await.result(future, Duration.Inf)
++  }
++
++  get("/fire-forget") {
++    sparkActor ! "wee"
++    Accepted()
++  }
++}
++
++class SparkActor extends Actor {
++
++  protected def queue = new SynchronousQueue[Map[String, String]]
++
++  val inWriter = new PipedWriter()
++  val inReader = new PipedReader(inWriter)
++
++  /*
++  protected def inWriter = new PipedWriter()
++  protected def inReader = new PipedReader(inWriter)
++  */
++
++  protected def out = new StringWriter
++
++  val thread = new Thread {
++    override def run(): Unit = {
++      org.apache.spark.repl.Main.interp = new SparkerILoop(
++        queue,
++        new BufferedReader(inReader),
++        out)
++      val args = Array("-usejavacp")
++      org.apache.spark.repl.Main.interp.process(args)
++    }
++  }
++  thread.start()
++
++  def receive = {
++    case msg : String => {
++      inWriter.write(msg)
++      val response = queue.take()
++      val s = compact(render(response))
++      sender ! s
++    }
++  }
+ }
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+index 1ca0fd9..276aeb1 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/Main.scala
+@@ -1,7 +1,5 @@
+ package com.cloudera.hue.sparker.repl
+ 
+-import java.io.StringWriter
+-
+ import org.eclipse.jetty.server.Server
+ import org.eclipse.jetty.servlet.DefaultServlet
+ import org.eclipse.jetty.webapp.WebAppContext
+@@ -9,14 +7,6 @@ import org.scalatra.servlet.ScalatraListener
+ 
+ object Main {
+   def main(args: Array[String]): Unit = {
+-    org.apache.spark.repl.Main.interp = new SparkerILoop(Console.in, new StringWriter)
+-    org.apache.spark.repl.Main.interp.process(args)
+-  }
+-}
+-
+-/*
+-object Main {
+-  def main(args: Array[String]): Unit = {
+     val port = 8087
+     val server = new Server(port)
+     val context = new WebAppContext()
+@@ -31,4 +21,3 @@ object Main {
+     server.join()
+   }
+ }
+-*/
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+index 746d0d1..0dcaa48 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+@@ -1,17 +1,17 @@
+ package com.cloudera.hue.sparker.repl
+ 
+ import java.io.{BufferedReader, StringWriter}
++import java.util.concurrent.BlockingQueue
+ 
+ import org.apache.spark.repl.SparkILoop
+ import org.json4s.DefaultFormats
+-import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
+ 
+ import scala.tools.nsc.SparkHelper
+ import scala.tools.nsc.interpreter.{Formatting, _}
+ import scala.tools.nsc.util.ClassPath
+ 
+-class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
++class SparkerILoop(queue: BlockingQueue[Map[String, String]], in0: BufferedReader, outString: StringWriter) extends SparkILoop(in0, new JPrintWriter(outString)) {
+ 
+   class SparkerILoopInterpreter extends SparkILoopInterpreter {
+     outer =>
+@@ -20,14 +20,6 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+       def prompt = SparkerILoop.this.prompt
+     }
+     override protected def parentClassLoader = SparkHelper.explicitParentLoader(settings).getOrElse(classOf[SparkILoop].getClassLoader)
+-
+-    /*
+-    override def interpret(line: String, synthetic: Boolean): IR.Result = {
+-      val result = super.interpret(line, synthetic)
+-      print("interpret: " + result + "\n")
+-      result
+-    }
+-    */
+   }
+ 
+   /** Create a new interpreter. */
+@@ -67,8 +59,6 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+   }
+ 
+   override def loop(): Unit = {
+-    //println(compact(render(Map("state" -> "ready"))))
+-
+     def readOneLine() = {
+       out.flush()
+       in readLine prompt
+@@ -87,7 +77,8 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+       val request = parseOpt(line) match {
+         case Some(request) => request;
+         case None => {
+-          println(compact(render(Map("type" -> "error", "msg" -> "invalid json"))))
++          queue.put(Map("type" -> "error", "msg" -> "invalid json"))
++          //println(compact(render(Map("type" -> "error", "msg" -> "invalid json"))))
+           return true
+         }
+       }
+@@ -110,20 +101,23 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+                   var output: String = outString.getBuffer.toString
+                   output = output.substring("scala> ".length + 1, output.length - 1)
+                   outString.getBuffer.setLength(0)
+-                  println(compact(render(Map("type" -> "stdout", "stdout" -> output))))
++                  queue.put(Map("type" -> "stdout", "stdout" -> output))
++                  //println(compact(render(Map("type" -> "stdout", "stdout" -> output))))
+ 
+                   true
+                 }
+               }
+             }
+             case _ => {
+-              println(compact(render(Map("type" -> "error", "msg" -> "missing statement"))))
++              queue.put(Map("type" -> "error", "msg" -> "missing statement"))
++              //println(compact(render(Map("type" -> "error", "msg" -> "missing statement"))))
+               true
+             }
+           }
+         }
+         case _ => {
+-          println(compact(render(Map("type" -> "error", "msg" -> "unknown type"))))
++          queue.put(Map("type" -> "error", "msg" -> "unknown type"))
++          //println(compact(render(Map("type" -> "error", "msg" -> "unknown type"))))
+           true
+         }
+       }
+@@ -136,10 +130,10 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+       if (shouldContinue)
+         innerLoop()
+       else {
+-        println(compact(render(Map("state" -> "quit"))))
++        queue.put(Map("state" -> "quit"))
++        //println(compact(render(Map("state" -> "quit"))))
+       }
+     }
+     innerLoop()
+   }
+-
+ }
+diff --git a/apps/spark/sparker-shell b/apps/spark/sparker-shell
+index ffbe7e3..cb384dc 100755
+--- a/apps/spark/sparker-shell
++++ b/apps/spark/sparker-shell
+@@ -5,4 +5,4 @@ cd `dirname $0`
+ exec java \
+ 	-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5006 \
+ 	-cp "java/sparker-repl/target/lib/*:java/sparker-repl/target/sparker-repl-3.7.0-SNAPSHOT.jar" \
+-	com.cloudera.hue.sparker.repl.Main #-usejavacp "$@" 2>/dev/null
++	com.cloudera.hue.sparker.repl.Main -usejavacp "$@" 2>/dev/null
+-- 
+1.7.9.5
+

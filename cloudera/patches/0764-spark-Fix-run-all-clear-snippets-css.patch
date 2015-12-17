@@ -1,0 +1,56 @@
+From 764c5d41b26b2ebcbb55cd921e01af8b919048da Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 12:15:56 +0100
+Subject: [PATCH 0764/1173] [spark] Fix run all/clear snippets css
+
+---
+ apps/spark/src/spark/templates/editor.mako |    8 ++++----
+ apps/spark/static/css/spark.css            |    4 ++++
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 0be8b56..932c6ea 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -112,19 +112,19 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   <div class="pull-right" style="padding-right:50px">
+   
+      <div class="btn-group" data-bind="visible: isEditing">
+-       <button class="btn dropdown-toggle" data-toggle="dropdown">
++       <a class="btn dropdown-toggle" data-toggle="dropdown">
+          <i class="fa fa-check-square-o"></i>
+          <i class="fa fa-caret-down"></i>
+-       </button>
++       </a>
+        <ul class="dropdown-menu">
+          <li>
+            <a href="javascript:void(0)" data-bind="click: function() { $root.selectedNotebook().clearResults() }">
+-             <i class="fa fa-play"></i> ${ _('Execute all snippets') }
++             <i class="fa fa-play fa-fw"></i> ${ _('Execute all snippets') }
+            </a>
+          </li>
+          <li>
+            <a href="javascript:void(0)" data-bind="click: function() { $root.selectedNotebook().clearResults() }">
+-             <i class="fa fa-eraser"></i> ${ _('Clear all results') }
++             <i class="fa fa-eraser fa-fw"></i> ${ _('Clear all results') }
+            </a>
+         </li>
+       </ul>
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+index c4d73c5..c01091b 100644
+--- a/apps/spark/static/css/spark.css
++++ b/apps/spark/static/css/spark.css
+@@ -141,6 +141,10 @@
+   text-align: right;
+ }
+ 
++.search-bar ul.dropdown-menu li {
++  text-align: left;
++}
++
+ .tab-content {
+   background-color: #FFFFFF;
+   border-left: 1px solid #dddddd;
+-- 
+1.7.9.5
+

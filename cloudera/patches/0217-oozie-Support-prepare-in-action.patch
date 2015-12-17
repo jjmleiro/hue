@@ -1,0 +1,83 @@
+From d19abbe1c7996c5a4b627304df46703acf8f1891 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 1 Nov 2014 14:15:52 +0100
+Subject: [PATCH 0217/1173] [oozie] Support prepare in action
+
+---
+ apps/oozie/src/oozie/models2.py                    |    2 +-
+ .../templates/editor/gen2/workflow-common.xml.mako |    2 +-
+ .../oozie/templates/editor/workflow_editor.mako    |   17 +++++++++++++++++
+ apps/oozie/src/oozie/views/editor2.py              |    3 ++-
+ 4 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index c312090..cba7128 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -94,7 +94,7 @@ class Workflow():
+     
+     if self.document is not None:
+       _data['workflow']['id'] = self.document.id
+-      _data['workflow']['dependencies'] = self.document.dependencies
++      _data['workflow']['dependencies'] = list(self.document.dependencies.values())
+     else:
+       _data['workflow']['dependencies'] = []
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
+index feb2072..9afc266 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-common.xml.mako
+@@ -59,7 +59,7 @@
+ <%def name="distributed_cache(files, archives)">
+     % for f in files:
+         % if f:
+-            <file>${ filelink(f['value']) }</file>
++            <file>${ filelink(f) }</file>
+         % endif
+     % endfor
+     % for a in archives:
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 10e8c16..f86cc40 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -256,6 +256,23 @@ ${ dashboard.layout_skeleton() }
+           </button>
+         </div>
+         <div class="tab-pane" id="properties">
++          ${ _('Prepare') }   
++          <ul data-bind="foreach: properties.prepares">
++            <li>
++              <span data-bind="text: type"></span>
++              <input data-bind="value: value"/>
++              <a href="#" data-bind="click: function(){ $parent.properties.prepares.remove(this); }">
++                <i class="fa fa-minus"></i>
++              </a>
++            </li>
++          </ul>
++          <button data-bind="click: function(){ properties.prepares.push({'type': 'mkdir', 'value': ''}); }">
++            ${ _('Directory') } <i class="fa fa-plus"></i>
++          </button>
++          <button data-bind="click: function(){ properties.prepares.push({'type': 'delete', 'value': ''}); }">
++            ${ _('Delete') } <i class="fa fa-plus"></i>
++          </button>
++          <br/>
+           prepares <input type="text" data-bind="value: properties.prepares" /></br>
+           job_xml <input type="text" data-bind="value: properties.job_xml" /></br>
+           proeperties <input type="text" data-bind="value: properties.properties" /></br>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 30dad36..e88edf6 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -175,7 +175,8 @@ def add_node(request):
+       'parameters': [],
+       'arguments': [],
+       'files': [],
+-      'archives': []
++      'archives': [],
++      'prepares': [],
+   })
+ 
+   response['status'] = 0
+-- 
+1.7.9.5
+

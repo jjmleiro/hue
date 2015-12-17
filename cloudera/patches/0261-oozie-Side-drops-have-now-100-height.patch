@@ -1,0 +1,82 @@
+From 405bca2f88a9a5f8a6e321a5dacff1013c37658b Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 6 Nov 2014 11:38:14 +0100
+Subject: [PATCH 0261/1173] [oozie] Side drops have now 100% height
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   19 +++++++++++++++++--
+ apps/oozie/static/css/workflow-editor.css          |    1 +
+ apps/oozie/static/js/workflow-editor.ko.js         |    4 ++--
+ 3 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index dbaf0c8..29140f2 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -846,12 +846,27 @@ ${ dashboard.import_bindings() }
+   var _linkMappingTimeout = -1;
+   $(document).on("drawArrows", function(){
+     window.clearTimeout(_linkMappingTimeout);
+-    _linkMappingTimeout = window.setTimeout(drawArrows, 25);
++    _linkMappingTimeout = window.setTimeout(renderChangeables, 25);
+   });
+ 
+   $(document).on("editingToggled", function(){
+     $("canvas").remove();
+-    window.setTimeout(drawArrows, 100);
++    window.setTimeout(renderChangeables, 100);
++  });
++
++  function resizeDrops() {
++    $(".drop-target-side").each(function () {
++      $(this).height($(this).parent().parent().innerHeight() - 12);
++    });
++  }
++
++  function renderChangeables() {
++    resizeDrops();
++    drawArrows();
++  }
++
++  $(document).ready(function(){
++    renderChangeables();
+   });
+ 
+ </script>
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 1645378..b67b249 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -313,6 +313,7 @@ em {
+ 
+ .drop-target-side {
+   min-height: 100px;
++  height: 100%;
+ }
+ 
+ .dashboard .row-fluid .span10.readonly {
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 74587eb..4f7770a 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -215,7 +215,7 @@ var Workflow = function (vm, workflow) {
+ 
+         // Added to the side ?
+         if (vm.currentlyCreatingFork) {
+-            var parentWidget = vm.getWidgetPredecessor(node.id()); alert(parentWidget.id());
++            var parentWidget = vm.getWidgetPredecessor(node.id()); console.log(parentWidget.id());
+ 
+           if (self.getNodeById(parentWidget.id()) == null) { // New fork
+         	
+@@ -744,7 +744,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         "workflow": ko.mapping.toJSON(self.workflow)
+     }, function (data) {
+       if (data.status == 0) {
+-        alert(data.xml);
++        console.log(data.xml);
+       }
+       else {
+         $(document).trigger("error", data.message);
+-- 
+1.7.9.5
+

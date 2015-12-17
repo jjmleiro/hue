@@ -1,0 +1,77 @@
+From 0cc689784a9e5e223642713ea046a9019ecfd2e6 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Fri, 2 Jan 2015 21:26:21 -0500
+Subject: [PATCH 0651/1173] [spark] Clean up imports, use the right
+ SparkProcessSession
+
+---
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |    6 ++----
+ .../cloudera/hue/livy/server/SessionFactory.scala  |    7 ++-----
+ .../cloudera/hue/livy/server/SessionManager.scala  |    2 --
+ 3 files changed, 4 insertions(+), 11 deletions(-)
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index f453831..dd23bf3 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -4,14 +4,12 @@ import javax.servlet.ServletContext
+ 
+ import _root_.akka.util.Timeout
+ import com.cloudera.hue.livy.WebServer
+-import com.cloudera.hue.livy.server.sessions.Session
+ import org.json4s.{DefaultFormats, Formats}
++import org.scalatra._
+ import org.scalatra.json.JacksonJsonSupport
+ import org.scalatra.servlet.ScalatraListener
+-import org.scalatra._
+ 
+-import scala.concurrent.duration.Duration
+-import scala.concurrent.{Await, Future, ExecutionContext, ExecutionContextExecutor}
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+ 
+ object Main {
+   def main(args: Array[String]): Unit = {
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index bfc8a84..cb27801 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -1,9 +1,6 @@
+ package com.cloudera.hue.livy.server
+ 
+ import java.util.UUID
+-import java.util.concurrent.Executors
+-
+-import com.cloudera.hue.livy.server.sessions.{Session, SparkSession}
+ 
+ import scala.concurrent.{ExecutionContext, Future, future}
+ 
+@@ -13,12 +10,12 @@ trait SessionFactory {
+ 
+ class ProcessSessionFactory extends SessionFactory {
+ 
+-  implicit def executor: ExecutionContext = ExecutionContext.global //ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
++  implicit def executor: ExecutionContext = ExecutionContext.global
+ 
+   override def createSparkSession: Future[Session] = {
+     future {
+       val id = UUID.randomUUID().toString
+-      new SparkSession(id)
++      new SparkProcessSession(id)
+     }
+   }
+ }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+index 03a965c..80d55d5 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionManager.scala
+@@ -1,7 +1,5 @@
+ package com.cloudera.hue.livy.server
+ 
+-import com.cloudera.hue.livy.server.sessions.Session
+-
+ import scala.collection.concurrent.TrieMap
+ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+ 
+-- 
+1.7.9.5
+

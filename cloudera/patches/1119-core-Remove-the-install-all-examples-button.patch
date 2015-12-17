@@ -1,0 +1,85 @@
+From fdfeadef0447f0343b4b3bc986af7f22c6e62986 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Mar 2015 17:26:37 -0700
+Subject: [PATCH 1119/1173] [core] Remove the install all examples button
+
+Put back the jobsub examples
+---
+ apps/about/src/about/templates/admin_wizard.mako   |   19 ++-----------------
+ .../src/oozie/management/commands/oozie_setup.py   |   13 ++-----------
+ 2 files changed, 4 insertions(+), 28 deletions(-)
+
+diff --git a/apps/about/src/about/templates/admin_wizard.mako b/apps/about/src/about/templates/admin_wizard.mako
+index f8527a2..602709d 100644
+--- a/apps/about/src/about/templates/admin_wizard.mako
++++ b/apps/about/src/about/templates/admin_wizard.mako
+@@ -70,23 +70,8 @@ ${ header.menubar() }
+           </div>
+ 
+           <div id="step2" class="stepDetails hide">
+-            <div class="card card-tab card-listcontent">
+-              <h2 class="card-heading simple">${ _('Install all the application examples') }</h2>
+ 
+-              <div class="card-body">
+-                <p>
+-                <ul>
+-                  <li>
+-                    <a href="javascript:void(0)" class="installAllBtn" data-loading-text="${ _('Installing...') }">
+-                      <i class="fa fa-download"></i> ${ _('All') }
+-                    </a>
+-                  </li>
+-                </ul>
+-                </p>
+-              </div>
+-            </div>
+-
+-          <div class="card card-home card-tab card-tab-bordertop card-listcontent">
++          <div class="card card-home card-tab card-listcontent">
+             <h2 class="card-heading simple">${ _('Install individual application examples') }</h2>
+           <div class="card-body">
+             <p>
+@@ -149,7 +134,7 @@ ${ header.menubar() }
+           % endif
+           % if 'jobsub' in app_names:
+               <li>
+-                <a href="javascript:void(0)" class="installBtn" data-loading-text="${ _('Installing...') }"
++                <a href="javascript:void(0)" data-loading-text="${ _('Installing...') }"
+                    data-sample-url="${ url('oozie:install_examples') }">
+                   <i class="fa fa-download"></i> ${ apps['jobsub'].nice_name }
+                 </a>
+diff --git a/apps/oozie/src/oozie/management/commands/oozie_setup.py b/apps/oozie/src/oozie/management/commands/oozie_setup.py
+index a224a7b..2bbaf63 100644
+--- a/apps/oozie/src/oozie/management/commands/oozie_setup.py
++++ b/apps/oozie/src/oozie/management/commands/oozie_setup.py
+@@ -95,18 +95,9 @@ class Command(NoArgsCommand):
+   def install_examples(self):
+     data_dir = LOCAL_SAMPLE_DIR.get()
+ 
+-    managed_dir = os.path.join(data_dir, 'managed')
+-    self._import_workflows(managed_dir, managed=True)
+-
+     unmanaged_dir = os.path.join(data_dir, 'unmanaged')
+     self._import_workflows(unmanaged_dir, managed=False)
+ 
+-    coordinators_dir = os.path.join(data_dir, 'coordinators')
+-    self._import_coordinators(coordinators_dir)
+-
+-    bundles_dir = os.path.join(data_dir, 'bundles')
+-    self._import_bundles(bundles_dir)
+-
+   def handle_noargs(self, **options):
+     self.user = install_sample_user()
+     self.fs = cluster.get_hdfs()
+@@ -135,7 +126,7 @@ class Command(NoArgsCommand):
+ 
+     if ENABLE_V2.get():
+       management.call_command('loaddata', 'initial_oozie_examples.json', verbosity=2)
+-    else:
+-      self.install_examples()
++
++    self.install_examples()
+ 
+     Document.objects.sync()
+-- 
+1.7.9.5
+

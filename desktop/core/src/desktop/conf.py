@@ -15,12 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import socket
 import stat
+import subprocess
 
 from django.utils.translation import ugettext_lazy as _
 
+from desktop.redaction.engine import parse_redaction_policy_from_file
 from desktop.lib.conf import Config, ConfigSection, UnspecifiedConfigSection,\
                              coerce_bool, coerce_csv, coerce_json_dict,\
                              validate_path, list_of_compiled_res, coerce_str_lowercase
@@ -47,6 +50,15 @@ def coerce_port(port):
     return ''
   else:
     return port
+
+
+def coerce_password_from_script(script):
+  p = subprocess.Popen(script, shell=True, stdout=subprocess.PIPE)
+  password = p.communicate()[0]
+
+  # whitespace may be significant in the password, but most files have a
+  # trailing newline.
+  return password.strip('\n')
 
 
 HTTP_HOST = Config(
@@ -83,10 +95,28 @@ SSL_CIPHER_LIST = Config(
   help=_("List of allowed and disallowed ciphers"),
   default="DEFAULT:!aNULL:!eNULL:!LOW:!EXPORT:!SSLv2")
 
+SSL_PASSWORD = Config(
+  key="ssl_password",
+  help=_("SSL password of the the certificate"),
+  default=None)
+
+SSL_PASSWORD_SCRIPT = Config(
+  key="ssl_password_script",
+  help=_("Execute this script to produce the SSL password. This will be used when `ssl_password` is not set."),
+  type=coerce_password_from_script,
+  default=None)
+
 LDAP_PASSWORD = Config(
   key="ldap_password",
   help=_("LDAP password of the hue user used for LDAP authentications. For example for LDAP Authentication with HiveServer2/Impala."),
   private=True,
+  default=None)
+
+LDAP_PASSWORD_SCRIPT = Config(
+  key="ldap_password_script",
+  help=_("Execute this script to produce the LDAP password. This will be used when `ldap_password` is not set."),
+  private=True,
+  type=coerce_password_from_script,
   default=None)
 
 LDAP_USERNAME = Config(
@@ -105,7 +135,7 @@ CHERRYPY_SERVER_THREADS = Config(
   key="cherrypy_server_threads",
   help=_("Number of threads used by the CherryPy web server."),
   type=int,
-  default=10)
+  default=40)
 
 SECRET_KEY = Config(
   key="secret_key",
@@ -146,7 +176,7 @@ REDIRECT_WHITELIST = Config(
          "For example, to restrict to your local domain and FQDN, the following value can be used:"
          "  ^\/.*$,^http:\/\/www.mydomain.com\/.*$"),
   type=list_of_compiled_res(skip_empty=True),
-  default='')
+  default='^\/.*$')
 
 SECURE_PROXY_SSL_HEADER = Config(
   key="secure_proxy_ssl_header",
@@ -167,6 +197,19 @@ DEMO_ENABLED = Config( # Internal and Temporary
   type=coerce_bool,
   private=True,
   default=False)
+
+LOG_REDACTION_FILE = Config(
+  key="log_redaction_file",
+  help=_("Use this file to parse and redact log message."),
+  type=parse_redaction_policy_from_file,
+  default=None)
+
+ALLOWED_HOSTS = Config(
+  key='allowed_hosts',
+  default=['*'],
+  type=coerce_csv,
+  help=_('Comma separated list of strings representing the host/domain names that the Hue server can serve.')
+)
 
 def is_https_enabled():
   return bool(SSL_CERTIFICATE.get() and SSL_PRIVATE_KEY.get())
@@ -230,6 +273,14 @@ SMTP = ConfigSection(
       default=""
     ),
 
+    PASSWORD_SCRIPT = Config(
+      key="password_script",
+      help=_("Execute this script to produce the SMTP user password. This will be used when the SMTP `password` is not set."),
+      type=coerce_password_from_script,
+      private=True,
+      default=None,
+    ),
+
     USE_TLS = Config(
       key="tls",
       help=_("Whether to use a TLS (secure) connection when talking to the SMTP server."),
@@ -274,6 +325,13 @@ DATABASE = ConfigSection(
       help=_('Database password.'),
       private=True,
       type=str,
+      default='',
+    ),
+    PASSWORD_SCRIPT=Config(
+      key='password_script',
+      help=_('Execute this script to produce the database password. This will be used when `password` is not set.'),
+      private=True,
+      type=coerce_password_from_script,
       default='',
     ),
     HOST=Config(
@@ -443,11 +501,11 @@ AUTH = ConfigSection(
     IGNORE_USERNAME_CASE = Config("ignore_username_case",
                                   help=_("Ignore the case of usernames when searching for existing users in Hue."),
                                   type=coerce_bool,
-                                  default=False),
+                                  default=True),
     FORCE_USERNAME_LOWERCASE = Config("force_username_lowercase",
                                       help=_("Force usernames to lowercase when creating new users from LDAP."),
                                       type=coerce_bool,
-                                      default=False),
+                                      default=True),
     EXPIRES_AFTER = Config("expires_after",
                             help=_("Users will expire after they have not logged in for 'n' amount of seconds."
                                    "A negative number means that users will never expire."),
@@ -488,6 +546,24 @@ LDAP = ConfigSection(
       help=_("Define the number of levels to search for nested members."),
       type=int,
       default=10),
+    FOLLOW_REFERRALS = Config("follow_referrals",
+      help=_("Whether or not to follow referrals."),
+      type=coerce_bool,
+      default=False),
+
+    DEBUG = Config("debug",
+      type=coerce_bool,
+      default=False,
+      help=_("Set to a value to enable python-ldap debugging.")),
+    DEBUG_LEVEL = Config("debug_level",
+      default=255,
+      type=int,
+      help=_("Sets the debug level within the underlying LDAP C lib.")),
+    TRACE_LEVEL = Config("trace_level",
+      default=0,
+      type=int,
+      help=_("Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,"
+             "2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.")),
 
     LDAP_SERVERS = UnspecifiedConfigSection(
       key="ldap_servers",
@@ -520,10 +596,33 @@ LDAP = ConfigSection(
                                default=None,
                                private=True,
                                help=_("The password for the bind user.")),
+          BIND_PASSWORD_SCRIPT=Config("bind_password_script",
+                                    default=None,
+                                    private=True,
+                                    type=coerce_password_from_script,
+                                    help=_("Execute this script to produce the LDAP bind user password. This will be used when `bind_password` is not set.")),
           SEARCH_BIND_AUTHENTICATION=Config("search_bind_authentication",
                                             default=True,
                                             type=coerce_bool,
                                             help=_("Use search bind authentication.")),
+          FOLLOW_REFERRALS = Config("follow_referrals",
+                                    help=_("Whether or not to follow referrals."),
+                                    type=coerce_bool,
+                                    default=False),
+
+          DEBUG = Config("debug",
+            type=coerce_bool,
+            default=False,
+            help=_("Set to a value to enable python-ldap debugging.")),
+          DEBUG_LEVEL = Config("debug_level",
+            default=255,
+            type=int,
+            help=_("Sets the debug level within the underlying LDAP C lib.")),
+          TRACE_LEVEL = Config("trace_level",
+            default=0,
+            type=int,
+            help=_("Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,"
+                   "2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.")),
 
           USERS = ConfigSection(
             key="users",
@@ -584,6 +683,11 @@ LDAP = ConfigSection(
                    default=None,
                    private=True,
                    help=_("The password for the bind user.")),
+    BIND_PASSWORD_SCRIPT=Config("bind_password_script",
+                   default=None,
+                   private=True,
+                   type=coerce_password_from_script,
+                   help=_("Execute this script to produce the LDAP bind user password. This will be used when `bind_password` is not set.")),
     SEARCH_BIND_AUTHENTICATION=Config("search_bind_authentication",
                    default=True,
                    type=coerce_bool,
@@ -693,9 +797,10 @@ SEND_DBUG_MESSAGES = Config(
 
 DATABASE_LOGGING = Config(
   key="database_logging",
-  help=_("If true, log all database requests."),
+  help=_("Enable or disable database debug mode."),
   type=coerce_bool,
-  default=False)
+  default=False
+)
 
 DJANGO_ADMINS = UnspecifiedConfigSection(
   key="django_admins",
@@ -763,13 +868,17 @@ def validate_ldap(user, config):
   res = []
 
   if config.SEARCH_BIND_AUTHENTICATION.get():
-    if config.LDAP_URL.get() is not None and bool(config.BIND_DN.get()) != bool(config.BIND_PASSWORD.get()):
-      if config.BIND_DN.get() == None:
-        res.append((LDAP.BIND_DN,
-                  unicode(_("If you set bind_password, then you must set bind_dn."))))
-      else:
-        res.append((LDAP.BIND_PASSWORD,
-                    unicode(_("If you set bind_dn, then you must set bind_password."))))
+    if config.LDAP_URL.get() is not None:
+      bind_dn = config.BIND_DN.get()
+      bind_password = config.BIND_PASSWORD.get() or config.BIND_PASSWORD_SCRIPT.get()
+
+      if bool(bind_dn) != bool(bind_password):
+        if bind_dn == None:
+          res.append((LDAP.BIND_DN,
+                    unicode(_("If you set bind_password, then you must set bind_dn."))))
+        else:
+          res.append((LDAP.BIND_PASSWORD,
+                      unicode(_("If you set bind_dn, then you must set bind_password."))))
   else:
     if config.NT_DOMAIN.get() is not None or \
         config.LDAP_USERNAME_PATTERN.get() is not None:
@@ -792,6 +901,35 @@ def validate_ldap(user, config):
 
   return res
 
+def validate_mysql_storage():
+
+  from django.db import connection
+
+  LOG = logging.getLogger(__name__)
+  res = []
+
+  if connection.vendor == 'mysql':
+      cursor = connection.cursor();
+
+      try:
+        innodb_table_count = cursor.execute('''
+            SELECT *
+            FROM information_schema.tables
+            WHERE table_schema=DATABASE() AND engine = "innodb"''')
+
+        total_table_count = cursor.execute('''
+            SELECT *
+            FROM information_schema.tables
+            WHERE table_schema=DATABASE()''')
+
+        if innodb_table_count != 0 and innodb_table_count != total_table_count:
+          res.append(('MYSQL_STORAGE_ENGINE', unicode(_('''All tables in the database must be of the same
+                                                        storage engine type (preferably InnoDB).'''))))
+      except Exception, ex:
+        LOG.exception("Error in config validation of MYSQL_STORAGE_ENGINE: %s", ex)
+
+  return res
+
 
 def config_validator(user):
   """
@@ -803,7 +941,7 @@ def config_validator(user):
 
   res = []
   if not SECRET_KEY.get():
-    res.append((SECRET_KEY, unicode(_("Secret key should be configured as a random string."))))
+    res.append((SECRET_KEY, unicode(_("Secret key should be configured as a random string. All sessions will be lost on restart"))))
 
   # Validate SSL setup
   if SSL_CERTIFICATE.get():
@@ -836,4 +974,54 @@ def config_validator(user):
   else:
     res.extend(validate_ldap(user, LDAP))
 
+  # Validate MYSQL storage engine of all tables
+  res.extend(validate_mysql_storage())
+
   return res
+
+def get_redaction_policy():
+  """
+  Return the configured redaction policy.
+  """
+
+  return LOG_REDACTION_FILE.get()
+
+
+def get_ssl_password():
+  password = SSL_PASSWORD.get()
+  if password is None:
+    password = SSL_PASSWORD_SCRIPT.get()
+
+  return password
+
+
+def get_database_password():
+  password = DATABASE.PASSWORD.get()
+  if password is None:
+    password = DATABASE.PASSWORD_SCRIPT.get()
+
+  return password
+
+
+def get_smtp_password():
+  password = SMTP.PASSWORD.get()
+  if password is None:
+    password = SMTP.PASSWORD_SCRIPT.get()
+
+  return password
+
+
+def get_ldap_password():
+  password = LDAP_PASSWORD.get()
+  if password is None:
+    password = LDAP_PASSWORD_SCRIPT.get()
+
+  return password
+
+
+def get_ldap_bind_password(ldap_config):
+  password = ldap_config.BIND_PASSWORD.get()
+  if password is None:
+    password = ldap_config.BIND_PASSWORD_SCRIPT.get()
+
+  return password

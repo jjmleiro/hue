@@ -1,0 +1,62 @@
+From 15573a4fc91325d623b36257ff5404d3ddf85851 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 7 Nov 2014 12:38:15 +0100
+Subject: [PATCH 0267/1173] [oozie] Hide extra dropping target right after
+ fork and before join
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ++--
+ apps/oozie/static/js/workflow-editor.ko.js         |   20 ++++++++++++++++++++
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 38943a1..fdeaacc 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -213,10 +213,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+ 
+ <script type="text/html" id="internal-row-template">
+   <div class="container-fluid">
+-    <div class="row-fluid" data-bind="visible: $index() > 0 && $root.isEditing()" style="margin-bottom: 10px">
++    <div class="row-fluid" data-bind="visible: $index() > 0 && $root.isEditing() && ! $root.isRowBeforeJoin($data) && ! $root.isRowAfterFork($data)" style="margin-bottom: 10px">
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+       <div data-bind="css: {'span10': true, 'readonly': ! $root.isEditing()}">
+-        <div data-bind="visible: $root.isEditing(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
++        <div style="text-align: left" data-bind="visible: $root.isEditing(), css: {'drop-target': true, 'is-editing': $root.isEditing}, droppable: {enabled: $root.isEditing, onDrop: function(){ var _w = $root.addDraggedWidget($data, true); widgetDraggedAdditionalHandler(_w); } }"></div>
+       </div>
+       <div data-bind="css: {'span1': true, 'readonly': ! $root.isEditing()}"></div>
+     </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index d731962..4a63294 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -615,6 +615,26 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     return self.getWidgetRelative(widget_id, false);
+   }
+ 
++  self.isRowAfterFork = function (row) {
++    var _parentColumn = self.getRowParentColumn(row.id());
++    var _prevRow = null;
++    for (var i = 0; i < _parentColumn.rows().length; i++) {
++      var _currentRow = _parentColumn.rows()[i];
++      if (_currentRow.id() == row.id()){
++        break;
++      }
++      _prevRow = _currentRow;
++    }
++    if (_prevRow != null){
++      return _prevRow.widgets().length > 0 && _prevRow.widgets()[0].widgetType() == "fork-widget";
++    }
++    return false;
++  }
++
++  self.isRowBeforeJoin = function (row) {
++    return row.widgets().length > 0 && row.widgets()[0].widgetType() == "join-widget";
++  }
++
+   self.getWidgetParentRow = function (widget_id) {
+     var _row = null;
+     for (var i = 0; i < self.columns().length; i++) {
+-- 
+1.7.9.5
+

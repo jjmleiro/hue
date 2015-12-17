@@ -1,0 +1,38 @@
+From 6fbb3d4db7dd71a87ab84833d6771f4686d7b28a Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 10 Mar 2015 18:23:48 -0700
+Subject: [PATCH 1031/1173] [desktop] ATOMIC_REQUESTS is a setting on the
+ database config
+
+---
+ desktop/core/src/desktop/settings.py |    7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+index 661d22e..c3eabce 100644
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -212,9 +212,6 @@ FILE_UPLOAD_HANDLERS = (
+   'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+ )
+ 
+-# Wrap each request in a transaction.
+-ATOMIC_REQUESTS = True
+-
+ ############################################################
+ # Part 4: Installation of apps
+ ############################################################
+@@ -294,7 +291,9 @@ else:
+     "PORT" : str(desktop.conf.DATABASE.PORT.get()),
+     "OPTIONS": force_dict_to_strings(desktop.conf.DATABASE.OPTIONS.get()),
+     # DB used for tests
+-    "TEST_NAME" : get_desktop_root('desktop-test.db')
++    "TEST_NAME" : get_desktop_root('desktop-test.db'),
++    # Wrap each request in a transaction.
++    "ATOMIC_REQUESTS" : True,
+   }
+ 
+ DATABASES = {
+-- 
+1.7.9.5
+

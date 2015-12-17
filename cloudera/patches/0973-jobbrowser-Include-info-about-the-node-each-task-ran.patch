@@ -1,0 +1,89 @@
+From 4405bf0c84897c288322effcd7cb16af7bcc0acf Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Mon, 2 Mar 2015 16:38:24 -0800
+Subject: [PATCH 0973/1173] [jobbrowser] Include info about the node each task
+ ran on in task attempt page
+
+---
+ .../src/jobbrowser/templates/attempt.mako          |   20 ++++++++++++++++
+ apps/jobbrowser/src/jobbrowser/templates/task.mako |   24 +++++++++++++-------
+ 2 files changed, 36 insertions(+), 8 deletions(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/attempt.mako b/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
+index f4970e7..8cea1d0 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/attempt.mako
+@@ -132,6 +132,26 @@ ${ comps.menubar() }
+                   <td>${_('Output Size')}</td>
+                   <td>${attempt.outputSize}</td>
+                 </tr>
++                % if not attempt.is_mr2:
++                <tr>
++                  <td>${_('Shuffle Finish')}</td>
++                  <td>${attempt.shuffleFinishTimeFormatted}</td>
++                </tr>
++                <tr>
++                  <td>${_('Sort Finish')}</td>
++                  <td>${attempt.sortFinishTimeFormatted}</td>
++                </tr>
++                <tr>
++                  <td>${_('Map Finish')}</td>
++                  <td>${attempt.mapFinishTimeFormatted}</td>
++                </tr>
++                % endif
++                % if attempt.is_mr2:
++                  <tr>
++                    <td>${_('Node Address')}</td>
++                    <td>${attempt.nodeHttpAddress}</td>
++                  </tr>
++                % endif
+                 </tbody>
+               </table>
+             </div>
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/task.mako b/apps/jobbrowser/src/jobbrowser/templates/task.mako
+index f5dcc39..4a1c97d 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/task.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/task.mako
+@@ -69,11 +69,15 @@ ${ comps.menubar() }
+                       <th>${_('Task Tracker')}</th>
+                       <th>${_('Start Time')}</th>
+                       <th>${_('End Time')}</th>
+-                      <th>${_('Output Size')}</th>
++                      % if task.is_mr2:
++                        <th>${_('Node Address')}</th>
++                      %endif
+                       <th>${_('Phase')}</th>
+-                      <th>${_('Shuffle Finish')}</th>
+-                      <th>${_('Sort Finish')}</th>
+-                      <th>${_('Map Finish')}</th>
++                      % if not task.is_mr2:
++                        <th>${_('Shuffle Finish')}</th>
++                        <th>${_('Sort Finish')}</th>
++                        <th>${_('Map Finish')}</th>
++                      % endif
+                     </tr>
+                   </thead>
+                   <tbody>
+@@ -92,11 +96,15 @@ ${ comps.menubar() }
+                       </td>
+                       <td>${attempt.startTimeFormatted}</td>
+                       <td>${attempt.finishTimeFormatted}</td>
+-                      <td>${attempt.outputSize}</td>
++                      % if task.is_mr2:
++                        <td>${attempt.nodeHttpAddress}</td>
++                      % endif
+                       <td>${attempt.phase}</td>
+-                      <td>${attempt.shuffleFinishTimeFormatted}</td>
+-                      <td>${attempt.sortFinishTimeFormatted}</td>
+-                      <td>${attempt.mapFinishTimeFormatted}</td>
++                      % if not task.is_mr2:
++                        <td>${attempt.shuffleFinishTimeFormatted}</td>
++                        <td>${attempt.sortFinishTimeFormatted}</td>
++                        <td>${attempt.mapFinishTimeFormatted}</td>
++                      % endif
+                     </tr>
+                   % endfor
+                   </tbody>
+-- 
+1.7.9.5
+

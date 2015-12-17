@@ -1,0 +1,40 @@
+From 09c088f949054829ba09e6b57c639e8400b531f9 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 23 Mar 2015 18:55:52 -0700
+Subject: [PATCH 1144/1173] [useradmin] The useradmin tests leak state across
+ tests
+
+This is a bit of a hack in order to get things working, but we should
+put in the effort to make sure our tests are deterministic and clean
+up their state between runs.
+---
+ apps/useradmin/src/useradmin/tests.py |    6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/apps/useradmin/src/useradmin/tests.py b/apps/useradmin/src/useradmin/tests.py
+index f85e5c2..2ec8783 100644
+--- a/apps/useradmin/src/useradmin/tests.py
++++ b/apps/useradmin/src/useradmin/tests.py
+@@ -737,6 +737,9 @@ class MockLdapConnection(object):
+     self.ldap_cert = ldap_cert
+ 
+ def test_get_connection_bind_password():
++  # Unfortunately our tests leak a cached test ldap connection across functions, so we need to clear it out.
++  useradmin.ldap_access.CACHED_LDAP_CONN = None
++
+   # Monkey patch the LdapConnection class as we don't want to make a real connection.
+   OriginalLdapConnection = useradmin.ldap_access.LdapConnection
+   reset = [
+@@ -763,6 +766,9 @@ def test_get_connection_bind_password():
+       f()
+ 
+ def test_get_connection_bind_password_script():
++  # Unfortunately our tests leak a cached test ldap connection across functions, so we need to clear it out.
++  useradmin.ldap_access.CACHED_LDAP_CONN = None
++
+   SCRIPT = '%s -c "print \'\\n password from script \\n\'"' % sys.executable
+ 
+   # Monkey patch the LdapConnection class as we don't want to make a real connection.
+-- 
+1.7.9.5
+

@@ -1,0 +1,80 @@
+From 09c705cd6e37d65189bf42fb69c898632c44c214 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 13:51:43 -0800
+Subject: [PATCH 0612/1173] [spark] Make sparker-shell speak json requests and
+ responses
+
+---
+ .../cloudera/hue/sparker/repl/SparkerILoop.scala   |   49 ++++++++++++++++----
+ 1 file changed, 39 insertions(+), 10 deletions(-)
+
+diff --git a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+index cfd9499..8390c2a 100644
+--- a/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
++++ b/apps/spark/java/sparker-repl/src/main/scala/com/cloudera/hue/sparker/repl/SparkerILoop.scala
+@@ -3,6 +3,7 @@ package com.cloudera.hue.sparker.repl
+ import java.io.{BufferedReader, StringWriter}
+ 
+ import org.apache.spark.repl.SparkILoop
++import org.json4s.DefaultFormats
+ import org.json4s.JsonDSL._
+ import org.json4s.jackson.JsonMethods._
+ 
+@@ -80,16 +81,44 @@ class SparkerILoop(in0: BufferedReader, outString: StringWriter) extends SparkIL
+       }
+ 
+       if (line eq null) false               // assume null means EOF
+-      else command(line) match {
+-        case Result(false, _)           => false
+-        case Result(_, Some(finalLine)) => {
+-          var output: String = outString.getBuffer.toString
+-          output = output.substring("scala> ".length + 1, output.length - 1)
+-          outString.getBuffer.setLength(0)
+-          println(compact(render(Map("state" -> "stdout", "input" -> finalLine, "msg" -> output))))
+-          addReplay(finalLine)
+-        } ; true
+-        case _                          => true
++      else {
++        implicit val formats = DefaultFormats
++
++        val request = parse(line)
++        val type_ = (request \ "type").extract[Option[String]]
++
++        type_ match {
++          case Some("stdin") => {
++            (request \ "statement").extract[Option[String]] match {
++              case Some(statement) => {
++                command(statement) match {
++                  case Result(false, _) => false
++                  case Result(true, finalLine) => {
++                    finalLine match {
++                      case Some(line) => addReplay(line)
++                      case _ =>
++                    }
++
++                    var output: String = outString.getBuffer.toString
++                    output = output.substring("scala> ".length + 1, output.length - 1)
++                    outString.getBuffer.setLength(0)
++                    println(compact(render(Map("state" -> "stdout", "stdout" -> output))))
++
++                    true
++                  }
++                }
++              }
++              case _ => {
++                println(compact(render(Map("type" -> "error", "msg" -> "missing statement"))))
++                true
++              }
++            }
++          }
++          case _ => {
++            println(compact(render(Map("type" -> "error", "msg" -> "unknown type"))))
++            true
++          }
++        }
+       }
+     }
+     def innerLoop() {
+-- 
+1.7.9.5
+

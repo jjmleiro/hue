@@ -1,0 +1,30 @@
+From 4dff5b36fbc6047646777d2a1f6d7e35b079aadb Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 22 Jan 2015 11:03:38 -0800
+Subject: [PATCH 0808/1173] HUE-2436 [useradmin] Django-1.6: Stop caching the
+ user in the session
+
+This process of caching the user object in the session no longer works.
+Since we don't ever actually access this cached user, we can just store
+a boolean to mark that we've imported this user.
+---
+ apps/useradmin/src/useradmin/middleware.py |    5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/apps/useradmin/src/useradmin/middleware.py b/apps/useradmin/src/useradmin/middleware.py
+index e749d6b..a16268a 100644
+--- a/apps/useradmin/src/useradmin/middleware.py
++++ b/apps/useradmin/src/useradmin/middleware.py
+@@ -52,5 +52,8 @@ class LdapSynchronizationMiddleware(object):
+         connection = ldap_access.get_connection_from_server(next(LDAP.LDAP_SERVERS.__iter__()))
+       else:
+         connection = ldap_access.get_connection_from_server()
+-      request.session[self.USER_CACHE_NAME] = import_ldap_users(connection, user.username, sync_groups=True, import_by_dn=False)
++
++      import_ldap_users(connection, user.username, sync_groups=True, import_by_dn=False)
++
++      request.session[self.USER_CACHE_NAME] = True
+       request.session.modified = True
+-- 
+1.7.9.5
+

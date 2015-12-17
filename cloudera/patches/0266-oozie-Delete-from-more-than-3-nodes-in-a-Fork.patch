@@ -1,0 +1,35 @@
+From e95071de4454321b9aa8e0f94f029ea6e521338a Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 7 Nov 2014 11:03:34 +0000
+Subject: [PATCH 0266/1173] [oozie] Delete from more than 3 nodes in a Fork
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 1c08520..d731962 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -302,8 +302,7 @@ var Workflow = function (vm, workflow) {
+       var fork = parent;
+       var join = self.getNodeById(childId);
+       if (join.type() == 'join-widget') {
+-    	if (join.children().length == 1) {
+-    		
++    	if (fork.children().length == 2) {
+           // Link top to above and delete fork
+     	  var forkParent = self.getParents(fork.id());
+     	  forkParent.set_link('to', ko.mapping.toJS(fork.get_link('to'))['to']);
+@@ -316,6 +315,8 @@ var Workflow = function (vm, workflow) {
+     	  beboreJoin.set_link('to', joinChildId);
+ 
+     	  self.nodes.remove(join); 
++    	} else {
++    	  parent.remove_link('to', childId);
+     	}
+       }
+     }
+-- 
+1.7.9.5
+

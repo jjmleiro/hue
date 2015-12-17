@@ -1,0 +1,26 @@
+From 7f05a87281c49b20dc5a6bee1ee4a1f66aa49d1f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 2 Feb 2015 17:42:55 -0500
+Subject: [PATCH 0738/1173] [spark] Do not hide and show charts when
+ re-executing a query
+
+---
+ apps/spark/src/spark/templates/editor.mako |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index eff4517..135b6aa 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -495,7 +495,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </div>
+         </div>
+ 
+-        <div class="row-fluid" data-bind="visible: result.fetchedOnce() && showChart()" style="max-height: 400px; margin-top: 4px">
++        <div class="row-fluid" data-bind="visible: showChart()" style="max-height: 400px; margin-top: 4px">
+           <div data-bind="visible: isLeftPanelVisible, css:{'span2': isLeftPanelVisible, 'hidden': ! isLeftPanelVisible()}">
+             <div class="toggle-left-panel" style="float: right; margin-right: -30px; height: 400px; line-height: 400px; margin-top:0" data-bind="click: toggleLeftPanel">
+               <a title="${_('Hide settings')}" class="pointer">
+-- 
+1.7.9.5
+

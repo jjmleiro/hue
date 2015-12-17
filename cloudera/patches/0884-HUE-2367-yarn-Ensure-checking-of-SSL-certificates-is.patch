@@ -1,0 +1,182 @@
+From c071b91e7527a94ec40b762ac52dc4fccab043a9 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Feb 2015 10:41:06 -0800
+Subject: [PATCH 0884/1173] HUE-2367 [yarn] Ensure checking of SSL
+ certificates is on or off
+
+---
+ desktop/conf.dist/hue.ini                          |    8 ++++----
+ desktop/conf/pseudo-distributed.ini.tmpl           |    4 ++--
+ desktop/libs/hadoop/src/hadoop/conf.py             |    2 +-
+ .../hadoop/src/hadoop/yarn/history_server_api.py   |    6 ++++--
+ .../libs/hadoop/src/hadoop/yarn/mapreduce_api.py   |    6 ++++--
+ .../hadoop/src/hadoop/yarn/node_manager_api.py     |    7 +++++--
+ .../hadoop/src/hadoop/yarn/resource_manager_api.py |    5 ++---
+ 7 files changed, 22 insertions(+), 16 deletions(-)
+
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 822f150..885039b 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -335,8 +335,8 @@
+         ## Use search bind authentication.
+         ## search_bind_authentication=true
+ 
+-	# Whether or not to follow referrals
+-	## follow_referrals=false
++        # Whether or not to follow referrals
++        ## follow_referrals=false
+ 
+         ## [[[[[users]]]]]
+ 
+@@ -689,8 +689,8 @@
+       # URL of the HistoryServer API
+       ## history_server_api_url=http://localhost:19888
+ 
+-      # In secure mode (HTTPS), if SSL certificates from Resource Manager's
+-      # Rest Server have to be verified against certificate authority
++      # In secure mode (HTTPS), if SSL certificates from from YARN Rest APIs
++      # have to be verified against certificate authority
+       ## ssl_cert_ca_verify=False
+ 
+     # HA support by specifying multiple clusters
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 701c653..6dbc021 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -695,8 +695,8 @@
+       # URL of the HistoryServer API
+       ## history_server_api_url=http://localhost:19888
+ 
+-      # In secure mode (HTTPS), if SSL certificates from Resource Manager's
+-      # Rest Server have to be verified against certificate authority
++      # In secure mode (HTTPS), if SSL certificates from YARN Rest APIs
++      # have to be verified against certificate authority
+       ## ssl_cert_ca_verify=False
+ 
+     # HA support by specifying multiple clusters
+diff --git a/desktop/libs/hadoop/src/hadoop/conf.py b/desktop/libs/hadoop/src/hadoop/conf.py
+index 90b2e4b..cc68e18 100644
+--- a/desktop/libs/hadoop/src/hadoop/conf.py
++++ b/desktop/libs/hadoop/src/hadoop/conf.py
+@@ -148,7 +148,7 @@ YARN_CLUSTERS = UnspecifiedConfigSection(
+                   default='http://localhost:19888',
+                   help="URL of the HistoryServer API"),
+       SSL_CERT_CA_VERIFY=Config("ssl_cert_ca_verify",
+-                  help="In secure mode (HTTPS), if SSL certificates from Resource Manager Rest Server have to be verified against certificate authority",
++                  help="In secure mode (HTTPS), if SSL certificates from YARN Rest APIs have to be verified against certificate authority",
+                   default=False,
+                   type=coerce_bool)
+     )
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/history_server_api.py b/desktop/libs/hadoop/src/hadoop/yarn/history_server_api.py
+index 8254fbe..070fb34 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/history_server_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/history_server_api.py
+@@ -41,7 +41,7 @@ def get_history_server_api():
+     try:
+       if _api_cache is None:
+         yarn_cluster = cluster.get_cluster_conf_for_job_submission()
+-        _api_cache = HistoryServerApi(yarn_cluster.HISTORY_SERVER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get())
++        _api_cache = HistoryServerApi(yarn_cluster.HISTORY_SERVER_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get(), yarn_cluster.SSL_CERT_CA_VERIFY.get())
+     finally:
+       _api_cache_lock.release()
+   return _api_cache
+@@ -49,7 +49,7 @@ def get_history_server_api():
+ 
+ class HistoryServerApi(object):
+ 
+-  def __init__(self, oozie_url, security_enabled=False):
++  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+     self._url = posixpath.join(oozie_url, 'ws/%s/history' % _API_VERSION)
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+@@ -58,6 +58,8 @@ class HistoryServerApi(object):
+     if self._security_enabled:
+       self._client.set_kerberos_auth()
+ 
++    self._client.set_verify(ssl_cert_ca_verify)
++
+   def __str__(self):
+     return "HistoryServerApi at %s" % (self._url,)
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/mapreduce_api.py b/desktop/libs/hadoop/src/hadoop/yarn/mapreduce_api.py
+index 25a2374..225505b 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/mapreduce_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/mapreduce_api.py
+@@ -42,7 +42,7 @@ def get_mapreduce_api():
+     try:
+       if _api_cache is None:
+         yarn_cluster = cluster.get_cluster_conf_for_job_submission()
+-        _api_cache = MapreduceApi(yarn_cluster.PROXY_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get())
++        _api_cache = MapreduceApi(yarn_cluster.PROXY_API_URL.get(), yarn_cluster.SECURITY_ENABLED.get(), yarn_cluster.SSL_CERT_CA_VERIFY.get())
+     finally:
+       _api_cache_lock.release()
+   return _api_cache
+@@ -50,7 +50,7 @@ def get_mapreduce_api():
+ 
+ class MapreduceApi(object):
+ 
+-  def __init__(self, oozie_url, security_enabled=False):
++  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+     self._url = posixpath.join(oozie_url, 'proxy')
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+@@ -59,6 +59,8 @@ class MapreduceApi(object):
+     if self._security_enabled:
+       self._client.set_kerberos_auth()
+ 
++    self._client.set_verify(ssl_cert_ca_verify)
++
+   def __str__(self):
+     return "MapreduceApi at %s" % (self._url,)
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
+index 3253465..c90de7d 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
+@@ -33,11 +33,12 @@ _JSON_CONTENT_TYPE = 'application/json'
+ 
+ 
+ def get_resource_manager_api(api_url):
+-  return ResourceManagerApi(api_url, cluster.get_cluster_conf_for_job_submission().SECURITY_ENABLED.get())
++  yarn_cluster = cluster.get_cluster_conf_for_job_submission()
++  return ResourceManagerApi(api_url, yarn_cluster.SECURITY_ENABLED.get(), yarn_cluster.SSL_CERT_CA_VERIFY.get())
+ 
+ 
+ class ResourceManagerApi(object):
+-  def __init__(self, oozie_url, security_enabled=False):
++  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
+     self._url = posixpath.join(oozie_url, 'ws', _API_VERSION)
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+@@ -46,6 +47,8 @@ class ResourceManagerApi(object):
+     if self._security_enabled:
+       self._client.set_kerberos_auth()
+ 
++    self._client.set_verify(ssl_cert_ca_verify)
++
+   def __str__(self):
+     return "NodeManagerApi at %s" % (self._url,)
+ 
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+index aec95e0..4458c36 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/resource_manager_api.py
+@@ -60,12 +60,11 @@ class ResourceManagerApi(object):
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+     self._security_enabled = security_enabled
+-    self._ssl_cert_ca_verify = ssl_cert_ca_verify
+ 
+     if self._security_enabled:
+       self._client.set_kerberos_auth()
+-      if ssl_cert_ca_verify:
+-        self._client.set_verify(True)
++
++    self._client.set_verify(ssl_cert_ca_verify)
+ 
+   def __str__(self):
+     return "ResourceManagerApi at %s" % (self._url,)
+-- 
+1.7.9.5
+

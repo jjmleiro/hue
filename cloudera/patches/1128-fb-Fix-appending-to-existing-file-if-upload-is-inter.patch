@@ -1,0 +1,35 @@
+From 1d2cfc42c5c16bc1f86a29d2783d2c89ec2956fb Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 19 Mar 2015 15:11:59 -0700
+Subject: [PATCH 1128/1173] [fb] Fix appending to existing file if upload is
+ interrupted
+
+---
+ desktop/libs/hadoop/src/hadoop/fs/upload.py |   11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/upload.py b/desktop/libs/hadoop/src/hadoop/fs/upload.py
+index 27d2c04..75af699 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/upload.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/upload.py
+@@ -67,11 +67,12 @@ class HDFStemporaryUploadedFile(object):
+ 
+     # We want to set the user to be the user doing the upload
+     self._fs.setuser(request.user.username)
+-    try:
+-      self._path = self._fs.mkswap(name, suffix='tmp', basedir=destination)
+-      self._file = self._fs.open(self._path, 'w')
+-    except WebHdfsException, e:
+-      raise e
++    self._path = self._fs.mkswap(name, suffix='tmp', basedir=destination)
++
++    if self._fs.exists(self._path):
++      self._fs._delete(self._path)
++    self._file = self._fs.open(self._path, 'w')
++
+     self._do_cleanup = True
+ 
+   def __del__(self):
+-- 
+1.7.9.5
+

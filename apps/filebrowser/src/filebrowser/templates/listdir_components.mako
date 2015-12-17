@@ -16,7 +16,6 @@
 
 <%!
 import datetime
-import md5
 from django.template.defaultfilters import urlencode, stringformat, filesizeformat, date, time, escape
 from desktop.lib.django_util import reverse_with_get, extract_field_data
 from django.utils.encoding import smart_str
@@ -35,13 +34,13 @@ from django.utils.translation import ugettext as _
 
 <%def name="_table(files, path, current_request_path, view)">
 
-  <link href="/filebrowser/static/css/listdir_components.css" rel="stylesheet" type="text/css">
+  <link href="${ static('filebrowser/css/listdir_components.css') }" rel="stylesheet" type="text/css">
   <table class="table table-condensed datatables tablescroller-disable">
     <thead>
       <tr>
         <th width="1%"><div data-bind="click: selectAll, css: {hueCheckbox: true, 'fa': true, 'fa-check': allSelected}" class="select-all"></div></th>
         <th class="sortable sorting" data-sort="type" width="1%" data-bind="click: sort">&nbsp;</th>
-        <th class="sortable sorting" data-sort="name" data-bind="click: sort">${_('Name')}</th>
+        <th class="sortable sorting_asc" data-sort="name" data-bind="click: sort">${_('Name')}</th>
         <th class="sortable sorting" data-sort="size" width="10%" data-bind="click: sort">${_('Size')}</th>
         <th class="sortable sorting" data-sort="user" width="10%" data-bind="click: sort">${_('User')}</th>
         <th class="sortable sorting" data-sort="group" width="10%" data-bind="click: sort">${_('Group')}</th>
@@ -53,13 +52,13 @@ from django.utils.translation import ugettext as _
     <tfoot>
       <tr data-bind="visible: isLoading()">
         <td colspan="8" class="left">
-          <img src="/static/art/spinner.gif" />
+          <img src="${ static('desktop/art/spinner.gif') }" />
         </td>
       </tr>
       <tr data-bind="visible: files().length === 0 && !isLoading()">
         <td colspan="8">
           <div class="alert">
-            There are no files matching the search criteria.
+            ${_('There are no files matching the search criteria.')}
           </div>
         </td>
       </tr>
@@ -108,6 +107,7 @@ from django.utils.translation import ugettext as _
     </div>
     <div class="modal-footer">
       <form id="deleteForm" action="/filebrowser/rmtree" method="POST" enctype="multipart/form-data" class="form-stacked">
+        ${ csrf_token(request) | n,unicode }
         <a class="btn" data-dismiss="modal">${_('No')}</a>
         <input type="submit" value="${_('Yes')}" class="btn btn-danger" />
       </form>
@@ -125,6 +125,7 @@ from django.utils.translation import ugettext as _
     </div>
     <div class="modal-footer">
       <form id="restoreTrashForm" action="/filebrowser/trash/restore" method="POST" enctype="multipart/form-data" class="form-stacked">
+        ${ csrf_token(request) | n,unicode }
         <a class="btn" data-dismiss="modal">${_('No')}</a>
         <input type="submit" value="${_('Yes')}" class="btn btn-primary" />
       </form>
@@ -144,6 +145,7 @@ from django.utils.translation import ugettext as _
 
     <div class="modal-footer">
       <form id="purgeTrashForm" action="/filebrowser/trash/purge" method="POST" enctype="multipart/form-data" class="form-stacked">
+        ${ csrf_token(request) | n,unicode }
         <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
         <input type="submit" value="${_('Delete')}" class="btn btn-primary" />
       </form>
@@ -153,6 +155,7 @@ from django.utils.translation import ugettext as _
   <!-- rename modal -->
   <div id="renameModal" class="modal hide fade">
     <form id="renameForm" action="/filebrowser/rename?next=${current_request_path}" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Renaming:')} <span id="renameFileName">file name</span></h3>
@@ -181,6 +184,7 @@ from django.utils.translation import ugettext as _
       select_filter = is_superuser and 'SelectWithOther' or ''
     %>
     <form id="chownForm" action="/filebrowser/chown" method="POST" enctype="multipart/form-data" class="form-stacked form-padding-fix">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Change Owner/Group')}</h3>
@@ -212,6 +216,7 @@ from django.utils.translation import ugettext as _
   <!-- chmod modal -->
   <div id="changePermissionModal" class="modal hide fade">
     <form action="/filebrowser/chmod" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix" id="chmodForm">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Change Permissions:')} </h3>
@@ -275,7 +280,8 @@ from django.utils.translation import ugettext as _
   <!-- move modal -->
   <div id="moveModal" class="modal hide fade">
     <form id="moveForm" action="/filebrowser/move" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
-      <div class="modal-header">
+      ${ csrf_token(request) | n,unicode }
+      <div class="modal-header" style="padding-bottom: 10px">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Move to')}</h3>
       </div>
@@ -284,7 +290,7 @@ from django.utils.translation import ugettext as _
       </div>
       <div class="modal-footer">
         <div>
-          <input type="text" class="input-xlarge disable-autsofocus" value="" name="dest_path" id="moveDestination" placeholder="${_('Select a folder or paste a path...')}" />
+          <input type="text" class="input-xlarge disable-autofocus" value="" name="dest_path" id="moveDestination" placeholder="${_('Select a folder or paste a path...')}" />
           <span id="moveNameRequiredAlert" class="hide label label-important">${_('Required')}</span>
         </div>
         <a class="btn" onclick="$('#moveModal').modal('hide');">${_('Cancel')}</a>
@@ -296,7 +302,8 @@ from django.utils.translation import ugettext as _
   <!-- copy modal -->
   <div id="copyModal" class="modal hide fade">
     <form id="copyForm" action="/filebrowser/copy" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
-      <div class="modal-header">
+      ${ csrf_token(request) | n,unicode }
+      <div class="modal-header" style="padding-bottom: 10px">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Copy to')}</h3>
       </div>
@@ -350,6 +357,7 @@ from django.utils.translation import ugettext as _
   <!-- new directory modal -->
   <div id="createDirectoryModal" class="modal hide fade">
     <form id="createDirectoryForm" data-bind="submit: createDirectory" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Create Directory')}</h3>
@@ -374,6 +382,7 @@ from django.utils.translation import ugettext as _
   <!-- new file modal -->
   <div id="createFileModal" class="modal hide fade">
     <form id="createFileForm" data-bind="submit: createFile" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
+      ${ csrf_token(request) | n,unicode }
       <div class="modal-header">
         <a href="#" class="close" data-dismiss="modal">&times;</a>
         <h3>${_('Create File')}</h3>
@@ -395,57 +404,162 @@ from django.utils.translation import ugettext as _
     </form>
   </div>
 
+  <!-- actions context menu -->
+  <ul class="context-menu dropdown-menu">
+  <!-- ko ifnot: $root.inTrash -->
+    <li><a href="#" title="${_('Rename')}" data-bind="visible: !$root.inTrash() && $root.selectedFiles().length == 1, click: $root.renameFile,
+    enable: $root.selectedFiles().length == 1 && isCurrentDirSelected().length == 0"><i class="fa fa-font"></i>
+    ${_('Rename')}</a></li>
+    <li><a href="#"title="${_('Move')}" data-bind="click: $root.move, enable: $root.selectedFiles().length > 0 &&
+    isCurrentDirSelected().length == 0"><i class="fa fa-random"></i> ${_('Move')}</a></li>
+    <li><a href="#" title="${_('Copy')}" data-bind="click: $root.copy, enable: $root.selectedFiles().length > 0 &&
+    isCurrentDirSelected().length == 0"><i class="fa fa-files-o"></i> ${_('Copy')}</a></li>
+    <li><a href="#" title="${_('Download')}" data-bind="visible: !$root.inTrash() && $root.selectedFiles().length == 1 && selectedFile().type == 'file', click: $root.downloadFile"><i class="fa fa-arrow-circle-o-down"></i> ${_('Download')}</a></li>
+    <li class="divider"></li>
+    % if is_fs_superuser:
+    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged || selectedSentryFiles().length > 0 }">
+      <a href="#" data-bind="visible: !$root.inTrash(), click: $root.changeOwner, enable: $root.selectedFiles().length > 0">
+        <i class="fa fa-user"></i> ${_('Change owner / group')}
+      </a>
+    </li>
+    % endif
+    <li data-bind="css: {'disabled': $root.isCurrentDirSentryManaged() || selectedSentryFiles().length > 0 }">
+      <a href="#" data-bind="visible: !$root.inTrash(), click: $root.changePermissions, enable: $root.selectedFiles().length > 0">
+        <i class="fa fa-list-alt"></i> ${_('Change permissions')}
+      </a>
+    </li>
+    <li class="divider"></li>
+    <li><a href="#"  data-bind="enable: $root.selectedFiles().length > 0 && isCurrentDirSelected().length == 0,
+    click: $root.trashSelected"><i class="fa fa-times"></i> ${_('Move to trash')}</a></li>
+    <li><a href="#" class="delete-link" title="${_('Delete forever')}" data-bind="enable: $root.selectedFiles().length > 0, click: $root.deleteSelected"><i class="fa fa-bolt"></i> ${_('Delete forever')}</a></li>
+  <!-- /ko -->
+  <!-- ko if: $root.inTrash -->
+    <li><a href="#" title="${_('Restore from trash')}" data-bind="visible: inRestorableTrash() &&  selectedFiles().length > 0 && isCurrentDirSelected().length == 0, click: restoreTrashSelected"><i class="fa fa-cloud-upload"></i> ${_('Restore')}</a></li>
+    <li class="divider"></li>
+    <li><a href="#" title="${_('Empty trash')}" data-bind="visible: inTrash(), click: purgeTrash"><i class="fa fa-fire"></i> ${_('Empty trash')}</a></li>
+  <!-- /ko -->
+  </ul>
+
   <div id="submit-wf-modal" class="modal hide"></div>
 
-  <div id="progressStatus" class="uploadstatus alert alert-info hide">
-    <div class="updateStatus"> </div>
+  <div id="progressStatus" class="uploadstatus well hide">
+    <h4>${ _('Upload progress') }</h4>
+    <div id="progressStatusBar" class="hide progress active">
+      <div class="bar bar-upload"></div>
+    </div>
+    <div id="progressStatusContent" class="scrollable-uploadstatus">
+      <div class="updateStatus"> </div>
+    </div>
   <div>
-  <div id="progressStatusBar" class="uploadstatusbar hide">
-    <div></div>
-  </div>
 </div>
 
   <script id="fileTemplate" type="text/html">
-    <tr style="cursor: pointer" data-bind="event: { mouseover: toggleHover, mouseout: toggleHover}">
+    <tr style="cursor: pointer" data-bind="drop: { enabled: name !== '.' && type !== 'file', value: $data }, event: { mouseover: toggleHover, mouseout: toggleHover, contextmenu: showContextMenu }, click: $root.viewFile, css: { 'row-selected': selected() }">
       <td class="center" data-bind="click: handleSelect" style="cursor: default">
-        <div data-bind="visible: name != '..', css: {hueCheckbox: name != '..', 'fa': name != '..', 'fa-check': selected}"></div>
+        <div data-bind="visible: name != '..', css: { hueCheckbox: name != '..', 'fa': name != '..', 'fa-check': selected }"></div>
       </td>
-      <td data-bind="click: $root.viewFile" class="left"><i data-bind="css: {'fa': true, 'fa-play': $.inArray(name, ['workflow.xml', 'coordinator.xml', 'bundle.xml']) > -1, 'fa-file-o': type == 'file', 'fa-folder': type != 'file', 'fa-folder-open': type != 'file' && hovered}"></i></td>
-      <td data-bind="click: $root.viewFile, attr: {'title': tooltip}" rel="tooltip">
+      <td class="left"><i data-bind="click: $root.viewFile, css: { 'fa': true, 'fa-play': $.inArray(name, ['workflow.xml', 'coordinator.xml', 'bundle.xml']) > -1, 'fa-file-o': type == 'file', 'fa-folder': type != 'file', 'fa-folder-open': type != 'file' && hovered }"></i></td>
+      <td data-bind="attr: {'title': tooltip}" rel="tooltip">
         <!-- ko if: name == '..' -->
         <a href="#" data-bind="click: $root.viewFile"><i class="fa fa-level-up"></i></a>
         <!-- /ko -->
         <!-- ko if: name != '..' -->
-        <strong><a href="#" data-bind="click: $root.viewFile, text: name"></a></strong>
+        <strong><a href="#" data-bind="drag: { value: $data }, click: $root.viewFile, text: name, attr: { 'draggable': $.inArray(name, ['.', '..', '.Trash']) === -1 }"></a></strong>
         <!-- /ko -->
-
       </td>
-      <td data-bind="click: $root.viewFile">
-        <span data-bind="visible: type=='file', text: stats.size"></span>
+      <td>
+        <span data-bind="visible: type == 'file', text: stats.size"></span>
       </td>
-      <td data-bind="click: $root.viewFile, text: stats.user"></td>
-      <td data-bind="click: $root.viewFile, text: stats.group"></td>
-      <td data-bind="click: $root.viewFile, text: permissions"></td>
-      <td data-bind="click: $root.viewFile, text: stats.mtime" style="white-space: nowrap;"></td>
+      <td>
+        % if is_fs_superuser:
+        <span data-bind="text: stats.user, visible: ! selected() || $root.isCurrentDirSentryManaged() || isSentryManaged"></span>
+        <a href="#" rel="tooltip" title="${_('Change owner')}" data-original-title="${_('Change owner')}"
+            data-bind="text: stats.user, visible: ! $root.inTrash() && selected() && ! $root.isCurrentDirSentryManaged() && ! isSentryManaged, click: $root.changeOwner, enable: $root.selectedFiles().length > 0"></a>
+        % else:
+        <span data-bind="text: stats.user"></span>
+        % endif
+      </td>
+      <td>
+        % if is_fs_superuser:
+        <span data-bind="text: stats.group, visible: ! selected() || $root.isCurrentDirSentryManaged() || isSentryManaged"></span>
+        <a href="#" rel="tooltip" title="${_('Change group')}" data-original-title="${_('Change group')}"
+            data-bind="text: stats.group, visible: ! $root.inTrash() && selected() && ! $root.isCurrentDirSentryManaged() && ! isSentryManaged, click: $root.changeOwner"></a>
+        % else:
+        <span data-bind="text: stats.group"></span>
+        % endif
+      </td>
+      <td>
+        <span data-bind="text: permissions, visible: ! selected() || $root.isCurrentDirSentryManaged() || isSentryManaged"></span>
+        <a href="#" rel="tooltip" title="${_('Change permissions')}"
+            data-bind="text: permissions, visible: ! $root.inTrash() && selected() && ! $root.isCurrentDirSentryManaged() && ! isSentryManaged, click: $root.changePermissions" data-original-title="${_('Change permissions')}"></a>
+      </td>
+      <td data-bind="text: stats.mtime" style="white-space: nowrap;"></td>
     </tr>
   </script>
 
-  <script src="/static/js/jquery.hdfsautocomplete.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/js/jquery.hdfstree.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
-  <script src="/static/js/dropzone.js" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/js/jquery.hdfsautocomplete.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/js/jquery.hdfstree.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/jquery/plugins/jquery-ui-1.10.4.draggable-droppable-sortable.min.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+  <script src="${ static('desktop/js/dropzone.js') }" type="text/javascript" charset="utf-8"></script>
 
 
   <script charset="utf-8">
+    var _dragged;
+
+    ko.bindingHandlers.drag = {
+      init: function(element, valueAccessor, allBindingsAccessor, viewModel) {
+        var dragElement = $(element);
+        var dragOptions = {
+          helper: 'clone',
+          revert: true,
+          revertDuration: 0,
+          start: function() {
+            if ($(element).is('[draggable]')) {
+              viewModel.selected(true);
+            }
+            _dragged = ko.utils.unwrapObservable(valueAccessor().value);
+          },
+          cursor: "move",
+          delay: 300
+        };
+        dragElement.draggable(dragOptions).disableSelection();
+      }
+    };
+
+    ko.bindingHandlers.drop = {
+      init: function(element, valueAccessor) {
+        var dropElement = $(element);
+
+        if (valueAccessor().enabled){
+          var dropOptions = {
+            hoverClass: 'drag-hover',
+            drop: function(event, ui) {
+              var destpath = valueAccessor().value.path;
+
+              dropElement.fadeOut(200, function(){
+                dropElement.fadeIn(200);
+              });
+
+              if (destpath) {
+                $('#moveDestination').val(destpath);
+                viewModel.move('nomodal');
+              }
+            }
+          };
+          dropElement.droppable(dropOptions);
+        }
+      }
+    };
+
+
     var getHistory = function () {
       return $.totalStorage('hue_fb_history') || [];
     };
 
-    var showHistory = function (num) {
-      //keep last 10 items
-      var num = num || -10,
-        history = getHistory().slice(num),
+    var showHistory = function () {
+      var history = getHistory().slice(0, 10),
         frag = $('<ul/>', {
                   'id': 'hashHistory',
                   'class': 'dropdown-menu',
@@ -495,7 +609,7 @@ from django.utils.translation import ugettext as _
           history.unshift(history.splice(history.indexOf(path), 1)[0]);
         }
 
-        $.totalStorage('hue_fb_history', history);
+        $.totalStorage('hue_fb_history', history.slice(0, 10));
       }
     };
 
@@ -574,18 +688,42 @@ from django.utils.translation import ugettext as _
         type: file.type,
         permissions: file.rwx,
         mode: file.mode,
+        isSentryManaged: file.is_sentry_managed,
         stats: {
           size: file.humansize,
           user: file.stats.user,
           group: file.stats.group,
           mtime: file.mtime
         },
-        selected:ko.observable(false),
+        selected: ko.observable(false),
         handleSelect: function (row, e) {
+          e.preventDefault();
+          e.stopPropagation();
           this.selected(! this.selected());
           viewModel.allSelected(false);
         },
-        hovered:ko.observable(false),
+        // display the context menu when an item is right/context clicked
+        showContextMenu: function (row, e) {
+          var cm = $('.context-menu'),
+            actions = $('#ch-dropdown'),
+            rect = document.querySelector('body').getBoundingClientRect();
+
+          e.stopPropagation();
+
+          // close the actions menu from button area if open
+          if (actions.hasClass('open')) {
+            actions.removeClass('open');
+          }
+
+          // display context menu and ensure it is on-screen
+          if ($.inArray(row.name, ['..', '.', '.Trash']) === -1) {
+            this.selected(true);
+            cm.css({ display: 'block', top: e.pageY - 15, left: (e.pageX < rect.right - 200 ) ? e.pageX : e.pageX - 250 });
+          } else {
+            cm.css({ display: 'none' });
+          }
+        },
+        hovered: ko.observable(false),
         toggleHover: function (row, e) {
           this.hovered(! this.hovered());
         },
@@ -625,23 +763,39 @@ from django.utils.translation import ugettext as _
       self.sortBy = ko.observable("name");
       self.sortDescending = ko.observable(false);
       self.searchQuery = ko.observable("");
+      self.isCurrentDirSentryManaged = ko.observable(false);
 
-      self.filesSorting = function (l, r) {
-        if (l.name == ".." && r.name == "."){
+      self.fileNameSorting = function (l, r) {
+        if (l.name == "..") {
           return -1;
         }
-        else if (l.name == "." && r.name == ".."){
+        else if (r.name == "..") {
+          return 1;
+        }
+        else if (l.name == ".") {
+          return -1;
+        }
+        else if (r.name == ".") {
           return 1;
         }
         else {
-          return l.name > r.name ? 1 : -1
+          var _ret = l.name > r.name ? 1 : -1;
+          if (self.sortDescending()){
+            _ret = _ret * -1;
+          }
+          return _ret;
         }
       }
 
       self.files = ko.observableArray(ko.utils.arrayMap(files, function (file) {
         return new File(file);
       }));
-      self.files.sort(self.filesSorting)
+
+      if (self.sortBy() == "name"){
+        self.files.sort(self.fileNameSorting);
+      }
+
+      self.homeDir = ko.observable("${home_directory}");
 
       self.breadcrumbs = ko.observableArray(ko.utils.arrayMap(breadcrumbs, function (breadcrumb) {
         return new Breadcrumb(breadcrumb);
@@ -669,7 +823,6 @@ from django.utils.translation import ugettext as _
         } else {
           el.addClass("sorting_asc");
         }
-
         self.retrieveData();
       }
 
@@ -680,6 +833,12 @@ from django.utils.translation import ugettext as _
       self.selectedFiles = ko.computed(function () {
         return ko.utils.arrayFilter(self.files(), function (file) {
           return file.selected();
+        });
+      }, self);
+
+      self.selectedSentryFiles = ko.computed(function () {
+        return ko.utils.arrayFilter(self.files(), function (file) {
+          return file.selected() && file.isSentryManaged;
         });
       }, self);
 
@@ -725,7 +884,7 @@ from django.utils.translation import ugettext as _
             return false;
           }
 
-          self.updateFileList(data.files, data.page, data.breadcrumbs, data.current_dir_path);
+          self.updateFileList(data.files, data.page, data.breadcrumbs, data.current_dir_path, data.is_sentry_managed);
 
           if ($("#hueBreadcrumbText").is(":visible")) {
             $(".hueBreadcrumb").show();
@@ -735,15 +894,19 @@ from django.utils.translation import ugettext as _
         });
       };
 
-      self.updateFileList = function (files, page, breadcrumbs, currentDirPath) {
+      self.updateFileList = function (files, page, breadcrumbs, currentDirPath, isSentryManaged) {
         $(".tooltip").hide();
+
+        self.isCurrentDirSentryManaged(isSentryManaged);
 
         self.page(new Page(page));
 
         self.files(ko.utils.arrayMap(files, function (file) {
           return new File(file);
         }));
-        self.files.sort(self.filesSorting)
+        if (self.sortBy() == "name"){
+          self.files.sort(self.fileNameSorting);
+        }
 
         self.breadcrumbs(ko.utils.arrayMap(breadcrumbs, function (breadcrumb) {
           return new Breadcrumb(breadcrumb);
@@ -831,7 +994,7 @@ from django.utils.translation import ugettext as _
           self.targetPath("${url('filebrowser.views.view', path=urlencode('/'))}" + "." + stripHashes(file.path));
           location.hash = stripHashes(file.path);
         } else {
-          location.href = "${url('filebrowser.views.view', path=urlencode('/'))}" + stripHashes(file.path);
+          location.href = file.url;
         }
       };
 
@@ -858,34 +1021,49 @@ from django.utils.translation import ugettext as _
         });
       };
 
-      self.move = function () {
+      self.move = function (mode) {
         var paths = [];
 
+        var isMoveOnSelf = false;
         $(self.selectedFiles()).each(function (index, file) {
+          if (file.path == $('#moveDestination').val()){
+            isMoveOnSelf = true;
+          }
           paths.push(file.path);
         });
 
-        hiddenFields($("#moveForm"), "src_path", paths);
+        if (!isMoveOnSelf){
+          hiddenFields($("#moveForm"), "src_path", paths);
 
-        $("#moveForm").attr("action", "/filebrowser/move?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
+          $("#moveForm").attr("action", "/filebrowser/move?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
 
-        $("#moveModal").modal({
-          keyboard:true,
-          show:true
-        });
+          if (mode === 'nomodal') {
+            $.jHueNotify.info('${ _('Items moving to') } "' + $('#moveDestination').val() + '"');
+            $("#moveForm").submit();
+          } else {
+            $("#moveModal").modal({
+              keyboard: true,
+              show: true
+            });
 
-        $("#moveModal").on("shown", function(){
-          $("#moveModal .modal-footer div").show();
-          $("#moveHdfsTree").remove();
-          $("<div>").attr("id", "moveHdfsTree").appendTo($("#moveModal .modal-body"));
-          $("#moveHdfsTree").jHueHdfsTree({
-            home: viewModel.currentPath(),
-            onPathChange: function(path){
-              $("#moveDestination").val(path);
-              $("#moveNameRequiredAlert").hide();
-            }
-          });
-        });
+            $("#moveModal").on("shown", function () {
+              $("#moveModal .modal-footer div").show();
+              $("#moveHdfsTree").remove();
+              $("<div>").attr("id", "moveHdfsTree").appendTo($("#moveModal .modal-body"));
+              $("#moveHdfsTree").jHueHdfsTree({
+                home: "/user/${ user }",
+                initialPath: viewModel.currentPath(),
+                onPathChange: function (path) {
+                  $("#moveDestination").val(path);
+                  $("#moveNameRequiredAlert").hide();
+                }
+              });
+            });
+          }
+        }
+        else {
+          $.jHueNotify.warn("${ _('You cannot copy a folder into itself.') }");
+        }
       };
 
       self.copy = function () {
@@ -909,86 +1087,94 @@ from django.utils.translation import ugettext as _
           $("#copyHdfsTree").remove();
           $("<div>").attr("id", "copyHdfsTree").appendTo($("#copyModal .modal-body"));
           $("#copyHdfsTree").jHueHdfsTree({
-            home: viewModel.currentPath(),
+            home: "/user/${ user }",
+            initialPath: viewModel.currentPath(),
             onPathChange: function(path){
               $("#copyDestination").val(path);
               $("#copyNameRequiredAlert").hide();
             }
           });
         });
-
-
       };
 
-      self.changeOwner = function () {
-        var paths = [];
+      self.changeOwner = function (data, event) {
+        if (!self.isCurrentDirSentryManaged()) {
+          var paths = [];
+          event.preventDefault();
+          event.stopPropagation();
 
-        $(self.selectedFiles()).each(function (index, file) {
-          paths.push(file.path);
-        });
+          $(self.selectedFiles()).each(function (index, file) {
+            paths.push(file.path);
+          });
 
-        hiddenFields($("#chownForm"), 'path', paths);
+          hiddenFields($("#chownForm"), 'path', paths);
 
-        $("#chownForm").attr("action", "/filebrowser/chown?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
+          $("#chownForm").attr("action", "/filebrowser/chown?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
 
-        $("select[name=user]").val(self.selectedFile().stats.user);
+          $("select[name=user]").val(self.selectedFile().stats.user);
 
-        if ($("select[name=group] option:contains('" + self.selectedFile().stats.group + "')").length > 0) {
-          $("select[name=group]").val(self.selectedFile().stats.group);
-        } else {
-          $("select[name=group]").val("__other__");
-          $("input[name=group_other]").val(self.selectedFile().stats.group);
-        }
-
-        $("select[name=group]").change();
-
-        $("#changeOwnerModal").modal({
-          keyboard:true,
-          show:true
-        });
-      };
-
-      self.changePermissions = function () {
-        var paths = [];
-        var allFileType = true;
-
-        $(self.selectedFiles()).each(function (index, file) {
-          if ("dir" == file.type){
-            allFileType = false;
-          }
-          paths.push(file.path);
-        });
-
-        hiddenFields($("#chmodForm"), 'path', paths);
-
-        $("#chmodForm").attr("action", "/filebrowser/chmod?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
-
-        $("#changePermissionModal").modal({
-          keyboard:true,
-          show:true
-        });
-
-        // Initial values for form
-        var permissions = ["sticky", "user_read", "user_write", "user_execute", "group_read", "group_write", "group_execute", "other_read", "other_write", "other_execute"].reverse();
-        var mode = octal(self.selectedFile().mode) & 01777;
-
-        for (var i = 0; i < permissions.length; i++) {
-          if (mode & 1) {
-            $("#chmodForm input[name=" + permissions[i] + "]").attr("checked", true);
+          if ($("select[name=group] option:contains('" + self.selectedFile().stats.group + "')").length > 0) {
+            $("select[name=group]").val(self.selectedFile().stats.group);
           } else {
-            $("#chmodForm input[name=" + permissions[i] + "]").attr("checked", false);
+            $("select[name=group]").val("__other__");
+            $("input[name=group_other]").val(self.selectedFile().stats.group);
           }
-          mode >>>= 1;
-        }
 
-        if (allFileType){
-          $("#chmodForm input[name='user_execute']").attr("disabled", "disabled");
-          $("#chmodForm input[name='group_execute']").attr("disabled", "disabled");
-          $("#chmodForm input[name='other_execute']").attr("disabled", "disabled");
-        } else {
-          $("#chmodForm input[name='user_execute']").removeAttr("disabled");
-          $("#chmodForm input[name='group_execute']").removeAttr("disabled");
-          $("#chmodForm input[name='other_execute']").removeAttr("disabled");
+          $("select[name=group]").change();
+
+          $("#changeOwnerModal").modal({
+            keyboard: true,
+            show: true
+          });
+        }
+      };
+
+      self.changePermissions = function (data, event) {
+        if (!self.isCurrentDirSentryManaged()) {
+          var paths = [];
+          var allFileType = true;
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          $(self.selectedFiles()).each(function (index, file) {
+            if ("dir" == file.type) {
+              allFileType = false;
+            }
+            paths.push(file.path);
+          });
+
+          hiddenFields($("#chmodForm"), 'path', paths);
+
+          $("#chmodForm").attr("action", "/filebrowser/chmod?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
+
+          $("#changePermissionModal").modal({
+            keyboard: true,
+            show: true
+          });
+
+          // Initial values for form
+          var permissions = ["sticky", "user_read", "user_write", "user_execute", "group_read", "group_write", "group_execute", "other_read", "other_write", "other_execute"].reverse();
+          var mode = octal(self.selectedFile().mode) & 01777;
+
+          for (var i = 0; i < permissions.length; i++) {
+            if (mode & 1) {
+              $("#chmodForm input[name=" + permissions[i] + "]").attr("checked", true);
+            } else {
+              $("#chmodForm input[name=" + permissions[i] + "]").attr("checked", false);
+            }
+            mode >>>= 1;
+          }
+
+          if (allFileType) {
+            $("#chmodForm input[name='user_execute']").attr("disabled", "disabled");
+            $("#chmodForm input[name='group_execute']").attr("disabled", "disabled");
+            $("#chmodForm input[name='other_execute']").attr("disabled", "disabled");
+          } else {
+            $("#chmodForm input[name='user_execute']").removeAttr("disabled");
+            $("#chmodForm input[name='group_execute']").removeAttr("disabled");
+            $("#chmodForm input[name='other_execute']").removeAttr("disabled");
+          }
         }
       };
 
@@ -1062,7 +1248,7 @@ from django.utils.translation import ugettext as _
 
         hiddenFields($("#purgeTrashForm"), 'path', paths);
 
-        $("#purgeTrashForm").attr("action", "/filebrowser/trash/purge?next=${url('filebrowser.views.view', path=urlencode('/'))}" + "." + self.currentPath());
+        $("#purgeTrashForm").attr("action", "/filebrowser/trash/purge?next=${url('filebrowser.views.view', path=urlencode('/'))}" + viewModel.homeDir().slice(1) + "/.Trash");
 
         $("#purgeTrashModal").modal({
           keyboard:true,
@@ -1189,10 +1375,47 @@ from django.utils.translation import ugettext as _
       };
     };
 
+    // hide the context menu based on specific events
+    var hideContextMenu = function () {
+      var cm = $('.context-menu');
+
+      if (cm.is(':visible')) {
+        cm.css({ display: 'none' });
+      }
+    };
+
     var viewModel = new FileBrowserModel([], null, [], "/");
     ko.applyBindings(viewModel);
 
     $(document).ready(function () {
+
+      if (getHistory().length == 0) {
+        $('.history').addClass('no-history');
+      }
+
+      $('.historyLink').on('click', function (e) {
+        if(getHistory().length > 0) {
+          showHistory();
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+
+      // hide context menu
+      $('body').on('click', function (e) {
+        hideContextMenu();
+      });
+
+      $('body').on('contextmenu', function (e) {
+        if ($.inArray(e.toElement, $('.datatables *')) === -1) {
+          hideContextMenu();
+        }
+      });
+
+      $('body').on('contextmenu', '.context-menu', function (e) {
+        hideContextMenu();
+      });
 
       // Drag and drop uploads from anywhere on filebrowser screen
       if (window.FileReader) {
@@ -1205,24 +1428,25 @@ from django.utils.translation import ugettext as _
           $('.hoverMsg').addClass('hide');
         };
 
-        var _isDraggingOverText = false;
+        var _isDraggingOverText = false,
+          // determine if the item dragged originated outside DOM
+          _isExternalFile = true;
 
-        if (getHistory().length == 0) {
-          $('.history').addClass('no-history');
-        }
+        $('body').on('dragstart', function (e) {
+          // External files being dragged into the DOM won't have a dragstart event
+          _isExternalFile = false;
+        });
 
-        $('.historyLink').on('click', function (e) {
-          if(getHistory().length > 0) {
-            showHistory();
-          } else {
-            e.preventDefault();
-            e.stopPropagation();
-          }
+        $('body').on('dragend', function (e) {
+          _isExternalFile = true;
         });
 
         $('.card').on('dragenter', function (e) {
           e.preventDefault();
-          showHoverMsg("${_('Drop files here to upload')}");
+
+          if (_isExternalFile) {
+            showHoverMsg("${_('Drop files here to upload')}");
+          }
         });
 
         $('.hoverText').on('dragenter', function (e) {
@@ -1237,6 +1461,7 @@ from django.utils.translation import ugettext as _
           e.stopPropagation();
           e.stopImmediatePropagation();
           _isDraggingOverText = false;
+          _isExternalFile = true;
         });
 
         $('.hoverMsg').on('dragleave', function (e) {
@@ -1260,8 +1485,16 @@ from django.utils.translation import ugettext as _
             },
             autoDiscover: false,
             maxFilesize: 5000000,
-            previewsContainer: '#progressStatus',
-            previewTemplate: '<div class="row">\n <span class="offset4 span3 break-word"><strong data-dz-name></strong></span>\n <span class="span2">File size: <strong data-dz-size></strong></span>\n <span class="span3">Percent complete: <strong data-dz-uploadprogress></strong></span>\n <span class="span1"><a href="javascript:undefined;" title="Cancel upload" data-dz-remove><i class="fa fa-times"></i></a></span>\n </div>',
+            previewsContainer: '#progressStatusContent',
+            previewTemplate: '<div class="progress-row">' +
+                '<span class="break-word" data-dz-name></span>' +
+                '<div class="pull-right">' +
+                '<span class="muted" data-dz-size></span>&nbsp;&nbsp;' +
+                '<span data-dz-remove><a href="javascript:undefined;" title="${ _('Cancel upload') }"><i class="fa fa-fw fa-times"></i></a></span>' +
+                '<span style="display: none" data-dz-uploaded><i class="fa fa-fw fa-check muted"></i></span>' +
+                '</div>' +
+                '<div class="progress-row-bar" data-dz-uploadprogress></div>' +
+                '</div>',
             drop: function (e) {
               $('.hoverMsg').addClass('hide');
 
@@ -1275,9 +1508,10 @@ from django.utils.translation import ugettext as _
             uploadprogress: function (file, progress) {
               $("[data-dz-name]").each(function (cnt, item) {
                 if ($(item).text() === file.name) {
-                  $(item).parents(".row").find("[data-dz-uploadprogress]").html(progress.toFixed() + "%");
+                  $(item).parents(".progress-row").find("[data-dz-uploadprogress]").width(progress.toFixed() + "%");
                   if (progress.toFixed() === "100"){
-                    $(item).parents(".row").find("[data-dz-remove]").hide();
+                    $(item).parents(".progress-row").find("[data-dz-remove]").hide();
+                    $(item).parents(".progress-row").find("[data-dz-uploaded]").show();
                   }
                 }
               });
@@ -1417,7 +1651,11 @@ from django.utils.translation import ugettext as _
        });
 
       $("#moveDestination").jHueHdfsAutocomplete({
-        showOnFocus: true
+        showOnFocus: true,
+        skipKeydownEvents: true,
+        onEnter: function (el) {
+          $("#jHueHdfsAutocomplete").hide();
+        }
       });
 
       $("#copyForm").on("submit", function () {
@@ -1438,7 +1676,11 @@ from django.utils.translation import ugettext as _
 
 
       $("#copyDestination").jHueHdfsAutocomplete({
-        showOnFocus: true
+        showOnFocus: true,
+        skipKeydownEvents: true,
+        onEnter: function (el) {
+          $("#jHueHdfsAutocomplete").hide();
+        }
       });
 
       $(".create-directory-link").click(function () {
@@ -1523,7 +1765,7 @@ from django.utils.translation import ugettext as _
 
       if (location.hash != null && location.hash.length > 1) {
         var targetPath = "";
-        var hash = window.location.hash.substring(1);
+        var hash = window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, "");
         if (hash != null && hash != "") {
           targetPath = "${url('filebrowser.views.view', path=urlencode('/'))}";
           if (hash.indexOf("!!") != 0) {
@@ -1566,6 +1808,7 @@ from django.utils.translation import ugettext as _
 
       $("#hueBreadcrumbText").jHueHdfsAutocomplete({
         home: "/user/${ user }/",
+        skipKeydownEvents: true,
         onEnter: function (el) {
           viewModel.targetPath("${url('filebrowser.views.view', path=urlencode('/'))}" + stripHashes(el.val().substring(1)));
           viewModel.getStats(function (data) {
@@ -1575,6 +1818,7 @@ from django.utils.translation import ugettext as _
             } else {
               location.hash = stripHashes(el.val());
             }
+            $("#jHueHdfsAutocomplete").hide();
           });
         },
         onBlur: function() {
@@ -1596,7 +1840,7 @@ from django.utils.translation import ugettext as _
 
       $(window).bind("hashchange", function () {
         var targetPath = "";
-        var hash = window.location.hash.substring(1);
+        var hash = window.location.hash.substring(1).replace(/(<([^>]+)>)/ig, "");
 
         if (hash != null && hash != "") {
           addPathToHistory(hash);

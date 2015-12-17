@@ -1,0 +1,31 @@
+From b8142fe1c1084f54cf74d49cb2fa46cf85b99180 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Sat, 7 Feb 2015 00:19:23 -0800
+Subject: [PATCH 0809/1173] HUE-2436 [useradmin] Django-1.6: Pass in groups
+ when updating user
+
+---
+ apps/useradmin/src/useradmin/tests.py |    7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/apps/useradmin/src/useradmin/tests.py b/apps/useradmin/src/useradmin/tests.py
+index 676ce0c..70239f9 100644
+--- a/apps/useradmin/src/useradmin/tests.py
++++ b/apps/useradmin/src/useradmin/tests.py
+@@ -596,8 +596,11 @@ def test_user_admin():
+   response = c_reg.post('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,),
+                         dict(username = FUNNY_NAME,
+                              first_name = "Hello",
+-                             is_active = True))
+-  response = c_reg.get('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,))
++                             is_active = True,
++                             groups=[group.id for group in test_user.groups.all()]), follow=True)
++  assert_equal(response.status_code, 200)
++  response = c_reg.get('/useradmin/users/edit/%s' % (FUNNY_NAME_QUOTED,), follow=True)
++  assert_equal(response.status_code, 200)
+   assert_equal("Hello", response.context["form"].instance.first_name)
+   funny_user = User.objects.get(username=FUNNY_NAME)
+   # Can't edit other people.
+-- 
+1.7.9.5
+

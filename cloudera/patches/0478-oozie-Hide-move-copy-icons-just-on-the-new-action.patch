@@ -1,0 +1,26 @@
+From 15d7f86a480d12129aa3492899bf8e19d26b7d92 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 21 Jan 2015 16:10:45 +0100
+Subject: [PATCH 0478/1173] [oozie] Hide move/copy icons just on the new
+ action
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 881ce60..f85f2c5 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -322,7 +322,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     <h2 class="card-heading simple" data-bind="visible: widgetType() != 'start-widget' && widgetType() != 'end-widget' &&
+         id() != '17c9c895-5a16-7443-bb81-f34b30b21548' && (['fork-widget', 'join-widget', 'decision-widget'].indexOf(widgetType()) == -1 || $root.isEditing())">
+ 
+-      <span data-bind="visible: $root.isEditing() && oozieMovable() && ! oozieExpanded() && ! ooziePropertiesExpanded() && $root.newAction() == null">
++      <span data-bind="visible: $root.isEditing() && oozieMovable() && ! oozieExpanded() && ! ooziePropertiesExpanded() && ($root.newAction() == null || $root.newAction().id() != id())">
+         <a href="javascript:void(0)" class="move-widget" title="${ _('Move node') }"><i class="fa fa-arrows"></i></a>
+         &nbsp;
+         <a href="javascript:void(0)" class="move-widget clone-widget" title="${ _('Copy node') }"><i class="fa fa-copy"></i></a>
+-- 
+1.7.9.5
+

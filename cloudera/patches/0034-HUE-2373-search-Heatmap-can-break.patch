@@ -1,0 +1,225 @@
+From 1961828a15bb08acdfd0051d3b9fe1bf4425a9a7 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 13 Oct 2014 16:20:17 +0200
+Subject: [PATCH 0034/1173] HUE-2373 [search] Heatmap can break
+
+Toggled visibility on Selected dimensions labels
+Fixed problem with multibarChart when no data is available
+Fixed problem with pieChart when the slices have value of 0
+---
+ apps/search/src/search/templates/search.mako       |    4 +-
+ desktop/core/static/js/ko.charts.js                |   30 ++++---
+ desktop/core/static/js/nv.d3.growingPie.js         |   90 ++++++++++++--------
+ .../core/static/js/nv.d3.multiBarWithBrushChart.js |    5 +-
+ 4 files changed, 75 insertions(+), 54 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 8c15f1d..31ceb6b 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -852,7 +852,7 @@ ${ dashboard.layout_skeleton() }
+     </div>
+ 
+     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+-      <div class="dimensions-header margin-bottom-10">
++      <div class="dimensions-header margin-bottom-10" data-bind="visible: $root.isEditing() && $data.properties.facets().length > 0">
+         <span class="muted">${ _('Selected dimensions') }</span>
+       </div>
+       <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
+@@ -921,7 +921,7 @@ ${ dashboard.layout_skeleton() }
+     </div>
+ 
+     <div data-bind="with: $root.collection.getFacetById($parent.id())">
+-      <div class="dimensions-header margin-bottom-10">
++      <div class="dimensions-header margin-bottom-10" data-bind="visible: $root.isEditing() && $data.properties.facets().length > 0">
+         <span class="muted">${ _('Selected dimension') }</span>
+       </div>
+       <div data-bind="foreach: $data.properties.facets, visible: $root.isEditing">
+diff --git a/desktop/core/static/js/ko.charts.js b/desktop/core/static/js/ko.charts.js
+index 79c69c8..678b347 100644
+--- a/desktop/core/static/js/ko.charts.js
++++ b/desktop/core/static/js/ko.charts.js
+@@ -543,21 +543,23 @@ function barChartBuilder(element, options, isTimeline) {
+             }
+           }).call(_chart);
+ 
+-      $.each(options.fqs(), function (cnt, item) {
+-        if (item.field() == options.field) {
+-          _chart.selectBars($.map(item.filter(), function (it) {
+-            return it.value();
+-          }));
+-        }
+-        if (item.field().indexOf(":") > -1) {
+-          _chart.selectBars({
+-            field: item.field(),
+-            selected: $.map(item.filter(), function (it) {
++      if (_chart.selectBars) {
++        $.each(options.fqs(), function (cnt, item) {
++          if (item.field() == options.field) {
++            _chart.selectBars($.map(item.filter(), function (it) {
+               return it.value();
+-            })
+-          });
+-        }
+-      });
++            }));
++          }
++          if (item.field().indexOf(":") > -1) {
++            _chart.selectBars({
++              field: item.field(),
++              selected: $.map(item.filter(), function (it) {
++                return it.value();
++              })
++            });
++          }
++        });
++      }
+ 
+       nv.utils.windowResize(_chart.update);
+ 
+diff --git a/desktop/core/static/js/nv.d3.growingPie.js b/desktop/core/static/js/nv.d3.growingPie.js
+index 8ad6c4e..7a8a943 100644
+--- a/desktop/core/static/js/nv.d3.growingPie.js
++++ b/desktop/core/static/js/nv.d3.growingPie.js
+@@ -195,36 +195,38 @@ nv.models.growingPie = function() {
+ 
+           pieLabels.enter().append("g").classed("nv-label",true)
+             .each(function(d,i) {
+-                var group = d3.select(this);
+-
+-                group
+-                  .attr('transform', function(d) {
+-                       if (labelSunbeamLayout) {
+-                         d.outerRadius = arcRadius + 10; // Set Outer Coordinate
+-                         d.innerRadius = arcRadius + 15; // Set Inner Coordinate
+-                         var rotateAngle = (d.startAngle + d.endAngle) / 2 * (180 / Math.PI);
+-                         if ((d.startAngle+d.endAngle)/2 < Math.PI) {
+-                           rotateAngle -= 90;
++                if (d.value > 0) {
++                  var group = d3.select(this);
++
++                  group
++                    .attr('transform', function(d) {
++                         if (labelSunbeamLayout) {
++                           d.outerRadius = arcRadius + 10; // Set Outer Coordinate
++                           d.innerRadius = arcRadius + 15; // Set Inner Coordinate
++                           var rotateAngle = (d.startAngle + d.endAngle) / 2 * (180 / Math.PI);
++                           if ((d.startAngle+d.endAngle)/2 < Math.PI) {
++                             rotateAngle -= 90;
++                           } else {
++                             rotateAngle += 90;
++                           }
++                           return 'translate(' + labelsArc.centroid(d) + ') rotate(' + rotateAngle + ')';
+                          } else {
+-                           rotateAngle += 90;
++                           d.outerRadius = radius + 10; // Set Outer Coordinate
++                           d.innerRadius = radius + 15; // Set Inner Coordinate
++                           return 'translate(' + labelsArc.centroid(d) + ')'
+                          }
+-                         return 'translate(' + labelsArc.centroid(d) + ') rotate(' + rotateAngle + ')';
+-                       } else {
+-                         d.outerRadius = radius + 10; // Set Outer Coordinate
+-                         d.innerRadius = radius + 15; // Set Inner Coordinate
+-                         return 'translate(' + labelsArc.centroid(d) + ')'
+-                       }
+-                  });
+-
+-                group.append('rect')
+-                    .style('stroke', '#fff')
+-                    .style('fill', '#fff')
+-                    .attr("rx", 3)
+-                    .attr("ry", 3);
+-
+-                group.append('text')
+-                    .style('text-anchor', labelSunbeamLayout ? ((d.startAngle + d.endAngle) / 2 < Math.PI ? 'start' : 'end') : 'middle') //center the text on it's origin or begin/end if orthogonal aligned
+-                    .style('fill', '#000')
++                    });
++
++                  group.append('rect')
++                      .style('stroke', '#fff')
++                      .style('fill', '#fff')
++                      .attr("rx", 3)
++                      .attr("ry", 3);
++
++                  group.append('text')
++                      .style('text-anchor', labelSunbeamLayout ? ((d.startAngle + d.endAngle) / 2 < Math.PI ? 'start' : 'end') : 'middle') //center the text on it's origin or begin/end if orthogonal aligned
++                      .style('fill', '#000')
++                }
+ 
+             });
+ 
+@@ -237,6 +239,7 @@ nv.models.growingPie = function() {
+           };
+           pieLabels.transition()
+                 .attr('transform', function(d) {
++                if (d.value > 0) {
+                   if (labelSunbeamLayout) {
+                       d.outerRadius = arcRadius + 10; // Set Outer Coordinate
+                       d.innerRadius = arcRadius + 15; // Set Inner Coordinate
+@@ -264,17 +267,32 @@ nv.models.growingPie = function() {
+                       labelLocationHash[createHashKey(center)] = true;
+                       return 'translate(' + center + ')'
+                     }
++                  }
+                 });
+           pieLabels.select(".nv-label text")
+-                .style('text-anchor', labelSunbeamLayout ? ((d.startAngle + d.endAngle) / 2 < Math.PI ? 'start' : 'end') : 'middle') //center the text on it's origin or begin/end if orthogonal aligned
++                .style('text-anchor', function(d){
++                  if (d.value > 0) {
++                    if (labelSunbeamLayout) {
++                      return ((d.startAngle + d.endAngle) / 2 < Math.PI ? 'start' : 'end'); //center the text on it's origin or begin/end if orthogonal aligned
++                    }
++                    else {
++                       return 'middle';
++                    }
++                  }
++                })
+                 .text(function(d, i) {
+-                  var percent = (d.endAngle - d.startAngle) / (2 * Math.PI);
+-                  var labelTypes = {
+-                    "key" : getX(d.data),
+-                    "value": getY(d.data),
+-                    "percent": d3.format('%')(percent)
+-                  };
+-                  return (d.value && percent > labelThreshold) ? labelTypes[labelType] : '';
++                  if (d.value > 0) {
++                    var percent = (d.endAngle - d.startAngle) / (2 * Math.PI);
++                    var labelTypes = {
++                      "key": getX(d.data),
++                      "value": getY(d.data),
++                      "percent": d3.format('%')(percent)
++                    };
++                    return (d.value && percent > labelThreshold) ? labelTypes[labelType] : '';
++                  }
++                  else {
++                    return '';
++                  }
+                 });
+         }
+ 
+diff --git a/desktop/core/static/js/nv.d3.multiBarWithBrushChart.js b/desktop/core/static/js/nv.d3.multiBarWithBrushChart.js
+index 639afde..2e0321b 100644
+--- a/desktop/core/static/js/nv.d3.multiBarWithBrushChart.js
++++ b/desktop/core/static/js/nv.d3.multiBarWithBrushChart.js
+@@ -268,7 +268,6 @@ nv.models.multiBarWithBrushChart = function() {
+ 
+       selectBars = multibar.selectBars;
+ 
+-
+       var dataBars = data.filter(function(d) { return !d.disabled && d.bar });
+       var barsWrap = g.select('.nv-barsWrap')
+           .datum(data.filter(function(d) { return !d.disabled }))
+@@ -685,7 +684,9 @@ nv.models.multiBarWithBrushChart = function() {
+ 
+   chart.selectBars = function(args) {
+     if (!arguments.length) return selectBars;
+-    selectBars(args);
++    if (selectBars) {
++      selectBars(args);
++    }
+     return chart;
+   };
+ 
+-- 
+1.7.9.5
+

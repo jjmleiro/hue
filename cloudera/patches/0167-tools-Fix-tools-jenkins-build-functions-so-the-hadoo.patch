@@ -1,0 +1,26 @@
+From a7aaa6d379bacc27d2104c4c2176454f751a1a33 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Thu, 18 Dec 2014 11:51:36 -0800
+Subject: [PATCH 0167/1173] [tools] Fix tools/jenkins/build-functions so the
+ hadoop tests run on OS X
+
+---
+ tools/jenkins/build-functions |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/jenkins/build-functions b/tools/jenkins/build-functions
+index 54521ea..d5a0d0a 100644
+--- a/tools/jenkins/build-functions
++++ b/tools/jenkins/build-functions
+@@ -130,7 +130,7 @@ build_oozie() {
+ 
+   mkdir -p $OOZIE_HOME/libext
+   tar -C $OOZIE_HOME/libext -zxvf $OOZIE_HOME/oozie-hadooplibs-*.tar.gz
+-  HADOOP_LIB=`echo "${CDH_VERSION}" | sed -r 's/hadoop/hadooplib/g'`
++  HADOOP_LIB=`echo "${CDH_VERSION}" | sed 's/hadoop/hadooplib/g'`
+   cp $OOZIE_HOME/libext/oozie-*/hadooplibs/${HADOOP_LIB}*/*jar $OOZIE_HOME/libext/
+   tar -C $OOZIE_HOME -zxvf $OOZIE_HOME/oozie-examples.tar.gz
+   cp  $OOZIE_HOME/oozie-sharelib-*-yarn.tar.gz $OOZIE_HOME/oozie-sharelib.tar.gz
+-- 
+1.7.9.5
+

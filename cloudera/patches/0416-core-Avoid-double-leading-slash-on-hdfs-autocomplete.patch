@@ -1,0 +1,26 @@
+From 77961e86a6b1cad02c518d21a7f5d292d3e4ef14 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 8 Jan 2015 19:00:43 +0100
+Subject: [PATCH 0416/1173] [core] Avoid double leading slash on hdfs
+ autocomplete paths
+
+---
+ desktop/core/static/js/jquery.hdfsautocomplete.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/static/js/jquery.hdfsautocomplete.js b/desktop/core/static/js/jquery.hdfsautocomplete.js
+index 441afd8..8d0be46 100644
+--- a/desktop/core/static/js/jquery.hdfsautocomplete.js
++++ b/desktop/core/static/js/jquery.hdfsautocomplete.js
+@@ -238,7 +238,7 @@
+                 _el.val(path.substring(0, path.lastIndexOf("/")));
+               }
+               else {
+-                _el.val(path + "/" + item);
++                _el.val(path + (path.charAt(path.length - 1) == "/" ? "" : "/") + item);
+               }
+               if ($(this).html().indexOf("folder") > -1) {
+                 _el.val(_el.val() + "/");
+-- 
+1.7.9.5
+

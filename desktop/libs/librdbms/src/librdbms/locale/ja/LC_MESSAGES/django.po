@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2014-05-29 17:10-0700\n"
+"POT-Creation-Date: 2015-05-07 22:59-0700\n"
 "PO-Revision-Date: 2012-07-30 18:50-0700\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: ja <LL@li.org>\n"
@@ -30,7 +30,9 @@ msgid "Nice name of server."
 msgstr "サーバーの適切な名前です。"
 
 #: src/librdbms/conf.py:38
-msgid "Database name or path to database file. If provided, then choosing other databases will not be permitted."
+msgid ""
+"Database name or path to database file. If provided, then choosing other "
+"databases will not be permitted."
 msgstr "データベース名、またはデータベースファイルへのパスです。指定されている場合、その他のデータベースを選択することは許可されません。"
 
 #: src/librdbms/conf.py:44
@@ -46,26 +48,34 @@ msgid "Database password."
 msgstr "データベースのパスワードです。"
 
 #: src/librdbms/conf.py:62
+msgid ""
+"Execute this script to produce the database password. This will be used "
+"when `password` is not set."
+msgstr ""
+
+#: src/librdbms/conf.py:68
 msgid "Database host."
 msgstr "データベースのホストです。"
 
-#: src/librdbms/conf.py:68
+#: src/librdbms/conf.py:74
 msgid "Database port."
 msgstr "データベースのポートです。"
 
-#: src/librdbms/conf.py:74
+#: src/librdbms/conf.py:80
 msgid "Database options to send to the server when connecting."
 msgstr "接続時にサーバーに送信するデータベースオプションです。"
 
-#: src/librdbms/conf.py:90
+#: src/librdbms/conf.py:96
 msgid "Database name should not be empty for the SQLite backend."
 msgstr "SQLite バックエンドのデータベース名は空にできません。"
 
-#: src/librdbms/conf.py:92
-msgid "Database name should not be empty for the Oracle backend. It should be the SID of your database."
+#: src/librdbms/conf.py:98
+msgid ""
+"Database name should not be empty for the Oracle backend. It should be "
+"the SID of your database."
 msgstr "Oracle バックエンドのデータベース名は空にできません。データベースの SID にする必要があります。"
 
-#: src/librdbms/conf.py:94
+#: src/librdbms/conf.py:100
 msgid "Database name should not be empty for the PostgreSQL backend."
 msgstr "PostgreSQL バックエンドのデータベース名は空にできません。"
 

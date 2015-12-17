@@ -1,0 +1,31 @@
+From cac84b4f73992069457558df843132aa59d5c7dd Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Wed, 8 Oct 2014 12:20:59 -0500
+Subject: [PATCH 0006/1173] HUE-2379-[fb] Right click clears the selection
+
+Removed logic that deselects items on context click to allow for batch editing of items
+---
+ .../filebrowser/templates/listdir_components.mako  |    7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index 933f681..1c97d85 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -632,13 +632,6 @@ from django.utils.translation import ugettext as _
+             actions = $('#ch-dropdown'),
+             rect = document.querySelector('body').getBoundingClientRect();
+ 
+-          // clear out selections
+-          ko.utils.arrayFilter(viewModel.files(), function (file) {
+-            if (file.selected()) {
+-              file.selected(false);
+-            }
+-          });
+-
+           // close the actions menu from button area if open
+           if (actions.hasClass('open')) {
+             actions.removeClass('open');
+-- 
+1.7.9.5
+

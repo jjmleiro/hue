@@ -16,12 +16,16 @@
 # limitations under the License.
 
 import logging
+import itertools
 import re
 
+from itertools import imap
 from operator import itemgetter
 
+from django.utils.translation import ugettext as _
+
 from desktop.lib import thrift_util
-from desktop.conf import LDAP_PASSWORD, LDAP_USERNAME
+from desktop.conf import get_ldap_password, LDAP_USERNAME
 from desktop.conf import DEFAULT_USER
 from hadoop import cluster
 
@@ -30,15 +34,14 @@ from TCLIService.ttypes import TOpenSessionReq, TGetTablesReq, TFetchResultsReq,
   TStatusCode, TGetResultSetMetadataReq, TGetColumnsReq, TTypeId,\
   TExecuteStatementReq, TGetOperationStatusReq, TFetchOrientation,\
   TCloseSessionReq, TGetSchemasReq, TGetLogReq, TCancelOperationReq,\
-  TCloseOperationReq, TFetchResultsResp, TRowSet
+  TCloseOperationReq, TFetchResultsResp, TRowSet, TProtocolVersion
 
 from beeswax import conf as beeswax_conf
 from beeswax import hive_site
+from beeswax.hive_site import hiveserver2_use_ssl
 from beeswax.models import Session, HiveServerQueryHandle, HiveServerQueryHistory
 from beeswax.server.dbms import Table, NoSuchObjectException, DataTable,\
                                 QueryServerException
-
-from impala import conf as impala_conf
 
 
 LOG = logging.getLogger(__name__)
@@ -46,15 +49,22 @@ LOG = logging.getLogger(__name__)
 IMPALA_RESULTSET_CACHE_SIZE = 'impala.resultset.cache.size'
 DEFAULT_USER = DEFAULT_USER.get()
 
+
 class HiveServerTable(Table):
   """
   We are parsing DESCRIBE EXTENDED text as the metastore API like GetColumns() misses most of the information.
   Impala only supports a simple DESCRIBE.
   """
   def __init__(self, table_results, table_schema, desc_results, desc_schema):
-    if not table_results.rows:
-      raise NoSuchObjectException()
-    self.table = table_results.rows and table_results.rows[0] or ''
+    if beeswax_conf.THRIFT_VERSION.get() >= 7:
+      if not table_results.columns:
+        raise NoSuchObjectException()
+      self.table = table_results.columns
+    else: # Deprecated. To remove in Hue 4.
+      if not table_results.rows:
+        raise NoSuchObjectException()
+      self.table = table_results.rows and table_results.rows[0] or ''
+
     self.table_schema = table_schema
     self.desc_results = desc_results
     self.desc_schema = desc_schema
@@ -74,8 +84,8 @@ class HiveServerTable(Table):
     match = re.search('partitionKeys:\[([^\]]+)\]', describe)
     if match is not None:
       match = match.group(1)
-      return [PartitionKeyCompatible(partition)
-              for partition in re.findall('FieldSchema\((.+?)\)', match)]
+      return [PartitionKeyCompatible(*partition)
+          for partition in re.findall('FieldSchema\(name:(.+?), type:(.+?), comment:(.+?)\)', match)]
     else:
       return []
 
@@ -109,8 +119,16 @@ class HiveServerTable(Table):
       end_cols_index = map(itemgetter('col_name'), cols).index('') # Truncate below extended describe
       return cols[0:end_cols_index]
     except:
-      # Impala use non extended describe and 'col' instead of 'col_name'
-      return cols
+      try:
+        # Spark SQL: does not have an empty line in extended describe
+        try:
+          end_cols_index = map(itemgetter('col_name'), cols).index('# Partition Information')
+        except:
+          end_cols_index = map(itemgetter('col_name'), cols).index('Detailed Table Information')
+        return cols[0:end_cols_index]
+      except:
+        # Impala: uses non extended describe and 'col' instead of 'col_name'
+        return cols
 
   @property
   def comment(self):
@@ -146,7 +164,7 @@ class HiveServerTable(Table):
     return props
 
 
-class HiveServerTRowSet:
+class HiveServerTRowSet2:
   def __init__(self, row_set, schema):
     self.row_set = row_set
     self.rows = row_set.rows
@@ -154,35 +172,114 @@ class HiveServerTRowSet:
     self.startRowOffset = row_set.startRowOffset
 
   def is_empty(self):
-    return len(self.rows) == 0
+    return not self.row_set.columns or not HiveServerTColumnValue2(self.row_set.columns[0]).val
 
   def cols(self, col_names):
     cols_rows = []
-    for row in self.rows:
-      row = HiveServerTRow(row, self.schema)
-      cols = {}
-      for col_name in col_names:
-        cols[col_name] = row.col(col_name)
-      cols_rows.append(cols)
+
+    rs = HiveServerTRow2(self.row_set.columns, self.schema)
+    cols = [rs.full_col(name) for name in col_names]
+
+    for cols_row in itertools.izip(*cols):
+      cols_rows.append(dict(itertools.izip(col_names, cols_row)))
+
     return cols_rows
 
   def __iter__(self):
     return self
 
   def next(self):
-    if self.rows:
-      return HiveServerTRow(self.rows.pop(0), self.schema)
+    if self.row_set.columns:
+      return HiveServerTRow2(self.row_set.columns, self.schema)
     else:
       raise StopIteration
 
 
+class HiveServerTRow2:
+  def __init__(self, cols, schema):
+    self.cols = cols
+    self.schema = schema
+
+  def col(self, colName):
+    pos = self._get_col_position(colName)
+    return HiveServerTColumnValue2(self.cols[pos]).val[0] # Return only first element
+
+  def full_col(self, colName):
+    pos = self._get_col_position(colName)
+    return HiveServerTColumnValue2(self.cols[pos]).val # Return the full column and its values
+
+  def _get_col_position(self, column_name):
+    return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
+
+  def fields(self):
+    try:
+      return [HiveServerTColumnValue2(field).val.pop(0) for field in self.cols]
+    except IndexError:
+      raise StopIteration
+
+
+class HiveServerTColumnValue2:
+  def __init__(self, tcolumn_value):
+    self.column_value = tcolumn_value
+
+  @property
+  def val(self):
+    # Could directly get index from schema but would need to cache the schema
+    if self.column_value.stringVal:
+      return self._get_val(self.column_value.stringVal)
+    elif self.column_value.i16Val is not None:
+      return self._get_val(self.column_value.i16Val)
+    elif self.column_value.i32Val is not None:
+      return self._get_val(self.column_value.i32Val)
+    elif self.column_value.i64Val is not None:
+      return self._get_val(self.column_value.i64Val)
+    elif self.column_value.doubleVal is not None:
+      return self._get_val(self.column_value.doubleVal)
+    elif self.column_value.boolVal is not None:
+      return self._get_val(self.column_value.boolVal)
+    elif self.column_value.byteVal is not None:
+      return self._get_val(self.column_value.byteVal)
+    elif self.column_value.binaryVal is not None:
+      return self._get_val(self.column_value.binaryVal)
+
+  @classmethod
+  def _get_val(cls, column):
+    column.values = cls.set_nulls(column.values, column.nulls)
+    column.nulls = '' # Clear the null values for not re-marking again the column with nulls at the next call
+    return column.values
+
+  @classmethod
+  def mark_nulls(cls, values, bytestring):
+    mask = bytearray(bytestring)
+
+    for n in mask:
+      yield n & 0x01
+      yield n & 0x02
+      yield n & 0x04
+      yield n & 0x08
+
+      yield n & 0x10
+      yield n & 0x20
+      yield n & 0x40
+      yield n & 0x80
+
+  @classmethod
+  def set_nulls(cls, values, bytestring):
+    if bytestring == '' or re.match('^(\x00)+$', bytestring): # HS2 has just \x00 or '', Impala can have \x00\x00...
+      return values
+    else:
+      return [None if is_null else value for value, is_null in itertools.izip(values, cls.mark_nulls(values, bytestring))]
+
 
 class HiveServerDataTable(DataTable):
-  def __init__(self, results, schema, operation_handle):
+  def __init__(self, results, schema, operation_handle, query_server):
     self.schema = schema and schema.schema
     self.row_set = HiveServerTRowSet(results.results, schema)
     self.operation_handle = operation_handle
-    self.has_more = not self.row_set.is_empty()    # Should be results.hasMoreRows but always True in HS2
+    if query_server['server_name'] == 'impala':
+      self.has_more = results.hasMoreRows
+    else:
+      self.has_more = not self.row_set.is_empty()    # Should be results.hasMoreRows but always True in HS2
     self.startRowOffset = self.row_set.startRowOffset    # Always 0 in HS2
 
   @property
@@ -225,20 +322,54 @@ class HiveServerTTableSchema:
     return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
 
 
-class HiveServerTRow:
-  def __init__(self, row, schema):
-    self.row = row
-    self.schema = schema
+if beeswax_conf.THRIFT_VERSION.get() >= 7:
+  HiveServerTRow = HiveServerTRow2
+  HiveServerTRowSet = HiveServerTRowSet2
+else:
+  # Deprecated. To remove in Hue 4.
+  class HiveServerTRow:
+    def __init__(self, row, schema):
+      self.row = row
+      self.schema = schema
 
-  def col(self, colName):
-    pos = self._get_col_position(colName)
-    return HiveServerTColumnValue(self.row.colVals[pos]).val
+    def col(self, colName):
+      pos = self._get_col_position(colName)
+      return HiveServerTColumnValue(self.row.colVals[pos]).val
 
-  def _get_col_position(self, column_name):
-    return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
+    def _get_col_position(self, column_name):
+      return filter(lambda (i, col): col.columnName == column_name, enumerate(self.schema.columns))[0][0]
 
-  def fields(self):
-    return [HiveServerTColumnValue(field).val for field in self.row.colVals]
+    def fields(self):
+      return [HiveServerTColumnValue(field).val for field in self.row.colVals]
+
+  class HiveServerTRowSet:
+    def __init__(self, row_set, schema):
+      self.row_set = row_set
+      self.rows = row_set.rows
+      self.schema = schema
+      self.startRowOffset = row_set.startRowOffset
+
+    def is_empty(self):
+      return len(self.rows) == 0
+
+    def cols(self, col_names):
+      cols_rows = []
+      for row in self.rows:
+        row = HiveServerTRow(row, self.schema)
+        cols = {}
+        for col_name in col_names:
+          cols[col_name] = row.col(col_name)
+        cols_rows.append(cols)
+      return cols_rows
+
+    def __iter__(self):
+      return self
+
+    def next(self):
+      if self.rows:
+        return HiveServerTRow(self.rows.pop(0), self.schema)
+      else:
+        raise StopIteration
 
 
 class HiveServerTColumnValue:
@@ -247,7 +378,6 @@ class HiveServerTColumnValue:
 
   @property
   def val(self):
-    # TODO get index from schema
     if self.column_value.boolVal is not None:
       return self.column_value.boolVal.value
     elif self.column_value.byteVal is not None:
@@ -298,7 +428,7 @@ class HiveServerTColumnDesc:
 
 
 class HiveServerClient:
-  HS2_MECHANISMS = {'KERBEROS': 'GSSAPI', 'NONE': 'PLAIN', 'NOSASL': 'NOSASL'}
+  HS2_MECHANISMS = {'KERBEROS': 'GSSAPI', 'NONE': 'PLAIN', 'NOSASL': 'NOSASL', 'LDAP': 'PLAIN'}
 
   def __init__(self, query_server, user):
     self.query_server = query_server
@@ -313,10 +443,20 @@ class HiveServerClient:
     self.impersonation_enabled = impersonation_enabled
 
     if self.query_server['server_name'] == 'impala':
-      ssl_enabled = False
+      from impala import conf as impala_conf
+
+      ssl_enabled = impala_conf.SSL.ENABLED.get()
+      ca_certs = impala_conf.SSL.CACERTS.get()
+      keyfile = impala_conf.SSL.KEY.get()
+      certfile = impala_conf.SSL.CERT.get()
+      validate = impala_conf.SSL.VALIDATE.get()
       timeout = impala_conf.SERVER_CONN_TIMEOUT.get()
     else:
-      ssl_enabled = beeswax_conf.SSL.ENABLED.get()
+      ssl_enabled = hiveserver2_use_ssl()
+      ca_certs = beeswax_conf.SSL.CACERTS.get()
+      keyfile = beeswax_conf.SSL.KEY.get()
+      certfile = beeswax_conf.SSL.CERT.get()
+      validate = beeswax_conf.SSL.VALIDATE.get()
       timeout = beeswax_conf.SERVER_CONN_TIMEOUT.get()
 
     if ldap_username:
@@ -334,20 +474,26 @@ class HiveServerClient:
                                           use_sasl=use_sasl,
                                           mechanism=mechanism,
                                           username=username,
-					                                password=password,
+                                          password=password,
                                           timeout_seconds=timeout,
                                           use_ssl=ssl_enabled,
-                                          ca_certs=beeswax_conf.SSL.CACERTS.get(),
-                                          keyfile=beeswax_conf.SSL.KEY.get(),
-                                          certfile=beeswax_conf.SSL.CERT.get(),
-                                          validate=beeswax_conf.SSL.VALIDATE.get())
+                                          ca_certs=ca_certs,
+                                          keyfile=keyfile,
+                                          certfile=certfile,
+                                          validate=validate,
+                                          transport_mode=query_server.get('transport_mode', 'socket'),
+                                          http_url=query_server.get('http_url', '')
+    )
 
 
   def get_security(self):
     principal = self.query_server['principal']
     impersonation_enabled = False
     ldap_username = None
-    ldap_password = None
+    ldap_password = get_ldap_password()
+
+    if ldap_password is not None: # Pass-through LDAP authentication
+      ldap_username = LDAP_USERNAME.get()
 
     if principal:
       kerberos_principal_short_name = principal.split('/', 1)[0]
@@ -355,7 +501,7 @@ class HiveServerClient:
       kerberos_principal_short_name = None
 
     if self.query_server['server_name'] == 'impala':
-      if LDAP_PASSWORD.get(): # Force LDAP auth if ldap_password is provided
+      if ldap_password: # Force LDAP auth if ldap_password is provided
         use_sasl = True
         mechanism = HiveServerClient.HS2_MECHANISMS['NONE']
       else:
@@ -367,13 +513,9 @@ class HiveServerClient:
       hive_mechanism = hive_site.get_hiveserver2_authentication()
       if hive_mechanism not in HiveServerClient.HS2_MECHANISMS:
         raise Exception(_('%s server authentication not supported. Valid are %s.' % (hive_mechanism, HiveServerClient.HS2_MECHANISMS.keys())))
-      use_sasl = hive_mechanism in ('KERBEROS', 'NONE')
+      use_sasl = hive_mechanism in ('KERBEROS', 'NONE', 'LDAP')
       mechanism = HiveServerClient.HS2_MECHANISMS[hive_mechanism]
       impersonation_enabled = hive_site.hiveserver2_impersonation_enabled()
-
-    if LDAP_PASSWORD.get(): # Pass-through LDAP authentication
-      ldap_username = LDAP_USERNAME.get()
-      ldap_password = LDAP_PASSWORD.get()
 
     return use_sasl, mechanism, kerberos_principal_short_name, impersonation_enabled, ldap_username, ldap_password
 
@@ -460,7 +602,7 @@ class HiveServerClient:
     req = TGetSchemasReq()
     res = self.call(self._client.GetSchemas, req)
 
-    results, schema = self.fetch_result(res.operationHandle)
+    results, schema = self.fetch_result(res.operationHandle, orientation=TFetchOrientation.FETCH_NEXT)
     self.close_operation(res.operationHandle)
 
     col = 'TABLE_SCHEM'
@@ -471,7 +613,7 @@ class HiveServerClient:
     req = TGetTablesReq(schemaName=database, tableName=table_names)
     res = self.call(self._client.GetTables, req)
 
-    results, schema = self.fetch_result(res.operationHandle, max_rows=5000)
+    results, schema = self.fetch_result(res.operationHandle, orientation=TFetchOrientation.FETCH_NEXT, max_rows=5000)
     self.close_operation(res.operationHandle)
 
     return HiveServerTRowSet(results.results, schema.schema).cols(('TABLE_NAME',))
@@ -481,15 +623,15 @@ class HiveServerClient:
     req = TGetTablesReq(schemaName=database, tableName=table_name)
     res = self.call(self._client.GetTables, req)
 
-    table_results, table_schema = self.fetch_result(res.operationHandle)
+    table_results, table_schema = self.fetch_result(res.operationHandle, orientation=TFetchOrientation.FETCH_NEXT)
     self.close_operation(res.operationHandle)
 
     if self.query_server['server_name'] == 'impala':
       # Impala does not supported extended
-      query = 'DESCRIBE %s' % table_name
+      query = 'DESCRIBE %s.%s' % (database, table_name)
     else:
-      query = 'DESCRIBE EXTENDED %s' % table_name
-    (desc_results, desc_schema), operation_handle = self.execute_statement(query, max_rows=5000)
+      query = 'DESCRIBE EXTENDED %s.%s' % (database, table_name)
+    (desc_results, desc_schema), operation_handle = self.execute_statement(query, max_rows=5000, orientation=TFetchOrientation.FETCH_NEXT)
     self.close_operation(operation_handle)
 
     return HiveServerTable(table_results.results, table_schema.schema, desc_results.results, desc_schema.schema)
@@ -500,9 +642,9 @@ class HiveServerClient:
     return self.execute_query_statement(statement=query.query['query'], max_rows=max_rows, configuration=configuration)
 
 
-  def execute_query_statement(self, statement, max_rows=1000, configuration={}):
-    (results, schema), operation_handle = self.execute_statement(statement=statement, max_rows=max_rows, configuration=configuration)
-    return HiveServerDataTable(results, schema, operation_handle)
+  def execute_query_statement(self, statement, max_rows=1000, configuration={}, orientation=TFetchOrientation.FETCH_FIRST):
+    (results, schema), operation_handle = self.execute_statement(statement=statement, max_rows=max_rows, configuration=configuration, orientation=orientation)
+    return HiveServerDataTable(results, schema, operation_handle, self.query_server)
 
 
   def execute_async_query(self, query, statement=0):
@@ -524,14 +666,14 @@ class HiveServerClient:
     return self.execute_async_statement(statement=query_statement, confOverlay=configuration)
 
 
-  def execute_statement(self, statement, max_rows=1000, configuration={}):
+  def execute_statement(self, statement, max_rows=1000, configuration={}, orientation=TFetchOrientation.FETCH_NEXT):
     if self.query_server['server_name'] == 'impala' and self.query_server['QUERY_TIMEOUT_S'] > 0:
       configuration['QUERY_TIMEOUT_S'] = str(self.query_server['QUERY_TIMEOUT_S'])
 
     req = TExecuteStatementReq(statement=statement.encode('utf-8'), confOverlay=configuration)
     res = self.call(self._client.ExecuteStatement, req)
 
-    return self.fetch_result(res.operationHandle, max_rows=max_rows), res.operationHandle
+    return self.fetch_result(res.operationHandle, max_rows=max_rows, orientation=orientation), res.operationHandle
 
 
   def execute_async_statement(self, statement, confOverlay):
@@ -549,9 +691,9 @@ class HiveServerClient:
 
 
   def fetch_data(self, operation_handle, orientation=TFetchOrientation.FETCH_NEXT, max_rows=1000):
-    # The client should check for hasMoreRows and fetch until the result is empty dues to a HS2 bug
+    # Fetch until the result is empty dues to a HS2 bug instead of looking at hasMoreRows
     results, schema = self.fetch_result(operation_handle, orientation, max_rows)
-    return HiveServerDataTable(results, schema, operation_handle)
+    return HiveServerDataTable(results, schema, operation_handle, self.query_server)
 
 
   def cancel_operation(self, operation_handle):
@@ -568,26 +710,38 @@ class HiveServerClient:
     req = TGetColumnsReq(schemaName=database, tableName=table)
     res = self.call(self._client.GetColumns, req)
 
-    res, schema = self.fetch_result(res.operationHandle)
+    res, schema = self.fetch_result(res.operationHandle, orientation=TFetchOrientation.FETCH_NEXT)
     self.close_operation(res.operationHandle)
 
     return res, schema
 
 
-  def fetch_result(self, operation_handle, orientation=TFetchOrientation.FETCH_NEXT, max_rows=1000):
+  def fetch_result(self, operation_handle, orientation=TFetchOrientation.FETCH_FIRST, max_rows=1000):
     if operation_handle.hasResultSet:
       fetch_req = TFetchResultsReq(operationHandle=operation_handle, orientation=orientation, maxRows=max_rows)
       res = self.call(self._client.FetchResults, fetch_req)
     else:
       res = TFetchResultsResp(results=TRowSet(startRowOffset=0, rows=[], columns=[]))
 
-    if operation_handle.hasResultSet:
+    if operation_handle.hasResultSet and TFetchOrientation.FETCH_FIRST: # Only fetch for the first call that should be with start_over
       meta_req = TGetResultSetMetadataReq(operationHandle=operation_handle)
       schema = self.call(self._client.GetResultSetMetadata, meta_req)
     else:
       schema = None
 
     return res, schema
+
+
+  def fetch_log(self, operation_handle, orientation=TFetchOrientation.FETCH_NEXT, max_rows=1000):
+    req = TFetchResultsReq(operationHandle=operation_handle, orientation=orientation, maxRows=max_rows, fetchType=1)
+    res = self.call(self._client.FetchResults, req)
+
+    if beeswax_conf.THRIFT_VERSION.get() >= 7:
+      lines = res.results.columns[0].stringVal.values
+    else:
+      lines = imap(lambda r: r.colVals[0].stringVal.value, res.results.rows)
+
+    return '\n'.join(lines)
 
 
   def get_operation_status(self, operation_handle):
@@ -598,7 +752,7 @@ class HiveServerClient:
   def explain(self, query):
     query_statement = query.get_query_statement(0)
     configuration = self._get_query_configuration(query)
-    return self.execute_query_statement(statement='EXPLAIN %s' % query_statement, configuration=configuration)
+    return self.execute_query_statement(statement='EXPLAIN %s' % query_statement, configuration=configuration, orientation=TFetchOrientation.FETCH_NEXT)
 
 
   def get_log(self, operation_handle):
@@ -612,8 +766,13 @@ class HiveServerClient:
 
   def get_partitions(self, database, table_name, max_parts):
     table = self.get_table(database, table_name)
-    # TODO: do a 'use DB' ?
-    partitionTable = self.execute_query_statement('SHOW PARTITIONS %s' % table_name) # DB prefix not supported
+
+    if max_parts is None or max_parts <= 0:
+      max_rows = 10000
+    else:
+      max_rows = 1000 if max_parts <= 250 else max_parts
+
+    partitionTable = self.execute_query_statement('SHOW PARTITIONS %s' % table_name, max_rows=max_rows) # DB prefix supported since Hive 0.13
     return [PartitionValueCompatible(partition, table) for partition in partitionTable.rows()][-max_parts:]
 
 
@@ -634,7 +793,7 @@ class HiveServerTableCompatible(HiveServerTable):
   def cols(self):
     return [type('Col', (object,), {'name': col.get('col_name', '').strip(),
                                     'type': col.get('data_type', col.get('col_type', '')).strip(), # Impala is col_type
-                                    'comment': col.get('comment', '').strip(), }) for col in HiveServerTable.cols.fget(self)]
+                                    'comment': col.get('comment', '').strip() if col.get('comment') else '', }) for col in HiveServerTable.cols.fget(self)]
 
 
 class ResultCompatible:
@@ -656,12 +815,19 @@ class ResultCompatible:
 
 class PartitionKeyCompatible:
 
-  def __init__(self, partition):
-    # Parses: ['name:datehour, type:int, comment:null']
-    name, type, comment = partition.split(', ')
-    self.name = name.split(':')[1]
-    self.type = type.split(':')[1]
-    self.comment = comment.split(':')[1]
+  def __init__(self, name, type, comment):
+    self.name = name
+    self.type = type
+    self.comment = comment
+
+  def __eq__(self, other):
+    return isinstance(other, PartitionKeyCompatible) and \
+        self.name == other.name and \
+        self.type == other.type and \
+        self.comment == other.comment
+
+  def __repr__(self):
+    return 'PartitionKey(name:%s, type:%s, comment:%s)' % (self.name, self.type, self.comment)
 
 
 class PartitionValueCompatible:
@@ -759,9 +925,18 @@ class HiveServerClientCompatible(object):
     return 'Does not exist in HS2'
 
 
-  def get_log(self, handle):
+  def get_log(self, handle, start_over=True):
     operationHandle = handle.get_rpc_handle()
-    return self._client.get_log(operationHandle)
+
+    if beeswax_conf.USE_GET_LOG_API.get() or self.query_server['server_name'] == 'impala':
+      return self._client.get_log(operationHandle)
+    else:
+      if start_over:
+        orientation = TFetchOrientation.FETCH_FIRST
+      else:
+        orientation = TFetchOrientation.FETCH_NEXT
+
+      return self._client.fetch_log(operationHandle, orientation=orientation, max_rows=-1)
 
 
   def get_databases(self):

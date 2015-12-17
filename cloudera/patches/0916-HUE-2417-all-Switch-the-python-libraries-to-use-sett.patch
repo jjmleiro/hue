@@ -1,0 +1,445 @@
+From 9af4bb8e0329c96b9f051393e3c600576e41b9b0 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Fri, 20 Feb 2015 16:28:22 -0800
+Subject: [PATCH 0916/1173] HUE-2417 [all] Switch the python libraries to use
+ settings.STATIC_URL
+
+---
+ apps/beeswax/src/beeswax/settings.py               |    2 +-
+ apps/filebrowser/src/filebrowser/settings.py       |    2 +-
+ apps/hbase/src/hbase/settings.py                   |    2 +-
+ apps/help/src/help/settings.py                     |    2 +-
+ apps/impala/src/impala/settings.py                 |    2 +-
+ apps/jobbrowser/src/jobbrowser/settings.py         |    2 +-
+ apps/jobsub/src/jobsub/settings.py                 |    2 +-
+ apps/metastore/src/metastore/settings.py           |    4 ++--
+ apps/oozie/src/oozie/models.py                     |    6 ++---
+ apps/oozie/src/oozie/settings.py                   |    4 ++--
+ apps/pig/src/pig/settings.py                       |    2 +-
+ apps/rdbms/src/rdbms/settings.py                   |    2 +-
+ apps/search/src/search/models.py                   |   10 ++++----
+ apps/search/src/search/settings.py                 |    2 +-
+ apps/security/src/security/settings.py             |    2 +-
+ apps/spark/src/spark/settings.py                   |    2 +-
+ apps/sqoop/src/sqoop/settings.py                   |    2 +-
+ apps/useradmin/src/useradmin/settings.py           |    2 +-
+ apps/zookeeper/src/zookeeper/settings.py           |    2 +-
+ desktop/core/src/desktop/api.py                    |   10 ++++----
+ .../desktop/app_template/src/app_name/settings.py  |    2 +-
+ .../app_template_proxy/src/app_name/settings.py    |    2 +-
+ desktop/core/src/desktop/models.py                 |   25 ++++++++++----------
+ desktop/libs/indexer/src/indexer/settings.py       |    2 +-
+ 24 files changed, 48 insertions(+), 47 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/settings.py b/apps/beeswax/src/beeswax/settings.py
+index 708fe1c..9d6e379 100644
+--- a/apps/beeswax/src/beeswax/settings.py
++++ b/apps/beeswax/src/beeswax/settings.py
+@@ -16,7 +16,7 @@
+ DJANGO_APPS = [ "beeswax" ]
+ NICE_NAME = "Hive Editor"
+ REQUIRES_HADOOP = True
+-ICON = "/beeswax/static/art/icon_beeswax_48.png"
++ICON = "beeswax/art/icon_beeswax_48.png"
+ MENU_INDEX = 10
+ 
+ IS_URL_NAMESPACED = True
+diff --git a/apps/filebrowser/src/filebrowser/settings.py b/apps/filebrowser/src/filebrowser/settings.py
+index 116ec10..ee561fe 100644
+--- a/apps/filebrowser/src/filebrowser/settings.py
++++ b/apps/filebrowser/src/filebrowser/settings.py
+@@ -18,5 +18,5 @@
+ DJANGO_APPS = ['filebrowser']
+ NICE_NAME = "File Browser"
+ REQUIRES_HADOOP = False
+-ICON = "/filebrowser/static/art/icon_filebrowser_48.png"
++ICON = "filebrowser/art/icon_filebrowser_48.png"
+ MENU_INDEX = 20
+diff --git a/apps/hbase/src/hbase/settings.py b/apps/hbase/src/hbase/settings.py
+index 126e888..1931275 100644
+--- a/apps/hbase/src/hbase/settings.py
++++ b/apps/hbase/src/hbase/settings.py
+@@ -16,7 +16,7 @@
+ DJANGO_APPS = ['hbase']
+ NICE_NAME = 'HBase Browser'
+ MENU_INDEX = 55
+-ICON = '/hbase/static/art/icon_hbase_48.png'
++ICON = 'hbase/art/icon_hbase_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/help/src/help/settings.py b/apps/help/src/help/settings.py
+index f6a9124..bb8d3cb 100644
+--- a/apps/help/src/help/settings.py
++++ b/apps/help/src/help/settings.py
+@@ -16,5 +16,5 @@
+ DJANGO_APPS = ['help']
+ NICE_NAME = "Help"
+ REQUIRES_HADOOP = False
+-ICON = "/help/static/art/icon_help_24.png"
++ICON = "help/art/icon_help_24.png"
+ MENU_INDEX = 90
+diff --git a/apps/impala/src/impala/settings.py b/apps/impala/src/impala/settings.py
+index e4006f4..6dfcef8 100644
+--- a/apps/impala/src/impala/settings.py
++++ b/apps/impala/src/impala/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = ['impala']
+ NICE_NAME = 'Impala Editor'
+ MENU_INDEX = 11
+-ICON = '/impala/static/art/icon_impala_48.png'
++ICON = 'impala/art/icon_impala_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/jobbrowser/src/jobbrowser/settings.py b/apps/jobbrowser/src/jobbrowser/settings.py
+index adb1b55..459fae3 100644
+--- a/apps/jobbrowser/src/jobbrowser/settings.py
++++ b/apps/jobbrowser/src/jobbrowser/settings.py
+@@ -21,5 +21,5 @@
+ DJANGO_APPS = ['jobbrowser']
+ NICE_NAME = "Job Browser"
+ REQUIRES_HADOOP = True
+-ICON = "/jobbrowser/static/art/icon_jobbrowser_48.png"
++ICON = "jobbrowser/art/icon_jobbrowser_48.png"
+ MENU_INDEX = 30
+diff --git a/apps/jobsub/src/jobsub/settings.py b/apps/jobsub/src/jobsub/settings.py
+index fe8594a..45858b8 100644
+--- a/apps/jobsub/src/jobsub/settings.py
++++ b/apps/jobsub/src/jobsub/settings.py
+@@ -19,5 +19,5 @@ REQUIRES_HADOOP = True
+ 
+ MIDDLEWARE_CLASSES=[]
+ 
+-ICON = "/jobsub/static/art/icon_jobsub_48.png"
++ICON = "jobsub/art/icon_jobsub_48.png"
+ MENU_INDEX = 40
+diff --git a/apps/metastore/src/metastore/settings.py b/apps/metastore/src/metastore/settings.py
+index 65db8c3..997c292 100644
+--- a/apps/metastore/src/metastore/settings.py
++++ b/apps/metastore/src/metastore/settings.py
+@@ -18,11 +18,11 @@
+ DJANGO_APPS = ['metastore']
+ NICE_NAME = "Metastore Manager"
+ REQUIRES_HADOOP = True
+-ICON = "/metastore/static/art/icon_metastore_48.png"
++ICON = "metastore/art/icon_metastore_48.png"
+ MENU_INDEX = 20
+ 
+ IS_URL_NAMESPACED = True
+ 
+ PERMISSION_ACTIONS = (
+   ("write", "Allow DDL operations. Need the app access too."),
+-)
+\ No newline at end of file
++)
+diff --git a/apps/oozie/src/oozie/models.py b/apps/oozie/src/oozie/models.py
+index 330035f..3af667c 100644
+--- a/apps/oozie/src/oozie/models.py
++++ b/apps/oozie/src/oozie/models.py
+@@ -339,7 +339,7 @@ class Workflow(Job):
+   objects = WorkflowManager()
+ 
+   HUE_ID = 'hue-id-w'
+-  ICON = '/oozie/static/art/icon_oozie_workflow_48.png'
++  ICON = 'oozie/art/icon_oozie_workflow_48.png'
+   METADATA_FORMAT_VERSION = "0.0.1"
+ 
+   def get_type(self):
+@@ -1415,7 +1415,7 @@ class Coordinator(Job):
+                                     help_text=_t('Additional properties to transmit to the workflow, e.g. limit=100, and EL functions, e.g. username=${coord:user()}'))
+ 
+   HUE_ID = 'hue-id-c'
+-  ICON = '/oozie/static/art/icon_oozie_coordinator_48.png'
++  ICON = 'oozie/art/icon_oozie_coordinator_48.png'
+   METADATA_FORMAT_VERSION = "0.0.1"
+   CRON_MAPPING = {
+     '0,15,30,45 * * * *': _('Every 15 minutes'),
+@@ -1762,7 +1762,7 @@ class Bundle(Job):
+   coordinators = models.ManyToManyField(Coordinator, through='BundledCoordinator')
+ 
+   HUE_ID = 'hue-id-b'
+-  ICON = '/oozie/static/art/icon_oozie_bundle_48.png'
++  ICON = 'oozie/art/icon_oozie_bundle_48.png'
+   METADATA_FORMAT_VERSION = '0.0.1'
+ 
+   def get_type(self):
+diff --git a/apps/oozie/src/oozie/settings.py b/apps/oozie/src/oozie/settings.py
+index 017924b..bbb79fb 100644
+--- a/apps/oozie/src/oozie/settings.py
++++ b/apps/oozie/src/oozie/settings.py
+@@ -16,7 +16,7 @@
+ 
+ DJANGO_APPS=['oozie']
+ NICE_NAME = "Oozie Editor/Dashboard"
+-ICON = "/oozie/static/art/icon_oozie_48.png"
++ICON = "oozie/art/icon_oozie_48.png"
+ MENU_INDEX = 41
+ 
+ REQUIRES_HADOOP = True
+@@ -24,4 +24,4 @@ IS_URL_NAMESPACED = True
+ 
+ PERMISSION_ACTIONS = (
+   ("dashboard_jobs_access", "Oozie Dashboard read-only user for all jobs"),
+-)
+\ No newline at end of file
++)
+diff --git a/apps/pig/src/pig/settings.py b/apps/pig/src/pig/settings.py
+index 571d10b..5c6963e 100644
+--- a/apps/pig/src/pig/settings.py
++++ b/apps/pig/src/pig/settings.py
+@@ -16,7 +16,7 @@
+ DJANGO_APPS = ['pig']
+ NICE_NAME = 'Pig Editor'
+ MENU_INDEX = 12
+-ICON = '/pig/static/art/icon_pig_48.png'
++ICON = 'pig/art/icon_pig_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/rdbms/src/rdbms/settings.py b/apps/rdbms/src/rdbms/settings.py
+index 222b731..fe3a288 100644
+--- a/apps/rdbms/src/rdbms/settings.py
++++ b/apps/rdbms/src/rdbms/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = ['rdbms']
+ NICE_NAME = 'RDBMS UI'
+ MENU_INDEX = 11
+-ICON = '/rdbms/static/art/icon_rdbms_48.png'
++ICON = 'rdbms/art/icon_rdbms_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index c4120ce..1c51704 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -240,7 +240,7 @@ class Collection(models.Model):
+   sorting = models.ForeignKey(Sorting)
+ 
+   _ATTRIBUTES = ['collection', 'layout', 'autocomplete']
+-  ICON = '/search/static/art/icon_search_48.png'
++  ICON = 'search/art/icon_search_48.png'
+ 
+   objects = CollectionManager()
+ 
+@@ -380,13 +380,13 @@ class Collection(models.Model):
+   @property
+   def icon(self):
+     if self.name == 'twitter_demo':
+-      return '/search/static/art/icon_twitter_48.png'
++      return 'search/art/icon_twitter_48.png'
+     elif self.name == 'yelp_demo':
+-      return '/search/static/art/icon_yelp_48.png'
++      return 'search/art/icon_yelp_48.png'
+     elif self.name == 'log_analytics_demo':
+-      return '/search/static/art/icon_logs_48.png'
++      return 'search/art/icon_logs_48.png'
+     else:
+-      return '/search/static/art/icon_search_48.png'
++      return 'search/art/icon_search_48.png'
+ 
+   def _import_hue_3_5_collections(self, props, user):
+     props['collection']['template']['template'] = self.result.get_template()
+diff --git a/apps/search/src/search/settings.py b/apps/search/src/search/settings.py
+index fcff56a..e1e1238 100644
+--- a/apps/search/src/search/settings.py
++++ b/apps/search/src/search/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = ["search"]
+ NICE_NAME = "Solr Search"
+ MENU_INDEX = 42
+-ICON = "/search/static/art/icon_search_48.png"
++ICON = "search/art/icon_search_48.png"
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/security/src/security/settings.py b/apps/security/src/security/settings.py
+index 10e7d51..f6356db 100644
+--- a/apps/security/src/security/settings.py
++++ b/apps/security/src/security/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = [ "security" ]
+ NICE_NAME = "Hadoop Security"
+ REQUIRES_HADOOP = False
+-ICON = "/security/static/art/icon_security_24.png"
++ICON = "security/art/icon_security_24.png"
+ MENU_INDEX = 61
+ 
+ IS_URL_NAMESPACED = True
+diff --git a/apps/spark/src/spark/settings.py b/apps/spark/src/spark/settings.py
+index 5b65488..2bcb55e 100644
+--- a/apps/spark/src/spark/settings.py
++++ b/apps/spark/src/spark/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = ['spark']
+ NICE_NAME = 'Spark Editor'
+ MENU_INDEX = 11
+-ICON = '/spark/static/art/icon_spark_48.png'
++ICON = 'spark/art/icon_spark_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/sqoop/src/sqoop/settings.py b/apps/sqoop/src/sqoop/settings.py
+index 91a88fe..89df6c3 100644
+--- a/apps/sqoop/src/sqoop/settings.py
++++ b/apps/sqoop/src/sqoop/settings.py
+@@ -16,7 +16,7 @@
+ DJANGO_APPS = ['sqoop']
+ NICE_NAME = 'Sqoop'
+ MENU_INDEX = 20
+-ICON = '/sqoop/static/art/icon_sqoop_48.png'
++ICON = 'sqoop/art/icon_sqoop_48.png'
+ 
+ REQUIRES_HADOOP = False
+ IS_URL_NAMESPACED = True
+diff --git a/apps/useradmin/src/useradmin/settings.py b/apps/useradmin/src/useradmin/settings.py
+index 6bbf576..9bd9b97 100644
+--- a/apps/useradmin/src/useradmin/settings.py
++++ b/apps/useradmin/src/useradmin/settings.py
+@@ -17,7 +17,7 @@
+ DJANGO_APPS = [ "useradmin" ]
+ NICE_NAME = "User Admin"
+ REQUIRES_HADOOP = False
+-ICON = "/useradmin/static/art/icon_useradmin_48.png"
++ICON = "useradmin/art/icon_useradmin_48.png"
+ MENU_INDEX = 60
+ 
+ PERMISSION_ACTIONS = (
+diff --git a/apps/zookeeper/src/zookeeper/settings.py b/apps/zookeeper/src/zookeeper/settings.py
+index d96d77a..a4e7fa5 100644
+--- a/apps/zookeeper/src/zookeeper/settings.py
++++ b/apps/zookeeper/src/zookeeper/settings.py
+@@ -18,5 +18,5 @@
+ DJANGO_APPS = [ "zookeeper" ]
+ NICE_NAME = "ZooKeeper Browser"
+ MENU_INDEX = 58
+-ICON = '/zookeeper/static/art/icon_zookeeper_48.png'
++ICON = 'zookeeper/art/icon_zookeeper_48.png'
+ IS_URL_NAMESPACED = True
+diff --git a/desktop/core/src/desktop/api.py b/desktop/core/src/desktop/api.py
+index 2dbe90d..0363dac 100644
+--- a/desktop/core/src/desktop/api.py
++++ b/desktop/core/src/desktop/api.py
+@@ -152,27 +152,27 @@ def massaged_documents_for_json(documents, user):
+   var DOCUMENTS_DEFAULTS = {
+     '1': {
+       'id': 1,
+-      'name': 'my query history', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
++      'name': 'my query history', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
+       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
+     },
+     '2': {
+       'id': 2,
+-      'name': 'my query 2 trashed', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
++      'name': 'my query 2 trashed', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
+       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
+      },
+      '3': {
+        'id': 3,
+-       'name': 'my query 3 tagged twice', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
++       'name': 'my query 3 tagged twice', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
+      'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
+      },
+     '10': {
+       'id': 10,
+-      'name': 'my query 3 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
++      'name': 'my query 3 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
+       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
+      },
+     '11': {
+       'id': 11,
+-      'name': 'my query 4 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/beeswax/static/art/icon_beeswax_24.png',
++      'name': 'my query 4 shared', 'description': '', 'url': '/beeswax/execute/design/83', 'icon': '/static/beeswax/art/icon_beeswax_24.png',
+       'lastModified': '03/11/14 16:06:49', 'owner': 'admin', 'lastModifiedInMillis': 1394579209.0, 'isMine': true
+      }
+   };
+diff --git a/desktop/core/src/desktop/app_template/src/app_name/settings.py b/desktop/core/src/desktop/app_template/src/app_name/settings.py
+index 670d44c..121f4e9 100644
+--- a/desktop/core/src/desktop/app_template/src/app_name/settings.py
++++ b/desktop/core/src/desktop/app_template/src/app_name/settings.py
+@@ -16,4 +16,4 @@
+ DJANGO_APPS = [ "${app_name}" ]
+ REQUIRES_HADOOP = False
+ MENU_INDEX = 100
+-ICON = "/${app_name}/static/art/icon_${app_name}_48.png"
++ICON = "${app_name}/art/icon_${app_name}_48.png"
+diff --git a/desktop/core/src/desktop/app_template_proxy/src/app_name/settings.py b/desktop/core/src/desktop/app_template_proxy/src/app_name/settings.py
+index 64e1453..d342d7c 100644
+--- a/desktop/core/src/desktop/app_template_proxy/src/app_name/settings.py
++++ b/desktop/core/src/desktop/app_template_proxy/src/app_name/settings.py
+@@ -17,4 +17,4 @@ DJANGO_APPS = [ "${app_name}" ]
+ NICE_NAME = "${app_name}"
+ REQUIRES_HADOOP = False
+ MENU_INDEX = 100
+-ICON = "/${app_name}/static/art/icon_${app_name}_48.png"
++ICON = "${app_name}/art/icon_${app_name}_48.png"
+diff --git a/desktop/core/src/desktop/models.py b/desktop/core/src/desktop/models.py
+index 589f9a1..a931b35 100644
+--- a/desktop/core/src/desktop/models.py
++++ b/desktop/core/src/desktop/models.py
+@@ -22,12 +22,13 @@ import uuid
+ 
+ from itertools import chain
+ 
+-from django.db import models
+-from django.db.models import Q
+-from django.core.urlresolvers import reverse
+ from django.contrib.auth import models as auth_models
+-from django.contrib.contenttypes.models import ContentType
+ from django.contrib.contenttypes import generic
++from django.contrib.contenttypes.models import ContentType
++from django.contrib.staticfiles.storage import staticfiles_storage
++from django.core.urlresolvers import reverse
++from django.db import models
++from django.db.models import Q
+ from django.utils.translation import ugettext as _, ugettext_lazy as _t
+ 
+ from desktop.lib.i18n import force_unicode
+@@ -453,23 +454,23 @@ class Document(models.Model):
+     try:
+       if self.content_type.app_label == 'beeswax':
+         if self.extra == '0':
+-          return apps['beeswax'].icon_path
++          return staticfiles_storage.url(apps['beeswax'].icon_path)
+         elif self.extra == '3':
+-          return apps['spark'].icon_path
++          return staticfiles_storage.url(apps['spark'].icon_path)
+         else:
+-          return apps['impala'].icon_path
++          return staticfiles_storage.url(apps['impala'].icon_path)
+       elif self.content_type.app_label == 'oozie':
+         if self.extra == 'jobsub':
+-          return apps['jobsub'].icon_path
++          return staticfiles_storage.url(apps['jobsub'].icon_path)
+         else:
+-          return self.content_type.model_class().ICON
++          return staticfiles_storage.url(self.content_type.model_class().ICON)
+       elif self.content_type.app_label in apps:
+-        return apps[self.content_type.app_label].icon_path
++        return staticfiles_storage.url(apps[self.content_type.app_label].icon_path)
+       else:
+-        return '/static/art/icon_hue_48.png'
++        return staticfiles_storage.url('desktop/art/icon_hue_48.png')
+     except Exception, e:
+       LOG.warn(force_unicode(e))
+-      return '/static/art/icon_hue_48.png'
++      return staticfiles_storage.url('desktop/art/icon_hue_48.png')
+ 
+   def share(self, users, groups, name='read'):
+     DocumentPermission.objects.filter(document=self, name=name).update(users=users, groups=groups, add=True)
+diff --git a/desktop/libs/indexer/src/indexer/settings.py b/desktop/libs/indexer/src/indexer/settings.py
+index c54c7e4..698d47d 100644
+--- a/desktop/libs/indexer/src/indexer/settings.py
++++ b/desktop/libs/indexer/src/indexer/settings.py
+@@ -19,6 +19,6 @@ DJANGO_APPS = [ "indexer" ]
+ NICE_NAME = "Solr Indexer"
+ REQUIRES_HADOOP = False
+ MENU_INDEX = 43
+-ICON = "/search/static/art/icon_search_48.png"
++ICON = "search/art/icon_search_48.png"
+ 
+ IS_URL_NAMESPACED = True
+-- 
+1.7.9.5
+

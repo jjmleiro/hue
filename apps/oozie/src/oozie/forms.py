@@ -388,7 +388,7 @@ class DatasetForm(forms.ModelForm):
 
   class Meta:
     model = Dataset
-    exclude = ('coordinator')
+    exclude = ('coordinator',)
     widgets = {
       'description': forms.TextInput(attrs={'class': 'span5'}),
       'uri': forms.TextInput(attrs={'class': 'span5'}),
@@ -401,7 +401,7 @@ class DatasetForm(forms.ModelForm):
 class DataInputForm(forms.ModelForm):
   class Meta:
     model = DataInput
-    exclude = ('coordinator')
+    exclude = ('coordinator',)
 
   def __init__(self, *args, **kwargs):
     coordinator = kwargs['coordinator']
@@ -415,7 +415,7 @@ class DataInputForm(forms.ModelForm):
 class DataOutputForm(forms.ModelForm):
   class Meta:
     model = DataOutput
-    exclude = ('coordinator')
+    exclude = ('coordinator',)
 
   def __init__(self, *args, **kwargs):
     coordinator = kwargs['coordinator']
@@ -466,8 +466,8 @@ class RerunForm(forms.Form):
 
 
 class RerunCoordForm(forms.Form):
-  refresh = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
-  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
+  refresh = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
+  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
   actions = forms.MultipleChoiceField(required=True)
 
   def __init__(self, *args, **kwargs):
@@ -479,8 +479,8 @@ class RerunCoordForm(forms.Form):
 
 
 class RerunBundleForm(forms.Form):
-  refresh = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
-  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
+  refresh = forms.BooleanField(initial=True, required=False, help_text=_t("Used to indicate if user wants to refresh an action's input and output events"))
+  nocleanup = forms.BooleanField(initial=True, required=False, help_text=_t('Used to indicate if user wants to cleanup output events for given rerun actions'))
   coordinators = forms.MultipleChoiceField(required=True)
   start = forms.SplitDateTimeField(input_time_formats=[TIME_FORMAT], required=False, initial=datetime.today(),
                                    widget=SplitDateTimeWidget(attrs={'class': 'input-small', 'id': 'rerun_start'},
@@ -525,6 +525,14 @@ class BundleForm(forms.ModelForm):
       'parameters': forms.widgets.HiddenInput(),
       'schema_version': forms.widgets.HiddenInput(),
     }
+
+class UpdateEndTimeForm(forms.Form):
+  end = forms.SplitDateTimeField(input_time_formats=[TIME_FORMAT], required=False, initial=datetime.today() + timedelta(days=3),
+                                 widget=SplitDateTimeWidget(attrs={'class': 'input-small', 'id': 'update_endtime'},
+                                                            date_format=DATE_FORMAT, time_format=TIME_FORMAT))
+
+  def __init__(self, *args, **kwargs):
+    super(UpdateEndTimeForm, self).__init__(*args, **kwargs)
 
 
 def design_form_by_type(node_type, user, workflow):

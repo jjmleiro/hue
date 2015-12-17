@@ -1,0 +1,90 @@
+From 896d318b915f8bc67ff8469f7a2b8eb9f5213805 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 26 Feb 2015 17:41:51 +0100
+Subject: [PATCH 0929/1173] [oozie] Move isSaving(false) to .always in the
+ AJAX calls
+
+---
+ .../src/oozie/static/oozie/js/bundle-editor.ko.js  |    5 +++--
+ .../oozie/static/oozie/js/coordinator-editor.ko.js |    5 +++--
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |    5 +++--
+ 3 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
+index 5b2830d..2e70f16 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/bundle-editor.ko.js
+@@ -99,7 +99,7 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+ 
+ 
+   self.save = function () {
+-    if (! self.isSaving()) {
++    if (!self.isSaving()) {
+       self.isSaving(true);
+       $.post("/oozie/editor/bundle/save/", {
+         "bundle": ko.mapping.toJSON(self.bundle)
+@@ -115,9 +115,10 @@ var BundleEditorViewModel = function (bundle_json, coordinators_json, can_edit_j
+         else {
+           $(document).trigger("error", data.message);
+         }
+-        self.isSaving(false);
+       }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
++      }).always(function () {
++        self.isSaving(false);
+       });
+     }
+   };
+diff --git a/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
+index b0071c9..64e8524 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/coordinator-editor.ko.js
+@@ -191,7 +191,7 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+ 
+ 
+   self.save = function () {
+-    if (! self.isSaving()) {
++    if (!self.isSaving()) {
+       self.isSaving(true);
+       $(".jHueNotify").hide();
+       $.post("/oozie/editor/coordinator/save/", {
+@@ -208,9 +208,10 @@ var CoordinatorEditorViewModel = function (coordinator_json, credentials_json, w
+         else {
+           $(document).trigger("error", data.message);
+         }
+-        self.isSaving(false);
+       }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
++      }).always(function () {
++        self.isSaving(false);
+       });
+     }
+   };
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index 252bec4..a1c7231 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -1027,7 +1027,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   }
+ 
+   self.save = function () {
+-    if (! self.isSaving()) {
++    if (!self.isSaving()) {
+       self.isSaving(true);
+       $(".jHueNotify").hide();
+       $.post("/oozie/editor/workflow/save/", {
+@@ -1051,9 +1051,10 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         else {
+           $(document).trigger("error", data.message);
+         }
+-        self.isSaving(false);
+       }).fail(function (xhr, textStatus, errorThrown) {
+         $(document).trigger("error", xhr.responseText);
++      }).always(function () {
++        self.isSaving(false);
+       });
+     }
+   };
+-- 
+1.7.9.5
+

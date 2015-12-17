@@ -1,0 +1,157 @@
+From aadb4a9662a355280ecc178450ef9f13c6063145 Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Thu, 22 Jan 2015 15:00:14 -0800
+Subject: [PATCH 0509/1173] [filebrowser] Fix archive upload directory issue
+
+---
+ apps/filebrowser/src/filebrowser/lib/archives.py   |   21 +++++++++++++---
+ .../src/filebrowser/lib/archives_test.py           |   26 +++++++++++++++++---
+ .../src/filebrowser/test_data/test2.tar.gz         |  Bin 0 -> 146 bytes
+ .../src/filebrowser/test_data/test3.tar.gz         |  Bin 0 -> 151 bytes
+ .../src/filebrowser/test_data/test4.tar.gz         |  Bin 0 -> 154 bytes
+ 5 files changed, 41 insertions(+), 6 deletions(-)
+ create mode 100644 apps/filebrowser/src/filebrowser/test_data/test2.tar.gz
+ create mode 100644 apps/filebrowser/src/filebrowser/test_data/test3.tar.gz
+ create mode 100644 apps/filebrowser/src/filebrowser/test_data/test4.tar.gz
+
+diff --git a/apps/filebrowser/src/filebrowser/lib/archives.py b/apps/filebrowser/src/filebrowser/lib/archives.py
+index 5b5ceaf..aa2ed70 100644
+--- a/apps/filebrowser/src/filebrowser/lib/archives.py
++++ b/apps/filebrowser/src/filebrowser/lib/archives.py
+@@ -21,11 +21,11 @@ import os
+ import posixpath
+ import tarfile
+ import tempfile
+-from zipfile import ZipFile
+-
+-from filebrowser.conf import ARCHIVE_UPLOAD_TEMPDIR
+ 
++from desktop.lib.exceptions_renderable import PopupException
+ from django.utils.translation import ugettext as _
++from filebrowser.conf import ARCHIVE_UPLOAD_TEMPDIR
++from zipfile import ZipFile
+ 
+ 
+ __all__ = ['archive_factory']
+@@ -47,6 +47,10 @@ class Archive(object):
+     Creates all directories passed at the given basepath.
+     """
+     for directory in dirs:
++      # Stops if directory start with '/' or points to a relative path
++      if os.path.isabs(directory) or '..' in directory:
++        raise IllegalPathException()
++
+       directory = os.path.join(basepath, directory)
+       try:
+         os.makedirs(directory)
+@@ -147,6 +151,12 @@ class TarballArchive(Archive):
+         dirs.append(tarinfo.name)
+       else:
+         files.append(tarinfo.name)
++        parent = os.path.dirname(tarinfo.path)
++        # getmembers() sometimes doesn't return all the directories
++        # Go up the path one directory at the time
++        while parent != '' and parent not in dirs:
++          dirs.append(parent)
++          parent = os.path.dirname(parent)
+     return (dirs, files)
+ 
+   def _create_files(self, basepath, files=[]):
+@@ -166,3 +176,8 @@ def archive_factory(path, archive_type='zip'):
+     return ZipArchive(path)
+   elif archive_type == 'tarball' or archive_type == 'tar.gz' or archive_type == 'tgz':
+     return TarballArchive(path)
++
++class IllegalPathException(PopupException):
++
++  def __init__(self):
++    super(IllegalPathException, self).__init__('''Archive path cannot be absolute or contain '..' ''')
+diff --git a/apps/filebrowser/src/filebrowser/lib/archives_test.py b/apps/filebrowser/src/filebrowser/lib/archives_test.py
+index 42905e6..e1cb36d 100644
+--- a/apps/filebrowser/src/filebrowser/lib/archives_test.py
++++ b/apps/filebrowser/src/filebrowser/lib/archives_test.py
+@@ -15,14 +15,13 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++import archives
+ import unittest
+ import os
+ 
++from archives import IllegalPathException
+ from nose.tools import assert_true, assert_equal
+ 
+-import archives
+-
+-
+ class ArchiveTest(unittest.TestCase):
+ 
+   def test_zip(self):
+@@ -47,6 +46,27 @@ class ArchiveTest(unittest.TestCase):
+     assert_true(os.path.isfile(directory + '/test.txt'))
+     assert_equal(os.path.getsize(directory + '/test.txt'), 4)
+ 
++    FILE = os.path.realpath('apps/filebrowser/src/filebrowser/test_data/test2.tar.gz')
++
++    # Extract the file
++    # This file should only have 'test.txt' in it
++    directory = archives.archive_factory(FILE, 'tar.gz').extract()
++    assert_true(os.path.exists(directory))
++    assert_true(os.path.isdir(directory))
++    assert_true(os.path.isfile(directory + '/home/docs/test.txt'))
++    assert_equal(os.path.getsize(directory + '/home/docs/test.txt'), 4)
++
++    # This file should not be extracted as it contains illegal path '../../../Desktop/test.txt'
++    FILE = os.path.realpath('apps/filebrowser/src/filebrowser/test_data/test3.tar.gz')
++
++    factory = archives.archive_factory(FILE, 'tar.gz')
++    self.assertRaises(IllegalPathException, factory.extract)
++
++    # This file should not be extracted as it contains absolute path
++    FILE = os.path.realpath('apps/filebrowser/src/filebrowser/test_data/test4.tar.gz')
++
++    factory = archives.archive_factory(FILE, 'tar.gz')
++    self.assertRaises(IllegalPathException, factory.extract)
+ 
+ if __name__ == "__main__":
+   unittest.main()
+diff --git a/apps/filebrowser/src/filebrowser/test_data/test2.tar.gz b/apps/filebrowser/src/filebrowser/test_data/test2.tar.gz
+new file mode 100644
+index 0000000000000000000000000000000000000000..ea9a8e121b342d5ea265442a4bb0ff4c97bfab18
+GIT binary patch
+literal 146
+zcmb2|=3q#fcPxZ~`RzqVu0swytq<i?)i=z{JTb?8%TlGF7d;O?=H?bEi?lRx{NG;L
+za`I8@%l7E#`R&2$yl0<YXydijI<(Yyrt!}GL642r`#4>B@ve8Nf|O2VaOb=Dr<ZM~
+tKeh<n**E=8{u|%y*zF(p$tb=5Bm8;&|6R-s$lyV>KTiSkVg?Nc1^}<)Kyv^9
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/filebrowser/src/filebrowser/test_data/test3.tar.gz b/apps/filebrowser/src/filebrowser/test_data/test3.tar.gz
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9b5da6aaa5b54dc20e903959992c7e2e79bb958
+GIT binary patch
+literal 151
+zcmb2|=3wCMI~Bsf{Ptor*C7Le)`xnk+8*lD{mdV@)no+zT418Qqo(?>Ik%Hz%YWqp
+zj+yPoM}FVZe|}}^!MyLcb|u}L7bffOVv=s2zIxY^BVYHO)N|=vHLFN^PK(;oWkp2^
+x?fr5`&pi%Fm016Dld*a4*T3g}@9L<2K7Ypk-`8asP{93aM&Xk+{~0tG7yvSkLY@Es
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/filebrowser/src/filebrowser/test_data/test4.tar.gz b/apps/filebrowser/src/filebrowser/test_data/test4.tar.gz
+new file mode 100644
+index 0000000000000000000000000000000000000000..611fb3fc75e465fe6a9287d4fd98e9f82269e439
+GIT binary patch
+literal 154
+zcmb2|=3tm&btZ&?`R&C(E+$2RV;^n1)K5efe`ShY$o%C&&>QE4!X<xlT5Cm`S~>ph
+zpUyvr(f#;5?^8$heul04Hs#c!@9kGZzAVs}{idi?IP1(T#WkAew&(1ToV!Ed&_(z3
+zl%B6S2AeMbjXl3;dW?Hy{esKkx1a3{&gVCb{?~baRlO}U12T9}oxgrc=`IEh1_l7y
+C>O~9y
+
+literal 0
+HcmV?d00001
+
+-- 
+1.7.9.5
+

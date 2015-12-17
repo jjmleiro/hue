@@ -125,7 +125,7 @@ ${ layout.menubar(section='coordinators') }
 
 <div class="hueOverlay" data-bind="visible: isLoading">
   <!--[if lte IE 9]>
-    <img src="/static/art/spinner-big.gif" />
+    <img src="${ static('desktop/art/spinner-big.gif') }" />
   <![endif]-->
   <!--[if !IE]> -->
     <i class="fa fa-spinner fa-spin"></i>
@@ -136,6 +136,7 @@ ${ layout.menubar(section='coordinators') }
 
 <div id="trash-job" class="modal hide">
   <form id="trashForm" action="${ url('oozie:delete_coordinator') }" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="trashMessage">${ _('Move the selected coordinator(s) to trash?') }</h3>
@@ -152,6 +153,7 @@ ${ layout.menubar(section='coordinators') }
 
 <div id="destroy-job" class="modal hide">
   <form id="destroyForm" action="${ url('oozie:delete_coordinator') }?skip_trash=true" method="POST">
+    ${ csrf_token(request) | n,unicode }
     <div class="modal-header">
       <a href="#" class="close" data-dismiss="modal">&times;</a>
       <h3 id="destroyMessage">${ _('Delete the selected coordinator(s)?') }</h3>
@@ -166,8 +168,8 @@ ${ layout.menubar(section='coordinators') }
   </form>
 </div>
 
-<script src="/static/ext/js/datatables-paging-0.1.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/datatables-paging-0.1.js') }" type="text/javascript" charset="utf-8"></script>
+<script src="${ static('desktop/ext/js/knockout-min.js') }" type="text/javascript" charset="utf-8"></script>
 
 
 <script type="text/javascript" charset="utf-8">

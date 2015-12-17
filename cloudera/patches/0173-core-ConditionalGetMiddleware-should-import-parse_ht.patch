@@ -1,0 +1,62 @@
+From f3c8aed781d4830039501a8f5c3018cb3f9e3010 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 22 Dec 2014 11:23:44 -0800
+Subject: [PATCH 0173/1173] [core] ConditionalGetMiddleware should import
+ `parse_http_date_safe`
+
+Fix 500 error on some etag cache cases
+Fix creating a new query in DB Query
+---
+ apps/rdbms/src/rdbms/views.py          |    6 ++++--
+ desktop/core/src/desktop/middleware.py |    3 ++-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/apps/rdbms/src/rdbms/views.py b/apps/rdbms/src/rdbms/views.py
+index 9d2408e..905775e 100644
+--- a/apps/rdbms/src/rdbms/views.py
++++ b/apps/rdbms/src/rdbms/views.py
+@@ -15,8 +15,10 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-from functools import wraps
+ import logging
++import json
++
++from functools import wraps
+ 
+ from django.utils.translation import ugettext as _
+ from django.core.urlresolvers import reverse
+@@ -70,7 +72,7 @@ def execute_query(request, design_id=None, query_history_id=None):
+ 
+   return render('execute.mako', request, {
+     'action': action,
+-    'doc_id': design.id and design.doc.get().id,
++    'doc_id': json.dumps(design.id and design.doc.get().id),
+     'design': design,
+     'autocomplete_base_url': reverse('rdbms:api_autocomplete_databases', kwargs={}),
+     'can_edit_name': design.id and not design.is_auto,
+diff --git a/desktop/core/src/desktop/middleware.py b/desktop/core/src/desktop/middleware.py
+index 6fe08f9..588c9d2 100644
+--- a/desktop/core/src/desktop/middleware.py
++++ b/desktop/core/src/desktop/middleware.py
+@@ -638,6 +638,7 @@ class EnsureSafeRedirectURLMiddleware(object):
+     else:
+       return response
+ 
++
+ # FIXME: This was backported from Django 1.5 to work around streaming generator
+ # responses incorrectly getting a length returned with the response. This can
+ # be removed once we upgrade.
+@@ -650,7 +651,7 @@ class ConditionalGetMiddleware(object):
+     Also sets the Date and Content-Length response-headers.
+     """
+     def process_response(self, request, response):
+-        from django.utils.http import http_date
++        from django.utils.http import http_date, parse_http_date_safe
+ 
+         response['Date'] = http_date()
+         if not getattr(response, 'streaming', False) and not response.has_header('Content-Length'):
+-- 
+1.7.9.5
+

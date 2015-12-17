@@ -1,0 +1,25 @@
+From 2fee007127819dc14d3d134b266818be0430cd2a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 24 Nov 2014 20:31:36 +0100
+Subject: [PATCH 0307/1173] [oozie] Enable copy to the same row
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4c2d821..6125a4b 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -569,7 +569,7 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+         vm: self
+       });
+ 
+-      if (self.currentlyDraggedWidget().id() != ""){
++      if (self.currentlyDraggedWidget().id() != "" && self.currentlyDraggedOp() == "move"){
+         self.removeWidgetById(self.currentlyDraggedWidget().id());
+         _w = self.currentlyDraggedWidget();
+       }
+-- 
+1.7.9.5
+

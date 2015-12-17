@@ -1,0 +1,153 @@
+From 0e1a2c754959cf9c2e130cf30c1288b38d2592c3 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 29 Dec 2014 21:20:50 +0100
+Subject: [PATCH 0365/1173] [oozie] New filechooser options to show just the
+ last bit of the path
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/css/common-editor.css            |    4 ++
+ desktop/core/static/js/ko.hue-bindings.js          |   62 ++++++++++++++++----
+ 3 files changed, 55 insertions(+), 13 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 4b2119f..c3a9d23 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1495,7 +1495,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       </a>
+ 
+       <h4>${_("Workspace")}</h4>
+-      <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: $root.workflow.properties.deployment_dir"/>
++      <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: {value: $root.workflow.properties.deployment_dir, displayJustLastBit: true}" rel="tooltip"/>
+ 
+ 	    <h4>${ _('Hadoop Properties') }</h4>
+       <ul data-bind="foreach: $root.workflow.properties.properties" class="unstyled">
+diff --git a/apps/oozie/static/css/common-editor.css b/apps/oozie/static/css/common-editor.css
+index 69d3e46..040a099 100644
+--- a/apps/oozie/static/css/common-editor.css
++++ b/apps/oozie/static/css/common-editor.css
+@@ -38,4 +38,8 @@
+ .editable-empty, .editable-empty:hover {
+   color: #666!important;
+   opacity: .55;
++}
++
++.tooltip {
++  z-index: 1051;
+ }
+\ No newline at end of file
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index 3d4dd1f..940fb0f 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -961,10 +961,30 @@ ko.bindingHandlers.hivechooser = {
+ ko.bindingHandlers.filechooser = {
+   init: function (element, valueAccessor, allBindingsAccessor, vm) {
+     var self = $(element);
+-    if (typeof valueAccessor() == "function") {
+-      self.val(valueAccessor()());
++    if (typeof valueAccessor() == "function" || typeof valueAccessor().value == "function") {
++      self.val(valueAccessor().value ? valueAccessor().value(): valueAccessor()());
++      self.data("fullPath", self.val());
++      self.attr("data-original-title", self.val());
++      if (valueAccessor().displayJustLastBit){
++        var _val = self.val();
++        self.val(_val.split("/")[_val.split("/").length - 1]);
++      }
+       self.on("blur", function () {
+-        valueAccessor()(self.val());
++        if (valueAccessor().value){
++          if (valueAccessor().displayJustLastBit){
++            var _val = self.data("fullPath");
++            valueAccessor().value(_val.substr(0, _val.lastIndexOf("/")) + "/" + self.val());
++          }
++          else {
++            valueAccessor().value(self.val());
++          }
++          self.data("fullPath", valueAccessor().value());
++        }
++        else {
++          valueAccessor()(self.val());
++          self.data("fullPath", valueAccessor()());
++        }
++        self.attr("data-original-title", self.data("fullPath"));
+       });
+     }
+     else {
+@@ -974,12 +994,11 @@ ko.bindingHandlers.filechooser = {
+       });
+     }
+ 
+-
+-    self.after(getFileBrowseButton(self, true, valueAccessor));
++    self.after(getFileBrowseButton(self, true, valueAccessor, true));
+   }
+ };
+ 
+-function getFileBrowseButton(inputElement, selectFolder, valueAccessor) {
++function getFileBrowseButton(inputElement, selectFolder, valueAccessor, stripHdfsPrefix) {
+   return $("<button>").addClass("btn").addClass("fileChooserBtn").text("..").click(function (e) {
+     e.preventDefault();
+     // check if it's a relative path
+@@ -987,6 +1006,9 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor) {
+ 
+     function callFileChooser() {
+       var _initialPath = $.trim(inputElement.val()) != "" ? inputElement.val() : "/";
++      if (inputElement.data("fullPath")){
++        _initialPath = inputElement.data("fullPath");
++      }
+       if (_initialPath.indexOf("hdfs://") > -1) {
+         _initialPath = _initialPath.substring(7);
+       }
+@@ -994,13 +1016,13 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor) {
+         suppressErrors: true,
+         selectFolder: (selectFolder) ? true : false,
+         onFolderChoose: function (filePath) {
+-          handleChoice(filePath);
++          handleChoice(filePath, stripHdfsPrefix);
+           if (selectFolder) {
+             $("#chooseFile").modal("hide");
+           }
+         },
+         onFileChoose: function (filePath) {
+-          handleChoice(filePath);
++          handleChoice(filePath, stripHdfsPrefix);
+           $("#chooseFile").modal("hide");
+         },
+         createFolder: false,
+@@ -1012,11 +1034,27 @@ function getFileBrowseButton(inputElement, selectFolder, valueAccessor) {
+       $("#chooseFile").modal("show");
+     }
+ 
+-    function handleChoice(filePath) {
+-      inputElement.val("hdfs://" + filePath);
++    function handleChoice(filePath, stripHdfsPrefix) {
++      if (stripHdfsPrefix){
++        inputElement.val(filePath);
++      }
++      else {
++        inputElement.val("hdfs://" + filePath);
++      }
+       inputElement.change();
+-      if (typeof valueAccessor() == "function") {
+-        valueAccessor()(inputElement.val());
++      if (typeof valueAccessor() == "function" || typeof valueAccessor().value == "function") {
++        if (valueAccessor().value){
++          valueAccessor().value(inputElement.val());
++          if (valueAccessor().displayJustLastBit){
++            inputElement.data("fullPath", inputElement.val());
++            inputElement.attr("data-original-title", inputElement.val());
++            var _val = inputElement.val();
++            inputElement.val(_val.split("/")[_val.split("/").length - 1])
++          }
++        }
++        else {
++          valueAccessor()(inputElement.val());
++        }
+       }
+       else {
+         valueAccessor(inputElement.val());
+-- 
+1.7.9.5
+

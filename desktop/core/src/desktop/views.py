@@ -32,6 +32,7 @@ from django.core.urlresolvers import reverse
 from django.core.servers.basehttp import FileWrapper
 from django.shortcuts import redirect
 from django.utils.translation import ugettext as _
+from django.views.decorators.http import require_http_methods
 import django.views.debug
 
 import desktop.conf
@@ -50,6 +51,11 @@ from desktop import appmanager
 
 
 LOG = logging.getLogger(__name__)
+
+
+@require_http_methods(['HEAD'])
+def is_alive(request):
+  return HttpResponse('')
 
 
 def home(request):
@@ -165,7 +171,7 @@ def bootstrap(request):
 
   # HttpResponse can take an iteratable as the first argument, which
   # is what happens here.
-  return HttpResponse(concatenated, mimetype='text/javascript')
+  return HttpResponse(concatenated, content_type='text/javascript')
 
 
 _status_bar_views = []
@@ -213,14 +219,6 @@ def dump_config(request):
     conf_dir=conf_dir,
     apps=apps))
 
-if sys.version_info[0:2] <= (2,4):
-  def _threads():
-    import threadframe
-    return threadframe.dict().iteritems()
-else:
-  def _threads():
-    return sys._current_frames().iteritems()
-
 @access_log_level(logging.WARN)
 def threads(request):
   """Dumps out server threads.  Useful for debugging."""
@@ -228,7 +226,7 @@ def threads(request):
     return HttpResponse(_("You must be a superuser."))
 
   out = []
-  for thread_id, stack in _threads():
+  for thread_id, stack in sys._current_frames().iteritems():
     out.append("Thread id: %s" % thread_id)
     for filename, lineno, name, line in traceback.extract_stack(stack):
       out.append("  %-20s %s(%d)" % (name, filename, lineno))
@@ -347,17 +345,6 @@ def log_frontend_event(request):
   _LOG_FRONTEND_LOGGER.log(level, msg)
   return HttpResponse("")
 
-def who_am_i(request):
-  """
-  Returns username and FS username, and optionally sleeps.
-  """
-  try:
-    sleep = float(request.REQUEST.get("sleep") or 0.0)
-  except ValueError:
-    sleep = 0.0
-  time.sleep(sleep)
-  return HttpResponse(request.user.username + "\t" + request.fs.user + "\n")
-
 def commonheader(title, section, user, padding="90px"):
   """
   Returns the rendered common header
@@ -387,6 +374,9 @@ def commonheader(title, section, user, padding="90px"):
     'user': user,
     'is_demo': desktop.conf.DEMO_ENABLED.get()
   })
+
+def commonshare():
+  return django_mako.render_to_string("common_share.mako", {})
 
 def commonfooter(messages=None):
   """

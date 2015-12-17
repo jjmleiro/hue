@@ -1,0 +1,58 @@
+From 86f574af9329b5f9ca2c321944f86e9cd6f6933d Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 3 Dec 2014 19:14:59 -0600
+Subject: [PATCH 0550/1173] [spark] Get dummy Scala logs
+
+---
+ apps/spark/src/spark/models.py   |   14 ++++++++------
+ apps/spark/static/js/spark.vm.js |    1 +
+ 2 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 373ca66..8fd7292 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -218,7 +218,7 @@ class SparkApi():  # Pig, DBquery, Phoenix...
+     return {'id': api.submit_statement(session['id'], snippet['statement']).split('cells/')[1]}
+ 
+   def check_status(self, notebook, snippet):
+-    return {'status': 'ready'}
++    return {'status': 'available'}
+ 
+   def fetch_result(self, notebook, snippet, rows):
+     api = get_spark_api(self.user)
+@@ -229,12 +229,14 @@ class SparkApi():  # Pig, DBquery, Phoenix...
+       
+     return {
+         'data': [data['output']],
+-        'meta': [{
+-          'name': column.name,
+-          'type': column.type,
+-          'comment': column.comment
+-        } for column in []]
++        'meta': [{'name': 'Header', 'type': 'String', 'comment': ''}]
+     }
+ 
+   def cancel(self, notebook, snippet):
+     pass
++
++  def get_log(self, snippet):
++    return 'Not available'
++  
++  def _progress(self, snippet, logs):  
++    return 50
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 4d616e7..09bf6cd 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -143,6 +143,7 @@ var Snippet = function (notebook, snippet) {
+     if (val){
+       self.showGrid(false);
+       self.showChart(false);
++      self.getLogs();
+     }
+   });
+   self.size = ko.observable(typeof snippet.size != "undefined" && snippet.size != null ? snippet.size : 12).extend({ numeric: 0 });
+-- 
+1.7.9.5
+

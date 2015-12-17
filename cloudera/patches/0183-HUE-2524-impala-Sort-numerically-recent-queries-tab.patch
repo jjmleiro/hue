@@ -1,0 +1,36 @@
+From d64598a06897cd0f5a75cbc987104dd690805507 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 6 Jan 2015 23:17:31 +0100
+Subject: [PATCH 0183/1173] HUE-2524 [impala] Sort numerically recent queries
+ tab
+
+Added dom-sort-value to the time column
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 67ddf4c..eff5bb3 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -1059,7 +1059,7 @@ $(document).ready(function () {
+       "bInfo": false,
+       "bFilter": false,
+       "aoColumns": [
+-        { "sWidth" : "100px"},
++        { "sWidth" : "100px", "sSortDataType":"dom-sort-value", "sType":"numeric" },
+         null,
+         { "sWidth" : "80px", "bSortable": false },
+         { "bSortable": false, "sWidth" : "4px" }
+@@ -1091,7 +1091,7 @@ $(document).ready(function () {
+         var _rows = [];
+         $(data.queries).each(function(cnt, item){
+           _rows.push([
+-            '<span data-time="' + item.timeInMs + '">' + item.timeFormatted + '</span>',
++            '<span data-sort-value="' + item.timeInMs + '">' + item.timeFormatted + '</span>',
+             '<code style="cursor:pointer">' + hue.htmlEncode(item.query) + '</code>',
+             (item.resultsUrl != "" ? '<a href="' + item.resultsUrl + '" data-row-selector-exclude="true">${_('See results...')}</a>': ''),
+             (item.designUrl != "" ? '<a href="' + item.designUrl + '" data-row-selector="true">&nbsp;</a>': '')
+-- 
+1.7.9.5
+

@@ -1,0 +1,28 @@
+From b43056c540a8b203764578fb197ce2bbee507026 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 4 Mar 2015 09:31:26 -0800
+Subject: [PATCH 0982/1173] [sentry] Merge two bindings for allowing of
+ editing of a privilege
+
+---
+ apps/security/src/security/templates/hive.mako |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/security/src/security/templates/hive.mako b/apps/security/src/security/templates/hive.mako
+index a18202a..416e735 100644
+--- a/apps/security/src/security/templates/hive.mako
++++ b/apps/security/src/security/templates/hive.mako
+@@ -86,8 +86,8 @@ ${ layout.menubar(section='hive') }
+     <!-- ko ifnot: $root.isApplyingBulk() -->
+     <div class="pull-right privilege-actions" data-bind="visible: grantOption() || $root.is_sentry_admin">
+       <a title="${ _('Grant this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: function(){ $root.grantToPrivilege($data); $('#grantPrivilegeModal').modal('show'); }"><i class="fa fa-send"></i></a>
+-      <a data-bind="visible: $root.is_sentry_admin" title="${ _('Edit this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: function() { if (! editing()) { editing(true); }}"><i class="fa fa-pencil"></i></a>
+-      <a data-bind="visible: $root.is_sentry_admin" title="${ _('Delete this privilege') }" class="pointer" style="margin-right: 4px" data-bind="click: remove"><i class="fa fa-times"></i></a>
++      <a title="${ _('Edit this privilege') }" class="pointer" style="margin-right: 4px" data-bind="visible: $root.is_sentry_admin, click: function() { if (! editing()) { editing(true); }}"><i class="fa fa-pencil"></i></a>
++      <a title="${ _('Delete this privilege') }" class="pointer" style="margin-right: 4px" data-bind="visible: $root.is_sentry_admin, click: remove"><i class="fa fa-times"></i></a>
+     </div>
+     <!-- /ko -->
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,157 @@
+From 302e335e681fd2edbc4700c65ad60ba2ae4c36bc Mon Sep 17 00:00:00 2001
+From: Jenkins <dev-kitchen@cloudera.com>
+Date: Mon, 4 May 2015 09:26:09 -0700
+Subject: [PATCH 1173/1173] Branch for CDH5.4.1
+
+---
+ Makefile.vars                         |    2 +-
+ apps/spark/java/livy-assembly/pom.xml |    2 +-
+ apps/spark/java/livy-core/pom.xml     |    2 +-
+ apps/spark/java/livy-repl/pom.xml     |    2 +-
+ apps/spark/java/livy-server/pom.xml   |    2 +-
+ apps/spark/java/livy-yarn/pom.xml     |    2 +-
+ apps/spark/java/pom.xml               |    2 +-
+ apps/spark/src/spark/conf.py          |    2 +-
+ desktop/libs/hadoop/java/pom.xml      |    2 +-
+ maven/pom.xml                         |    4 ++--
+ 10 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/Makefile.vars b/Makefile.vars
+index f1691e4..7b0330d 100644
+--- a/Makefile.vars
++++ b/Makefile.vars
+@@ -82,7 +82,7 @@ ENV_EASY_INSTALL := $(ENV_PYTHON) $(BLD_DIR_BIN)/easy_install
+ # This version is substituted through to the tarballs and packages.
+ ##############################
+ DESKTOP_VERSION := $(shell python <(cat $(ROOT)/VERSION; echo print VERSION))
+-MAVEN_VERSION = $(DESKTOP_VERSION)-cdh5.4.1-SNAPSHOT
++MAVEN_VERSION = $(DESKTOP_VERSION)-cdh5.4.1
+ 
+ ##############################
+ # Path to the desktop hadoop plugin jar
+diff --git a/apps/spark/java/livy-assembly/pom.xml b/apps/spark/java/livy-assembly/pom.xml
+index f6e1dd4..c72f85b 100644
+--- a/apps/spark/java/livy-assembly/pom.xml
++++ b/apps/spark/java/livy-assembly/pom.xml
+@@ -6,7 +6,7 @@
+     <parent>
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+         <relativePath>../pom.xml</relativePath>
+     </parent>
+ 
+diff --git a/apps/spark/java/livy-core/pom.xml b/apps/spark/java/livy-core/pom.xml
+index 9751a74..0b84f9b 100644
+--- a/apps/spark/java/livy-core/pom.xml
++++ b/apps/spark/java/livy-core/pom.xml
+@@ -6,7 +6,7 @@
+     <parent>
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+         <relativePath>../pom.xml</relativePath>
+     </parent>
+ 
+diff --git a/apps/spark/java/livy-repl/pom.xml b/apps/spark/java/livy-repl/pom.xml
+index 20552b4..405d4bc 100644
+--- a/apps/spark/java/livy-repl/pom.xml
++++ b/apps/spark/java/livy-repl/pom.xml
+@@ -7,7 +7,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+     </parent>
+ 
+     <artifactId>livy-repl_2.10</artifactId>
+diff --git a/apps/spark/java/livy-server/pom.xml b/apps/spark/java/livy-server/pom.xml
+index eb12f4e..6583ee8 100644
+--- a/apps/spark/java/livy-server/pom.xml
++++ b/apps/spark/java/livy-server/pom.xml
+@@ -24,7 +24,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+     </parent>
+ 
+     <artifactId>livy-server_2.10</artifactId>
+diff --git a/apps/spark/java/livy-yarn/pom.xml b/apps/spark/java/livy-yarn/pom.xml
+index ccf273b..698d232 100644
+--- a/apps/spark/java/livy-yarn/pom.xml
++++ b/apps/spark/java/livy-yarn/pom.xml
+@@ -7,7 +7,7 @@
+         <groupId>com.cloudera.hue.livy</groupId>
+         <artifactId>livy-main</artifactId>
+         <relativePath>../pom.xml</relativePath>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+     </parent>
+ 
+     <artifactId>livy-yarn_2.10</artifactId>
+diff --git a/apps/spark/java/pom.xml b/apps/spark/java/pom.xml
+index 63f2f9c..3a3c472 100644
+--- a/apps/spark/java/pom.xml
++++ b/apps/spark/java/pom.xml
+@@ -24,7 +24,7 @@
+         <groupId>com.cloudera.hue</groupId>
+         <artifactId>hue-parent</artifactId>
+         <relativePath>../../../maven/pom.xml</relativePath>
+-        <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++        <version>3.7.0-cdh5.4.1</version>
+     </parent>
+ 
+     <groupId>com.cloudera.hue.livy</groupId>
+diff --git a/apps/spark/src/spark/conf.py b/apps/spark/src/spark/conf.py
+index de7ddc8..e93c3ed 100644
+--- a/apps/spark/src/spark/conf.py
++++ b/apps/spark/src/spark/conf.py
+@@ -46,7 +46,7 @@ LIVY_ASSEMBLY_JAR = Config(
+   key="livy_assembly_jar",
+   help=_t("Path to livy-assembly.jar"),
+   private=True,
+-  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-cdh5.4.1-SNAPSHOT.jar"))
++  default=os.path.join(os.path.dirname(__file__), "..", "..", "java-lib", "livy-assembly-3.7.0-cdh5.4.1.jar"))
+ 
+ LIVY_SERVER_HOST = Config(
+   key="livy_server_host",
+diff --git a/desktop/libs/hadoop/java/pom.xml b/desktop/libs/hadoop/java/pom.xml
+index 2076827..5b12374 100644
+--- a/desktop/libs/hadoop/java/pom.xml
++++ b/desktop/libs/hadoop/java/pom.xml
+@@ -24,7 +24,7 @@
+     <groupId>com.cloudera.hue</groupId>
+     <artifactId>hue-parent</artifactId>
+     <relativePath>../../../../maven/pom.xml</relativePath>
+-    <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++    <version>3.7.0-cdh5.4.1</version>
+   </parent>
+ 
+   <groupId>com.cloudera.hue</groupId>
+diff --git a/maven/pom.xml b/maven/pom.xml
+index d4597dc..28ba3d8 100644
+--- a/maven/pom.xml
++++ b/maven/pom.xml
+@@ -23,12 +23,12 @@
+   <parent>
+     <groupId>com.cloudera.cdh</groupId>
+     <artifactId>cdh-root</artifactId>
+-    <version>5.4.1-SNAPSHOT</version>
++    <version>5.4.1</version>
+   </parent>
+ 
+   <groupId>com.cloudera.hue</groupId>
+   <artifactId>hue-parent</artifactId>
+-  <version>3.7.0-cdh5.4.1-SNAPSHOT</version>
++  <version>3.7.0-cdh5.4.1</version>
+   <packaging>pom</packaging>
+ 
+   <name>Hue Maven Parent POM</name>
+-- 
+1.7.9.5
+

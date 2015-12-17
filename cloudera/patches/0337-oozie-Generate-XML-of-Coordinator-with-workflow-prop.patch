@@ -1,0 +1,127 @@
+From 7136f10c9be975bad8a09c0594b2f25020a4d31f Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 16 Dec 2014 16:23:00 -0800
+Subject: [PATCH 0337/1173] [oozie] Generate XML of Coordinator with workflow
+ properties
+
+---
+ apps/oozie/src/oozie/models2.py                    |   29 ++++++++------------
+ .../templates/editor/gen2/coordinator.xml.mako     |    4 +--
+ apps/oozie/static/js/coordinator-editor.ko.js      |   18 ++----------
+ 3 files changed, 15 insertions(+), 36 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index 9fab2ad..529f040 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -1242,7 +1242,10 @@ class Coordinator():
+   def data(self):
+     self._data['properties']['start'] = datetime.today()
+     self._data['properties']['end'] = datetime.today() + timedelta(days=3)    
+-    
++
++    if self.document is not None:
++      self._data['id'] = self.document.id
++
+     return self._data
+   
+   @property
+@@ -1296,23 +1299,13 @@ class Coordinator():
+     tmpl = "editor/gen2/coordinator.xml.mako"
+     return re.sub(re.compile('\s*\n+', re.MULTILINE), '\n', django_mako.render_to_string(tmpl, {'coord': self, 'mapping': mapping})).encode('utf-8', 'xmlcharrefreplace') 
+   
+-#  def get_properties(self):
+-#    props = self.properties.copy()
+-#    index = [prop['name'] for prop in props]
+-#
+-#    for prop in self.workflow.find_all_parameters():
+-#      if not prop['name'] in index:
+-#        props.append(prop)
+-#        index.append(prop['name'])
+-#
+-#    # Remove DataInputs and DataOutputs
+-#    removable_names = [dataset.workflow_variable for dataset in self.datasets]
+-#    props = filter(lambda prop: prop['name'] not in removable_names, props)
+-#
+-#    return props
+-  
+-  
+-  
++  @property
++  def properties(self):    
++    props = [{'name': dataset['workflow_variable'], 'value': dataset['dataset_variable']} for dataset in self.data['variables'] if dataset['dataset_type'] == 'parameter']
++    props += self.data['properties']['properties']
++    return props
++
++
+ class Dataset():
+ 
+   def __init__(self, data=None, json_data=None):
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+index 6e0aab0..ae0912b 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/coordinator.xml.mako
+@@ -114,7 +114,7 @@
+   <action>
+     <workflow>
+       <app-path>${'${'}wf_application_path}</app-path>
+-      % if coord.inputDatasets or coord.outputDatasets or coord.data['properties']['properties']:
++      % if coord.inputDatasets or coord.outputDatasets or coord.properties:
+       <configuration>
+         % for dataset in coord.inputDatasets:
+           <property>
+@@ -128,7 +128,7 @@
+           <value>${'${'}coord:dataOut('${ dataset.data['name'] }')}</value>
+         </property>
+         % endfor
+-        % for property in coord.data['properties']['properties']:
++        % for property in coord.properties:
+         <property>
+           <name>${ property['name'] }</name>
+           <value>${ property['value'] }</value>
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 50dbd2e..3f760ac 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -14,13 +14,6 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-
+-
+-
+-// End dashboard lib
+-
+-
+-
+ var Dataset = function (vm, dataset) {
+   var self = this;
+ 
+@@ -40,14 +33,6 @@ var OutputDataset = function (vm, output_dataset) {
+   
+ }
+ 
+-
+-var Workflow = function (vm, workflow_json) {
+-  var self = this;
+-  
+-  
+-}
+-
+-
+ var Coordinator = function (vm, coordinator) {
+   var self = this;
+ 
+@@ -57,7 +42,8 @@ var Coordinator = function (vm, coordinator) {
+ 
+   self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
+   
+-  self.variables = ko.observableArray([]);
++  self.variables = ko.mapping.fromJS(typeof coordinator.variables != "undefined" && coordinator.variables != null ? coordinator.variables : []);
++  //self.variables = ko.observableArray([]);
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
+ 
+   self.properties.workflow.subscribe(function(newVal) {
+-- 
+1.7.9.5
+

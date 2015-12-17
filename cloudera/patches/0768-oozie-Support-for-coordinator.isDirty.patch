@@ -1,0 +1,127 @@
+From 11ffaf0bd2bd66d708b9f3a894af13745ed4984c Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 6 Feb 2015 15:36:18 +0100
+Subject: [PATCH 0768/1173] [oozie] Support for coordinator.isDirty
+
+---
+ .../templates/editor2/coordinator_editor.mako      |   21 ++++++++++--
+ apps/oozie/static/js/coordinator-editor.ko.js      |   35 +++++++++++++++++---
+ 2 files changed, 48 insertions(+), 8 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index ef3e268..0617876 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -37,7 +37,10 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+ 
+ <div class="search-bar">
+   <div class="pull-right" style="padding-right:50px">
+-    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true}, visible: coordinator.id() != null">
++
++    <span data-bind="visible: coordinator.isDirty() || coordinator.id() == null" class="muted">${ _('Unsaved') }&nbsp;&nbsp;&nbsp;</span>
++    
++    <a title="${ _('Submit') }" rel="tooltip" data-placement="bottom" data-bind="click: showSubmitPopup, css: {'btn': true, 'disabled': coordinator.isDirty()}, visible: coordinator.id() != null">
+       <i class="fa fa-play"></i>
+     </a>
+     
+@@ -535,9 +538,11 @@ ${ dashboard.import_bindings() }
+       .jqCronGetInstance();
+ 
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
++
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+   viewModel.coordinator.properties.cron_advanced.valueHasMutated(); // Update jsCron enabled status
++  viewModel.coordinator.tracker().markCurrentStateAsClean();
+ 
+   var shareViewModel = initSharing("#documentShareModal");
+   shareViewModel.setDocId(${ doc1_id });
+@@ -552,8 +557,18 @@ ${ dashboard.import_bindings() }
+   }
+ 
+   $(document).on("showSubmitPopup", function(event, data){
+-    $('#submit-coord-modal').html(data);
+-    $('#submit-coord-modal').modal('show');
++    if (! viewModel.coordinator.isDirty()){
++      $('#submit-coord-modal').html(data);
++      $('#submit-coord-modal').modal('show');
++    }
++  });
++
++  var firstToggled = true;
++  $(document).on("editingToggled", function(){
++    if (firstToggled){
++      firstToggled = false;
++      viewModel.coordinator.tracker().markCurrentStateAsClean();
++    }
+   });
+ 
+   $(document).ready(function() {
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index 866267f..df22099 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -14,21 +14,41 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-
+ var Coordinator = function (vm, coordinator) {
++  function changeTracker(objectToTrack, hashFunction) {    
++      hashFunction = hashFunction || ko.toJSON;
++      var lastCleanState = ko.observable(hashFunction(objectToTrack));
++      
++      var result = {
++          somethingHasChanged : ko.dependentObservable(function() {
++              return hashFunction(objectToTrack) != lastCleanState()
++          }),
++          markCurrentStateAsClean : function() {
++              lastCleanState(hashFunction(objectToTrack));   
++          }
++      };
++      
++      return function() { return result }
++  }
++
+   var self = this;
+ 
+   self.id = ko.observable(typeof coordinator.id != "undefined" && coordinator.id != null ? coordinator.id : null);
+   self.uuid = ko.observable(typeof coordinator.uuid != "undefined" && coordinator.uuid != null ? coordinator.uuid : UUID());
+-  self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "");
++  self.name = ko.observable(typeof coordinator.name != "undefined" && coordinator.name != null ? coordinator.name : "").extend({ trackChange: true });
+ 
+   self.properties = ko.mapping.fromJS(typeof coordinator.properties != "undefined" && coordinator.properties != null ? coordinator.properties : {});
+   self.variables = ko.mapping.fromJS(typeof coordinator.variables != "undefined" && coordinator.variables != null ? coordinator.variables : []);
+-
++  
+   self.variablesUI = ko.observableArray(['parameter', 'input_path', 'output_path']);
+   self.showAdvancedFrequencyUI = ko.observable(typeof coordinator.showAdvancedFrequencyUI != "undefined" && coordinator.showAdvancedFrequencyUI != null ? coordinator.showAdvancedFrequencyUI : false);
+   self.workflowParameters = ko.mapping.fromJS(typeof coordinator.workflowParameters != "undefined" && coordinator.workflowParameters != null ? coordinator.workflowParameters : []);
+ 
++  self.tracker = new changeTracker(self);
++  
++  self.isDirty = ko.computed(function () {
++    return self.tracker().somethingHasChanged();
++  });
+   
+   self._get_parameter = function(name) {
+     var _param = $.grep(self.properties.parameters(), function(param) {
+@@ -126,8 +146,13 @@ var Coordinator = function (vm, coordinator) {
+ 
+        'shared_dataset_uuid': '' // If reusing a shared dataset
+     };
+-
+-	self.variables.push(ko.mapping.fromJS(_var));	  
++    var _koVar = ko.mapping.fromJS(_var);
++    for (key in _koVar) {
++      if (_koVar.hasOwnProperty(key) && ko.isObservable(_koVar[key])) {
++        _koVar[key].extend({ trackChange: true });
++      }
++    }
++	  self.variables.push(_koVar);
+   };
+ }
+ 
+-- 
+1.7.9.5
+

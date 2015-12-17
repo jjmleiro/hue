@@ -1,0 +1,34 @@
+From ed12f5f9aa024481546d33d9bb9bb3456433feb0 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 8 Jan 2015 13:21:20 -0800
+Subject: [PATCH 0420/1173] [oozie] Moving nodes should not lose any
+ properties
+
+---
+ apps/oozie/static/js/workflow-editor.ko.js |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index f974ffe..b66e900 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -277,6 +277,7 @@ var Workflow = function (vm, workflow) {
+ 
+         if (self.movedNode) {
+           var node = self.movedNode;
++          self.movedNode = null;
+         } else {
+           var node = new Node(_node);
+           node.fetch_parameters();
+@@ -419,8 +420,6 @@ var Workflow = function (vm, workflow) {
+ 
+     self.removeNode(node.id());
+     self.addNode(widget);
+-
+-    self.movedNode = null;
+   };
+ 
+   self.getParents = function (node_id) { // Join nodes can have multiple parents
+-- 
+1.7.9.5
+

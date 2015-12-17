@@ -1,0 +1,65 @@
+From a3e99dfd56608850f2e9fa75a433958b00643186 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 5 Nov 2014 13:07:47 +0000
+Subject: [PATCH 0250/1173] [oozie] Delete any node in a fork
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   13 ++++++++-----
+ apps/oozie/static/js/workflow-editor.ko.js         |    3 ++-
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 589eea4..b3171bc 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -273,7 +273,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
+-      I AM A FORK
++      To:
++      <span data-bind="foreach: children">
++        <span data-bind="text: $data['to']" /></span>
++      </span>
+     </div>
+   </div>
+   <!-- /ko -->
+@@ -289,7 +292,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
+-      FIN.
++      Then --> <span data-bind="text: children()[0]['to']" /></span>
+     </div>
+   </div>
+   <!-- /ko -->
+@@ -305,9 +308,9 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+     </div>
+ 
+     <div>
+-       <!-- ko if: children().length == 1 -->
+-       Start --> <input type="text" data-bind="value: children()[0]['to']" />
+-       <!-- /ko -->
++      <!-- ko if: children().length == 1 -->
++      Start --> <input type="text" data-bind="value: children()[0]['to']" />
++      <!-- /ko -->
+     </div>
+   </div>
+   <!-- /ko -->
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 7dfcca8..c635224 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -122,7 +122,8 @@ var Node = function (node) {
+   self.remove_link = function(name, child) {
+     var _link = null;
+     $.each(self.children(), function(index, link) {
+-      if (name in link && link[name] == child) {
++      var _l = ko.mapping.toJS(link);
++      if (name in _l && _l[name] == child) {
+         _link = link;
+         return false;
+       }
+-- 
+1.7.9.5
+

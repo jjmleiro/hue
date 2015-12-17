@@ -1,0 +1,87 @@
+From 469e375ed844e3071069380467751748d7fbdc17 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 10 Oct 2014 11:43:33 +0200
+Subject: [PATCH 0071/1173] HUE-2360 [sentry] Sometimes Groups are not loaded
+ we see the input box instead
+
+Wait for isLoadingGroups to be false
+Implemented onBlur and onFocus on select2
+Disabled groups links if not sentry admin
+---
+ apps/security/src/security/templates/hive.mako |   15 +++++++++++----
+ apps/security/static/js/common.ko.js           |   10 ++++++++++
+ apps/security/static/js/hive.ko.js             |    1 +
+ 3 files changed, 22 insertions(+), 4 deletions(-)
+
+diff --git a/apps/security/src/security/templates/hive.mako b/apps/security/src/security/templates/hive.mako
+index f9622e4..43485ab 100644
+--- a/apps/security/src/security/templates/hive.mako
++++ b/apps/security/src/security/templates/hive.mako
+@@ -290,6 +290,7 @@ ${ layout.menubar(section='hive') }
+                   <span data-bind="text: name"/>
+                 </td>
+                 <td>
++                  <!-- ko if: $root.is_sentry_admin -->
+                   <a class="pointer" data-bind="click: function() { if ($root.is_sentry_admin) { showEditGroups(true); } }">
+                     <span data-bind="foreach: groups, visible: ! showEditGroups() && ! groupsChanged()">
+                       <span data-bind="text: $data"></span>
+@@ -298,13 +299,19 @@ ${ layout.menubar(section='hive') }
+                       <i class="fa fa-plus"></i> ${ _('Add a group') }
+                     </span>
+                   </a>
+-                  <div data-bind="visible: showEditGroups() || groupsChanged()">
+-                    <select data-bind="options: $root.selectableHadoopGroups, selectedOptions: groups, select2: { update: groups, type: 'group'}" size="5" multiple="true" style="width: 400px"></select>
++                  <!-- /ko -->
++                  <!-- ko ifnot: $root.is_sentry_admin -->
++                    <span data-bind="foreach: groups">
++                      <span data-bind="text: $data"></span>
++                    </span>
++                  <!-- /ko -->
++                  <div data-bind="visible: showEditGroups() || (groupsChanged() && ! $root.isLoadingRoles())">
++                    <select data-bind="options: $root.selectableHadoopGroups, selectedOptions: groups, select2: { update: groups, type: 'group', onBlur: function(){ showEditGroups(false); } }" size="5" multiple="true" style="width: 400px"></select>
+                     &nbsp;
+-                    <a class="pointer" data-bind="visible: groupsChanged, click: resetGroups">
++                    <a class="pointer" data-bind="visible: groupsChanged() && ! $root.isLoadingRoles(), click: resetGroups">
+                       <i class="fa fa-undo"></i>
+                     </a>
+-                    <a class="pointer" data-bind="visible: groupsChanged, click: saveGroups">
++                    <a class="pointer" data-bind="visible: groupsChanged && ! $root.isLoadingRoles(), click: saveGroups">
+                       <i class="fa fa-save"></i>
+                     </a>
+                   </div>
+diff --git a/apps/security/static/js/common.ko.js b/apps/security/static/js/common.ko.js
+index 05e6ddb..b9adf7e 100644
+--- a/apps/security/static/js/common.ko.js
++++ b/apps/security/static/js/common.ko.js
+@@ -54,6 +54,16 @@ ko.bindingHandlers.select2 = {
+             valueAccessor().update(e.val);
+           }
+         })
++        .on("select2-focus", function(e) {
++          if (typeof options.onFocus != "undefined"){
++            options.onFocus();
++          }
++        })
++        .on("select2-blur", function(e) {
++          if (typeof options.onBlur != "undefined"){
++            options.onBlur();
++          }
++        })
+         .on("select2-open", function () {
+           $(".select2-input").off("keyup").data("type", options.type).on("keyup", function (e) {
+             if (e.keyCode === 13) {
+diff --git a/apps/security/static/js/hive.ko.js b/apps/security/static/js/hive.ko.js
+index ef6ad06..bbc3a24 100644
+--- a/apps/security/static/js/hive.ko.js
++++ b/apps/security/static/js/hive.ko.js
+@@ -917,6 +917,7 @@ var HiveViewModel = function (initial) {
+         }
+         else {
+           self.roles.removeAll();
++          self.originalRoles.removeAll();
+           var _roles = [];
+           var _originalRoles = [];
+           $.each(data.roles, function (index, item) {
+-- 
+1.7.9.5
+

@@ -12,11 +12,13 @@ Checked-in third party dependencies
 |Y|CherryPy|3.1.2|BSD|http://www.cherrypy.org/|
 |Y|ConfigObj|4.6.0|BSD|http://www.voidspace.org.uk/python/configobj.html|
 |Y|ctypes|1.0.2|MIT|http://pypi.python.org/pypi/ctypes|
-|Y|Django|1.2.3|BSD|http://www.djangoproject.com/download/1.2.3/tarball/|
+|Y|cx_Oracle|5.1.2|Python|http://downloads.sourceforge.net/project/cx-oracle/5.1.2/cx_Oracle-5.1.2.tar.gz|
+|Y|Django|1.6.10|BSD|http://www.djangoproject.com/download/1.6.10/tarball/|
 |Y|django-auth-ldap|1.0.7|BSD|http://bitbucket.org/psagers/django-auth-ldap/|
 |Y|Django_cpserver|19739bea057d824d9cd6c10c4caec622e8e1c0b9|BSD|http://github.com/lincolnloop/django-cpserver/|
-|Y|Django Extensions|0.5|New BSD|http://pypi.python.org/pypi/django-extensions/0.5|
+|Y|Django Extensions|1.5.0|New BSD|http://pypi.python.org/pypi/django-extensions/1.5.0|
 |Y|Django_nose (part of basie)|?|MIT|http://code.basieproject.org/trunk/apps/django_nose/nose_runner.py|
+|Y|Six|1.9.0|MIT|http://pypi.python.org/pypi/six/1.9.0|
 |Y|elementtree|1.2.6-20050316|Python(MIT)|http://effbot.org/downloads#elementtree|
 |Y|enum|0.4.4|Python|http://pypi.python.org/pypi/enum/|
 |Y|kerberos|1.1.1|ASL2|http://pypi.python.org/pypi/kerberos|
@@ -39,7 +41,6 @@ Checked-in third party dependencies
 |Y|requests|2.0.0|ASL2|https://github.com/kennethreitz/requests/|
 |Y|Shakespeares Sonnets|?|Public Domain from Gutenberg|http://www.gutenberg.org/dirs/etext97/wssnt10.txt|
 |Y|sasl|0.1.1|Apache|http://pypi.python.org/pypi/sasl/0.1.1|
-|Y|simplejson|2.0.9|MIT|http://pypi.python.org/packages/source/s/simplejson/simplejson-2.0.9.tar.gz|
 |Y|South|0.7|Apache|http://south.aeracode.org/|
 |Y|ssl|1.15|Python|http://pypi.python.org/pypi/ssl/1.15|
 |Y|tablib|0.9.11|MIT|http://docs.python-tablib.org/en/latest/|

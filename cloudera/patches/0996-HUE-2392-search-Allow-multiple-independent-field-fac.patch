@@ -1,0 +1,192 @@
+From 58ad3fc6a2547b1ceeb1aaf9648ebc16bb13ebbc Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Thu, 26 Feb 2015 20:05:41 -0800
+Subject: [PATCH 0996/1173] HUE-2392 [search] Allow multiple independent field
+ facet on the same field
+
+---
+ apps/search/src/search/models.py                   |   16 ++++++------
+ .../src/search/static/search/js/search.ko.js       |    7 +----
+ .../src/desktop/static/desktop/js/ko.charts.js     |   27 +++++++++++---------
+ desktop/libs/libsolr/src/libsolr/api.py            |   26 +++++++++++++++----
+ 4 files changed, 45 insertions(+), 31 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 709c393..8264f13 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -428,19 +428,19 @@ class Collection(models.Model):
+ 
+ 
+ def get_facet_field(category, field, facets):
+-  facets = filter(lambda facet: facet['type'] == category and facet['field'] == field, facets)
++  facets = filter(lambda facet: facet['type'] == category and '%(field)s-%(id)s' % facet == field, facets)
+   if facets:
+     return facets[0]
+   else:
+     return None
+ 
+-def pairwise2(cat, fq_filter, iterable):
++def pairwise2(field, cat, fq_filter, iterable):
+   pairs = []
+   selected_values = [f['value'] for f in fq_filter]
+   a, b = itertools.tee(iterable)
+   for element in a:
+     pairs.append({
+-        'cat': cat, 'value': element, 'count': next(a), 'selected': element in selected_values,
++        'cat': field, 'value': element, 'count': next(a), 'selected': element in selected_values,
+         'exclude': all([f['exclude'] for f in fq_filter if f['value'] == element])
+     })
+   return pairs
+@@ -493,10 +493,10 @@ def range_pair(cat, fq_filter, iterable, end, collection_facet):
+ def augment_solr_response(response, collection, query):
+   augmented = response
+   augmented['normalized_facets'] = []
+-
++  NAME = '%(field)s-%(id)s'
+   normalized_facets = []
+ 
+-  selected_values = dict([((fq['id'], fq['field'], fq['type']), fq['filter']) for fq in query['fqs']])
++  selected_values = dict([((fq['id'], NAME % fq, fq['type']), fq['filter']) for fq in query['fqs']])
+ 
+   if response and response.get('facet_counts'):
+     # e.g. [{u'field': u'sun', u'type': u'query', u'id': u'67b43a63-ed22-747b-47e8-b31aad1431ea', u'label': u'sun'}
+@@ -504,14 +504,14 @@ def augment_solr_response(response, collection, query):
+       category = facet['type']
+ 
+       if category == 'field' and response['facet_counts']['facet_fields']:
+-        name = facet['field']
++        name = NAME % facet
+         collection_facet = get_facet_field(category, name, collection['facets'])
+-        counts = pairwise2(name, selected_values.get((facet['id'], name, category), []), response['facet_counts']['facet_fields'][name])
++        counts = pairwise2(facet['field'], name, selected_values.get((facet['id'], name, category), []), response['facet_counts']['facet_fields'][name])
+         if collection_facet['properties']['sort'] == 'asc':
+           counts.reverse()
+         facet = {
+           'id': collection_facet['id'],
+-          'field': name,
++          'field': facet['field'],
+           'type': category,
+           'label': collection_facet['label'],
+           'counts': counts,
+diff --git a/apps/search/src/search/static/search/js/search.ko.js b/apps/search/src/search/static/search/js/search.ko.js
+index 9798b2f..692a4c4 100644
+--- a/apps/search/src/search/static/search/js/search.ko.js
++++ b/apps/search/src/search/static/search/js/search.ko.js
+@@ -481,12 +481,7 @@ var Collection = function (vm, collection) {
+   self.fields = ko.mapping.fromJS(collection.fields);
+ 
+   self.availableFacetFields = ko.computed(function() {
+-    var facetFieldNames = $.map(self.facets(), function(facet) {
+-      return facet.field();
+-    });
+-    return $.grep(self.fields(), function(field) {
+-      return facetFieldNames.indexOf(field.name()) == -1;
+-    });
++    return self.fields();
+   });
+ 
+   self.selectedDocument = ko.observable({});
+diff --git a/desktop/core/src/desktop/static/desktop/js/ko.charts.js b/desktop/core/src/desktop/static/desktop/js/ko.charts.js
+index 3984c63..f4ade3a 100644
+--- a/desktop/core/src/desktop/static/desktop/js/ko.charts.js
++++ b/desktop/core/src/desktop/static/desktop/js/ko.charts.js
+@@ -64,9 +64,10 @@ ko.bindingHandlers.pieChart = {
+             .transition().duration(150)
+             .each("end", _options.onComplete != null ? _options.onComplete : void(0))
+             .call(_chart);
++
+         if (_options.fqs) {
+           $.each(_options.fqs(), function (cnt, item) {
+-            if (item.field() == _options.field()) {
++            if (item.id() == _options.data.widget_id && item.field() == _options.field()) {
+               _chart.selectSlices($.map(item.filter(), function (it) {
+                 return it.value();
+               }));
+@@ -732,18 +733,20 @@ function barChartBuilder(element, options, isTimeline) {
+ 
+       if (_chart.selectBars) {
+         $.each(options.fqs(), function (cnt, item) {
+-          if (item.field() == options.field) {
+-            _chart.selectBars($.map(item.filter(), function (it) {
+-              return it.value();
+-            }));
+-          }
+-          if (item.field().indexOf(":") > -1) {
+-            _chart.selectBars({
+-              field: item.field(),
+-              selected: $.map(item.filter(), function (it) {
++          if (item.id() == options.datum.widget_id) {
++            if (item.field() == options.field) {
++              _chart.selectBars($.map(item.filter(), function (it) {
+                 return it.value();
+-              })
+-            });
++              }));
++            }
++            if (item.field().indexOf(":") > -1) {
++              _chart.selectBars({
++                field: item.field(),
++                selected: $.map(item.filter(), function (it) {
++                  return it.value();
++                })
++              });
++            }
+           }
+         });
+       }
+diff --git a/desktop/libs/libsolr/src/libsolr/api.py b/desktop/libs/libsolr/src/libsolr/api.py
+index 2a144af..4cefb89 100644
+--- a/desktop/libs/libsolr/src/libsolr/api.py
++++ b/desktop/libs/libsolr/src/libsolr/api.py
+@@ -20,6 +20,8 @@ import json
+ import logging
+ import urllib
+ 
++from itertools import groupby
++
+ from django.utils.translation import ugettext as _
+ 
+ from desktop.lib.exceptions_renderable import PopupException
+@@ -65,8 +67,18 @@ class SolrApi(object):
+ 
+   def _get_fq(self, query):
+     params = ()
+-
+-    for fq in query['fqs']:
++    
++    # Merge facets queries on same fields
++    grouped_fqs = groupby(query['fqs'], lambda x: (x['type'], x['field']))
++    merged_fqs = []
++    for key, group in grouped_fqs:
++      field_fq = next(group)
++      for fq in group:
++        for f in fq['filter']:
++          field_fq['filter'].append(f)
++      merged_fqs.append(field_fq)
++
++    for fq in merged_fqs:
+       if fq['type'] == 'field':
+         # This does not work if spaces in Solr:
+         # params += (('fq', ' '.join([urllib.unquote(utf_quoter('{!tag=%s}{!field f=%s}%s' % (fq['field'], fq['field'], _filter))) for _filter in fq['filter']])),)
+@@ -134,10 +146,14 @@ class SolrApi(object):
+              ('f.%s.facet.mincount' % facet['field'], facet['properties']['mincount']),]
+           )
+         elif facet['type'] == 'field':
++          keys = {
++              'field': facet['field'],
++              'key': '%(field)s-%(id)s' % facet,
++              'limit': int(facet['properties'].get('limit', 10)) + 1,
++              'mincount': int(facet['properties']['mincount'])
++          }
+           params += (
+-              ('facet.field', '{!ex=%s}%s' % (facet['field'], facet['field'])),
+-              ('f.%s.facet.limit' % facet['field'], int(facet['properties'].get('limit', 10)) + 1),
+-              ('f.%s.facet.mincount' % facet['field'], int(facet['properties']['mincount'])),
++              ('facet.field', '{!key=%(key)s ex=%(field)s f.%(field)s.facet.limit=%(limit)s f.%(field)s.facet.mincount=%(mincount)s }%(field)s' % keys),
+           )
+         elif facet['type'] == 'pivot':
+           if facet['properties']['facets'] or facet['widgetType'] == 'map-widget':
+-- 
+1.7.9.5
+

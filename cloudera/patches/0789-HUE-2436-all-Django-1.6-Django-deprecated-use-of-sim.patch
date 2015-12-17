@@ -1,0 +1,562 @@
+From 7bb706cdea4cbb6746955344c978123a1997edbe Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Thu, 15 Jan 2015 22:12:44 -0800
+Subject: [PATCH 0789/1173] HUE-2436 [all] Django-1.6: Django deprecated use
+ of simplejson
+
+---
+ README.rst                                         |    3 ---
+ apps/about/src/about/tests.py                      |    5 +----
+ .../commands/beeswax_install_examples.py           |    8 ++++----
+ apps/filebrowser/src/filebrowser/views_test.py     |    4 +---
+ ...tion__add_oozieaction__add_oozieworkflow__ad.py |    5 +----
+ .../src/jobsub/migrations/0004_hue1_to_hue2.py     |    7 ++-----
+ .../migrations/0022_change_examples_path_format.py |    5 +----
+ apps/sqoop/src/sqoop/api/connector.py              |    5 +----
+ apps/sqoop/src/sqoop/api/decorators.py             |    5 +----
+ apps/sqoop/src/sqoop/api/driver.py                 |    5 +----
+ apps/sqoop/src/sqoop/api/job.py                    |    5 +----
+ apps/sqoop/src/sqoop/api/link.py                   |    5 +----
+ apps/sqoop/src/sqoop/api/submission.py             |    5 +----
+ apps/sqoop/src/sqoop/client/base.py                |    5 +----
+ apps/sqoop/src/sqoop/client/resource.py            |    7 ++-----
+ apps/zookeeper/src/zookeeper/rest.py               |    6 +++---
+ desktop/core/src/desktop/lib/django_forms.py       |    4 ++--
+ desktop/core/src/desktop/lib/django_test_util.py   |    4 ++--
+ desktop/core/src/desktop/lib/djangojson.py         |    6 +++---
+ desktop/core/src/desktop/lib/djangothrift.py       |   11 +++++------
+ desktop/core/src/desktop/lib/json_utils.py         |    5 +----
+ desktop/libs/hadoop/src/hadoop/fs/exceptions.py    |    5 +----
+ desktop/libs/hadoop/src/hadoop/mini_cluster.py     |    4 ++--
+ docs/manual.txt                                    |    1 -
+ ext/thirdparty/README.md                           |    1 -
+ tools/app_reg/registry.py                          |    5 +----
+ 26 files changed, 39 insertions(+), 92 deletions(-)
+
+diff --git a/README.rst b/README.rst
+index a46caeb..63bc49b 100644
+--- a/README.rst
++++ b/README.rst
+@@ -83,7 +83,6 @@ your system:
+       * mvn (from ``maven`` package or maven3 tarball)
+       * openldap-dev / libldap2-dev
+       * python-dev
+-      * python-simplejson
+       * python-setuptools
+ 
+     CentOS/RHEL:
+@@ -102,7 +101,6 @@ your system:
+       * mysql-devel
+       * openldap-devel
+       * python-devel
+-      * python-simplejson
+       * sqlite-devel
+       * openssl-devel (for version 7+)
+ 
+@@ -111,7 +109,6 @@ your system:
+       * libxml2
+       * libxslt
+       * mysql5-devel
+-      * simplejson (easy_install)
+       * sqlite3
+ 
+ 
+diff --git a/apps/about/src/about/tests.py b/apps/about/src/about/tests.py
+index 9bd2f51..0778065 100644
+--- a/apps/about/src/about/tests.py
++++ b/apps/about/src/about/tests.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ from django.contrib.auth.models import User
+ from django.core.urlresolvers import reverse
+diff --git a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+index 59ce98d..f913eda 100644
+--- a/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
++++ b/apps/beeswax/src/beeswax/management/commands/beeswax_install_examples.py
+@@ -18,7 +18,7 @@
+ import logging
+ import os
+ import pwd
+-import simplejson
++import json
+ 
+ from django.core.management.base import BaseCommand
+ from django.contrib.auth.models import User
+@@ -85,7 +85,7 @@ class Command(BaseCommand):
+   def _install_tables(self, django_user, app_name):
+     data_dir = beeswax.conf.LOCAL_EXAMPLES_DATA_DIR.get()
+     table_file = file(os.path.join(data_dir, 'tables.json'))
+-    table_list = simplejson.load(table_file)
++    table_list = json.load(table_file)
+     table_file.close()
+ 
+     for table_dict in table_list:
+@@ -97,7 +97,7 @@ class Command(BaseCommand):
+ 
+   def _install_queries(self, django_user, app_name):
+     design_file = file(os.path.join(beeswax.conf.LOCAL_EXAMPLES_DATA_DIR.get(), 'designs.json'))
+-    design_list = simplejson.load(design_file)
++    design_list = json.load(design_file)
+     design_file.close()
+ 
+     for design_dict in design_list:
+@@ -226,7 +226,7 @@ class SampleDesign(object):
+       model.type = self.type
+       # The data field needs to be a string. The sample file writes it
+       # as json (without encoding into a string) for readability.
+-      model.data = simplejson.dumps(self.data)
++      model.data = json.dumps(self.data)
+       model.desc = self.desc
+       model.save()
+       LOG.info('Successfully installed sample design: %s' % (self.name,))
+diff --git a/apps/filebrowser/src/filebrowser/views_test.py b/apps/filebrowser/src/filebrowser/views_test.py
+index a985a96..b01035f 100644
+--- a/apps/filebrowser/src/filebrowser/views_test.py
++++ b/apps/filebrowser/src/filebrowser/views_test.py
+@@ -731,9 +731,7 @@ def test_view_avro():
+ 
+     # autodetect
+     response = c.get('/filebrowser/view/test-avro-filebrowser/test-view.avro')
+-    # (Note: we use eval here cause of an incompatibility issue between
+-    # the representation string of JSON dicts in simplejson vs. json)
+-    assert_equal(eval(response.context['view']['contents']), dummy_datum)
++    assert_equal(json.loads(response.context['view']['contents']), dummy_datum)
+ 
+     # offsetting should work as well
+     response = c.get('/filebrowser/view/test-avro-filebrowser/test-view.avro?offset=1')
+diff --git a/apps/jobsub/src/jobsub/migrations/0002_auto__add_ooziestreamingaction__add_oozieaction__add_oozieworkflow__ad.py b/apps/jobsub/src/jobsub/migrations/0002_auto__add_ooziestreamingaction__add_oozieaction__add_oozieworkflow__ad.py
+index 9821988..4a939a1 100644
+--- a/apps/jobsub/src/jobsub/migrations/0002_auto__add_ooziestreamingaction__add_oozieaction__add_oozieworkflow__ad.py
++++ b/apps/jobsub/src/jobsub/migrations/0002_auto__add_ooziestreamingaction__add_oozieaction__add_oozieworkflow__ad.py
+@@ -18,10 +18,7 @@
+ 
+ import datetime
+ import logging
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ from south.db import db
+ from south.v2 import SchemaMigration
+diff --git a/apps/jobsub/src/jobsub/migrations/0004_hue1_to_hue2.py b/apps/jobsub/src/jobsub/migrations/0004_hue1_to_hue2.py
+index 03d4364..58d9ca2 100644
+--- a/apps/jobsub/src/jobsub/migrations/0004_hue1_to_hue2.py
++++ b/apps/jobsub/src/jobsub/migrations/0004_hue1_to_hue2.py
+@@ -18,10 +18,7 @@
+ 
+ import datetime
+ import logging
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ from south.db import db
+ from south.v2 import DataMigration
+@@ -233,4 +230,4 @@ def job_design_migration_for_streaming(jd):
+                        name=jd.name,
+                        description=jd.description,
+                        root_action=action)
+-  design.save()
+\ No newline at end of file
++  design.save()
+diff --git a/apps/oozie/src/oozie/migrations/0022_change_examples_path_format.py b/apps/oozie/src/oozie/migrations/0022_change_examples_path_format.py
+index c7bc571..59530a2 100644
+--- a/apps/oozie/src/oozie/migrations/0022_change_examples_path_format.py
++++ b/apps/oozie/src/oozie/migrations/0022_change_examples_path_format.py
+@@ -1,9 +1,6 @@
+ # encoding: utf-8
+ import datetime
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ from south.db import db
+ from south.v2 import DataMigration
+ from django.db import models
+diff --git a/apps/sqoop/src/sqoop/api/connector.py b/apps/sqoop/src/sqoop/api/connector.py
+index 6fbcc7d..d2aef5c 100644
+--- a/apps/sqoop/src/sqoop/api/connector.py
++++ b/apps/sqoop/src/sqoop/api/connector.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ import socket
+ 
+diff --git a/apps/sqoop/src/sqoop/api/decorators.py b/apps/sqoop/src/sqoop/api/decorators.py
+index 90933d5..5fb7601 100644
+--- a/apps/sqoop/src/sqoop/api/decorators.py
++++ b/apps/sqoop/src/sqoop/api/decorators.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ 
+ from django.utils.translation import ugettext as _
+diff --git a/apps/sqoop/src/sqoop/api/driver.py b/apps/sqoop/src/sqoop/api/driver.py
+index 3cf4e43..c008d34 100644
+--- a/apps/sqoop/src/sqoop/api/driver.py
++++ b/apps/sqoop/src/sqoop/api/driver.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ import socket
+ 
+diff --git a/apps/sqoop/src/sqoop/api/job.py b/apps/sqoop/src/sqoop/api/job.py
+index 48ab6fd..6ef3e76 100644
+--- a/apps/sqoop/src/sqoop/api/job.py
++++ b/apps/sqoop/src/sqoop/api/job.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ import socket
+ 
+diff --git a/apps/sqoop/src/sqoop/api/link.py b/apps/sqoop/src/sqoop/api/link.py
+index 3ed971d..60d6175 100644
+--- a/apps/sqoop/src/sqoop/api/link.py
++++ b/apps/sqoop/src/sqoop/api/link.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ import socket
+ 
+diff --git a/apps/sqoop/src/sqoop/api/submission.py b/apps/sqoop/src/sqoop/api/submission.py
+index 9f17ad7..4400983 100644
+--- a/apps/sqoop/src/sqoop/api/submission.py
++++ b/apps/sqoop/src/sqoop/api/submission.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ import logging
+ import socket
+ 
+diff --git a/apps/sqoop/src/sqoop/client/base.py b/apps/sqoop/src/sqoop/client/base.py
+index d288452..2416d76 100644
+--- a/apps/sqoop/src/sqoop/client/base.py
++++ b/apps/sqoop/src/sqoop/client/base.py
+@@ -18,10 +18,7 @@ import logging
+ import posixpath
+ import threading
+ import time
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ from django.utils.translation import ugettext as _
+ 
+diff --git a/apps/sqoop/src/sqoop/client/resource.py b/apps/sqoop/src/sqoop/client/resource.py
+index ec6b4f2..ca99d51 100644
+--- a/apps/sqoop/src/sqoop/client/resource.py
++++ b/apps/sqoop/src/sqoop/client/resource.py
+@@ -14,10 +14,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ from django.utils.translation import ugettext as _
+ 
+@@ -102,4 +99,4 @@ class SqoopResource(Resource):
+   def _make_headers(self, contenttype=None):
+     if contenttype:
+       return { 'Content-Type': contenttype }
+-    return None
+\ No newline at end of file
++    return None
+diff --git a/apps/zookeeper/src/zookeeper/rest.py b/apps/zookeeper/src/zookeeper/rest.py
+index cab1f83..473c317 100644
+--- a/apps/zookeeper/src/zookeeper/rest.py
++++ b/apps/zookeeper/src/zookeeper/rest.py
+@@ -17,7 +17,7 @@
+ 
+ import urllib2
+ import urllib
+-import simplejson
++import json
+ 
+ from contextlib import contextmanager
+ 
+@@ -172,7 +172,7 @@ class ZooKeeper(object):
+         """ Send a GET request and convert errors to exceptions """
+         try:
+             req = urllib2.urlopen(uri)
+-            resp = simplejson.load(req)
++            resp = json.load(req)
+ 
+             if 'Error' in resp:
+                raise ZooKeeper.Error(resp['Error'])
+@@ -191,7 +191,7 @@ class ZooKeeper(object):
+             if data is not None:
+                 req.add_data(data)
+ 
+-            resp = simplejson.load(urllib2.urlopen(req))
++            resp = json.load(urllib2.urlopen(req))
+             if 'Error' in resp:
+                 raise ZooKeeper.Error(resp['Error'])
+             return resp
+diff --git a/desktop/core/src/desktop/lib/django_forms.py b/desktop/core/src/desktop/lib/django_forms.py
+index b48f386..adc5870 100644
+--- a/desktop/core/src/desktop/lib/django_forms.py
++++ b/desktop/core/src/desktop/lib/django_forms.py
+@@ -18,7 +18,7 @@
+ # Extra form fields and widgets.
+ 
+ import logging
+-import simplejson
++import json
+ import urllib
+ 
+ from django.forms import Widget, Field
+@@ -527,4 +527,4 @@ class DependencyAwareForm(forms.Form):
+     return [ data(*x) for x in self.dependencies ]
+ 
+   def render_dep_metadata(self):
+-    return urllib.quote_plus(simplejson.dumps(self._calculate_data(), separators=(',', ':')))
++    return urllib.quote_plus(json.dumps(self._calculate_data(), separators=(',', ':')))
+diff --git a/desktop/core/src/desktop/lib/django_test_util.py b/desktop/core/src/desktop/lib/django_test_util.py
+index 805c39a..6070f30 100644
+--- a/desktop/core/src/desktop/lib/django_test_util.py
++++ b/desktop/core/src/desktop/lib/django_test_util.py
+@@ -20,7 +20,7 @@ Common utilities for testing Desktop django apps.
+ 
+ import logging
+ import re
+-import simplejson
++import json
+ 
+ import django.test.client
+ from django.contrib.auth.models import User, Group
+@@ -33,7 +33,7 @@ class Client(django.test.client.Client):
+   """
+   def get_json(self, *args, **kwargs):
+     response = self.get(*args, **kwargs)
+-    return simplejson.JSONDecoder().decode(response.content)
++    return json.JSONDecoder().decode(response.content)
+ 
+ def assert_ok_response(response):
+   """
+diff --git a/desktop/core/src/desktop/lib/djangojson.py b/desktop/core/src/desktop/lib/djangojson.py
+index 5666bf6..4c77dd8 100644
+--- a/desktop/core/src/desktop/lib/djangojson.py
++++ b/desktop/core/src/desktop/lib/djangojson.py
+@@ -18,7 +18,7 @@
+ from django.forms import util
+ from django.forms import fields
+ from django import forms
+-import simplejson
++import json
+ 
+ class JsonFormField(fields.CharField):
+   """
+@@ -41,8 +41,8 @@ class JsonFormField(fields.CharField):
+   def clean(self, value):
+     value = super(JsonFormField, self).clean(value)
+     try:
+-      simplejson.loads(value)
++      json.loads(value)
+     except ValueError, e:
+       raise util.ValidationError(e)
+     return value
+-  
+\ No newline at end of file
++  
+diff --git a/desktop/core/src/desktop/lib/djangothrift.py b/desktop/core/src/desktop/lib/djangothrift.py
+index 94926c7..6c7e367 100644
+--- a/desktop/core/src/desktop/lib/djangothrift.py
++++ b/desktop/core/src/desktop/lib/djangothrift.py
+@@ -34,12 +34,12 @@
+ # This is frustrating visually, since the JSON ends up double-quoted.
+ # It also means that you have to dirty your object with an extra __unicode__
+ # field.  You can do it, like so:
+-#   tft.__unicode__ = lambda: simplejson.dumps(thrift_util.thrift2json(tft))
++#   tft.__unicode__ = lambda: json.dumps(thrift_util.thrift2json(tft))
+ # but then your field is no longer equal to a Thrift object that hasn't
+ # been through this dirtying, and that's bad.
+ # So, don't use JSON serialization, and use XML serialization instead.
+ 
+-import simplejson
++import json
+ 
+ import thrift_util
+ 
+@@ -69,7 +69,7 @@ class ThriftField(models.TextField):
+     if not isinstance(value, basestring): 
+       return value
+ 
+-    jsonable = simplejson.loads(value)
++    jsonable = json.loads(value)
+     tft = thrift_util.jsonable2thrift(jsonable, self.thrift_class)
+     return tft
+ 
+@@ -77,14 +77,13 @@ class ThriftField(models.TextField):
+     if value is None: 
+       return None
+     jsonable = thrift_util.thrift2json(value)
+-    json = simplejson.dumps(jsonable)
+-    return json
++    return json.dumps(jsonable)
+ 
+   def value_to_string(self, obj):
+     """
+     Used by XML serialization.
+     """
+-    return simplejson.dumps(thrift_util.thrift2json(self._get_val_from_obj(obj)))
++    return json.dumps(thrift_util.thrift2json(self._get_val_from_obj(obj)))
+ 
+ 
+ # See http://south.aeracode.org/docs/customfields.html#extending-introspection
+diff --git a/desktop/core/src/desktop/lib/json_utils.py b/desktop/core/src/desktop/lib/json_utils.py
+index e7873c8..64c969c 100644
+--- a/desktop/core/src/desktop/lib/json_utils.py
++++ b/desktop/core/src/desktop/lib/json_utils.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ 
+ ##
+diff --git a/desktop/libs/hadoop/src/hadoop/fs/exceptions.py b/desktop/libs/hadoop/src/hadoop/fs/exceptions.py
+index e5a4d63..26546fe 100644
+--- a/desktop/libs/hadoop/src/hadoop/fs/exceptions.py
++++ b/desktop/libs/hadoop/src/hadoop/fs/exceptions.py
+@@ -15,10 +15,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-try:
+-  import json
+-except:
+-  import simplejson as json
++import json
+ 
+ from desktop.lib.exceptions import StructuredException
+ from desktop.lib.rest.http_client import RestException
+diff --git a/desktop/libs/hadoop/src/hadoop/mini_cluster.py b/desktop/libs/hadoop/src/hadoop/mini_cluster.py
+index 99c8ee4..b2c118c 100644
+--- a/desktop/libs/hadoop/src/hadoop/mini_cluster.py
++++ b/desktop/libs/hadoop/src/hadoop/mini_cluster.py
+@@ -48,7 +48,7 @@ import shutil
+ import socket
+ import time
+ import tempfile
+-import simplejson
++import json
+ import lxml.etree
+ import urllib2
+ 
+@@ -235,7 +235,7 @@ rpc.class=org.apache.hadoop.metrics.spi.NoEmitMetricsContext
+       while not details:
+         try:
+           details_file.seek(0)
+-          details = simplejson.load(details_file)
++          details = json.load(details_file)
+         except ValueError:
+           pass
+         if self.clusterproc.poll() is not None or (not DEBUG_HADOOP and (time.time() - start) > MAX_CLUSTER_STARTUP_TIME):
+diff --git a/docs/manual.txt b/docs/manual.txt
+index 26c25d7..06c884d 100644
+--- a/docs/manual.txt
++++ b/docs/manual.txt
+@@ -64,7 +64,6 @@ cyrus-sasl-gssapi,libsasl2-modules-gssapi-mit,libsasl2-modules-gssapi-mit
+ mysql-devel,libmysqlclient-dev,libmysqlclient-dev
+ python-devel,python-dev,python-dev
+ python-setuptools,python-setuptools,python-setuptools
+-python-simplejson,python-simplejson,python-simplejson
+ sqlite-devel,libsqlite3-dev,libsqlite3-dev
+ ant,ant,ant
+ libsasl2-dev,cyrus-sasl-devel,libsasl2-dev
+diff --git a/ext/thirdparty/README.md b/ext/thirdparty/README.md
+index 6dfe2f4..af737da 100644
+--- a/ext/thirdparty/README.md
++++ b/ext/thirdparty/README.md
+@@ -40,7 +40,6 @@ Checked-in third party dependencies
+ |Y|requests|2.0.0|ASL2|https://github.com/kennethreitz/requests/|
+ |Y|Shakespeares Sonnets|?|Public Domain from Gutenberg|http://www.gutenberg.org/dirs/etext97/wssnt10.txt|
+ |Y|sasl|0.1.1|Apache|http://pypi.python.org/pypi/sasl/0.1.1|
+-|Y|simplejson|2.0.9|MIT|http://pypi.python.org/packages/source/s/simplejson/simplejson-2.0.9.tar.gz|
+ |Y|South|0.7|Apache|http://south.aeracode.org/|
+ |Y|ssl|1.15|Python|http://pypi.python.org/pypi/ssl/1.15|
+ |Y|tablib|0.9.11|MIT|http://docs.python-tablib.org/en/latest/|
+diff --git a/tools/app_reg/registry.py b/tools/app_reg/registry.py
+index 671275f..2546e98 100644
+--- a/tools/app_reg/registry.py
++++ b/tools/app_reg/registry.py
+@@ -22,10 +22,7 @@ Registry for the applications
+ import glob
+ import logging
+ import os
+-try:
+-  import json
+-except ImportError:
+-  import simplejson as json
++import json
+ 
+ import common
+ 
+-- 
+1.7.9.5
+

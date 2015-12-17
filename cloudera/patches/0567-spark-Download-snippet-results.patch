@@ -1,0 +1,188 @@
+From cacbb48ad0639b2511da405e19ec5a4e4577fb65 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 5 Dec 2014 18:31:16 -0600
+Subject: [PATCH 0567/1173] [spark] Download snippet results
+
+---
+ apps/spark/src/spark/api.py                |    1 +
+ apps/spark/src/spark/models.py             |   16 +++++++++++++++-
+ apps/spark/src/spark/templates/editor.mako |   16 +++++++++++++++-
+ apps/spark/src/spark/urls.py               |    3 ++-
+ apps/spark/src/spark/views.py              |   12 +++++++++++-
+ apps/spark/static/js/spark.vm.js           |   27 ++++++++++++++-------------
+ 6 files changed, 58 insertions(+), 17 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index 4c6c1b8..caeb4cb 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -127,6 +127,7 @@ def get_logs(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
++
+ def save_notebook(request):
+   response = {'status': -1}
+ 
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 0cc0f84..34f123d 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -18,10 +18,11 @@
+ import json
+ import re
+ 
++from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import smart_str, force_unicode
+ from desktop.lib.rest.http_client import RestException
+ 
+-from beeswax import models as beeswax_models
++from beeswax import models as beeswax_models, data_export
+ from beeswax.design import hql_query
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory
+ from beeswax.views import safe_get_design, save_design
+@@ -214,6 +215,18 @@ class HS2Api():
+     handle = self._get_handle(snippet)    
+     return db.get_log(handle)
+   
++  def download(self, notebook, snippet, format):
++    try:
++      db = self._get_db(snippet)
++      handle = self._get_handle(snippet)  
++      return data_export.download(handle, format, db)
++    except Exception, e:
++      if not hasattr(e, 'message') or not e.message:
++        message = e
++      else:
++        message = e.message
++      raise PopupException(message, detail='')  
++  
+   def _progress(self, snippet, logs):
+     if snippet['type'] == 'hive':
+       match = re.search('Total jobs = (\d+)', logs, re.MULTILINE)
+@@ -230,6 +243,7 @@ class HS2Api():
+       return 50
+ 
+ 
++
+ # Spark
+ 
+ 
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 7d0fc47..d5fee53 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -286,9 +286,23 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           </span>
+           &nbsp;
+           <a data-bind="visible: status() != 'ready', click: function() { $data.showLogs(! $data.showLogs()); }, css: {'active': $data.showLogs}" href="javascript:void(0)" class="btn" title="${ _('Logs') }"><i class="fa fa-file-text-o"></i></a>
++          &nbsp;
++          <a data-bind="visible: status() == 'available', click: function() { $data.showDownload(! $data.showDownload()); }" href="javascript:void(0)" class="btn" title="${ _('Logs') }">
++            <i class="fa fa-arrow-circle-o-down"></i>
++          </a>
++          
++          <span data-bind="visible: showDownload">
++		    <form method="POST" action="${ url('spark:download') }">
++		      ${ csrf_token(request) | n,unicode }
++		      <input type="hidden" name="notebook" data-bind="value: ko.mapping.toJSON($root.selectedNotebook)"/>
++		      <input type="hidden" name="snippet" data-bind="value: ko.mapping.toJSON($data)"/>
++		
++		      <button class="btn" type="submit" name="csv" title="${ _('Download first rows as CSV') }"><i class="fa fa-file-o"></i></button>
++		      <button class="btn" type="submit" name="xls" title="${ _('Download first rows as XLS') }"><i class="fa fa-file-excel-o"></i></button>
++		    </form>
++          </span>          
+         </div>
+ 
+-
+         <div data-bind="visible: showLogs, css: resultsKlass">
+           <span data-bind="visible: result.logs().length == 0">${ _('Loading...') }</span>
+           <span data-bind="text: result.logs"></span>
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 7148427..dec63e7 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -22,7 +22,8 @@ from django.conf.urls.defaults import patterns, url
+ urlpatterns = patterns('spark.views',
+   url(r'^$', 'editor', name='index'),
+   url(r'^editor$', 'editor', name='editor'),
+-  url(r'^list_notebooks$', 'list_notebooks', name='list_notebooks'),  
++  url(r'^list_notebooks$', 'list_notebooks', name='list_notebooks'),
++  url(r'^download', 'download', name='download'),  
+ )
+ 
+ # APIs
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index 45a114a..a9b814c 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -21,7 +21,7 @@ import logging
+ from desktop.lib.django_util import render
+ from desktop.models import Document2
+ 
+-from spark.models import Notebook
++from spark.models import Notebook, get_api
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -45,3 +45,13 @@ def list_notebooks(request):
+   return render('list_notebooks.mako', request, {
+       'notebooks': notebooks
+   })
++
++
++def download(request):
++  notebook = json.loads(request.POST.get('notebook', '{}'))
++  snippet = json.loads(request.POST.get('snippet', '{}'))
++  
++  file_format = 'csv' if 'csv' in request.POST else 'xls' if 'xls' in request.POST else 'json'
++
++  return get_api(request.user, snippet).download(notebook, snippet, file_format)
++
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index ab69246..e2ef05a 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -124,6 +124,7 @@ var Snippet = function (notebook, snippet) {
+   self.showGrid = ko.observable(typeof snippet.showGrid != "undefined" && snippet.showGrid != null ? snippet.showGrid : true);
+   self.showChart = ko.observable(typeof snippet.showChart != "undefined" && snippet.showChart != null ? snippet.showChart : false);
+   self.showLogs = ko.observable(typeof snippet.showLogs != "undefined" && snippet.showLogs != null ? snippet.showLogs : false);
++  self.showDownload = ko.observable(typeof snippet.showDownload != "undefined" && snippet.showDownload != null ? snippet.showDownload : false);
+   self.progress =  ko.observable(typeof snippet.progress != "undefined" && snippet.progress != null ? snippet.progress : 0);
+ 
+   self.progress.subscribe(function (val){
+@@ -199,19 +200,19 @@ var Snippet = function (notebook, snippet) {
+   self.checkStatusTimeout = null;
+   
+   self._ajax_error = function(data) {
+-       if (data.status == -2) {
+-          self.create_session();
+-        }
+-        else if (data.status == -3) {
+-          self.status('expired');
+-        } 
+-        else if (data.status == 1) {
+-          self.status('failed');
+-          self.result.errors(data.message);
+-        } else {
+-          $(document).trigger("error", data.message);
+-          self.status('failed');
+-        }
++    if (data.status == -2) {
++      self.create_session();
++    }
++    else if (data.status == -3) {
++      self.status('expired');
++    } 
++    else if (data.status == 1) {
++      self.status('failed');
++      self.result.errors(data.message);
++    } else {
++      $(document).trigger("error", data.message);
++      self.status('failed');
++    }
+   };
+   
+   self.create_session = function() {
+-- 
+1.7.9.5
+

@@ -1,0 +1,25 @@
+From 11d4e43d472140027a3750bc2197ca992f753b81 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 16 Jan 2015 16:43:05 +0100
+Subject: [PATCH 0455/1173] [oozie] Fix new bundle link
+
+---
+ .../templates/editor/list_editor_bundles.mako      |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+index 56bbea8..fadf20f 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_editor_bundles.mako
+@@ -62,7 +62,7 @@ ${ layout.menubar(section='bundles', is_editor=True) }
+     </%def>
+ 
+     <%def name="creation()">
+-      <a href="${ url('oozie:new_workflow') }" class="btn"><i class="fa fa-plus-circle"></i> ${ _('Create') }</a>
++      <a href="${ url('oozie:new_bundle') }" class="btn"><i class="fa fa-plus-circle"></i> ${ _('Create') }</a>
+     </%def>
+   </%actionbar:render>
+ 
+-- 
+1.7.9.5
+

@@ -117,7 +117,11 @@ def get_next_ha_mrcluster():
   candidates = all_mrclusters()
   has_ha = sum([conf.MR_CLUSTERS[name].SUBMIT_TO.get() for name in conf.MR_CLUSTERS.keys()]) >= 2
 
-  current_user = get_default_mrcluster().user
+  mrcluster = get_default_mrcluster()
+  if mrcluster is None:
+    return None
+
+  current_user = mrcluster.user
 
   for name in conf.MR_CLUSTERS.keys():
     config = conf.MR_CLUSTERS[name]
@@ -134,7 +138,7 @@ def get_next_ha_mrcluster():
           else:
             LOG.info('JobTracker %s is not RUNNING, skipping it: %s' % (name, status))
         except Exception, ex:
-          LOG.info('JobTracker %s is not available, skipping it: %s' % (name, ex))
+          LOG.exception('JobTracker %s is not available, skipping it: %s' % (name, ex))
       else:
         return (config, jt)
   return None
@@ -171,6 +175,8 @@ def get_next_ha_yarncluster():
   """
   Return the next available YARN RM instance and cache its name.
   """
+  from hadoop.yarn import mapreduce_api
+  from hadoop.yarn import resource_manager_api
   from hadoop.yarn.resource_manager_api import ResourceManagerApi
   global MR_NAME_CACHE
 
@@ -179,20 +185,22 @@ def get_next_ha_yarncluster():
   for name in conf.YARN_CLUSTERS.keys():
     config = conf.YARN_CLUSTERS[name]
     if config.SUBMIT_TO.get():
-      rm = ResourceManagerApi(config.RESOURCE_MANAGER_API_URL.get(), config.SECURITY_ENABLED.get())
+      rm = ResourceManagerApi(config.RESOURCE_MANAGER_API_URL.get(), config.SECURITY_ENABLED.get(), config.SSL_CERT_CA_VERIFY.get())
       if has_ha:
         try:
           cluster_info = rm.cluster()
           if cluster_info['clusterInfo']['haState'] == 'ACTIVE':
             MR_NAME_CACHE = name
             LOG.warn('Picking RM HA: %s' % name)
-            from hadoop.yarn import resource_manager_api
             resource_manager_api._api_cache = None # Reset cache
+            mapreduce_api._api_cache = None
             return (config, rm)
           else:
             LOG.info('RM %s is not RUNNING, skipping it: %s' % (name, cluster_info))
+        except resource_manager_api.YarnFailoverOccurred:
+          LOG.info('RM %s has failed back to another server' % (name,))
         except Exception, ex:
-          LOG.info('RM %s is not available, skipping it: %s' % (name, ex))
+          LOG.exception('RM %s is not available, skipping it: %s' % (name, ex))
       else:
         return (config, rm)
   return None

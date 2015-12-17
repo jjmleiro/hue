@@ -1,0 +1,97 @@
+From 68a3340704b9dcb6676c081ba1dc14ce4e7bb989 Mon Sep 17 00:00:00 2001
+From: Michalis Kongtongk <michalis@cloudera.com>
+Date: Mon, 16 Feb 2015 23:32:30 -0800
+Subject: [PATCH 0841/1173] HUE-1078 [useradmin] LDAP debug logging
+
+---
+ apps/useradmin/src/useradmin/ldap_access.py |    5 ++++-
+ desktop/conf.dist/hue.ini                   |   10 ++++++++++
+ desktop/conf/pseudo-distributed.ini.tmpl    |   10 ++++++++++
+ desktop/core/src/desktop/conf.py            |   13 +++++++++++++
+ 4 files changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/apps/useradmin/src/useradmin/ldap_access.py b/apps/useradmin/src/useradmin/ldap_access.py
+index dd7dfae..3b20902 100644
+--- a/apps/useradmin/src/useradmin/ldap_access.py
++++ b/apps/useradmin/src/useradmin/ldap_access.py
+@@ -111,7 +111,10 @@ class LdapConnection(object):
+     else:
+       ldap.set_option(ldap.OPT_REFERRALS, 0)
+ 
+-    self.ldap_handle = ldap.initialize(ldap_url)
++    if ldap_config.DEBUG.get():
++      ldap.set_option(ldap.OPT_DEBUG_LEVEL, ldap_config.DEBUG_LEVEL.get())
++
++    self.ldap_handle = ldap.initialize(uri=ldap_url, trace_level=ldap_config.TRACE_LEVEL.get())
+ 
+     if bind_user is not None:
+       try:
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 246f924..7c08c98 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -269,6 +269,16 @@
+     # Whether or not to follow referrals
+     ## follow_referrals=false
+ 
++    # Enable python-ldap debugging.
++    ## debug=false
++
++    # Sets the debug level within the underlying LDAP C lib.
++    ## debug_level=255
++
++    # Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,
++    # 2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.
++    ## trace_level=0
++
+     [[[users]]]
+ 
+       # Base filter for searching for users
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index aa4dc0a..50c082e 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -278,6 +278,16 @@
+     # Whether or not to follow referrals
+     ## follow_referrals=false
+ 
++    # Enable python-ldap debugging.
++    ## debug=false
++
++    # Sets the debug level within the underlying LDAP C lib.
++    ## debug_level=255
++
++    # Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,
++    # 2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.
++    ## trace_level=0
++
+     [[[users]]]
+ 
+       # Base filter for searching for users
+diff --git a/desktop/core/src/desktop/conf.py b/desktop/core/src/desktop/conf.py
+index f25069b..7c4adb2 100644
+--- a/desktop/core/src/desktop/conf.py
++++ b/desktop/core/src/desktop/conf.py
+@@ -501,6 +501,19 @@ LDAP = ConfigSection(
+       type=coerce_bool,
+       default=False),
+ 
++    DEBUG = Config("debug",
++      type=coerce_bool,
++      default=False,
++      help=_("Set to a value to enable python-ldap debugging.")),
++    DEBUG_LEVEL = Config("debug_level",
++      default=255,
++      type=int,
++      help=_("Sets the debug level within the underlying LDAP C lib.")),
++    TRACE_LEVEL = Config("trace_level",
++      default=0,
++      type=int,
++      help=_("Possible values for trace_level are 0 for no logging, 1 for only logging the method calls with arguments,"
++             "2 for logging the method calls with arguments and the complete results and 9 for also logging the traceback of method calls.")),
+ 
+     LDAP_SERVERS = UnspecifiedConfigSection(
+       key="ldap_servers",
+-- 
+1.7.9.5
+

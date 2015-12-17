@@ -1,0 +1,235 @@
+From 5fbc6155eba810cda3eecb5a7a215a975680990e Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 25 Nov 2014 15:52:26 -0800
+Subject: [PATCH 0617/1173] [spark] Protect against races on the SparkSession,
+ add CellResource
+
+---
+ .../cloudera/hue/sparker/server/SparkerApp.java    |    5 +-
+ .../hue/sparker/server/resources/CellResource.java |   53 ++++++++++++++++++++
+ .../sparker/server/resources/SessionResource.java  |   19 +++++--
+ .../cloudera/hue/sparker/server/sessions/Cell.java |   13 +++--
+ .../hue/sparker/server/sessions/Session.java       |    4 ++
+ .../hue/sparker/server/sessions/SparkSession.java  |   20 ++++++--
+ 6 files changed, 101 insertions(+), 13 deletions(-)
+ create mode 100644 apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+index d3e5a79..de75208 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/SparkerApp.java
+@@ -1,5 +1,6 @@
+ package com.cloudera.hue.sparker.server;
+ 
++import com.cloudera.hue.sparker.server.resources.CellResource;
+ import com.cloudera.hue.sparker.server.resources.SessionResource;
+ import com.cloudera.hue.sparker.server.sessions.SessionManager;
+ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+@@ -24,8 +25,8 @@ public class SparkerApp extends Application<SparkerConfiguration> {
+     @Override
+     public void run(SparkerConfiguration sparkerConfiguration, Environment environment) throws Exception {
+         final SessionManager sessionManager = new SessionManager();
+-        final SessionResource resource = new SessionResource(sessionManager);
+-        environment.jersey().register(resource);
++        environment.jersey().register(new SessionResource(sessionManager));
++        environment.jersey().register(new CellResource(sessionManager));
+         environment.jersey().register(new SessionManagerExceptionMapper());
+     }
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
+new file mode 100644
+index 0000000..848ebc7
+--- /dev/null
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/CellResource.java
+@@ -0,0 +1,53 @@
++package com.cloudera.hue.sparker.server.resources;
++
++import com.cloudera.hue.sparker.server.sessions.Cell;
++import com.cloudera.hue.sparker.server.sessions.Session;
++import com.cloudera.hue.sparker.server.sessions.SessionManager;
++import com.codahale.metrics.annotation.Timed;
++
++import javax.ws.rs.*;
++import javax.ws.rs.core.MediaType;
++import java.util.List;
++
++@Path("/sessions/{sessionId}/cells")
++@Produces(MediaType.APPLICATION_JSON)
++public class CellResource {
++
++    private final SessionManager sessionManager;
++
++    public CellResource(SessionManager sessionManager) {
++        this.sessionManager = sessionManager;
++    }
++
++    @GET
++    @Timed
++    public List<Cell> getCells(@PathParam("sessionId") String sessionId,
++                               @QueryParam("from") Integer fromCell,
++                               @QueryParam("limit") Integer limit) throws SessionManager.SessionNotFound {
++        Session session = sessionManager.get(sessionId);
++        List<Cell> cells = session.getCells();
++
++        if (fromCell != null || limit != null) {
++            if (fromCell == null) {
++                fromCell = 0;
++            }
++
++            if (limit == null) {
++                limit = cells.size();
++            }
++
++            cells = cells.subList(fromCell, fromCell + limit);
++        }
++
++        return cells;
++    }
++
++    @Path("/{cellId}")
++    @GET
++    @Timed
++    public Cell getCell(@PathParam("sessionId") String sessionId, @PathParam("cellId") int cellId) throws SessionManager.SessionNotFound {
++        Session session = sessionManager.get(sessionId);
++        return session.getCell(cellId);
++    }
++
++}
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index d9877c0..675e7dd 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -9,10 +9,18 @@ import com.sun.jersey.core.spi.factory.ResponseBuilderImpl;
+ import org.hibernate.validator.constraints.NotEmpty;
+ 
+ import javax.validation.Valid;
+-import javax.ws.rs.*;
++import javax.ws.rs.DELETE;
++import javax.ws.rs.GET;
++import javax.ws.rs.POST;
++import javax.ws.rs.Path;
++import javax.ws.rs.PathParam;
++import javax.ws.rs.Produces;
++import javax.ws.rs.QueryParam;
++import javax.ws.rs.WebApplicationException;
+ import javax.ws.rs.core.MediaType;
+ import javax.ws.rs.core.Response;
+ import java.io.IOException;
++import java.net.URI;
+ import java.util.Collections;
+ import java.util.List;
+ import java.util.concurrent.TimeoutException;
+@@ -87,9 +95,14 @@ public class SessionResource {
+     @Path("/{id}")
+     @POST
+     @Timed
+-    public Cell executeStatement(@PathParam("id") String id, @Valid ExecuteStatementRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
++    public Response executeStatement(@PathParam("id") String id, @Valid ExecuteStatementRequest request) throws Exception, ClosedSessionException, SessionManager.SessionNotFound {
+         Session session = sessionManager.get(id);
+-        return session.executeStatement(request.getStatement());
++
++        // The cell is evaluated inline, but eventually it'll be turned into an asynchronous call.
++        Cell cell = session.executeStatement(request.getStatement());
++
++        URI location = new URI("/sessions/" + session.getId() + "/cells/" + cell.getId());
++        return new ResponseBuilderImpl().status(Response.Status.SEE_OTHER).contentLocation(location).build();
+     }
+ 
+     @Path("/{id}")
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
+index 0b6f3fa..21db189 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Cell.java
+@@ -15,17 +15,24 @@ public class Cell {
+         COMPLETE,
+     }
+ 
++    int id;
+     State state;
+     final List<String> input = new ArrayList<String>();
+     final List<String> output = new ArrayList<String>();
+ 
+     final List<String> error = new ArrayList<String>();
+ 
+-    public Cell() {
+-        this.state = State.NOT_READY;
++    public Cell(int id) {
++        this.id = id;
++        this.state = State.COMPLETE;
+     }
+ 
+-    @JsonProperty("type")
++    @JsonProperty
++    public int getId() {
++        return id;
++    }
++
++    @JsonProperty("state")
+     public State getState() {
+         return state;
+     }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+index 861a1f6..0d8f057 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+@@ -32,6 +32,10 @@ public interface Session {
+     @JsonProperty
+     List<Cell> getCells();
+ 
++    List<Cell> getCellRange(int fromIndex, int toIndex);
++
++    Cell getCell(int cellId);
++
+     @JsonProperty
+     public long getLastActivity();
+ 
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+index 4c4b875..b88e227 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+@@ -93,19 +93,29 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
+-    public List<Cell> getCells() {
+-        return cells;
++    synchronized public List<Cell> getCells() {
++        return Lists.newArrayList(cells);
+     }
+ 
+     @Override
+-    public Cell executeStatement(String statement) throws IOException, ClosedSessionException, InterruptedException {
++    synchronized public List<Cell> getCellRange(int fromIndex, int toIndex) {
++        return cells.subList(fromIndex, toIndex);
++    }
++
++    @Override
++    synchronized public Cell getCell(int index) {
++        return cells.get(index);
++    }
++
++    @Override
++    synchronized public Cell executeStatement(String statement) throws IOException, ClosedSessionException, InterruptedException {
+         if (isClosed) {
+             throw new ClosedSessionException();
+         }
+ 
+         touchLastActivity();
+ 
+-        Cell cell = new Cell();
++        Cell cell = new Cell(cells.size());
+         cells.add(cell);
+ 
+         cell.addInput(statement);
+@@ -142,7 +152,7 @@ public class SparkSession implements Session {
+     }
+ 
+     @Override
+-    public void close() {
++    synchronized public void close() {
+         isClosed = true;
+         process.destroy();
+     }
+-- 
+1.7.9.5
+

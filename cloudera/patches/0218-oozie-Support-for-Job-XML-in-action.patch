@@ -1,0 +1,39 @@
+From eab0140b7e33bcd9bb762e9d6e23b177beac2c0b Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Sat, 1 Nov 2014 14:20:27 +0100
+Subject: [PATCH 0218/1173] [oozie] Support for Job XML in action
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    3 +--
+ apps/oozie/src/oozie/views/editor2.py              |    1 +
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f86cc40..980ba8c 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -273,8 +273,7 @@ ${ dashboard.layout_skeleton() }
+             ${ _('Delete') } <i class="fa fa-plus"></i>
+           </button>
+           <br/>
+-          prepares <input type="text" data-bind="value: properties.prepares" /></br>
+-          job_xml <input type="text" data-bind="value: properties.job_xml" /></br>
++          ${ _('Job XML') } <input type="text" data-bind="value: properties.job_xml" /></br>
+           proeperties <input type="text" data-bind="value: properties.properties" /></br>
+           parameters <input type="text" data-bind="value: properties.parameters" /></br>
+           archives <input type="text" data-bind="value: properties.archives" /></br>
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index e88edf6..f560309 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -177,6 +177,7 @@ def add_node(request):
+       'files': [],
+       'archives': [],
+       'prepares': [],
++      'job_xml': '',
+   })
+ 
+   response['status'] = 0
+-- 
+1.7.9.5
+

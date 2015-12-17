@@ -1,0 +1,105 @@
+From a64bcf3d91556ccc135efad045ed61a5868a1028 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 4 Dec 2014 17:22:45 +0100
+Subject: [PATCH 0556/1173] [spark] Datatables supports multiple results
+ fetching
+
+---
+ apps/spark/src/spark/templates/editor.mako |   12 ++++++---
+ apps/spark/static/js/spark.vm.js           |   39 ++++++++++++++--------------
+ 2 files changed, 28 insertions(+), 23 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 25b5bb9..64b1551 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -865,12 +865,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+     });
+ 
+     $(document).on("renderData", function (e, options) {
+-      var _el = $("#snippet_" + options.snippet.id).find(".resultTable");
++      var _el = $("#snippet_" + options.snippet.id()).find(".resultTable");
+       if (options.data.length > 0) {
+         window.setTimeout(function () {
+-          var _dt = createDatatable(_el, options.snippet);
++          var _dt;
++          if (options.initial){
++            _dt = createDatatable(_el, options.snippet);
++          }
++          else {
++            _dt = _el.dataTable();
++          }
+           _dt.fnAddData(options.data)
+-        }, 10);
++        }, 200);
+       }
+     });
+ 
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index b384f0e..e61b39b 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -27,14 +27,6 @@ var Result = function (snippet, result) {
+   self.data.extend({ rateLimit: 50 });
+   self.logs = ko.observable('');
+ 
+-  self.meta.subscribe(function(val){
+-    $(document).trigger("renderMeta", {data: val, snippet: snippet});
+-  });
+-
+-  self.data.subscribe(function(val){
+-    $(document).trigger("renderData", {data: val, snippet: snippet});
+-  });
+-  
+   if (typeof result.handle != "undefined" && result.handle != null) {
+     $.each(result.handle, function(key, val) {
+       self.handle()[key] = val;
+@@ -239,26 +231,33 @@ var Snippet = function (notebook, snippet) {
+     //self.fetchResultMetadata(rows); 
+   };
+ 
+-  self.fetchResultData = function(rows) {
++  self.fetchResultData = function (rows) {
+     $.post("/spark/api/fetch_result_data", {
+       notebook: ko.mapping.toJSON(notebook),
+       snippet: ko.mapping.toJSON(self),
+       rows: rows
+     }, function (data) {
+- 	  if (data.status == 0) {
+- 	    rows -= data.result.data.length;
+-      data.result.meta.unshift({ type:"INT_TYPE", name:"", comment:null});
+- 	    self.result.meta(data.result.meta);
+- 	    $.each(data.result.data, function(index, row) {
+-        row.unshift(index);
+- 	      self.result.data.push(row);
+- 	    });
+-         
++      if (data.status == 0) {
++        rows -= data.result.data.length;
++        data.result.meta.unshift({ type: "INT_TYPE", name: "", comment: null});
++        self.result.meta(data.result.meta);
++        var _initialIndex = self.result.data().length;
++        var _tempData = [];
++        $.each(data.result.data, function (index, row) {
++          row.unshift(_initialIndex + index);
++          self.result.data.push(row);
++          _tempData.push(row);
++        });
++
++        $(document).trigger("renderData", {data: _tempData, snippet: self, initial: _initialIndex == 0});
++
+         if (data.result.hasMore && rows > 0) {
+-          setTimeout(function(){ self.fetchResultData(rows); }, 500);
++          setTimeout(function () {
++            self.fetchResultData(rows);
++          }, 500);
+         }
+       } else if (data.status == -2) {
+-        self.create_session();  
++        self.create_session();
+       } else {
+         $(document).trigger("error", data.message);
+       }
+-- 
+1.7.9.5
+

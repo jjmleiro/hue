@@ -93,14 +93,16 @@ def workflow_to_dict(workflow):
   return workflow_dict
 
 
-def smart_path(path, mapping):
+def smart_path(path, mapping, is_coordinator=False):
   # Try to prepend home_dir and FS scheme if needed.
   # If path starts by a parameter try to get its value from the list of parameters submitted by the user or the coordinator.
   # This dynamic checking enable the use of <prepares> statements in a workflow scheduled manually of by a coordinator.
   # The logic is a bit complicated but Oozie is not consistent with data paths, prepare, coordinator paths and Fs action.
-
   if not path.startswith('$') and not path.startswith('/') and not urlparse.urlsplit(path).scheme:
-    path = '/user/%(username)s/%(path)s' % {'username': '${wf:user()}', 'path': path}
+    path = '/user/%(username)s/%(path)s' % {
+        'username': '${coord:user()}' if is_coordinator else '${wf:user()}',
+        'path': path
+    }
 
   if path.startswith('$'):
     variables = find_variables(path)
@@ -135,8 +137,25 @@ def oozie_to_django_datetime(dt_string):
   return None
 
 
+class InvalidFrequency(Exception):
+  pass
+
+
 def oozie_to_hue_frequency(frequency_string):
-  # Get frequency number and units from frequency
-  # frequency units and number are just different parts of the EL function.
+  """
+  Get frequency number and units from frequency, which must be of the format
+  "${coord:$unit($number)}".
+
+  frequency units and number are just different parts of the EL function.
+
+  Returns:
+    A tuple of the frequency unit and number
+
+  Raises:
+    InvalidFrequency: If the `frequency_string` does not match the frequency pattern.
+  """
   matches = re.match(FREQUENCY_REGEX, frequency_string)
-  return matches.group('frequency_unit'), matches.group('frequency_number')
+  if matches:
+    return matches.group('frequency_unit'), matches.group('frequency_number')
+  else:
+    raise InvalidFrequency(_('invalid frequency: %s') % frequency_string)

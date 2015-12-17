@@ -1,0 +1,81 @@
+From ce846c61b0d88f882ff9d2fcd749b1bbe2f6c61e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 5 Jan 2015 15:25:43 +0100
+Subject: [PATCH 0397/1173] [oozie] Added HDFS autocomplete on filechooser
+ inputs
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    3 ++-
+ desktop/core/static/js/jquery.hdfsautocomplete.js  |    7 +++++++
+ desktop/core/static/js/ko.hue-bindings.js          |   13 +++++++++++++
+ 3 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index cd671b0..4213edc 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -785,7 +785,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()" class="nowrap">
+-        <input type="text" class="filechooser-input" data-bind="filechooser: properties.script_path, filechooserOptions: globalFilechooserOptions, attr: { placeholder:  $root.workflow_properties.script_path.help_text }" />
++        <input type="text" class="filechooser-input" data-bind="filechooser: properties.script_path, filechooserOptions: globalFilechooserOptions, hdfsAutocomplete: properties.script_path, attr: { placeholder:  $root.workflow_properties.script_path.help_text }" />
+         <span data-bind='template: { name: "common-fs-link", data: {path: properties.script_path(), with_label: false}}'></span>
+ 
+         <div class="row-fluid">
+@@ -1758,6 +1758,7 @@ ${ commonshare() | n,unicode }
+ <script src="/static/js/ko.editable.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/ext/chosen/chosen.jquery.min.js" type="text/javascript" charset="utf-8"></script>
+ <script src="/static/js/share.vm.js"></script>
++<script src="/static/js/jquery.hdfsautocomplete.js" type="text/javascript" charset="utf-8"></script>
+ 
+ ${ dashboard.import_bindings() }
+ 
+diff --git a/desktop/core/static/js/jquery.hdfsautocomplete.js b/desktop/core/static/js/jquery.hdfsautocomplete.js
+index 627421b..b471ac3 100644
+--- a/desktop/core/static/js/jquery.hdfsautocomplete.js
++++ b/desktop/core/static/js/jquery.hdfsautocomplete.js
+@@ -119,6 +119,13 @@
+       $("#jHueHdfsAutocomplete").css("top", _el.offset().top + _el.outerHeight() - 1).css("left", _el.offset().left).width(_el.outerWidth() - 4);
+     });
+ 
++    $(window).on("keydown", function(e){
++      if ((e.keyCode==32 && e.ctrlKey) || e.keyCode == 191){
++        e.preventDefault();
++      }
++    });
++
++
+     var _hdfsAutocompleteSelectedIndex = -1;
+     var _filterTimeout = -1;
+     _el.keyup(function (e) {
+diff --git a/desktop/core/static/js/ko.hue-bindings.js b/desktop/core/static/js/ko.hue-bindings.js
+index e812fb2..ecb6f45 100644
+--- a/desktop/core/static/js/ko.hue-bindings.js
++++ b/desktop/core/static/js/ko.hue-bindings.js
+@@ -958,9 +958,22 @@ ko.bindingHandlers.hivechooser = {
+   }
+ }
+ 
++ko.bindingHandlers.hdfsAutocomplete = {
++  init: function (element, valueAccessor, allBindingsAccessor, vm) {
++    var stripHashes = function (str) {
++      return str.replace(/#/gi, encodeURIComponent("#"));
++    };
++
++    var self = $(element);
++    self.attr("autocomplete", "off");
++    self.jHueHdfsAutocomplete({});
++  }
++};
++
+ ko.bindingHandlers.filechooser = {
+   init: function (element, valueAccessor, allBindingsAccessor, vm) {
+     var self = $(element);
++    self.attr("autocomplete", "off");
+     if (typeof valueAccessor() == "function" || typeof valueAccessor().value == "function") {
+       self.val(valueAccessor().value ? valueAccessor().value(): valueAccessor()());
+       self.data("fullPath", self.val());
+-- 
+1.7.9.5
+

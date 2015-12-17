@@ -1,0 +1,27 @@
+From 1f7f8a10b7f7d7707a199d844b5cba2d5b36fd47 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Thu, 29 Jan 2015 01:08:07 +0100
+Subject: [PATCH 0704/1173] [spark] Hooked up render data error for expired
+ queries
+
+---
+ apps/spark/static/js/spark.ko.js |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index abc28e4..5093669 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -354,7 +354,8 @@ var Snippet = function (vm, notebook, snippet) {
+           }, 500);
+         }
+       } else {
+-    	self._ajax_error(data);
++    	 self._ajax_error(data);
++       $(document).trigger("renderDataError", {snippet: self});
+       }
+     }).fail(function (xhr, textStatus, errorThrown) {
+       $(document).trigger("error", xhr.responseText);
+-- 
+1.7.9.5
+

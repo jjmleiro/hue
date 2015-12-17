@@ -1,0 +1,25 @@
+From a25c868e5b5f277bb106dbadca5af01b067cf3f6 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 16 Mar 2015 13:41:04 -0500
+Subject: [PATCH 1095/1173] [oozie] Open coordinator input paths in a new tab
+
+---
+ .../templates/editor2/coordinator_editor.mako      |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+index c261697..5e219d0 100644
+--- a/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/coordinator_editor.mako
+@@ -286,7 +286,7 @@ ${ layout.menubar(section='coordinators', is_editor=True, pullright=buttons) }
+                   </span>
+                   <span data-bind="visible: dataset_variable().length > 0">
+                     ${ _('Will convert to') }
+-                    <a data-bind="text: convertVariables(dataset_variable()), attr: {'href': '/filebrowser/view' + convertVariables(dataset_variable())}"></a>
++                    <a target="_blank" data-bind="text: convertVariables(dataset_variable()), attr: {'href': '/filebrowser/view' + convertVariables(dataset_variable())}"></a>
+                   </span>
+                   </a>
+                 </span>
+-- 
+1.7.9.5
+

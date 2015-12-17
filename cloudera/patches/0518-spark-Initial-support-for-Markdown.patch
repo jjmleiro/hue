@@ -1,0 +1,1523 @@
+From 1d496612f8f6c97651cd47711a19b030dd203b68 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Fri, 28 Nov 2014 01:14:57 +0100
+Subject: [PATCH 0518/1173] [spark] Initial support for Markdown
+
+---
+ apps/spark/src/spark/templates/editor.mako        |  613 +++--------------
+ apps/spark/src/spark/views.py                     |   22 +-
+ apps/spark/static/css/spark.css                   |   26 +
+ desktop/core/static/ext/js/codemirror-markdown.js |  765 +++++++++++++++++++++
+ desktop/core/static/ext/js/markdown.min.js        |    1 +
+ 5 files changed, 876 insertions(+), 551 deletions(-)
+ create mode 100644 apps/spark/static/css/spark.css
+ create mode 100644 desktop/core/static/ext/js/codemirror-markdown.js
+ create mode 100644 desktop/core/static/ext/js/markdown.min.js
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 688d786..26d3d00 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -24,571 +24,122 @@ ${ commonheader(_('Query'), app_name, user) | n,unicode }
+ 
+ ${ common.navbar('editor') }
+ 
+-<div class="container-fluid">
+-
+-  <div class="row-fluid">
+-    <div class="card card-small">
+-      <div style="margin-bottom: 10px">
+-        % if can_edit_name:
+-        <h1 class="card-heading simple">
+-          <a href="javascript:void(0);"
+-             id="query-name"
+-             data-type="text"
+-             data-name="name"
+-             data-value="${design.name}"
+-             data-original-title="${ _('Application name') }"
+-             data-placement="right">
+-          </a>
+-
+-          <a href="javascript:void(0);"
+-             id="query-description"
+-             data-type="textarea"
+-             data-name="description"
+-             data-value="${design.desc}"
+-             data-original-title="${ _('Application description') }"
+-             data-placement="right" style="font-size: 14px; margin-left: 10px">
+-          </a>
+-
+-        </h1>
+-        % endif
+-      </div>
+-      <div class="card-body">
+-        <p>
+-          <span class="pull-right">
+-            <button type="button" class="btn btn-primary uploadAppModalBtn">${ _('Upload app') }</button>
+-            <button type="button" class="btn btn-primary createContextModalBtn">${ _('Create context') }</button>
+-          </span>
+-          <div></div><!-- this is to fix IE's quirkiness /-->
+-          <form class="form-inline">
+-            <span class="dropdown">
+-              ${_('App name')}&nbsp;
+-              <!-- ko if: $root.appNames().length == 0 -->
+-              <a class="uploadAppModalBtn" href="javascript:void(0);">
+-                ${ _("Missing, add one?") }
+-              </a>
+-              <!-- /ko -->
+-              <a data-bind="if: $root.appName" data-toggle="dropdown" href="javascript:void(0);">
+-                <strong data-bind="text: $root.appName().nice_name"></strong>
+-                <i class="fa fa-caret-down"></i>
+-              </a>
+-              <ul data-bind="foreach: $root.appNames" class="dropdown-menu">
+-                <li data-bind="click: $root.chooseAppName, text: nice_name" class="selectable"></li>
+-              </ul>
+-            </span>
+-
+-            <label style="margin-left: 20px; margin-right: 20px">
+-              ${_('Class path')}
+-              <input type="text" data-bind="value: $root.classPath" class="input-xlarge" placeholder="spark.jobserver.WordCountExample" />
+-            </label>
+-
+-            ${_('Context')}&nbsp;
+-            <label class="radio" style="margin-top:-2px">
+-              <input type="radio" name="autoContext" value="true" data-bind="checked:$root.autoContext.forEditing" style="margin-right: 5px" />
+-              ${ _('Automatic') }
+-            </label>
+-            <label class="radio" style="margin-left: 5px;margin-top:-2px">
+-              <span class="dropdown" style="padding-left: 5px">
+-                <!-- ko if: $root.contexts().length == 0 -->
+-                <a class="createContextModalBtn" href="javascript:void(0);">
+-                  ${ _("Create one?") }
+-                </a>
+-                <!-- /ko -->
+-                <a data-bind="if: $root.context" data-toggle="dropdown" href="javascript:void(0);">
+-                  <strong data-bind="text: $root.context().nice_name"></strong>
+-                  <i class="fa fa-caret-down"></i>
+-                </a>
+-                <ul data-bind="foreach: $root.contexts" class="dropdown-menu">
+-                  <li data-bind="click: $root.chooseContext, text: nice_name" class="selectable"></li>
+-                </ul>
+-              </span>
+-              <input type="radio" name="autoContext" value="false" data-bind="checked:$root.autoContext.forEditing"/>
+-            </label>
+-          </form>
+-        </p>
+-      </div>
+-    </div>
+-  </div>
+ 
++<div class="container-fluid">
+   <div class="row-fluid">
+-    <div class="card card-small">
+-      <h1 class="card-heading simple">
+-        <a id="collapse-editor" href="javascript:void(0)" class="pull-right"><i class="fa fa-caret-up"></i></a>
+-        ${_('Parameters')}
+-      </h1>
+-      <div class="card-body">
+-        <p>
+-          <div id="param-pane">
+-          <div data-bind="css: {'hide': query.errors().length == 0}" class="hide alert alert-error">
+-            <p><strong>${_('Your application has the following error(s):')}</strong></p>
+-            <div data-bind="foreach: query.errors">
+-              <p data-bind="text: $data" class="queryErrorMessage"></p>
+-            </div>
+-          </div>
+-
+-          <div data-bind="visible: query.params().length == 0">${_('No parameters defined yet.')}</div>
+-
+-          <table class="table-condensed">
+-            <thead data-bind="visible: query.params().length > 0">
+-              <tr>
+-                <th>${ _('Name') }</th>
+-                <th>${ _('Value') }</th>
+-                <th/>
+-              </tr>
+-            </thead>
+-            <tbody data-bind="foreach: query.params">
+-              <tr>
+-                <td><input type="text" class="input-large required propKey" data-bind="value: name" /></td>
+-                <td>
+-                <div class="input-append">
+-                  <input type="text" data-bind="value: value" class="input-xxlarge" />
+-                  <button class="btn fileChooserBtn" data-bind="click: $root.showFileChooser">..</button>
+-                </div>
+-                </td>
+-                <td style="vertical-align: top">
+-                  <a class="btn" href="#" data-bind="click: $root.removeParam">${ _('Delete') }</a>
+-                </td>
+-              </tr>
+-            </tbody>
+-          </table>
+-          <div style="margin-top: 10px">
+-            <a class="btn" href="#" data-bind="click: $root.addParam">${ _('Add') }</a>
+-          </div>
+-
+-          <div class="actions" style="margin-top: 50px; margin-bottom: 20px">
+-            <button data-bind="click: tryExecuteQuery, enable: $root.appNames().length > 0 && $root.classPath()"
+-              type="button" id="executeQuery" class="btn btn-primary disable-feedback"
+-              tabindex="2" data-loading-text="${ _("Executing...") }">
+-              ${_('Execute')}
+-            </button>
+-            <button data-bind="click: trySaveQuery, visible: ($root.query.id() && $root.query.id() != -1)" type="button" class="btn">${_('Save')}</button>
+-            <button data-bind="click: trySaveAsQuery, visible: $root.appNames().length > 0" type="button" class="btn">${_('Save as...')}</button>
+-            &nbsp; ${_('or create a')} &nbsp;<a type="button" class="btn" href="${ url('spark:editor') }">${_('New application')}</a>
+-            <span class="pull-right">
+-              <a type="button" class="btn" data-bind="visible: rows().length != 0, attr: {'href': '${ url('spark:download_result') }' + $root.query.jobId()}">${_('Download')}</a>
+-            </span>
+-          </div>
++    <div class="span12">
++
++      <div class="card card-home">
++        <div id="snippets"></div>
++
++        <div class="question">
++          ${ _('What would you like to type?') }
++          <select id="codeMode">
++            <option value="markdown">Markdown</option>
++            <option value="text/x-impalaql">Impala</option>
++            <option value="text/x-hiveql">Hive</option>
++            <option value="text/x-pig">Pig</option>
++          </select>
+         </div>
+-          <div data-bind="css: {'hide': rows().length == 0}" class="hide">
+-            <div class="scrollable">
+-              <table id="resultTable" class="table table-striped table-condensed resultTable" cellpadding="0" cellspacing="0" data-tablescroller-min-height-disable="true" data-tablescroller-enforce-height="true">
+-                <thead>
+-                  <tr>
+-                    <th>${ _('Key') }</th>
+-                    <th>${ _('Value') }</th>
+-                  </tr>
+-                </thead>
+-              </table>
+-            </div>
+-          </div>
+-
+-          <div data-bind="visible: resultsEmpty()">
+-            <div class="scrollable">
+-              <div class="row-fluid">
+-                <div class="span10 offset1 center empty-wrapper">
+-                  <i class="fa fa-frown-o"></i>
+-                  <h1>${_('The server returned no results.')}</h1>
+-                  <br/>
+-                </div>
+-              </div>
+-            </div>
+-          </div>
+-
+-          <div id="wait-info" class="hide">
+-            <div class="scrollable">
+-              <div class="row-fluid">
+-                <div class="span10 offset1 center" style="padding: 30px">
+-                  <!--[if !IE]><!--><i class="fa fa-spinner fa-spin" style="font-size: 60px; color: #DDD"></i><!--<![endif]-->
+-                  <!--[if IE]><img src="/static/art/spinner.gif" /><![endif]-->
+-                </div>
+-              </div>
+-            </div>
+-          </div>
+-        </p>
++        <textarea id="mainEditor"></textarea>
+       </div>
+-    </div>
+-  </div>
+-
+-
+ 
+-<div id="saveAsQueryModal" class="modal hide fade">
+-  <div class="modal-header">
+-    <a href="#" class="close" data-dismiss="modal">&times;</a>
+-    <h3>${_('Save your query')}</h3>
+-  </div>
+-  <div class="modal-body">
+-    <form class="form-horizontal">
+-      <div class="control-group" id="saveas-query-name">
+-        <label class="control-label">${_('Name')}</label>
+-        <div class="controls">
+-          <input data-bind="value: $root.query.name" type="text" class="input-xlarge">
+-        </div>
+-      </div>
+-      <div class="control-group">
+-        <label class="control-label">${_('Description')}</label>
+-        <div class="controls">
+-          <input data-bind="value: $root.query.description" type="text" class="input-xlarge">
+-        </div>
+-      </div>
+-    </form>
+-  </div>
+-  <div class="modal-footer">
+-    <button class="btn" data-dismiss="modal">${_('Cancel')}</button>
+-    <button data-bind="click: modalSaveAsQuery" class="btn btn-primary">${_('Save')}</button>
+-  </div>
+-</div>
+-
+-<div id="chooseFile" class="modal hide fade">
+-  <div class="modal-header">
+-      <a href="#" class="close" data-dismiss="modal">&times;</a>
+-      <h3>${_('Choose a file')}</h3>
+-  </div>
+-  <div class="modal-body">
+-      <div id="filechooser">
+-      </div>
+-  </div>
+-  <div class="modal-footer">
++    </div>
+   </div>
+ </div>
+ 
++<textarea id="tempEditor"></textarea>
+ 
+-${ common.uploadAppModal() }
+-${ common.createContextModal() }
+-
+-
+-<style type="text/css">
+-  h1 {
+-    margin-bottom: 5px;
+-  }
+-
+-  #filechooser {
+-    min-height: 100px;
+-    overflow-y: auto;
+-  }
+-
+-  .control-group {
+-    margin-bottom: 3px!important;
+-  }
+-
+-  .control-group label {
+-    float: left;
+-    padding-top: 5px;
+-    text-align: left;
+-    width: 40px;
+-  }
+-
+-  .hueBreadcrumb {
+-    padding: 12px 14px;
+-  }
+-
+-  .hueBreadcrumbBar {
+-    padding: 0;
+-    margin: 12px;
+-  }
+-
+-  .hueBreadcrumbBar a {
+-    color: #338BB8 !important;
+-    display: inline !important;
+-  }
+-
+-  .divider {
+-    color: #CCC;
+-  }
+-
+-  .param {
+-    padding: 8px 8px 1px 8px;
+-    margin-bottom: 5px;
+-    border-bottom: 1px solid #EEE;
+-  }
+-
+-  .remove {
+-    float: right;
+-  }
+-
+-  .selectable {
+-    display: block;
+-    list-style: none;
+-    padding: 5px;
+-    background: white;
+-    cursor: pointer;
+-  }
+-
+-  .selected, .selectable:hover {
+-    background: #DDDDDD;
+-  }
+-
+-  .editorError {
+-    color: #B94A48;
+-    background-color: #F2DEDE;
+-    padding: 4px;
+-    font-size: 11px;
+-  }
+-
+-  .editable-empty, .editable-empty:hover {
+-    color: #666;
+-    font-style: normal;
+-  }
+-
+-  .tooltip.left {
+-    margin-left: -13px;
+-  }
+-
+-  .scrollable {
+-    overflow-x: auto;
+-  }
+-
+-  .resultTable td, .resultTable th {
+-    white-space: nowrap;
+-  }
+-
+-  #navigatorTables li {
+-    width: 95%;
+-    white-space: nowrap;
+-    overflow: hidden;
+-    text-overflow: ellipsis;
+-  }
++<link rel="stylesheet" href="/static/ext/css/codemirror.css">
++<link rel="stylesheet" href="/spark/static/css/spark.css">
+ 
+-  #navigatorSearch, #navigatorNoTables {
+-    display: none;
+-  }
++<script src="/static/ext/js/codemirror-3.11.js"></script>
++<script src="/static/js/codemirror-pig.js"></script>
++<script src="/static/js/codemirror-hql.js"></script>
++<script src="/static/ext/js/codemirror-sql.js"></script>
++<script src="/static/ext/js/codemirror-markdown.js"></script>
++<script src="/static/ext/js/markdown.min.js"></script>
+ 
+-  #navigator .card {
+-    padding-bottom: 30px;
+-  }
+-
+-</style>
+-
+-<script src="/static/ext/js/knockout-min.js" type="text/javascript" charset="utf-8"></script>
+-<script src="/static/ext/js/knockout.mapping-2.3.2.js" type="text/javascript" charset="utf-8"></script>
+-<script src="/spark/static/js/spark.vm.js"></script>
++<script type="text/javascript" charset="utf-8">
+ 
+-<link href="/static/ext/css/bootstrap-editable.css" rel="stylesheet">
+-<script src="/static/ext/js/bootstrap-editable.min.js"></script>
+-<script src="/static/ext/js/bootstrap-editable.min.js"></script>
++  var mainCodeMirror, tempCodeMirror, tempCodeMirrorUpdateFn;
+ 
+-<script src="/static/ext/js/jquery/plugins/jquery-fieldselection.js" type="text/javascript"></script>
+-
+-<script type="text/javascript" charset="utf-8">
+-  var viewModel;
+ 
+   $(document).ready(function(){
+-    $("*[rel=tooltip]").tooltip({
+-      placement: 'bottom'
+-    });
+ 
+-    $("#help").popover({
+-      'title': "${_('Did you know?')}",
+-      'content': $("#help-content").html(),
+-      'trigger': 'hover',
+-      'html': true
++    $("#codeMode").on("change", function(){
++      mainCodeMirror.setOption("mode", $("#codeMode").val());
+     });
+ 
+-    // Knockout
+-    viewModel = new sparkViewModel();
+-    viewModel.fetchAppNames();
+-    viewModel.fetchContexts();
+-    % if design_json:
+-      viewModel.loadDesign(${ design_json | n,unicode });
+-    % endif
+-    % if job_id:
+-      viewModel.openQuery("${ job_id }");
+-    % endif
+-    var hash = window.location.hash;
+-    if (hash != "" && hash.indexOf("=") > -1) {
+-      var hashKey = hash.split("=")[0].substr(1);
+-      var hashValue = hash.split("=")[1];
+-      if (hashKey == 'jobId') {
+-        viewModel.openQuery(hashValue);
+-      } else if (hashKey == 'applicationId') {
+-        viewModel.query.appName(hashValue);
+-      }
+-
+-    }
+-    ko.applyBindings(viewModel);
+-
+-    $("#collapse-editor").on("click", function () {
+-      if ($("#param-pane").is(":visible")) {
+-        $("#param-pane").slideUp(100, function () {
+-          $(".dataTables_wrapper").jHueTableScroller();
+-          $(".resultTable").jHueTableExtender({
+-            hintElement: "#jumpToColumnAlert",
+-            fixedHeader: true,
+-            firstColumnTooltip: true
+-          });
++    function replaceWithEditor(snippet) {
++      snippet.html("");
++      snippet.off("click");
++      $(tempCodeMirror.getWrapperElement()).appendTo(snippet);
++      $(tempCodeMirror.getWrapperElement()).show();
++      tempCodeMirror.setOption("mode", snippet.data("mode"));
++      tempCodeMirror.setValue(snippet.data("source"))
++      tempCodeMirror.setSize("100%", "50px");
++      tempCodeMirrorUpdateFn = function(){
++        var _source = tempCodeMirror.getValue();
++        snippet.html(markdown.toHTML(_source)).data("source", _source);
++        snippet.on("click", function(){
++          replaceWithEditor($(this));
+         });
+-        $("#collapse-editor i").removeClass("fa-caret-up").addClass("fa-caret-down");
+       }
+-      else {
+-        $("#param-pane").slideDown(100, function () {
+-          $(".dataTables_wrapper").jHueTableScroller();
+-          $(".resultTable").jHueTableExtender({
+-            hintElement: "#jumpToColumnAlert",
+-            fixedHeader: true,
+-            firstColumnTooltip: true
+-          });
+-        });
+-        $("#collapse-editor i").removeClass("fa-caret-down").addClass("fa-caret-up");
+-      }
+-    });
+-  });
+-
+-
+-  function modal(el) {
+-    var el = $(el);
+-    return function() {
+-      el.modal('show');
+-    };
+-  }
+-
+-  function tryExecuteQuery() {
+-    viewModel.executeQuery();
+-  }
+-
+-  function trySaveQuery() {
+-    if (viewModel.query.id() && viewModel.query.id() != -1) {
+-      viewModel.saveQuery();
+     }
+-  }
+ 
+-  function trySaveAsQuery() {
+-    if (viewModel.appName() != null && viewModel.appName() != ""){
+-      $('#saveAsQueryModal').modal('show');
+-    }
+-  }
+-
+-  $('.uploadAppModalBtn').click(function(){
+-    $('#uploadAppModal').modal('show');
+-  });
+-
+-  $('.createContextModalBtn').click(function(){
+-    $('#createContextModal').modal('show');
+-  });
+-
+-  function modalSaveAsQuery() {
+-    if (viewModel.query.name()) {
+-      viewModel.query.id(-1);
+-      viewModel.saveQuery();
+-      $('#saveas-query-name').removeClass('error');
+-      $('#saveAsQueryModal').modal('hide');
+-    } else {
+-      $('#saveas-query-name').addClass('error');
++    function addSnippet(value, mode) {
++      var _snippet = $("<div>").addClass("snippet").html(markdown.toHTML(value)).appendTo($("#snippets")).data("source", value).data("mode", mode);
++      _snippet.on("click", function(){
++        replaceWithEditor($(this));
++      });
++      mainCodeMirror.setValue("");
+     }
+-  }
+ 
+-  // Editables
+-  $("#query-name").editable({
+-    validate: function (value) {
+-      if ($.trim(value) == '') {
+-        return "${ _('This field is required.') }";
++    var mainEditor = $("#mainEditor")[0];
++    var tempEditor = $("#tempEditor")[0];
++
++    mainCodeMirror = CodeMirror(function (elt) {
++      mainEditor.parentNode.replaceChild(elt, mainEditor);
++    }, {
++      value: mainEditor.value,
++      readOnly: false,
++      lineNumbers: true,
++      mode: "markdown",
++      extraKeys: {
++        "Ctrl-Enter": function () {
++          addSnippet(mainCodeMirror.getValue(), mainCodeMirror.getOption("mode"));
++        }
++      },
++      onKeyEvent: function (e, s) {
++        if (s.type == "keyup") {
++        }
+       }
+-    },
+-    success: function(response, newValue) {
+-      viewModel.query.name(newValue);
+-    },
+-    emptytext: "${ _('Application name') }"
+-  });
+-
+-  $("#query-description").editable({
+-    success: function(response, newValue) {
+-      viewModel.query.description(newValue);
+-    },
+-    emptytext: "${ _('Empty description') }"
+-  });
+-
+-
+-  // Events and datatables
+-  $(document).on('saved.query', function() {
+-    $.jHueNotify.info("${_('Application saved successfully!')}")
+-  });
+-
+-  $(document).on('savedas.query', function() {
+-    window.location.href = "${ url('spark:editor') }" + viewModel.query.id();
+-  });
+-
+-  var dataTable = null;
+-
+-  function cleanResultsTable() {
+-    if (dataTable) {
+-      dataTable.fnClearTable();
+-      dataTable.fnDestroy();
+-      viewModel.rows.valueHasMutated();
+-      dataTable = null;
+-    }
+-  }
+-
+-  function addResults(viewModel, dataTable, index, pageSize) {
+-    $.each(viewModel.rows.slice(index, index + pageSize), function(row_index, row) {
+-      dataTable.fnAddData(row);
+     });
+-  }
+ 
+-  function resultsTable() {
+-    if (! dataTable) {
+-      dataTable = $(".resultTable").dataTable({
+-        "bPaginate": false,
+-        "bLengthChange": false,
+-        "bInfo": false,
+-        "aaSorting": [],
+-        "oLanguage": {
+-          "sEmptyTable": "${_('No data available')}",
+-          "sZeroRecords": "${_('No matching records')}"
+-        },
+-        "fnDrawCallback": function( oSettings ) {
+-          $(".resultTable").jHueTableExtender({
+-            hintElement: "#jumpToColumnAlert",
+-            fixedHeader: true,
+-            firstColumnTooltip: true
+-          });
++    tempCodeMirror = CodeMirror(function (elt) {
++      tempEditor.parentNode.replaceChild(elt, tempEditor);
++    }, {
++      value: tempEditor.value,
++      readOnly: false,
++      lineNumbers: true,
++      mode: "markdown",
++      extraKeys: {
++        "Ctrl-Enter": function () {
++          tempCodeMirrorUpdateFn();
+         }
+-      });
+-      $(".dataTables_filter").hide();
+-      $(".dataTables_wrapper").jHueTableScroller();
+-
+-      // Automatic results grower
+-      var dataTableEl = $(".dataTables_wrapper");
+-      var index = 0;
+-      var pageSize = 100;
+-      dataTableEl.on("scroll", function (e) {
+-        if (dataTableEl.scrollTop() + dataTableEl.outerHeight() + 20 > dataTableEl[0].scrollHeight && dataTable) {
+-          addResults(viewModel, dataTable, index, pageSize);
+-          index += pageSize;
++      },
++      onKeyEvent: function (e, s) {
++        if (s.type == "keyup") {
+         }
+-      });
+-      addResults(viewModel, dataTable, index, pageSize);
+-      index += pageSize;
+-
+-      $(".resultTable").width($(".resultTable").parent().width());
+-    }
+-  }
+-
+-  $(document).on('execute.query', function() {
+-    $('#wait-info').show();
+-    $("#executeQuery").button("loading");
+-    cleanResultsTable();
+-  });
+-
+-  $(document).on('executed.query', function() {
+-    $('#wait-info').hide();
+-    $("#executeQuery").button("reset");
+-    resultsTable();
+-  });
+-
+-  $(document).on("created.context", function() {
+-      $("#createContextModal").modal("hide");
+-      $("#createContextBtn").button("reset");
+-      $("input[data-default]").each(function(){
+-        $(this).val($(this).data("default"));
+-      });
++      }
+     });
+ 
+-  // Server error handling.
+-  $(document).on('server.error', function(e, data) {
+-    $(document).trigger('error', "${_('Server error occured: ')}" + data.error);
+-  });
++    $(tempCodeMirror.getWrapperElement()).hide();
+ 
+-  $(document).on('server.unmanageable_error', function(e, responseText) {
+-    $(document).trigger('error', "${_('Unmanageable server error occured: ')}" + responseText);
+   });
+ 
++
+ </script>
+ 
+ ${ commonfooter(messages) | n,unicode }
+diff --git a/apps/spark/src/spark/views.py b/apps/spark/src/spark/views.py
+index e8c4e0b..1e5f11a 100644
+--- a/apps/spark/src/spark/views.py
++++ b/apps/spark/src/spark/views.py
+@@ -41,26 +41,8 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ @view_error_handler
+-def editor(request, design_id=None, query_history_id=None):
+-  api = get_api(request.user)
+-  jobs = api.jobs()
+-  if design_id is not None and not design_id.isdigit():
+-    job_id, design_id = design_id, None
+-  else:
+-    job_id = None
+-
+-  action = request.path
+-  app_name = get_app_name(request)
+-  query_type = beeswax_models.SavedQuery.TYPES_MAPPING[app_name]
+-  design = safe_get_design(request, query_type, design_id)
+-
+-  return render('editor.mako', request, {
+-    'action': action,
+-    'design': design,
+-    'design_json': json.dumps(design_to_dict(design)),
+-    'can_edit_name': design.id and not design.is_auto,
+-    'job_id': job_id,
+-  })
++def editor(request):
++  return render('editor.mako', request, {})
+ 
+ @view_error_handler
+ def list_jobs(request):
+diff --git a/apps/spark/static/css/spark.css b/apps/spark/static/css/spark.css
+new file mode 100644
+index 0000000..ee7ccbb
+--- /dev/null
++++ b/apps/spark/static/css/spark.css
+@@ -0,0 +1,26 @@
++/*
++ Licensed to Cloudera, Inc. under one
++ or more contributor license agreements.  See the NOTICE file
++ distributed with this work for additional information
++ regarding copyright ownership.  Cloudera, Inc. licenses this file
++ to you under the Apache License, Version 2.0 (the
++ "License"); you may not use this file except in compliance
++ with the License.  You may obtain a copy of the License at
++
++     http://www.apache.org/licenses/LICENSE-2.0
++
++ Unless required by applicable law or agreed to in writing, software
++ distributed under the License is distributed on an "AS IS" BASIS,
++ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ See the License for the specific language governing permissions and
++ limitations under the License.
++*/
++
++.question {
++  margin: 10px;
++}
++
++.snippet {
++  border-bottom: 2px solid #F0F0F0;
++  margin: 10px;
++}
+\ No newline at end of file
+diff --git a/desktop/core/static/ext/js/codemirror-markdown.js b/desktop/core/static/ext/js/codemirror-markdown.js
+new file mode 100644
+index 0000000..5869125
+--- /dev/null
++++ b/desktop/core/static/ext/js/codemirror-markdown.js
+@@ -0,0 +1,765 @@
++// CodeMirror, copyright (c) by Marijn Haverbeke and others
++// Distributed under an MIT license: http://codemirror.net/LICENSE
++
++(function(mod) {
++  if (typeof exports == "object" && typeof module == "object") // CommonJS
++    mod(require("../../lib/codemirror"), require("../xml/xml"), require("../meta"));
++  else if (typeof define == "function" && define.amd) // AMD
++    define(["../../lib/codemirror", "../xml/xml", "../meta"], mod);
++  else // Plain browser env
++    mod(CodeMirror);
++})(function(CodeMirror) {
++"use strict";
++
++CodeMirror.defineMode("markdown", function(cmCfg, modeCfg) {
++
++  var htmlFound = CodeMirror.modes.hasOwnProperty("xml");
++  var htmlMode = CodeMirror.getMode(cmCfg, htmlFound ? {name: "xml", htmlMode: true} : "text/plain");
++
++  function getMode(name) {
++    if (CodeMirror.findModeByName) {
++      var found = CodeMirror.findModeByName(name);
++      if (found) name = found.mime || found.mimes[0];
++    }
++    var mode = CodeMirror.getMode(cmCfg, name);
++    return mode.name == "null" ? null : mode;
++  }
++
++  // Should characters that affect highlighting be highlighted separate?
++  // Does not include characters that will be output (such as `1.` and `-` for lists)
++  if (modeCfg.highlightFormatting === undefined)
++    modeCfg.highlightFormatting = false;
++
++  // Maximum number of nested blockquotes. Set to 0 for infinite nesting.
++  // Excess `>` will emit `error` token.
++  if (modeCfg.maxBlockquoteDepth === undefined)
++    modeCfg.maxBlockquoteDepth = 0;
++
++  // Should underscores in words open/close em/strong?
++  if (modeCfg.underscoresBreakWords === undefined)
++    modeCfg.underscoresBreakWords = true;
++
++  // Turn on fenced code blocks? ("```" to start/end)
++  if (modeCfg.fencedCodeBlocks === undefined) modeCfg.fencedCodeBlocks = false;
++
++  // Turn on task lists? ("- [ ] " and "- [x] ")
++  if (modeCfg.taskLists === undefined) modeCfg.taskLists = false;
++
++  // Turn on strikethrough syntax
++  if (modeCfg.strikethrough === undefined)
++    modeCfg.strikethrough = false;
++
++  var codeDepth = 0;
++
++  var header   = 'header'
++  ,   code     = 'comment'
++  ,   quote    = 'quote'
++  ,   list1    = 'variable-2'
++  ,   list2    = 'variable-3'
++  ,   list3    = 'keyword'
++  ,   hr       = 'hr'
++  ,   image    = 'tag'
++  ,   formatting = 'formatting'
++  ,   linkinline = 'link'
++  ,   linkemail = 'link'
++  ,   linktext = 'link'
++  ,   linkhref = 'string'
++  ,   em       = 'em'
++  ,   strong   = 'strong'
++  ,   strikethrough = 'strikethrough';
++
++  var hrRE = /^([*\-=_])(?:\s*\1){2,}\s*$/
++  ,   ulRE = /^[*\-+]\s+/
++  ,   olRE = /^[0-9]+\.\s+/
++  ,   taskListRE = /^\[(x| )\](?=\s)/ // Must follow ulRE or olRE
++  ,   atxHeaderRE = /^#+/
++  ,   setextHeaderRE = /^(?:\={1,}|-{1,})$/
++  ,   textRE = /^[^#!\[\]*_\\<>` "'(~]+/;
++
++  function switchInline(stream, state, f) {
++    state.f = state.inline = f;
++    return f(stream, state);
++  }
++
++  function switchBlock(stream, state, f) {
++    state.f = state.block = f;
++    return f(stream, state);
++  }
++
++
++  // Blocks
++
++  function blankLine(state) {
++    // Reset linkTitle state
++    state.linkTitle = false;
++    // Reset EM state
++    state.em = false;
++    // Reset STRONG state
++    state.strong = false;
++    // Reset strikethrough state
++    state.strikethrough = false;
++    // Reset state.quote
++    state.quote = 0;
++    if (!htmlFound && state.f == htmlBlock) {
++      state.f = inlineNormal;
++      state.block = blockNormal;
++    }
++    // Reset state.trailingSpace
++    state.trailingSpace = 0;
++    state.trailingSpaceNewLine = false;
++    // Mark this line as blank
++    state.thisLineHasContent = false;
++    return null;
++  }
++
++  function blockNormal(stream, state) {
++
++    var sol = stream.sol();
++
++    var prevLineIsList = (state.list !== false);
++    if (state.list !== false && state.indentationDiff >= 0) { // Continued list
++      if (state.indentationDiff < 4) { // Only adjust indentation if *not* a code block
++        state.indentation -= state.indentationDiff;
++      }
++      state.list = null;
++    } else if (state.list !== false && state.indentation > 0) {
++      state.list = null;
++      state.listDepth = Math.floor(state.indentation / 4);
++    } else if (state.list !== false) { // No longer a list
++      state.list = false;
++      state.listDepth = 0;
++    }
++
++    var match = null;
++    if (state.indentationDiff >= 4) {
++      state.indentation -= 4;
++      stream.skipToEnd();
++      return code;
++    } else if (stream.eatSpace()) {
++      return null;
++    } else if (match = stream.match(atxHeaderRE)) {
++      state.header = match[0].length <= 6 ? match[0].length : 6;
++      if (modeCfg.highlightFormatting) state.formatting = "header";
++      state.f = state.inline;
++      return getType(state);
++    } else if (state.prevLineHasContent && (match = stream.match(setextHeaderRE))) {
++      state.header = match[0].charAt(0) == '=' ? 1 : 2;
++      if (modeCfg.highlightFormatting) state.formatting = "header";
++      state.f = state.inline;
++      return getType(state);
++    } else if (stream.eat('>')) {
++      state.indentation++;
++      state.quote = sol ? 1 : state.quote + 1;
++      if (modeCfg.highlightFormatting) state.formatting = "quote";
++      stream.eatSpace();
++      return getType(state);
++    } else if (stream.peek() === '[') {
++      return switchInline(stream, state, footnoteLink);
++    } else if (stream.match(hrRE, true)) {
++      return hr;
++    } else if ((!state.prevLineHasContent || prevLineIsList) && (stream.match(ulRE, false) || stream.match(olRE, false))) {
++      var listType = null;
++      if (stream.match(ulRE, true)) {
++        listType = 'ul';
++      } else {
++        stream.match(olRE, true);
++        listType = 'ol';
++      }
++      state.indentation += 4;
++      state.list = true;
++      state.listDepth++;
++      if (modeCfg.taskLists && stream.match(taskListRE, false)) {
++        state.taskList = true;
++      }
++      state.f = state.inline;
++      if (modeCfg.highlightFormatting) state.formatting = ["list", "list-" + listType];
++      return getType(state);
++    } else if (modeCfg.fencedCodeBlocks && stream.match(/^```[ \t]*([\w+#]*)/, true)) {
++      // try switching mode
++      state.localMode = getMode(RegExp.$1);
++      if (state.localMode) state.localState = state.localMode.startState();
++      state.f = state.block = local;
++      if (modeCfg.highlightFormatting) state.formatting = "code-block";
++      state.code = true;
++      return getType(state);
++    }
++
++    return switchInline(stream, state, state.inline);
++  }
++
++  function htmlBlock(stream, state) {
++    var style = htmlMode.token(stream, state.htmlState);
++    if ((htmlFound && state.htmlState.tagStart === null && !state.htmlState.context) ||
++        (state.md_inside && stream.current().indexOf(">") > -1)) {
++      state.f = inlineNormal;
++      state.block = blockNormal;
++      state.htmlState = null;
++    }
++    return style;
++  }
++
++  function local(stream, state) {
++    if (stream.sol() && stream.match("```", false)) {
++      state.localMode = state.localState = null;
++      state.f = state.block = leavingLocal;
++      return null;
++    } else if (state.localMode) {
++      return state.localMode.token(stream, state.localState);
++    } else {
++      stream.skipToEnd();
++      return code;
++    }
++  }
++
++  function leavingLocal(stream, state) {
++    stream.match("```");
++    state.block = blockNormal;
++    state.f = inlineNormal;
++    if (modeCfg.highlightFormatting) state.formatting = "code-block";
++    state.code = true;
++    var returnType = getType(state);
++    state.code = false;
++    return returnType;
++  }
++
++  // Inline
++  function getType(state) {
++    var styles = [];
++
++    if (state.formatting) {
++      styles.push(formatting);
++
++      if (typeof state.formatting === "string") state.formatting = [state.formatting];
++
++      for (var i = 0; i < state.formatting.length; i++) {
++        styles.push(formatting + "-" + state.formatting[i]);
++
++        if (state.formatting[i] === "header") {
++          styles.push(formatting + "-" + state.formatting[i] + "-" + state.header);
++        }
++
++        // Add `formatting-quote` and `formatting-quote-#` for blockquotes
++        // Add `error` instead if the maximum blockquote nesting depth is passed
++        if (state.formatting[i] === "quote") {
++          if (!modeCfg.maxBlockquoteDepth || modeCfg.maxBlockquoteDepth >= state.quote) {
++            styles.push(formatting + "-" + state.formatting[i] + "-" + state.quote);
++          } else {
++            styles.push("error");
++          }
++        }
++      }
++    }
++
++    if (state.taskOpen) {
++      styles.push("meta");
++      return styles.length ? styles.join(' ') : null;
++    }
++    if (state.taskClosed) {
++      styles.push("property");
++      return styles.length ? styles.join(' ') : null;
++    }
++
++    if (state.linkHref) {
++      styles.push(linkhref);
++      return styles.length ? styles.join(' ') : null;
++    }
++
++    if (state.strong) { styles.push(strong); }
++    if (state.em) { styles.push(em); }
++    if (state.strikethrough) { styles.push(strikethrough); }
++
++    if (state.linkText) { styles.push(linktext); }
++
++    if (state.code) { styles.push(code); }
++
++    if (state.header) { styles.push(header); styles.push(header + "-" + state.header); }
++
++    if (state.quote) {
++      styles.push(quote);
++
++      // Add `quote-#` where the maximum for `#` is modeCfg.maxBlockquoteDepth
++      if (!modeCfg.maxBlockquoteDepth || modeCfg.maxBlockquoteDepth >= state.quote) {
++        styles.push(quote + "-" + state.quote);
++      } else {
++        styles.push(quote + "-" + modeCfg.maxBlockquoteDepth);
++      }
++    }
++
++    if (state.list !== false) {
++      var listMod = (state.listDepth - 1) % 3;
++      if (!listMod) {
++        styles.push(list1);
++      } else if (listMod === 1) {
++        styles.push(list2);
++      } else {
++        styles.push(list3);
++      }
++    }
++
++    if (state.trailingSpaceNewLine) {
++      styles.push("trailing-space-new-line");
++    } else if (state.trailingSpace) {
++      styles.push("trailing-space-" + (state.trailingSpace % 2 ? "a" : "b"));
++    }
++
++    return styles.length ? styles.join(' ') : null;
++  }
++
++  function handleText(stream, state) {
++    if (stream.match(textRE, true)) {
++      return getType(state);
++    }
++    return undefined;
++  }
++
++  function inlineNormal(stream, state) {
++    var style = state.text(stream, state);
++    if (typeof style !== 'undefined')
++      return style;
++
++    if (state.list) { // List marker (*, +, -, 1., etc)
++      state.list = null;
++      return getType(state);
++    }
++
++    if (state.taskList) {
++      var taskOpen = stream.match(taskListRE, true)[1] !== "x";
++      if (taskOpen) state.taskOpen = true;
++      else state.taskClosed = true;
++      if (modeCfg.highlightFormatting) state.formatting = "task";
++      state.taskList = false;
++      return getType(state);
++    }
++
++    state.taskOpen = false;
++    state.taskClosed = false;
++
++    if (state.header && stream.match(/^#+$/, true)) {
++      if (modeCfg.highlightFormatting) state.formatting = "header";
++      return getType(state);
++    }
++
++    // Get sol() value now, before character is consumed
++    var sol = stream.sol();
++
++    var ch = stream.next();
++
++    if (ch === '\\') {
++      stream.next();
++      if (modeCfg.highlightFormatting) {
++        var type = getType(state);
++        return type ? type + " formatting-escape" : "formatting-escape";
++      }
++    }
++
++    // Matches link titles present on next line
++    if (state.linkTitle) {
++      state.linkTitle = false;
++      var matchCh = ch;
++      if (ch === '(') {
++        matchCh = ')';
++      }
++      matchCh = (matchCh+'').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
++      var regex = '^\\s*(?:[^' + matchCh + '\\\\]+|\\\\\\\\|\\\\.)' + matchCh;
++      if (stream.match(new RegExp(regex), true)) {
++        return linkhref;
++      }
++    }
++
++    // If this block is changed, it may need to be updated in GFM mode
++    if (ch === '`') {
++      var previousFormatting = state.formatting;
++      if (modeCfg.highlightFormatting) state.formatting = "code";
++      var t = getType(state);
++      var before = stream.pos;
++      stream.eatWhile('`');
++      var difference = 1 + stream.pos - before;
++      if (!state.code) {
++        codeDepth = difference;
++        state.code = true;
++        return getType(state);
++      } else {
++        if (difference === codeDepth) { // Must be exact
++          state.code = false;
++          return t;
++        }
++        state.formatting = previousFormatting;
++        return getType(state);
++      }
++    } else if (state.code) {
++      return getType(state);
++    }
++
++    if (ch === '!' && stream.match(/\[[^\]]*\] ?(?:\(|\[)/, false)) {
++      stream.match(/\[[^\]]*\]/);
++      state.inline = state.f = linkHref;
++      return image;
++    }
++
++    if (ch === '[' && stream.match(/.*\](\(| ?\[)/, false)) {
++      state.linkText = true;
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      return getType(state);
++    }
++
++    if (ch === ']' && state.linkText) {
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      var type = getType(state);
++      state.linkText = false;
++      state.inline = state.f = linkHref;
++      return type;
++    }
++
++    if (ch === '<' && stream.match(/^(https?|ftps?):\/\/(?:[^\\>]|\\.)+>/, false)) {
++      state.f = state.inline = linkInline;
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      var type = getType(state);
++      if (type){
++        type += " ";
++      } else {
++        type = "";
++      }
++      return type + linkinline;
++    }
++
++    if (ch === '<' && stream.match(/^[^> \\]+@(?:[^\\>]|\\.)+>/, false)) {
++      state.f = state.inline = linkInline;
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      var type = getType(state);
++      if (type){
++        type += " ";
++      } else {
++        type = "";
++      }
++      return type + linkemail;
++    }
++
++    if (ch === '<' && stream.match(/^\w/, false)) {
++      if (stream.string.indexOf(">") != -1) {
++        var atts = stream.string.substring(1,stream.string.indexOf(">"));
++        if (/markdown\s*=\s*('|"){0,1}1('|"){0,1}/.test(atts)) {
++          state.md_inside = true;
++        }
++      }
++      stream.backUp(1);
++      state.htmlState = CodeMirror.startState(htmlMode);
++      return switchBlock(stream, state, htmlBlock);
++    }
++
++    if (ch === '<' && stream.match(/^\/\w*?>/)) {
++      state.md_inside = false;
++      return "tag";
++    }
++
++    var ignoreUnderscore = false;
++    if (!modeCfg.underscoresBreakWords) {
++      if (ch === '_' && stream.peek() !== '_' && stream.match(/(\w)/, false)) {
++        var prevPos = stream.pos - 2;
++        if (prevPos >= 0) {
++          var prevCh = stream.string.charAt(prevPos);
++          if (prevCh !== '_' && prevCh.match(/(\w)/, false)) {
++            ignoreUnderscore = true;
++          }
++        }
++      }
++    }
++    if (ch === '*' || (ch === '_' && !ignoreUnderscore)) {
++      if (sol && stream.peek() === ' ') {
++        // Do nothing, surrounded by newline and space
++      } else if (state.strong === ch && stream.eat(ch)) { // Remove STRONG
++        if (modeCfg.highlightFormatting) state.formatting = "strong";
++        var t = getType(state);
++        state.strong = false;
++        return t;
++      } else if (!state.strong && stream.eat(ch)) { // Add STRONG
++        state.strong = ch;
++        if (modeCfg.highlightFormatting) state.formatting = "strong";
++        return getType(state);
++      } else if (state.em === ch) { // Remove EM
++        if (modeCfg.highlightFormatting) state.formatting = "em";
++        var t = getType(state);
++        state.em = false;
++        return t;
++      } else if (!state.em) { // Add EM
++        state.em = ch;
++        if (modeCfg.highlightFormatting) state.formatting = "em";
++        return getType(state);
++      }
++    } else if (ch === ' ') {
++      if (stream.eat('*') || stream.eat('_')) { // Probably surrounded by spaces
++        if (stream.peek() === ' ') { // Surrounded by spaces, ignore
++          return getType(state);
++        } else { // Not surrounded by spaces, back up pointer
++          stream.backUp(1);
++        }
++      }
++    }
++
++    if (modeCfg.strikethrough) {
++      if (ch === '~' && stream.eatWhile(ch)) {
++        if (state.strikethrough) {// Remove strikethrough
++          if (modeCfg.highlightFormatting) state.formatting = "strikethrough";
++          var t = getType(state);
++          state.strikethrough = false;
++          return t;
++        } else if (stream.match(/^[^\s]/, false)) {// Add strikethrough
++          state.strikethrough = true;
++          if (modeCfg.highlightFormatting) state.formatting = "strikethrough";
++          return getType(state);
++        }
++      } else if (ch === ' ') {
++        if (stream.match(/^~~/, true)) { // Probably surrounded by space
++          if (stream.peek() === ' ') { // Surrounded by spaces, ignore
++            return getType(state);
++          } else { // Not surrounded by spaces, back up pointer
++            stream.backUp(2);
++          }
++        }
++      }
++    }
++
++    if (ch === ' ') {
++      if (stream.match(/ +$/, false)) {
++        state.trailingSpace++;
++      } else if (state.trailingSpace) {
++        state.trailingSpaceNewLine = true;
++      }
++    }
++
++    return getType(state);
++  }
++
++  function linkInline(stream, state) {
++    var ch = stream.next();
++
++    if (ch === ">") {
++      state.f = state.inline = inlineNormal;
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      var type = getType(state);
++      if (type){
++        type += " ";
++      } else {
++        type = "";
++      }
++      return type + linkinline;
++    }
++
++    stream.match(/^[^>]+/, true);
++
++    return linkinline;
++  }
++
++  function linkHref(stream, state) {
++    // Check if space, and return NULL if so (to avoid marking the space)
++    if(stream.eatSpace()){
++      return null;
++    }
++    var ch = stream.next();
++    if (ch === '(' || ch === '[') {
++      state.f = state.inline = getLinkHrefInside(ch === "(" ? ")" : "]");
++      if (modeCfg.highlightFormatting) state.formatting = "link-string";
++      state.linkHref = true;
++      return getType(state);
++    }
++    return 'error';
++  }
++
++  function getLinkHrefInside(endChar) {
++    return function(stream, state) {
++      var ch = stream.next();
++
++      if (ch === endChar) {
++        state.f = state.inline = inlineNormal;
++        if (modeCfg.highlightFormatting) state.formatting = "link-string";
++        var returnState = getType(state);
++        state.linkHref = false;
++        return returnState;
++      }
++
++      if (stream.match(inlineRE(endChar), true)) {
++        stream.backUp(1);
++      }
++
++      state.linkHref = true;
++      return getType(state);
++    };
++  }
++
++  function footnoteLink(stream, state) {
++    if (stream.match(/^[^\]]*\]:/, false)) {
++      state.f = footnoteLinkInside;
++      stream.next(); // Consume [
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      state.linkText = true;
++      return getType(state);
++    }
++    return switchInline(stream, state, inlineNormal);
++  }
++
++  function footnoteLinkInside(stream, state) {
++    if (stream.match(/^\]:/, true)) {
++      state.f = state.inline = footnoteUrl;
++      if (modeCfg.highlightFormatting) state.formatting = "link";
++      var returnType = getType(state);
++      state.linkText = false;
++      return returnType;
++    }
++
++    stream.match(/^[^\]]+/, true);
++
++    return linktext;
++  }
++
++  function footnoteUrl(stream, state) {
++    // Check if space, and return NULL if so (to avoid marking the space)
++    if(stream.eatSpace()){
++      return null;
++    }
++    // Match URL
++    stream.match(/^[^\s]+/, true);
++    // Check for link title
++    if (stream.peek() === undefined) { // End of line, set flag to check next line
++      state.linkTitle = true;
++    } else { // More content on line, check if link title
++      stream.match(/^(?:\s+(?:"(?:[^"\\]|\\\\|\\.)+"|'(?:[^'\\]|\\\\|\\.)+'|\((?:[^)\\]|\\\\|\\.)+\)))?/, true);
++    }
++    state.f = state.inline = inlineNormal;
++    return linkhref;
++  }
++
++  var savedInlineRE = [];
++  function inlineRE(endChar) {
++    if (!savedInlineRE[endChar]) {
++      // Escape endChar for RegExp (taken from http://stackoverflow.com/a/494122/526741)
++      endChar = (endChar+'').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
++      // Match any non-endChar, escaped character, as well as the closing
++      // endChar.
++      savedInlineRE[endChar] = new RegExp('^(?:[^\\\\]|\\\\.)*?(' + endChar + ')');
++    }
++    return savedInlineRE[endChar];
++  }
++
++  var mode = {
++    startState: function() {
++      return {
++        f: blockNormal,
++
++        prevLineHasContent: false,
++        thisLineHasContent: false,
++
++        block: blockNormal,
++        htmlState: null,
++        indentation: 0,
++
++        inline: inlineNormal,
++        text: handleText,
++
++        formatting: false,
++        linkText: false,
++        linkHref: false,
++        linkTitle: false,
++        em: false,
++        strong: false,
++        header: 0,
++        taskList: false,
++        list: false,
++        listDepth: 0,
++        quote: 0,
++        trailingSpace: 0,
++        trailingSpaceNewLine: false,
++        strikethrough: false
++      };
++    },
++
++    copyState: function(s) {
++      return {
++        f: s.f,
++
++        prevLineHasContent: s.prevLineHasContent,
++        thisLineHasContent: s.thisLineHasContent,
++
++        block: s.block,
++        htmlState: s.htmlState && CodeMirror.copyState(htmlMode, s.htmlState),
++        indentation: s.indentation,
++
++        localMode: s.localMode,
++        localState: s.localMode ? CodeMirror.copyState(s.localMode, s.localState) : null,
++
++        inline: s.inline,
++        text: s.text,
++        formatting: false,
++        linkTitle: s.linkTitle,
++        em: s.em,
++        strong: s.strong,
++        strikethrough: s.strikethrough,
++        header: s.header,
++        taskList: s.taskList,
++        list: s.list,
++        listDepth: s.listDepth,
++        quote: s.quote,
++        trailingSpace: s.trailingSpace,
++        trailingSpaceNewLine: s.trailingSpaceNewLine,
++        md_inside: s.md_inside
++      };
++    },
++
++    token: function(stream, state) {
++
++      // Reset state.formatting
++      state.formatting = false;
++
++      if (stream.sol()) {
++        var forceBlankLine = !!state.header;
++
++        // Reset state.header
++        state.header = 0;
++
++        if (stream.match(/^\s*$/, true) || forceBlankLine) {
++          state.prevLineHasContent = false;
++          blankLine(state);
++          return forceBlankLine ? this.token(stream, state) : null;
++        } else {
++          state.prevLineHasContent = state.thisLineHasContent;
++          state.thisLineHasContent = true;
++        }
++
++        // Reset state.taskList
++        state.taskList = false;
++
++        // Reset state.code
++        state.code = false;
++
++        // Reset state.trailingSpace
++        state.trailingSpace = 0;
++        state.trailingSpaceNewLine = false;
++
++        state.f = state.block;
++        var indentation = stream.match(/^\s*/, true)[0].replace(/\t/g, '    ').length;
++        var difference = Math.floor((indentation - state.indentation) / 4) * 4;
++        if (difference > 4) difference = 4;
++        var adjustedIndentation = state.indentation + difference;
++        state.indentationDiff = adjustedIndentation - state.indentation;
++        state.indentation = adjustedIndentation;
++        if (indentation > 0) return null;
++      }
++      return state.f(stream, state);
++    },
++
++    innerMode: function(state) {
++      if (state.block == htmlBlock) return {state: state.htmlState, mode: htmlMode};
++      if (state.localState) return {state: state.localState, mode: state.localMode};
++      return {state: state, mode: mode};
++    },
++
++    blankLine: blankLine,
++
++    getType: getType,
++
++    fold: "markdown"
++  };
++  return mode;
++}, "xml");
++
++CodeMirror.defineMIME("text/x-markdown", "markdown");
++
++});
+\ No newline at end of file
+diff --git a/desktop/core/static/ext/js/markdown.min.js b/desktop/core/static/ext/js/markdown.min.js
+new file mode 100644
+index 0000000..68a1b45
+--- /dev/null
++++ b/desktop/core/static/ext/js/markdown.min.js
+@@ -0,0 +1 @@
++!function(a){function b(){return"Markdown.mk_block( "+uneval(this.toString())+", "+uneval(this.trailing)+", "+uneval(this.lineNumber)+" )"}function c(){var a=require("util");return"Markdown.mk_block( "+a.inspect(this.toString())+", "+a.inspect(this.trailing)+", "+a.inspect(this.lineNumber)+" )"}function d(a){for(var b=0,c=-1;-1!==(c=a.indexOf("\n",c+1));)b++;return b}function e(a){return a.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function f(a){if("string"==typeof a)return e(a);var b=a.shift(),c={},d=[];for(!a.length||"object"!=typeof a[0]||a[0]instanceof Array||(c=a.shift());a.length;)d.push(f(a.shift()));var g="";for(var h in c)g+=" "+h+'="'+e(c[h])+'"';return"img"===b||"br"===b||"hr"===b?"<"+b+g+"/>":"<"+b+g+">"+d.join("")+"</"+b+">"}function g(a,b,c){var d;c=c||{};var e=a.slice(0);"function"==typeof c.preprocessTreeNode&&(e=c.preprocessTreeNode(e,b));var f=o(e);if(f){e[1]={};for(d in f)e[1][d]=f[d];f=e[1]}if("string"==typeof e)return e;switch(e[0]){case"header":e[0]="h"+e[1].level,delete e[1].level;break;case"bulletlist":e[0]="ul";break;case"numberlist":e[0]="ol";break;case"listitem":e[0]="li";break;case"para":e[0]="p";break;case"markdown":e[0]="html",f&&delete f.references;break;case"code_block":e[0]="pre",d=f?2:1;var h=["code"];h.push.apply(h,e.splice(d,e.length-d)),e[d]=h;break;case"inlinecode":e[0]="code";break;case"img":e[1].src=e[1].href,delete e[1].href;break;case"linebreak":e[0]="br";break;case"link":e[0]="a";break;case"link_ref":e[0]="a";var i=b[f.ref];if(!i)return f.original;delete f.ref,f.href=i.href,i.title&&(f.title=i.title),delete f.original;break;case"img_ref":e[0]="img";var i=b[f.ref];if(!i)return f.original;delete f.ref,f.src=i.href,i.title&&(f.title=i.title),delete f.original}if(d=1,f){for(var j in e[1]){d=2;break}1===d&&e.splice(d,1)}for(;d<e.length;++d)e[d]=g(e[d],b,c);return e}function h(a){for(var b=o(a)?2:1;b<a.length;)"string"==typeof a[b]?b+1<a.length&&"string"==typeof a[b+1]?a[b]+=a.splice(b+1,1)[0]:++b:(h(a[b]),++b)}function i(a,b){function c(a){this.len_after=a,this.name="close_"+b}var d=a+"_state",e="strong"===a?"em_state":"strong_state";return function(f){if(this[d][0]===b)return this[d].shift(),[f.length,new c(f.length-b.length)];var g=this[e].slice(),h=this[d].slice();this[d].unshift(b);var i=this.processInline(f.substr(b.length)),j=i[i.length-1];if(this[d].shift(),j instanceof c){i.pop();var k=f.length-j.len_after;return[k,[a].concat(i)]}return this[e]=g,this[d]=h,[b.length,b]}}function j(a){for(var b=a.split(""),c=[""],d=!1;b.length;){var e=b.shift();switch(e){case" ":d?c[c.length-1]+=e:c.push("");break;case"'":case'"':d=!d;break;case"\\":e=b.shift();default:c[c.length-1]+=e}}return c}var k={};k.mk_block=function(a,d,e){1===arguments.length&&(d="\n\n");var f=new String(a);return f.trailing=d,f.inspect=c,f.toSource=b,void 0!==e&&(f.lineNumber=e),f};var l=k.isArray=Array.isArray||function(a){return"[object Array]"===Object.prototype.toString.call(a)};k.forEach=Array.prototype.forEach?function(a,b,c){return a.forEach(b,c)}:function(a,b,c){for(var d=0;d<a.length;d++)b.call(c||a,a[d],d,a)},k.isEmpty=function(a){for(var b in a)if(hasOwnProperty.call(a,b))return!1;return!0},k.extract_attr=function(a){return l(a)&&a.length>1&&"object"==typeof a[1]&&!l(a[1])?a[1]:void 0};var m=function(a){switch(typeof a){case"undefined":this.dialect=m.dialects.Gruber;break;case"object":this.dialect=a;break;default:if(!(a in m.dialects))throw new Error("Unknown Markdown dialect '"+String(a)+"'");this.dialect=m.dialects[a]}this.em_state=[],this.strong_state=[],this.debug_indent=""};m.dialects={};var n=m.mk_block=k.mk_block,l=k.isArray;m.parse=function(a,b){var c=new m(b);return c.toTree(a)},m.prototype.split_blocks=function(a){a=a.replace(/(\r\n|\n|\r)/g,"\n");var b,c=/([\s\S]+?)($|\n#|\n(?:\s*\n|$)+)/g,e=[],f=1;for(null!==(b=/^(\s*\n)/.exec(a))&&(f+=d(b[0]),c.lastIndex=b[0].length);null!==(b=c.exec(a));)"\n#"===b[2]&&(b[2]="\n",c.lastIndex--),e.push(n(b[1],b[2],f)),f+=d(b[0]);return e},m.prototype.processBlock=function(a,b){var c=this.dialect.block,d=c.__order__;if("__call__"in c)return c.__call__.call(this,a,b);for(var e=0;e<d.length;e++){var f=c[d[e]].call(this,a,b);if(f)return(!l(f)||f.length>0&&!l(f[0]))&&this.debug(d[e],"didn't return a proper array"),f}return[]},m.prototype.processInline=function(a){return this.dialect.inline.__call__.call(this,String(a))},m.prototype.toTree=function(a,b){var c=a instanceof Array?a:this.split_blocks(a),d=this.tree;try{for(this.tree=b||this.tree||["markdown"];c.length;){var e=this.processBlock(c.shift(),c);e.length&&this.tree.push.apply(this.tree,e)}return this.tree}finally{b&&(this.tree=d)}},m.prototype.debug=function(){var a=Array.prototype.slice.call(arguments);a.unshift(this.debug_indent),"undefined"!=typeof print&&print.apply(print,a),"undefined"!=typeof console&&"undefined"!=typeof console.log&&console.log.apply(null,a)},m.prototype.loop_re_over_block=function(a,b,c){for(var d,e=b.valueOf();e.length&&null!==(d=a.exec(e));)e=e.substr(d[0].length),c.call(this,d);return e},m.buildBlockOrder=function(a){var b=[];for(var c in a)"__order__"!==c&&"__call__"!==c&&b.push(c);a.__order__=b},m.buildInlinePatterns=function(a){var b=[];for(var c in a)if(!c.match(/^__.*__$/)){var d=c.replace(/([\\.*+?|()\[\]{}])/g,"\\$1").replace(/\n/,"\\n");b.push(1===c.length?d:"(?:"+d+")")}b=b.join("|"),a.__patterns__=b;var e=a.__call__;a.__call__=function(a,c){return void 0!==c?e.call(this,a,c):e.call(this,a,b)}};var o=k.extract_attr;m.renderJsonML=function(a,b){b=b||{},b.root=b.root||!1;var c=[];if(b.root)c.push(f(a));else for(a.shift(),!a.length||"object"!=typeof a[0]||a[0]instanceof Array||a.shift();a.length;)c.push(f(a.shift()));return c.join("\n\n")},m.toHTMLTree=function(a,b,c){"string"==typeof a&&(a=this.parse(a,b));var d=o(a),e={};d&&d.references&&(e=d.references);var f=g(a,e,c);return h(f),f},m.toHTML=function(a,b,c){var d=this.toHTMLTree(a,b,c);return this.renderJsonML(d)};var p={};p.inline_until_char=function(a,b){for(var c=0,d=[];;){if(a.charAt(c)===b)return c++,[c,d];if(c>=a.length)return null;var e=this.dialect.inline.__oneElement__.call(this,a.substr(c));c+=e[0],d.push.apply(d,e.slice(1))}},p.subclassDialect=function(a){function b(){}function c(){}return b.prototype=a.block,c.prototype=a.inline,{block:new b,inline:new c}};var q=k.forEach,o=k.extract_attr,n=k.mk_block,r=k.isEmpty,s=p.inline_until_char,t={block:{atxHeader:function(a,b){var c=a.match(/^(#{1,6})\s*(.*?)\s*#*\s*(?:\n|$)/);if(!c)return void 0;var d=["header",{level:c[1].length}];return Array.prototype.push.apply(d,this.processInline(c[2])),c[0].length<a.length&&b.unshift(n(a.substr(c[0].length),a.trailing,a.lineNumber+2)),[d]},setextHeader:function(a,b){var c=a.match(/^(.*)\n([-=])\2\2+(?:\n|$)/);if(!c)return void 0;var d="="===c[2]?1:2,e=["header",{level:d},c[1]];return c[0].length<a.length&&b.unshift(n(a.substr(c[0].length),a.trailing,a.lineNumber+2)),[e]},code:function(a,b){var c=[],d=/^(?: {0,3}\t| {4})(.*)\n?/;if(!a.match(d))return void 0;a:for(;;){var e=this.loop_re_over_block(d,a.valueOf(),function(a){c.push(a[1])});if(e.length){b.unshift(n(e,a.trailing));break a}if(!b.length)break a;if(!b[0].match(d))break a;c.push(a.trailing.replace(/[^\n]/g,"").substring(2)),a=b.shift()}return[["code_block",c.join("\n")]]},horizRule:function(a,b){var c=a.match(/^(?:([\s\S]*?)\n)?[ \t]*([-_*])(?:[ \t]*\2){2,}[ \t]*(?:\n([\s\S]*))?$/);if(!c)return void 0;var d=[["hr"]];if(c[1]){var e=n(c[1],"",a.lineNumber);d.unshift.apply(d,this.toTree(e,[]))}return c[3]&&b.unshift(n(c[3],a.trailing,a.lineNumber+1)),d},lists:function(){function a(a){return new RegExp("(?:^("+i+"{0,"+a+"} {0,3})("+f+")\\s+)|"+"(^"+i+"{0,"+(a-1)+"}[ ]{0,4})")}function b(a){return a.replace(/ {0,3}\t/g,"    ")}function c(a,b,c,d){if(b)return a.push(["para"].concat(c)),void 0;var e=a[a.length-1]instanceof Array&&"para"===a[a.length-1][0]?a[a.length-1]:a;d&&a.length>1&&c.unshift(d);for(var f=0;f<c.length;f++){var g=c[f],h="string"==typeof g;h&&e.length>1&&"string"==typeof e[e.length-1]?e[e.length-1]+=g:e.push(g)}}function d(a,b){for(var c=new RegExp("^("+i+"{"+a+"}.*?\\n?)*$"),d=new RegExp("^"+i+"{"+a+"}","gm"),e=[];b.length>0&&c.exec(b[0]);){var f=b.shift(),g=f.replace(d,"");e.push(n(g,f.trailing,f.lineNumber))}return e}function e(a,b,c){var d=a.list,e=d[d.length-1];if(!(e[1]instanceof Array&&"para"===e[1][0]))if(b+1===c.length)e.push(["para"].concat(e.splice(1,e.length-1)));else{var f=e.pop();e.push(["para"].concat(e.splice(1,e.length-1)),f)}}var f="[*+-]|\\d+\\.",g=/[*+-]/,h=new RegExp("^( {0,3})("+f+")[ 	]+"),i="(?: {0,3}\\t| {4})";return function(f,i){function j(a){var b=g.exec(a[2])?["bulletlist"]:["numberlist"];return n.push({list:b,indent:a[1]}),b}var k=f.match(h);if(!k)return void 0;for(var l,m,n=[],o=j(k),p=!1,r=[n[0].list];;){for(var s=f.split(/(?=\n)/),t="",u="",v=0;v<s.length;v++){u="";var w=s[v].replace(/^\n/,function(a){return u=a,""}),x=a(n.length);if(k=w.match(x),void 0!==k[1]){t.length&&(c(l,p,this.processInline(t),u),p=!1,t=""),k[1]=b(k[1]);var y=Math.floor(k[1].length/4)+1;if(y>n.length)o=j(k),l.push(o),l=o[1]=["listitem"];else{var z=!1;for(m=0;m<n.length;m++)if(n[m].indent===k[1]){o=n[m].list,n.splice(m+1,n.length-(m+1)),z=!0;break}z||(y++,y<=n.length?(n.splice(y,n.length-y),o=n[y-1].list):(o=j(k),l.push(o))),l=["listitem"],o.push(l)}u=""}w.length>k[0].length&&(t+=u+w.substr(k[0].length))}t.length&&(c(l,p,this.processInline(t),u),p=!1,t="");var A=d(n.length,i);A.length>0&&(q(n,e,this),l.push.apply(l,this.toTree(A,[])));var B=i[0]&&i[0].valueOf()||"";if(!B.match(h)&&!B.match(/^ /))break;f=i.shift();var C=this.dialect.block.horizRule(f,i);if(C){r.push.apply(r,C);break}q(n,e,this),p=!0}return r}}(),blockquote:function(a,b){if(!a.match(/^>/m))return void 0;var c=[];if(">"!==a[0]){for(var d=a.split(/\n/),e=[],f=a.lineNumber;d.length&&">"!==d[0][0];)e.push(d.shift()),f++;var g=n(e.join("\n"),"\n",a.lineNumber);c.push.apply(c,this.processBlock(g,[])),a=n(d.join("\n"),a.trailing,f)}for(;b.length&&">"===b[0][0];){var h=b.shift();a=n(a+a.trailing+h,h.trailing,a.lineNumber)}var i=a.replace(/^> ?/gm,""),j=(this.tree,this.toTree(i,["blockquote"])),k=o(j);return k&&k.references&&(delete k.references,r(k)&&j.splice(1,1)),c.push(j),c},referenceDefn:function(a,b){var c=/^\s*\[(.*?)\]:\s*(\S+)(?:\s+(?:(['"])(.*?)\3|\((.*?)\)))?\n?/;if(!a.match(c))return void 0;o(this.tree)||this.tree.splice(1,0,{});var d=o(this.tree);void 0===d.references&&(d.references={});var e=this.loop_re_over_block(c,a,function(a){a[2]&&"<"===a[2][0]&&">"===a[2][a[2].length-1]&&(a[2]=a[2].substring(1,a[2].length-1));var b=d.references[a[1].toLowerCase()]={href:a[2]};void 0!==a[4]?b.title=a[4]:void 0!==a[5]&&(b.title=a[5])});return e.length&&b.unshift(n(e,a.trailing)),[]},para:function(a){return[["para"].concat(this.processInline(a))]}},inline:{__oneElement__:function(a,b,c){var d,e;b=b||this.dialect.inline.__patterns__;var f=new RegExp("([\\s\\S]*?)("+(b.source||b)+")");if(d=f.exec(a),!d)return[a.length,a];if(d[1])return[d[1].length,d[1]];var e;return d[2]in this.dialect.inline&&(e=this.dialect.inline[d[2]].call(this,a.substr(d.index),d,c||[])),e=e||[d[2].length,d[2]]},__call__:function(a,b){function c(a){"string"==typeof a&&"string"==typeof e[e.length-1]?e[e.length-1]+=a:e.push(a)}for(var d,e=[];a.length>0;)d=this.dialect.inline.__oneElement__.call(this,a,b,e),a=a.substr(d.shift()),q(d,c);return e},"]":function(){},"}":function(){},__escape__:/^\\[\\`\*_{}\[\]()#\+.!\-]/,"\\":function(a){return this.dialect.inline.__escape__.exec(a)?[2,a.charAt(1)]:[1,"\\"]},"![":function(a){var b=a.match(/^!\[(.*?)\][ \t]*\([ \t]*([^")]*?)(?:[ \t]+(["'])(.*?)\3)?[ \t]*\)/);if(b){b[2]&&"<"===b[2][0]&&">"===b[2][b[2].length-1]&&(b[2]=b[2].substring(1,b[2].length-1)),b[2]=this.dialect.inline.__call__.call(this,b[2],/\\/)[0];var c={alt:b[1],href:b[2]||""};return void 0!==b[4]&&(c.title=b[4]),[b[0].length,["img",c]]}return b=a.match(/^!\[(.*?)\][ \t]*\[(.*?)\]/),b?[b[0].length,["img_ref",{alt:b[1],ref:b[2].toLowerCase(),original:b[0]}]]:[2,"!["]},"[":function v(a){var b=String(a),c=s.call(this,a.substr(1),"]");if(!c)return[1,"["];var v,d,e=1+c[0],f=c[1];a=a.substr(e);var g=a.match(/^\s*\([ \t]*([^"']*)(?:[ \t]+(["'])(.*?)\2)?[ \t]*\)/);if(g){var h=g[1];if(e+=g[0].length,h&&"<"===h[0]&&">"===h[h.length-1]&&(h=h.substring(1,h.length-1)),!g[3])for(var i=1,j=0;j<h.length;j++)switch(h[j]){case"(":i++;break;case")":0===--i&&(e-=h.length-j,h=h.substring(0,j))}return h=this.dialect.inline.__call__.call(this,h,/\\/)[0],d={href:h||""},void 0!==g[3]&&(d.title=g[3]),v=["link",d].concat(f),[e,v]}return g=a.match(/^\s*\[(.*?)\]/),g?(e+=g[0].length,d={ref:(g[1]||String(f)).toLowerCase(),original:b.substr(0,e)},v=["link_ref",d].concat(f),[e,v]):1===f.length&&"string"==typeof f[0]?(d={ref:f[0].toLowerCase(),original:b.substr(0,e)},v=["link_ref",d,f[0]],[e,v]):[1,"["]},"<":function(a){var b;return null!==(b=a.match(/^<(?:((https?|ftp|mailto):[^>]+)|(.*?@.*?\.[a-zA-Z]+))>/))?b[3]?[b[0].length,["link",{href:"mailto:"+b[3]},b[3]]]:"mailto"===b[2]?[b[0].length,["link",{href:b[1]},b[1].substr("mailto:".length)]]:[b[0].length,["link",{href:b[1]},b[1]]]:[1,"<"]},"`":function(a){var b=a.match(/(`+)(([\s\S]*?)\1)/);return b&&b[2]?[b[1].length+b[2].length,["inlinecode",b[3]]]:[1,"`"]},"  \n":function(){return[3,["linebreak"]]}}};t.inline["**"]=i("strong","**"),t.inline.__=i("strong","__"),t.inline["*"]=i("em","*"),t.inline._=i("em","_"),m.dialects.Gruber=t,m.buildBlockOrder(m.dialects.Gruber.block),m.buildInlinePatterns(m.dialects.Gruber.inline);var u=p.subclassDialect(t),o=k.extract_attr,q=k.forEach;u.processMetaHash=function(a){for(var b=j(a),c={},d=0;d<b.length;++d)if(/^#/.test(b[d]))c.id=b[d].substring(1);else if(/^\./.test(b[d]))c["class"]=c["class"]?c["class"]+b[d].replace(/./," "):b[d].substring(1);else if(/\=/.test(b[d])){var e=b[d].split(/\=/);c[e[0]]=e[1]}return c},u.block.document_meta=function(a){if(a.lineNumber>1)return void 0;if(!a.match(/^(?:\w+:.*\n)*\w+:.*$/))return void 0;o(this.tree)||this.tree.splice(1,0,{});var b=a.split(/\n/);for(var c in b){var d=b[c].match(/(\w+):\s*(.*)$/),e=d[1].toLowerCase(),f=d[2];this.tree[1][e]=f}return[]},u.block.block_meta=function(a){var b=a.match(/(^|\n) {0,3}\{:\s*((?:\\\}|[^\}])*)\s*\}$/);if(!b)return void 0;var c,d=this.dialect.processMetaHash(b[2]);if(""===b[1]){var e=this.tree[this.tree.length-1];if(c=o(e),"string"==typeof e)return void 0;c||(c={},e.splice(1,0,c));for(var f in d)c[f]=d[f];return[]}var g=a.replace(/\n.*$/,""),h=this.processBlock(g,[]);c=o(h[0]),c||(c={},h[0].splice(1,0,c));for(var f in d)c[f]=d[f];return h},u.block.definition_list=function(a,b){var c,d,e=/^((?:[^\s:].*\n)+):\s+([\s\S]+)$/,f=["dl"];if(!(d=a.match(e)))return void 0;for(var g=[a];b.length&&e.exec(b[0]);)g.push(b.shift());for(var h=0;h<g.length;++h){var d=g[h].match(e),i=d[1].replace(/\n$/,"").split(/\n/),j=d[2].split(/\n:\s+/);for(c=0;c<i.length;++c)f.push(["dt",i[c]]);for(c=0;c<j.length;++c)f.push(["dd"].concat(this.processInline(j[c].replace(/(\n)\s+/,"$1"))))}return[f]},u.block.table=function w(a){var b,c,d=function(a,b){b=b||"\\s",b.match(/^[\\|\[\]{}?*.+^$]$/)&&(b="\\"+b);for(var c,d=[],e=new RegExp("^((?:\\\\.|[^\\\\"+b+"])*)"+b+"(.*)");c=a.match(e);)d.push(c[1]),a=c[2];return d.push(a),d},e=/^ {0,3}\|(.+)\n {0,3}\|\s*([\-:]+[\-| :]*)\n((?:\s*\|.*(?:\n|$))*)(?=\n|$)/,f=/^ {0,3}(\S(?:\\.|[^\\|])*\|.*)\n {0,3}([\-:]+\s*\|[\-| :]*)\n((?:(?:\\.|[^\\|])*\|.*(?:\n|$))*)(?=\n|$)/;if(c=a.match(e))c[3]=c[3].replace(/^\s*\|/gm,"");else if(!(c=a.match(f)))return void 0;var w=["table",["thead",["tr"]],["tbody"]];c[2]=c[2].replace(/\|\s*$/,"").split("|");var g=[];for(q(c[2],function(a){a.match(/^\s*-+:\s*$/)?g.push({align:"right"}):a.match(/^\s*:-+\s*$/)?g.push({align:"left"}):a.match(/^\s*:-+:\s*$/)?g.push({align:"center"}):g.push({})}),c[1]=d(c[1].replace(/\|\s*$/,""),"|"),b=0;b<c[1].length;b++)w[1][1].push(["th",g[b]||{}].concat(this.processInline(c[1][b].trim())));return q(c[3].replace(/\|\s*$/gm,"").split("\n"),function(a){var c=["tr"];for(a=d(a,"|"),b=0;b<a.length;b++)c.push(["td",g[b]||{}].concat(this.processInline(a[b].trim())));w[2].push(c)},this),[w]},u.inline["{:"]=function(a,b,c){if(!c.length)return[2,"{:"];var d=c[c.length-1];if("string"==typeof d)return[2,"{:"];var e=a.match(/^\{:\s*((?:\\\}|[^\}])*)\s*\}/);if(!e)return[2,"{:"];var f=this.dialect.processMetaHash(e[1]),g=o(d);g||(g={},d.splice(1,0,g));for(var h in f)g[h]=f[h];return[e[0].length,""]},m.dialects.Maruku=u,m.dialects.Maruku.inline.__escape__=/^\\[\\`\*_{}\[\]()#\+.!\-|:]/,m.buildBlockOrder(m.dialects.Maruku.block),m.buildInlinePatterns(m.dialects.Maruku.inline),a.Markdown=m,a.parse=m.parse,a.toHTML=m.toHTML,a.toHTMLTree=m.toHTMLTree,a.renderJsonML=m.renderJsonML}(function(){return window.markdown={},window.markdown}());
+\ No newline at end of file
+-- 
+1.7.9.5
+

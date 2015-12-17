@@ -1,0 +1,40 @@
+From 8ae9fb3ad4af6e1d128f8d44e45684826d518e38 Mon Sep 17 00:00:00 2001
+From: Karissa McKelvey <krmckelv@gmail.com>
+Date: Mon, 13 Oct 2014 11:22:03 -0700
+Subject: [PATCH 0035/1173] [beeswax] Prevents 'save' overriding a query when
+ only a portion of it is selected
+
+---
+ apps/beeswax/src/beeswax/templates/execute.mako |    2 +-
+ apps/rdbms/src/rdbms/templates/execute.mako     |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index ff1d664..6ccdce0 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -2057,7 +2057,7 @@ $(document).on('error.query', function () {
+ 
+ // Save
+ function trySaveDesign() {
+-  var query = getHighlightedQuery() || codeMirror.getValue();
++  var query = codeMirror.getValue();
+   viewModel.design.query.value(query);
+   if (viewModel.design.id() && viewModel.design.id() != -1) {
+     viewModel.saveDesign();
+diff --git a/apps/rdbms/src/rdbms/templates/execute.mako b/apps/rdbms/src/rdbms/templates/execute.mako
+index 87028a9..6650a20 100644
+--- a/apps/rdbms/src/rdbms/templates/execute.mako
++++ b/apps/rdbms/src/rdbms/templates/execute.mako
+@@ -607,7 +607,7 @@ ${ commonheader(_('Query'), app_name, user) | n,unicode }
+   }
+ 
+   function trySaveQuery() {
+-    var query = getHighlightedQuery() || codeMirror.getValue();
++    var query = codeMirror.getValue();
+     viewModel.query.query(query);
+     if (viewModel.query.id() && viewModel.query.id() != -1) {
+       viewModel.saveQuery();
+-- 
+1.7.9.5
+

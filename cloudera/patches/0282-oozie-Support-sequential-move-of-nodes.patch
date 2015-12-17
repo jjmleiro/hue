@@ -1,0 +1,64 @@
+From 741de895d2ff6df927b67be523c01e6df924a5b5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 17 Nov 2014 15:56:47 -0500
+Subject: [PATCH 0282/1173] [oozie] Support sequential move of nodes
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   20 +++++++++++++++++++-
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 6470c3e..e85a601 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1146,7 +1146,7 @@ ${ dashboard.import_bindings() }
+       showAddActionDemiModal(widget);
+     }
+     else {
+-      // TODO: rebuild nodes here, it's after a d'n'd
++      viewModel.workflow.moveNode(widget);
+       $(document).trigger("drawArrows");
+     }
+   }
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 0d5676f..ab81e74 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -327,6 +327,24 @@ var Workflow = function (vm, workflow) {
+     }
+   };
+   
++  self.moveNode = function(widget) { alert(vm.currentlyCreatingFork);
++    if (! vm.currentlyCreatingFork) {
++      var node = self.getNodeById(widget.id());
++      var oldChildId = ko.mapping.toJS(node.get_link('to'))['to'];
++    
++      var parentWidget = vm.getWidgetPredecessor(node.id());
++      var parent = self.getNodeById(parentWidget.id());
++    
++      var childLink = parent.get_link('to');
++      var childId = ko.mapping.toJS(childLink)['to'];
++      var child = self.getNodeById(childId);
++    
++      parent.set_link('to', node.id());
++      child.set_link('to', oldChildId);
++      node.set_link('to', child.id());
++    }
++  };
++  
+   self.getParents = function(node_id) { // Only one for now
+     var _node = null;
+     $.each(self.nodes(), function (index, node) {
+@@ -339,7 +357,7 @@ var Workflow = function (vm, workflow) {
+       })
+     });
+     return _node;  
+-  }
++  };
+ 
+   self.getNodeById = function (node_id) {
+     var _node = null;
+-- 
+1.7.9.5
+

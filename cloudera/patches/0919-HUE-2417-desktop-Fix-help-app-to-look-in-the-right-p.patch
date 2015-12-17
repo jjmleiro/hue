@@ -1,0 +1,26 @@
+From 64ef81875d02388cdfebd7de73dde073281234da Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 25 Feb 2015 10:33:55 -0800
+Subject: [PATCH 0919/1173] HUE-2417 [desktop] Fix help app to look in the
+ right place for staticfiles
+
+---
+ desktop/core/src/desktop/appmanager.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/appmanager.py b/desktop/core/src/desktop/appmanager.py
+index ec8ad66..7083641 100644
+--- a/desktop/core/src/desktop/appmanager.py
++++ b/desktop/core/src/desktop/appmanager.py
+@@ -133,7 +133,7 @@ class DesktopModuleInfo(object):
+ 
+     # Look for static directory in two places:
+     new_style, old_style = [ os.path.abspath(p) for p in [
+-      os.path.join(module_root, "static"),
++      os.path.join(module_root, "static", self.name),
+       os.path.join(self.root_dir, "static")
+     ]]
+ 
+-- 
+1.7.9.5
+

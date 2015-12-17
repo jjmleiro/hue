@@ -1,0 +1,31 @@
+From 088507d82d285f6e00c348f869b62e9c791399d7 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 13 Jan 2015 21:36:42 +0100
+Subject: [PATCH 0441/1173] HUE-2536 [jb] Failed filter shows other statuses
+
+Updated running dashboard update mechanism
+---
+ apps/jobbrowser/src/jobbrowser/templates/jobs.mako |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/apps/jobbrowser/src/jobbrowser/templates/jobs.mako b/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
+index 37ac28e..a1fd1a8 100644
+--- a/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
++++ b/apps/jobbrowser/src/jobbrowser/templates/jobs.mako
+@@ -296,7 +296,12 @@ ${ components.menubar() }
+       }
+       else {
+         isUpdating = true;
+-        _url += "&state=running";
++        if ($(".btn-status.active").length > 0) {
++          _url += "&state=" + $(".btn-status.active").data("value");
++        }
++        else {
++          _url += "&state=running";
++        }
+       }
+ 
+       _url += "&user=" + $("#userFilter").val().trim();
+-- 
+1.7.9.5
+

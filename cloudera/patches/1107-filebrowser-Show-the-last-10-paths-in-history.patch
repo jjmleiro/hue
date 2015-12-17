@@ -1,0 +1,38 @@
+From 76d6b819252022631619c7b38a6b071a168ba33a Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 18 Mar 2015 09:55:02 -0500
+Subject: [PATCH 1107/1173] [filebrowser] Show the last 10 paths in history
+
+---
+ .../filebrowser/templates/listdir_components.mako  |    8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index d744831..9c59201 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -558,10 +558,8 @@ from django.utils.translation import ugettext as _
+       return $.totalStorage('hue_fb_history') || [];
+     };
+ 
+-    var showHistory = function (num) {
+-      //keep last 10 items
+-      var num = num || -10,
+-        history = getHistory().slice(num),
++    var showHistory = function () {
++      var history = getHistory().slice(0, 10),
+         frag = $('<ul/>', {
+                   'id': 'hashHistory',
+                   'class': 'dropdown-menu',
+@@ -611,7 +609,7 @@ from django.utils.translation import ugettext as _
+           history.unshift(history.splice(history.indexOf(path), 1)[0]);
+         }
+ 
+-        $.totalStorage('hue_fb_history', history);
++        $.totalStorage('hue_fb_history', history.slice(0, 10));
+       }
+     };
+ 
+-- 
+1.7.9.5
+

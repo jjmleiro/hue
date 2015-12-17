@@ -1,0 +1,33 @@
+From d25f8593367d8860149f804864fe65aee63d5c5d Mon Sep 17 00:00:00 2001
+From: Harsh <harsh@cloudera.com>
+Date: Fri, 9 Jan 2015 13:28:15 -0800
+Subject: [PATCH 0473/1173] HUE-2528 [beeswax] Partitions limit gets capped to
+ 1000 despite configuration
+
+---
+ .../beeswax/src/beeswax/server/hive_server2_lib.py |    9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/hive_server2_lib.py b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+index 02eb0dc..c79d3f0 100644
+--- a/apps/beeswax/src/beeswax/server/hive_server2_lib.py
++++ b/apps/beeswax/src/beeswax/server/hive_server2_lib.py
+@@ -640,8 +640,13 @@ class HiveServerClient:
+ 
+   def get_partitions(self, database, table_name, max_parts):
+     table = self.get_table(database, table_name)
+-    # TODO: do a 'use DB' ?
+-    partitionTable = self.execute_query_statement('SHOW PARTITIONS %s' % table_name) # DB prefix not supported
++
++    if max_parts is None or max_parts <= 0:
++      max_rows = 10000
++    else:
++      max_rows = 1000 if max_parts <= 250 else max_parts
++
++    partitionTable = self.execute_query_statement('SHOW PARTITIONS %s' % table_name, max_rows=max_rows) # DB prefix supported since Hive 0.13
+     return [PartitionValueCompatible(partition, table) for partition in partitionTable.rows()][-max_parts:]
+ 
+ 
+-- 
+1.7.9.5
+

@@ -1,0 +1,93 @@
+From 51a1592516016a2d813ddbba3a8ac39ea00d1b4e Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 10 Mar 2015 21:14:44 +0100
+Subject: [PATCH 1023/1173] [oozie] Disable current workflow as subworkflow
+ from the workflow editor
+
+---
+ .../oozie/static/oozie/js/workflow-editor.ko.js    |   21 ++++++++++++++++----
+ .../oozie/templates/editor2/common_workflow.mako   |    2 +-
+ .../oozie/templates/editor2/workflow_editor.mako   |    2 +-
+ 3 files changed, 19 insertions(+), 6 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+index af4234d..f3a213b 100644
+--- a/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
++++ b/apps/oozie/src/oozie/static/oozie/js/workflow-editor.ko.js
+@@ -258,7 +258,7 @@ var Workflow = function (vm, workflow) {
+           });
+ 
+           if (data.workflows.length > 0) {
+-            viewModel.subworfklows(data.workflows);
++            viewModel.subworkflows(getOtherSubworkflows(viewModel, data.workflows));
+           }
+ 
+           if (callback) {
+@@ -504,15 +504,18 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+     var _allFilled = true;
+     ko.utils.arrayForEach(self.addActionProperties(), function (property) {
+       var _val = property.value();
+-      if (($.isArray(_val) && !_filledInternalValues(_val) ) || _val == '') {
++      if (($.isArray(_val) && !_filledInternalValues(_val) ) || _val == '' || _val == null || typeof _val == 'undefined') {
+         _allFilled = false;
+       }
+     });
+     return _allFilled;
+   });
+-  self.subworfklows = ko.observableArray(subworkflows_json);
++
++
++  self.subworkflows = ko.observableArray(getOtherSubworkflows(self, subworkflows_json));
++
+   self.getSubWorkflow = function (uuid) {
+-    var wf = $.grep(self.subworfklows(), function (wf, i) {
++    var wf = $.grep(self.subworkflows(), function (wf, i) {
+       return wf.value == uuid;
+     });
+     if (wf[0]) {
+@@ -1162,6 +1165,16 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ };
+ 
+ 
++function getOtherSubworkflows(vm, workflows) {
++  var _cleanedSubworkflows = [];
++  workflows.forEach(function(sub){
++    if (sub.id != vm.workflow.id()){
++      _cleanedSubworkflows.push(sub);
++    }
++  });
++  return _cleanedSubworkflows;
++}
++
+ function logGA(page) {
+   if (typeof trackOnGA == 'function') {
+     trackOnGA('oozie/editor/workflow' + page);
+diff --git a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+index ecc7e29..c01edaa 100644
+--- a/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor2/common_workflow.mako
+@@ -1047,7 +1047,7 @@
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())" style="padding: 10px">
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()" class="nowrap">
+-        <select data-bind="options: $root.subworfklows, optionsText: 'name', optionsValue: 'value', value: properties.workflow"></select>
++        <select data-bind="options: $root.subworkflows, optionsText: 'name', optionsValue: 'value', value: properties.workflow"></select>
+         <span data-bind="visible: properties.workflow().length > 0">
+           <a href="#" data-bind="attr: { href: '${ url('oozie:edit_workflow') }' + '?workflow=' + properties.workflow() }" target="_blank" title="${ _('Open') }">
+             <i class="fa fa-external-link-square"></i>
+diff --git a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+index 2accd00..92c75e1 100644
+--- a/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor2/workflow_editor.mako
+@@ -239,7 +239,7 @@ ${ workflow.render() }
+           <textarea data-bind="value: value, valueUpdate:'afterkeydown'" class="input-xlarge"></textarea>
+           <!-- /ko -->
+           <!-- ko if: type() == 'workflow' -->
+-          <select data-bind="options: $root.subworfklows, optionsText: 'name', optionsValue: 'value', value: value"></select>
++          <select data-bind="options: $root.subworkflows, optionsText: 'name', optionsValue: 'value', value: value"></select>
+           <!-- /ko -->
+ 
+           <!-- ko if: type() == 'distcp' -->
+-- 
+1.7.9.5
+

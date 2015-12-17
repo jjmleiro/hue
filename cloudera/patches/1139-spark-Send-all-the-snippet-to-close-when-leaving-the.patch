@@ -1,0 +1,27 @@
+From 538693ec94f3e98c7ae898fb658b1d6ebed1ffed Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 20 Mar 2015 13:40:36 -0700
+Subject: [PATCH 1139/1173] [spark] Send all the snippet to close when leaving
+ the notebook
+
+Mostly for Impala now, we do nothing special for Spark sessions.
+---
+ apps/spark/src/spark/static/spark/js/spark.ko.js |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/spark/src/spark/static/spark/js/spark.ko.js b/apps/spark/src/spark/static/spark/js/spark.ko.js
+index 2e1841c..7c67352 100644
+--- a/apps/spark/src/spark/static/spark/js/spark.ko.js
++++ b/apps/spark/src/spark/static/spark/js/spark.ko.js
+@@ -610,7 +610,7 @@ var Notebook = function (vm, notebook) {
+   self.close = function () {
+     if (self.id() != null) {
+       $.post("/spark/api/notebook/close", {
+-        "notebook": ko.mapping.toJSON(self.getContext())
++        "notebook": ko.mapping.toJSON(self)
+       });
+     }
+   };
+-- 
+1.7.9.5
+

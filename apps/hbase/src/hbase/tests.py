@@ -21,9 +21,14 @@ import tempfile
 
 from nose.tools import assert_true, assert_equal
 
+from django.contrib.auth.models import User
+
+from desktop.lib.django_test_util import make_logged_in_client
+from desktop.lib.test_utils import grant_access
+
 from hbase.api import HbaseApi
 from hbase.conf import HBASE_CONF_DIR
-from hbase.hbase_site import get_server_authentication, get_server_principal, reset
+from hbase.hbase_site import get_server_authentication, get_server_principal, get_conf, reset, _CNF_HBASE_IMPERSONATION_ENABLED, is_impersonation_enabled
 
 
 def test_security_plain():
@@ -92,3 +97,67 @@ def hbase_site_xml(
     'kerberos_principal': kerberos_principal,
     'authentication': authentication,
   }
+
+
+def test_impersonation_is_decorator_is_there():
+  # Decorator is still there
+  from hbased.Hbase import do_as
+
+
+def test_impersonation():
+  from hbased import Hbase as thrift_hbase
+
+  c = make_logged_in_client(username='test_hbase', is_superuser=False)
+  grant_access('test_hbase', 'test_hbase', 'hbase')
+  user = User.objects.get(username='test_hbase')
+
+  proto = MockProtocol()
+  client = thrift_hbase.Client(proto)
+
+  impersonation_enabled = is_impersonation_enabled()
+
+  get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = 'FALSE'
+  try:
+    client.getTableNames(doas=user.username)
+  except AttributeError:
+    pass # We don't mock everything
+  finally:
+    get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = impersonation_enabled
+
+  assert_equal({}, proto.get_headers())
+
+
+  get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = 'TRUE'
+
+  try:
+    client.getTableNames(doas=user.username)
+  except AttributeError:
+    pass # We don't mock everything
+  finally:
+    get_conf()[_CNF_HBASE_IMPERSONATION_ENABLED] = impersonation_enabled
+
+  assert_equal({'doAs': u'test_hbase'}, proto.get_headers())
+
+
+
+class MockHttpClient():
+  def __init__(self):
+    self.headers = {}
+
+  def setCustomHeaders(self, headers):
+    self.headers = headers
+
+class MockTransport():
+  def __init__(self):
+    self._TBufferedTransport__trans = MockHttpClient()
+
+class MockProtocol():
+  def __init__(self):
+    self.trans = MockTransport()
+
+  def getTableNames(self):
+    pass
+
+  def get_headers(self):
+    return self.trans._TBufferedTransport__trans.headers
+

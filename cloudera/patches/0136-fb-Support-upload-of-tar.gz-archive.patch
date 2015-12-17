@@ -1,0 +1,25 @@
+From ab613ead1ebf0aeaa1a48c4d358c9a0268c5d3ed Mon Sep 17 00:00:00 2001
+From: krish <krish@cloudera.com>
+Date: Tue, 25 Nov 2014 18:10:52 -0800
+Subject: [PATCH 0136/1173] [fb] Support upload of tar.gz archive
+
+---
+ apps/filebrowser/src/filebrowser/views.py |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/apps/filebrowser/src/filebrowser/views.py b/apps/filebrowser/src/filebrowser/views.py
+index 4c08b43..ec0d7cf 100644
+--- a/apps/filebrowser/src/filebrowser/views.py
++++ b/apps/filebrowser/src/filebrowser/views.py
+@@ -1235,7 +1235,7 @@ def _upload_archive(request):
+                     raise PopupException(_('Could not extract contents of file.'))
+                 # Move the file to where it belongs
+                 dest = dest[:-4]
+-            elif dest.endswith('.tar.gz'):
++            elif dest.endswith('.tar.gz') or dest.endswith('.tgz'):
+                 print uploaded_file
+                 temp_path = archive_factory(uploaded_file, 'tgz').extract()
+                 if not temp_path:
+-- 
+1.7.9.5
+

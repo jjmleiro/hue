@@ -1,0 +1,65 @@
+From c0d0973b26ae42195385c221f116f17c45c70ea7 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 3 Dec 2014 23:09:41 -0600
+Subject: [PATCH 0553/1173] [spark] Split see logs from the other buttons
+
+---
+ apps/spark/src/spark/templates/editor.mako |   10 +++-------
+ apps/spark/static/js/spark.vm.js           |    4 ----
+ 2 files changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 2297eb6..affe2b2 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -210,8 +210,9 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       </div>
+ 
+       <div style="padding-top: 10px;">
+-        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showGrid(! $data.showGrid()); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }"><i class="fa fa-th"></i></a>
+-        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showChart(! $data.showChart()); }, css: {'active': $data.showChart}" href="javascript:void(0)" class="btn" title="${ _('Chart') }"><i class="fa fa-line-chart"></i></a>
++        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showGrid(true); }, css: {'active': $data.showGrid}" href="javascript:void(0)" class="btn" title="${ _('Grid') }"><i class="fa fa-th"></i></a>
++        <a data-bind="visible: result.meta().length > 0, click: function() { $data.showChart(true); }, css: {'active': $data.showChart}" href="javascript:void(0)" class="btn" title="${ _('Chart') }"><i class="fa fa-line-chart"></i></a>
++        &nbsp;
+         <a data-bind="visible: status() != 'ready', click: function() { $data.showLogs(! $data.showLogs()); }, css: {'active': $data.showLogs}" href="javascript:void(0)" class="btn" title="${ _('Logs') }"><i class="fa fa-file-text-o"></i></a>
+       </div>
+ 
+@@ -250,11 +251,6 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+       <div data-bind="visible: showChart">
+         The chart is gonna be here
+       </div>
+-
+-      <div data-bind="visible: showLogs, css: resultsKlass">
+-        Here are the logs. <br/>
+-        <span data-bind="text: result.logs"></span>
+-      </div>
+     </div>
+   </div>
+ </script>
+diff --git a/apps/spark/static/js/spark.vm.js b/apps/spark/static/js/spark.vm.js
+index 7eb5624..b384f0e 100644
+--- a/apps/spark/static/js/spark.vm.js
++++ b/apps/spark/static/js/spark.vm.js
+@@ -134,19 +134,15 @@ var Snippet = function (notebook, snippet) {
+   self.showGrid.subscribe(function (val){
+     if (val){
+       self.showChart(false);
+-      self.showLogs(false);
+     }
+   });
+   self.showChart.subscribe(function (val){
+     if (val){
+       self.showGrid(false);
+-      self.showLogs(false);
+     }
+   });
+   self.showLogs.subscribe(function (val){
+     if (val){
+-      self.showGrid(false);
+-      self.showChart(false);
+       self.getLogs();
+     }
+   });
+-- 
+1.7.9.5
+

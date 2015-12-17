@@ -1,0 +1,118 @@
+From 09f51af478d3c6733478fcffc5e13f61603499c5 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 4 Nov 2014 23:17:15 +0000
+Subject: [PATCH 0242/1173] [oozie] Link fork and Join nodes to their widgets
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    1 +
+ apps/oozie/static/js/workflow-editor.ko.js         |   34 ++++++++++++--------
+ 2 files changed, 21 insertions(+), 14 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index 205159f..2a8f908 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -279,6 +279,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+   <!-- /ko -->
+ </script>
+ 
++
+ <script type="text/html" id="join-widget">
+   <!-- ko if: $root.workflow.getNodeById(id()) -->
+   <div class="row-fluid" data-bind="with: $root.workflow.getNodeById(id())">
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 93cc8c2..74373d1 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -181,17 +181,12 @@ var Workflow = function (vm, workflow) {
+        // if node != kill node
+ 
+         // Added to the side ?
+-        if (true) {
++        if (vm.currentlyCreatingFork) {
+           var parent = self.getNodeById('3f107997-04cc-8733-60a9-a4bb62cebffc');
+-          
++
+           if (parent.type() != 'fork-widget') {          
+-            var fork = new Node({});
+-            fork.name('fork' + '-' + fork.id().slice(0, 4));
+-            fork.type('fork-widget');
+-          
+-            var join = new Node({});
+-            join.name('join' + '-' + fork.id().slice(0, 4));
+-            join.type('join-widget');
++            var fork = new Node(vm.currentlyCreatedFork);
++            var join = new Node(vm.currentlyCreatedJoin);
+             
+             // Start node
+             var afterStartId = ko.mapping.toJS(parent.get_link('to')).to;
+@@ -210,7 +205,7 @@ var Workflow = function (vm, workflow) {
+ 	        var end = self.nodes.pop();
+ 	        self.nodes.push(fork);
+ 	        self.nodes.push(join);
+-	        self.nodes.push(end)	        
++	        self.nodes.push(end);	        
+             // Regular node
+           
+             // Join node
+@@ -238,6 +233,8 @@ var Workflow = function (vm, workflow) {
+     	  // Parent fork/decision/join...
+         }
+ 
++        vm.currentlyCreatingFork = false;
++        
+       } else {
+         $(document).trigger("error", data.message);
+        }
+@@ -287,6 +284,9 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+ 
+   self.currentlyDraggedWidget = null;
++  self.currentlyCreatingFork = false;
++  self.currentlyCreatedFork = null;
++  self.currentlyCreatedJoin = null;
+   self.isDragging = ko.observable(false);
+ 
+   self.setCurrentDraggedWidget = function (widget) {
+@@ -304,10 +304,11 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       });
+ 
+       var _forkRow = _parentCol.addEmptyRow(false, _rowIdx);
++      var _id = UUID();
+       var _fork = new Widget({
+         size: 12,
+-        id: UUID(),
+-        name: "fork",
++        id: _id,
++        name: 'fork' + '-' + _id.slice(0, 4),
+         widgetType: "fork-widget",
+         properties: {},
+         offset: 0,
+@@ -333,10 +334,11 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       _col.addRow(_row);
+ 
+       var _joinRow = _parentCol.addEmptyRow(false, _rowIdx + 2);
++      var _id = UUID();
+       var _join = new Widget({
+         size: 12,
+-        id: UUID(),
+-        name: "join",
++        id: _id,
++        name: "join" + '-' + _id.slice(0, 4),
+         widgetType: "join-widget",
+         properties: {},
+         offset: 0,
+@@ -347,6 +349,10 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+       _joinRow.widgets([_join]);
+ 
+       self.currentlyDraggedWidget = null;
++      self.currentlyCreatingFork = true;
++      self.currentlyCreatedFork = ko.mapping.toJS(_fork);
++      self.currentlyCreatedJoin = ko.mapping.toJS(_join);
++
+       return _w;
+     }
+   }
+-- 
+1.7.9.5
+

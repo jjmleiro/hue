@@ -1,0 +1,220 @@
+From 2784a8bb17f177374fd64c3a8f1145a786ca6511 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Sat, 3 Jan 2015 10:26:14 -0500
+Subject: [PATCH 0653/1173] [spark] Cleanup livy-server
+
+---
+ .../scala/com/cloudera/hue/livy/server/Main.scala  |   81 ------------------
+ .../cloudera/hue/livy/server/SessionFactory.scala  |    2 +-
+ .../com/cloudera/hue/livy/server/WebApp.scala      |   86 ++++++++++++++++++++
+ 3 files changed, 87 insertions(+), 82 deletions(-)
+ create mode 100644 apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+index 0d9e4df..bbefc54 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/Main.scala
+@@ -2,15 +2,10 @@ package com.cloudera.hue.livy.server
+ 
+ import javax.servlet.ServletContext
+ 
+-import scala.concurrent.duration._
+ import com.cloudera.hue.livy.WebServer
+-import org.json4s.{DefaultFormats, Formats}
+ import org.scalatra._
+-import org.scalatra.json.JacksonJsonSupport
+ import org.scalatra.servlet.ScalatraListener
+ 
+-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor}
+-
+ object Main {
+   def main(args: Array[String]): Unit = {
+     val port = sys.env.getOrElse("PORT", "8998").toInt
+@@ -39,79 +34,3 @@ class ScalatraBootstrap extends LifeCycle {
+     sessionManager.close()
+   }
+ }
+-
+-class WebApp(sessionManager: SessionManager) extends ScalatraServlet with FutureSupport with MethodOverride with JacksonJsonSupport with UrlGeneratorSupport {
+-
+-  override protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
+-  override protected implicit def jsonFormats: Formats = DefaultFormats
+-
+-  before() {
+-    contentType = formats("json")
+-  }
+-
+-  get("/sessions") {
+-    sessionManager.getSessionIds
+-  }
+-
+-  post("/sessions") {
+-    val createSessionRequest = parsedBody.extract[CreateSessionRequest]
+-
+-    val sessionFuture = createSessionRequest.lang match {
+-      case "scala" => sessionManager.createSparkSession()
+-      case lang => halt(400, "unsupported language: " + lang)
+-    }
+-
+-    val rep = for {
+-      session <- sessionFuture
+-    } yield redirect(url(getSession, "sessionId" -> session.id))
+-
+-    new AsyncResult { val is = rep }
+-  }
+-
+-  val getStatements = get("/sessions/:sessionId/statements") {
+-    sessionManager.get(params("sessionId")) match {
+-      case Some(session: Session) =>
+-        val statements = session.statements()
+-        val statementsWaited = Await.result(statements, Duration.Inf) //5 seconds)
+-        //new AsyncResult() { val is = statements }
+-        statementsWaited
+-      case None => NotFound("Session not found")
+-    }
+-  }
+-
+-  val getSession = get("/sessions/:sessionId") {
+-    redirect(url(getStatements, "sessionId" -> params("sessionId")))
+-  }
+-
+-  delete("/sessions/:sessionId") {
+-    sessionManager.close(params("sessionId"))
+-    NoContent
+-  }
+-
+-  post("/sessions/:sessionId/statements") {
+-    val req = parsedBody.extract[ExecuteStatementRequest]
+-
+-    sessionManager.get(params("sessionId")) match {
+-      case Some(session) =>
+-        val statement = session.executeStatement(req.statement)
+-        val foo = Await.result(statement, Duration.Inf)
+-        foo
+-
+-
+-        //new AsyncResult() { val is = statement }
+-      case None => NotFound("Session not found")
+-    }
+-  }
+-
+-  val getStatement = get("/sessions/:sessionId/statements/:statementId") {
+-    sessionManager.get(params("sessionId")) match {
+-      case Some(session) =>
+-        val statement = session.statement(params("statementId").toInt)
+-        new AsyncResult() { val is = statement }
+-      case None => NotFound("Session not found")
+-    }
+-  }
+-}
+-
+-case class CreateSessionRequest(lang: String)
+-case class ExecuteStatementRequest(statement: String)
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+index 64c7d60..cb27801 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/SessionFactory.scala
+@@ -14,7 +14,7 @@ class ProcessSessionFactory extends SessionFactory {
+ 
+   override def createSparkSession: Future[Session] = {
+     future {
+-      val id = "a" //UUID.randomUUID().toString
++      val id = UUID.randomUUID().toString
+       new SparkProcessSession(id)
+     }
+   }
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+new file mode 100644
+index 0000000..c21d075
+--- /dev/null
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/WebApp.scala
+@@ -0,0 +1,86 @@
++package com.cloudera.hue.livy.server
++
++import org.json4s.{DefaultFormats, Formats}
++import org.scalatra._
++import org.scalatra.json.JacksonJsonSupport
++
++import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
++
++object WebApp {
++  case class CreateSessionRequest(lang: String)
++  case class ExecuteStatementRequest(statement: String)
++}
++
++class WebApp(sessionManager: SessionManager)
++  extends ScalatraServlet
++  with FutureSupport
++  with MethodOverride
++  with JacksonJsonSupport
++  with UrlGeneratorSupport {
++
++  import com.cloudera.hue.livy.server.WebApp._
++
++  override protected implicit def executor: ExecutionContextExecutor = ExecutionContext.global
++  override protected implicit def jsonFormats: Formats = DefaultFormats
++
++  before() {
++    contentType = formats("json")
++  }
++
++  get("/sessions") {
++    sessionManager.getSessionIds
++  }
++
++  post("/sessions") {
++    val createSessionRequest = parsedBody.extract[CreateSessionRequest]
++
++    val sessionFuture = createSessionRequest.lang match {
++      case "scala" => sessionManager.createSparkSession()
++      case lang => halt(400, "unsupported language: " + lang)
++    }
++
++    val rep = for {
++      session <- sessionFuture
++    } yield redirect(url(getSession, "sessionId" -> session.id))
++
++    new AsyncResult { val is = rep }
++  }
++
++  val getStatements = get("/sessions/:sessionId/statements") {
++    sessionManager.get(params("sessionId")) match {
++      case Some(session: Session) =>
++        val statements = session.statements()
++        new AsyncResult() { val is = statements }
++      case None => NotFound("Session not found")
++    }
++  }
++
++  val getSession = get("/sessions/:sessionId") {
++    redirect(url(getStatements, "sessionId" -> params("sessionId")))
++  }
++
++  delete("/sessions/:sessionId") {
++    sessionManager.close(params("sessionId"))
++    NoContent
++  }
++
++  post("/sessions/:sessionId/statements") {
++    val req = parsedBody.extract[ExecuteStatementRequest]
++
++    sessionManager.get(params("sessionId")) match {
++      case Some(session) =>
++        val statement = session.executeStatement(req.statement)
++        new AsyncResult() { val is = statement }
++      case None => NotFound("Session not found")
++    }
++  }
++
++  val getStatement = get("/sessions/:sessionId/statements/:statementId") {
++    sessionManager.get(params("sessionId")) match {
++      case Some(session) =>
++        val statement = session.statement(params("statementId").toInt)
++        new AsyncResult() { val is = statement }
++      case None => NotFound("Session not found")
++    }
++  }
++}
+-- 
+1.7.9.5
+

@@ -1,0 +1,162 @@
+From 7c45379bc6481ca6d38d054dacb440185799a5d1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 16 Jul 2014 09:49:09 -0700
+Subject: [PATCH 0017/1173] HUE-2210 [search] Add a initial_gap in sync with
+ gap for new facets or saved collection
+
+---
+ apps/search/src/search/models.py             |    4 +++
+ apps/search/src/search/templates/search.mako |   12 +++++---
+ apps/search/src/search/views.py              |    3 +-
+ apps/search/static/js/search.ko.js           |   38 ++++++--------------------
+ 4 files changed, 22 insertions(+), 35 deletions(-)
+
+diff --git a/apps/search/src/search/models.py b/apps/search/src/search/models.py
+index 80da16e..8c69796 100644
+--- a/apps/search/src/search/models.py
++++ b/apps/search/src/search/models.py
+@@ -274,6 +274,10 @@ class Collection(models.Model):
+       props['collection']['enabled'] = True
+     if 'leafletmap' not in props['collection']['template']:
+       props['collection']['template']['leafletmap'] = {'latitudeField': None, 'longitudeField': None, 'labelField': None}
++    for facet in props['collection']['facets']:
++      properties = facet['properties']
++      if 'gap' in properties and not 'initial_gap' in properties:
++        properties['initial_gap'] = properties['gap']
+ 
+     return json.dumps(props)
+ 
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index f864809..0ff7e0a 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -308,7 +308,7 @@ ${ dashboard.layout_skeleton() }
+         <div class="slider-cnt" data-bind="slider: {start: properties.min, end: properties.max, gap: properties.gap, min: properties.start, max: properties.end}"></div>
+       <!-- /ko -->
+       <!-- ko if: properties.isDate() -->
+-        <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.gap, min: properties.min, max: properties.max}"></div>
++        <div data-bind="daterangepicker: {start: properties.start, end: properties.end, gap: properties.initial_gap, min: properties.min, max: properties.max}"></div>
+         <br/>
+       <!-- /ko -->
+     <!-- /ko -->
+@@ -712,8 +712,12 @@ ${ dashboard.layout_skeleton() }
+     </div>
+ 
+     <div style="padding-bottom: 10px; text-align: right; padding-right: 20px" data-bind="visible: counts.length > 0">
++      <span data-bind="visible: ! $root.isEditing(), with: $root.collection.getFacetById($parent.id())">
++        <span class="facet-field-label">${ _('Interval') }</span>
++        <input data-bind="value: properties.gap"></input>
++      </span>
+       <span class="facet-field-label">${ _('Zoom') }</span>
+-      <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
++      <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+       <span class="facet-field-label">${ _('Group by') }</span>
+       <select class="input-medium" data-bind="options: $root.query.multiqs, optionsValue: 'id', optionsText: 'label', value: $root.query.selectedMultiq"></select>
+     </div>
+@@ -746,7 +750,7 @@ ${ dashboard.layout_skeleton() }
+       <!-- ko if: type() == 'range' -->
+         <div style="padding-bottom: 10px; text-align: right; padding-right: 20px">
+           <span class="facet-field-label">${ _('Zoom') }</span>
+-          <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
++          <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+         </div>
+       <!-- /ko -->
+     </div>
+@@ -785,7 +789,7 @@ ${ dashboard.layout_skeleton() }
+ 
+     <div style="padding-bottom: 10px; text-align: right; padding-right: 20px" data-bind="visible: counts.length > 0">
+       <span class="facet-field-label">${ _('Zoom') }</span>
+-      <a href="javascript:void(0)" data-bind="click: $root.collection.timeLineZoom"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
++      <a href="javascript:void(0)" data-bind="click: $root.collection.rangeZoomOut"><i class="fa fa-search-minus"></i> ${ _('reset') }</a>
+     </div>
+ 
+     <div data-bind="lineChart: {datum: {counts: counts, widget_id: $parent.id(), label: label}, field: field, label: label,
+diff --git a/apps/search/src/search/views.py b/apps/search/src/search/views.py
+index 761d609..e5d8937 100644
+--- a/apps/search/src/search/views.py
++++ b/apps/search/src/search/views.py
+@@ -460,6 +460,7 @@ def _create_facet(collection, user, facet_id, facet_label, facet_field, widget_t
+     if range_properties:
+       facet_type = 'range'
+       properties.update(range_properties)
++      properties['initial_gap'] = properties['gap']
+     elif widget_type == 'hit-widget':
+       facet_type = 'query'
+     else:
+@@ -497,7 +498,7 @@ def get_range_facet(request):
+     if action == 'select':
+       properties = _guess_gap(solr_api, collection, facet, facet['properties']['start'], facet['properties']['end'])
+     else:
+-      properties = _zoom_range_facet(solr_api, collection, facet)
++      properties = _zoom_range_facet(solr_api, collection, facet) # Zoom out
+ 
+     result['properties'] = properties
+     result['status'] = 0
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index 659c45b..4a3bea9 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -162,7 +162,7 @@ var Query = function (vm, query) {
+ 
+   self.selectRangeFacet = function (data) {
+     if (data.force != undefined) {
+-      self.removeFilter(ko.mapping.fromJS({'id': data.widget_id}));
++      self.removeFilter(ko.mapping.fromJS({'id': data.widget_id, 'dontZoomOut': true}));
+     }
+ 
+     var fq = self.getFacetFilter(data.widget_id);
+@@ -216,8 +216,8 @@ var Query = function (vm, query) {
+         self.fqs.remove(fq);
+         // Also re-init range select widget
+         var rangeWidget = vm.collection.getFacetById(fq.id());
+-        if (rangeWidget != null && RANGE_SELECTABLE_WIDGETS.indexOf(rangeWidget.widgetType()) != -1 && fq.type() == 'range') {
+-          vm.collection.timeLineZoom({'id': rangeWidget.id()});
++        if (data.dontZoomOut == undefined && rangeWidget != null && RANGE_SELECTABLE_WIDGETS.indexOf(rangeWidget.widgetType()) != -1 && fq.type() == 'range') {
++          vm.collection.rangeZoomOut({'id': rangeWidget.id()});
+         }
+         found = true;
+         return false;
+@@ -763,35 +763,13 @@ var Collection = function (vm, collection) {
+     vm.search();
+   }
+ 
+-  self.timeLineZoom = function (facet_json) {
++  self.rangeZoomOut = function (facet_json) {
+     var facet = self.getFacetById(facet_json.id);
+ 
+-    facet.properties.start(facet.from);
+-    facet.properties.end(facet.to);
+-
+-    $.ajax({
+-      type: "POST",
+-      url: "/search/get_range_facet",
+-      data: {
+-        collection: ko.mapping.toJSON(self),
+-        facet: ko.mapping.toJSON(facet),
+-        action: "zoom_out"
+-      },
+-      success: function (data) {
+-        if (data.status == 0) {
+-          facet.properties.start(data.properties.start);
+-          facet.properties.end(data.properties.end);
+-          facet.properties.gap(data.properties.gap);
+-
+-          var fq = vm.query.getFacetFilter(facet_json.id);
+-          if (fq != null) {
+-            fq.properties()[0].from(data.properties.start);
+-            fq.properties()[0].to(data.properties.end);
+-          }
+-        }
+-      },
+-      async: false
+-    });
++    vm.query.removeFilter(ko.mapping.fromJS({'id': facet_json.id}));
++    if (facet.properties.gap() != null) { // Bar, line charts don't have gap
++      facet.properties.gap(facet.properties.initial_gap());
++    }
+ 
+     vm.search();
+   }
+-- 
+1.7.9.5
+

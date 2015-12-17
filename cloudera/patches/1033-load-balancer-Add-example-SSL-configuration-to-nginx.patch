@@ -1,0 +1,36 @@
+From bbb60031bdeae5ede5add55f5fb11a43a1a62740 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 11 Mar 2015 11:29:16 -0700
+Subject: [PATCH 1033/1173] [load-balancer] Add example SSL configuration to
+ nginx config
+
+---
+ tools/load-balancer/etc/nginx.conf |    9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/tools/load-balancer/etc/nginx.conf b/tools/load-balancer/etc/nginx.conf
+index 71250ec..df4e8c7 100644
+--- a/tools/load-balancer/etc/nginx.conf
++++ b/tools/load-balancer/etc/nginx.conf
+@@ -17,10 +17,17 @@ http {
+     access_log logs/nginx_access.log;
+ 
+     server {
+-        listen 8001;
+         server_name localhost;
+         charset utf-8;
+ 
++        # If running hue on http://
++        listen 8001;
++
++        # If running hue on https://
++        ## listen 8001 ssl;
++        ## ssl_certificate /path/to/ssl/cert;
++        ## ssl_certificate_key /path/to/ssl/key;
++
+         location / {
+             proxy_pass http://hue;
+         }
+-- 
+1.7.9.5
+

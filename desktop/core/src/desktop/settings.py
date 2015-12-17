@@ -22,14 +22,22 @@
 
 import logging
 import os
-import sys
 import pkg_resources
+import sys
+
 from guppy import hpy
+
 
 import desktop.conf
 import desktop.log
+import desktop.redaction
+
 from desktop.lib.paths import get_desktop_root
 from desktop.lib.python_util import force_dict_to_strings
+
+
+# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '..', '..'))
 
 
 HUE_DESKTOP_VERSION = pkg_resources.get_distribution("desktop").version or "Unknown"
@@ -96,10 +104,17 @@ MEDIA_URL = ''
 ############################################################
 
 # Additional locations of static files
-STATICFILES_DIRS = ()
+STATICFILES_DIRS = (
+    os.path.join(BASE_DIR, 'desktop', 'libs', 'indexer', 'src', 'indexer', 'static'),
+    os.path.join(BASE_DIR, 'desktop', 'libs', 'liboauth', 'src', 'liboauth', 'static'),
+)
+
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.CachedStaticFilesStorage'
 
 # For Django admin interface
 STATIC_URL = '/static/'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'build', 'static')
 
 # List of callables that know how to import templates from various sources.
 TEMPLATE_LOADERS = (
@@ -110,13 +125,11 @@ TEMPLATE_LOADERS = (
 MIDDLEWARE_CLASSES = [
     # The order matters
     'desktop.middleware.EnsureSafeMethodMiddleware',
-    'desktop.middleware.DatabaseLoggingMiddleware',
     'desktop.middleware.AuditLoggingMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'desktop.middleware.SessionOverPostMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'desktop.middleware.SpnegoMiddleware',    
+    'desktop.middleware.SpnegoMiddleware',
     'desktop.middleware.HueRemoteUserMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'babeldjango.middleware.LocaleMiddleware',
@@ -125,12 +138,12 @@ MIDDLEWARE_CLASSES = [
     'desktop.middleware.LoginAndPermissionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'desktop.middleware.NotificationMiddleware',
-    'desktop.middleware.JFrameMiddleware',
     'desktop.middleware.ExceptionMiddleware',
     'desktop.middleware.ClusterMiddleware',
-    'desktop.middleware.AppSpecificMiddleware',
-    'django.middleware.transaction.TransactionMiddleware'
     # 'debug_toolbar.middleware.DebugToolbarMiddleware'
+    'django.middleware.csrf.CsrfViewMiddleware',
+
+    'django.middleware.http.ConditionalGetMiddleware',
 ]
 
 if os.environ.get(ENV_DESKTOP_DEBUG):
@@ -143,7 +156,7 @@ ROOT_URLCONF = 'desktop.urls'
 WSGI_APPLICATION = None
 
 TEMPLATE_DIRS = (
-    get_desktop_root("core/templates")
+    get_desktop_root("core/templates"),
 )
 
 INSTALLED_APPS = [
@@ -152,6 +165,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.sites',
+    'django.contrib.staticfiles',
 
     'django.contrib.admin',
     'django_extensions',
@@ -202,7 +216,6 @@ FILE_UPLOAD_HANDLERS = (
   'django.core.files.uploadhandler.TemporaryFileUploadHandler',
 )
 
-
 ############################################################
 # Part 4: Installation of apps
 ############################################################
@@ -217,6 +230,10 @@ LOCALE_PATHS.extend([app.locale_path for app in appmanager.DESKTOP_LIBS])
 # Load desktop config
 _desktop_conf_modules = [dict(module=desktop.conf, config_key=None)]
 conf.initialize(_desktop_conf_modules, _config_dir)
+
+# Register the redaction filters into the root logger as soon as possible.
+desktop.redaction.register_log_filtering(desktop.conf.get_redaction_policy())
+
 
 # Activate l10n
 # Install apps
@@ -243,6 +260,9 @@ TEMPLATE_DEBUG = DEBUG
 # configs.
 ############################################################
 
+# Configure allowed hosts
+ALLOWED_HOSTS = desktop.conf.ALLOWED_HOSTS.get()
+
 # Configure hue admins
 ADMINS = []
 for admin in desktop.conf.DJANGO_ADMINS.get():
@@ -263,25 +283,33 @@ if os.getenv('DESKTOP_DB_CONFIG'):
   conn_string = os.getenv('DESKTOP_DB_CONFIG')
   logging.debug("DESKTOP_DB_CONFIG SET: %s" % (conn_string))
   default_db = dict(zip(
-    ["ENGINE", "NAME", "TEST__NAME", "USER", "PASSWORD", "HOST", "PORT"],
+    ["ENGINE", "NAME", "TEST_NAME", "USER", "PASSWORD", "HOST", "PORT"],
     conn_string.split(':')))
 else:
   default_db = {
     "ENGINE" : desktop.conf.DATABASE.ENGINE.get(),
     "NAME" : desktop.conf.DATABASE.NAME.get(),
     "USER" : desktop.conf.DATABASE.USER.get(),
-    "PASSWORD" : desktop.conf.DATABASE.PASSWORD.get(),
+    "PASSWORD" : desktop.conf.get_database_password(),
     "HOST" : desktop.conf.DATABASE.HOST.get(),
     "PORT" : str(desktop.conf.DATABASE.PORT.get()),
     "OPTIONS": force_dict_to_strings(desktop.conf.DATABASE.OPTIONS.get()),
     # DB used for tests
-    "TEST_NAME" : get_desktop_root('desktop-test.db')
+    "TEST_NAME" : get_desktop_root('desktop-test.db'),
+    # Wrap each request in a transaction.
+    "ATOMIC_REQUESTS" : True,
   }
 
 DATABASES = {
   'default': default_db
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-hue'
+    }
+}
 
 # Configure sessions
 SESSION_COOKIE_AGE = desktop.conf.SESSION.TTL.get()
@@ -306,14 +334,15 @@ if desktop.conf.DEMO_ENABLED.get():
 EMAIL_HOST = desktop.conf.SMTP.HOST.get()
 EMAIL_PORT = desktop.conf.SMTP.PORT.get()
 EMAIL_HOST_USER = desktop.conf.SMTP.USER.get()
-EMAIL_HOST_PASSWORD = desktop.conf.SMTP.PASSWORD.get()
+EMAIL_HOST_PASSWORD = desktop.conf.get_smtp_password()
 EMAIL_USE_TLS = desktop.conf.SMTP.USE_TLS.get()
 DEFAULT_FROM_EMAIL = desktop.conf.SMTP.DEFAULT_FROM.get()
 
 # Used for securely creating sessions.  Should be unique and not shared with anybody.
 SECRET_KEY = desktop.conf.SECRET_KEY.get()
 if SECRET_KEY == "":
-  logging.warning("secret_key should be configured")
+  import uuid
+  SECRET_KEY = str(uuid.uuid4())
 
 # SAML
 SAML_AUTHENTICATION = 'libsaml.backend.SAML2Backend' in AUTHENTICATION_BACKENDS
@@ -363,3 +392,7 @@ os.environ['KRB5CCNAME'] = desktop.conf.KERBEROS.CCACHE_PATH.get()
 if desktop.conf.MEMORY_PROFILER.get():
   MEMORY_PROFILER = hpy()
   MEMORY_PROFILER.setrelheap()
+
+if not desktop.conf.DATABASE_LOGGING.get():
+  from desktop.monkey_patches import disable_database_logging
+  disable_database_logging()

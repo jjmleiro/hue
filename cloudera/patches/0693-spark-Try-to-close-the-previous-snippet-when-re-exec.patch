@@ -1,0 +1,271 @@
+From 8072d947a6451593ae1fa967e12d647926a5c6df Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 27 Jan 2015 22:28:53 +0800
+Subject: [PATCH 0693/1173] [spark] Try to close the previous snippet when
+ re-executing it
+
+---
+ apps/spark/src/spark/api.py                |   32 ++++++++++++++++++++++++--
+ apps/spark/src/spark/job_server_api.py     |    8 ++-----
+ apps/spark/src/spark/models.py             |   22 ++++++++++++++++--
+ apps/spark/src/spark/templates/editor.mako |   25 ++++++++++----------
+ apps/spark/src/spark/urls.py               |    2 ++
+ apps/spark/static/js/spark.ko.js           |   34 ++++++++++++++++++++++++++++
+ 6 files changed, 100 insertions(+), 23 deletions(-)
+
+diff --git a/apps/spark/src/spark/api.py b/apps/spark/src/spark/api.py
+index ac5af9b..9d6d869 100644
+--- a/apps/spark/src/spark/api.py
++++ b/apps/spark/src/spark/api.py
+@@ -25,7 +25,7 @@ from desktop.lib.exceptions_renderable import PopupException
+ from desktop.lib.i18n import force_unicode
+ from desktop.models import Document2, Document
+ 
+-from spark.models import get_api, Notebook
++from spark.models import get_api, Notebook, QueryExpired
+ from spark.decorators import api_error_handler
+ 
+ 
+@@ -127,7 +127,6 @@ def get_logs(request):
+   return HttpResponse(json.dumps(response), mimetype="application/json")
+ 
+ 
+-
+ def save_notebook(request):
+   response = {'status': -1}
+ 
+@@ -161,3 +160,32 @@ def open_notebook(request):
+   response['message'] = _('Notebook saved !')
+ 
+   return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def close_notebook(request):
++  response = {'status': -1}
++
++  notebook_id = request.GET.get('notebook')
++  notebook = Notebook(document=Document2.objects.get(id=notebook_id)) # Todo perms
++  
++  response['status'] = 0
++  for snippet in notebook['snippets']:
++    get_api(request.user, snippet).close(snippet)
++  response['message'] = _('Notebook closed !')
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
++
++
++def close_statement(request):
++  response = {'status': -1}
++
++  notebook = json.loads(request.POST.get('notebook', '{}'))  # Todo perms
++  snippet = json.loads(request.POST.get('snippet', '{}'))
++
++  try:
++    response['result'] = get_api(request.user, snippet).close(snippet)
++  except QueryExpired:
++    pass
++  response['status'] = 0
++
++  return HttpResponse(json.dumps(response), mimetype="application/json")
+diff --git a/apps/spark/src/spark/job_server_api.py b/apps/spark/src/spark/job_server_api.py
+index 690e756..d2de5e6 100644
+--- a/apps/spark/src/spark/job_server_api.py
++++ b/apps/spark/src/spark/job_server_api.py
+@@ -81,15 +81,11 @@ class JobServerApi(object):
+       self._thread_local.user = user
+ 
+   def create_session(self, **kwargs):
+-    return self._root.post('sessions',
+-        data=json.dumps(kwargs),
+-        contenttype='application/json')
++    return self._root.post('sessions', data=json.dumps(kwargs), contenttype='application/json')
+ 
+   def submit_statement(self, uuid, statement):
+     data = {'statement': statement}
+-    return self._root.post('sessions/%s/statements' % uuid,
+-        data=json.dumps(data),
+-        contenttype=_JSON_CONTENT_TYPE)
++    return self._root.post('sessions/%s/statements' % uuid, data=json.dumps(data), contenttype=_JSON_CONTENT_TYPE)
+ 
+   def fetch_data(self, session, statement):
+     return self._root.get('sessions/%s/statements/%s' % (session, statement))
+diff --git a/apps/spark/src/spark/models.py b/apps/spark/src/spark/models.py
+index 29b7e0a..880e148 100644
+--- a/apps/spark/src/spark/models.py
++++ b/apps/spark/src/spark/models.py
+@@ -24,10 +24,11 @@ from desktop.lib.rest.http_client import RestException
+ 
+ from beeswax import models as beeswax_models, data_export
+ from beeswax.design import hql_query
++from beeswax import conf as beeswax_conf
+ from beeswax.models import QUERY_TYPES, HiveServerQueryHandle, QueryHistory, HiveServerQueryHistory
+-from beeswax.views import safe_get_design, save_design
+ from beeswax.server import dbms
+ from beeswax.server.dbms import get_query_server_config, QueryServerException
++from beeswax.views import safe_get_design, save_design
+ 
+ from spark.job_server_api import get_api as get_spark_api
+ 
+@@ -242,6 +243,19 @@ class HS2Api():
+     else:
+       return 50
+ 
++  @query_error_handler
++  def close(self, snippet):
++    if snippet['type'] == 'impala':
++      from impala import conf as impala_conf
++
++    if (snippet['type'] == 'hive' and beeswax_conf.CLOSE_QUERIES.get()) or (snippet['type'] == 'impala' and impala_conf.CLOSE_QUERIES.get()):
++      db = self._get_db(snippet)
++  
++      handle = self._get_handle(snippet)
++      db.close_operation(handle)
++      return {'status': 'closed'}
++    else:
++      return {'status': 'skipped'}
+ 
+ 
+ # Spark
+@@ -309,7 +323,7 @@ class SparkApi():
+         raise e
+ 
+     return {
+-        'data': [data['output']] if start_over else [], # start_over not supported
++        'data': [data['output']] if start_over else [], # start_over not supported yet
+         'meta': [{'name': 'Header', 'type': 'String', 'comment': ''}]
+     }
+ 
+@@ -325,3 +339,7 @@ class SparkApi():
+ 
+   def _progress(self, snippet, logs):
+     return 50
++
++  def close(self, snippet):
++    pass
++
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index 11ef9b0..1bf296d 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -392,19 +392,18 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+                   <i class="fa fa-caret-down"></i>
+                 </button>
+                 <ul class="dropdown-menu pull-right">
+-                    <li>
+-                      <a href="javascript:void(0)" data-bind="click: function() { $('#snippet_' + $data.id()).find('.download-format').val('csv'); $('#snippet_' + $data.id()).find('.download-form').submit(); }" title="${ _('Download first rows as CSV') }">
+-                        <i class="fa fa-file-o"></i> ${ _('CSV') } 
+-                      </a>
+-                    </li>
+-                    <li>
+-                      <a href="javascript:void(0)" data-bind="click: function() { $('#snippet_' + $data.id()).find('.download-format').val('xls'); $('#snippet_' + $data.id()).find('.download-form').submit(); }" title="${ _('Download first rows as XLS') }">
+-                        <i class="fa fa-file-excel-o"></i> ${ _('Excel') } 
+-                      </a>                  
+-                    </li>
++                  <li>
++                    <a class="download" href="javascript:void(0)" data-bind="click: function() { $('#snippet_' + $data.id()).find('.download-format').val('csv'); $('#snippet_' + $data.id()).find('.download-form').submit(); }" title="${ _('Download first rows as CSV') }">
++                      <i class="fa fa-file-o"></i> ${ _('CSV') } 
++                    </a>
++                  </li>
++                  <li>
++                    <a class="download" href="javascript:void(0)" data-bind="click: function() { $('#snippet_' + $data.id()).find('.download-format').val('xls'); $('#snippet_' + $data.id()).find('.download-form').submit(); }" title="${ _('Download first rows as XLS') }">
++                      <i class="fa fa-file-excel-o"></i> ${ _('Excel') } 
++                    </a>                  
++                  </li>
+                 </ul>            
+               </div>
+-
+             </form>
+             
+           </div>
+@@ -560,11 +559,11 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+         <div class="btn-toolbar" data-role="editor-toolbar" data-bind="attr:{'data-target': '#editor_'+id()}, visible: $root.isEditing()">
+           <div class="btn-group">
+             <a class="btn dropdown-toggle" data-toggle="dropdown" title="Font Size"><i class="fa fa-text-height"></i>&nbsp;<b class="caret"></b></a>
+-              <ul class="dropdown-menu">
++            <ul class="dropdown-menu">
+               <li><a data-edit="fontSize 5"><font size="5">${ _("Huge") }</font></a></li>
+               <li><a data-edit="fontSize 3"><font size="3">${ _("Normal") }</font></a></li>
+               <li><a data-edit="fontSize 1"><font size="1">${ _("Small") }</font></a></li>
+-              </ul>
++            </ul>
+           </div>
+           <div class="btn-group">
+             <a class="btn" data-edit="bold" title="Bold (Ctrl/Cmd+B)"><i class="fa fa-bold"></i></a>
+diff --git a/apps/spark/src/spark/urls.py b/apps/spark/src/spark/urls.py
+index 0cfe932..79aa061 100644
+--- a/apps/spark/src/spark/urls.py
++++ b/apps/spark/src/spark/urls.py
+@@ -35,9 +35,11 @@ urlpatterns += patterns('spark.api',
+   url(r'^api/fetch_result_data$', 'fetch_result_data', name='fetch_result_data'),
+   url(r'^api/fetch_result_metadata$', 'fetch_result_metadata', name='fetch_result_metadata'),
+   url(r'^api/cancel_statement', 'cancel_statement', name='cancel_statement'),
++  url(r'^api/close_statement', 'close_statement', name='close_statement'),
+   url(r'^api/get_logs', 'get_logs', name='get_logs'),
+ 
+   url(r'^api/notebook/save$', 'save_notebook', name='save_notebook'),
+   url(r'^api/notebook/open$', 'open_notebook', name='open_notebook'),
++  url(r'^api/notebook/close$', 'close_notebook', name='close_notebook'),
+ )
+ 
+diff --git a/apps/spark/static/js/spark.ko.js b/apps/spark/static/js/spark.ko.js
+index 94f73dd..d35410f 100644
+--- a/apps/spark/static/js/spark.ko.js
++++ b/apps/spark/static/js/spark.ko.js
+@@ -286,6 +286,10 @@ var Snippet = function (vm, notebook, snippet) {
+     $(".jHueNotify").hide();
+     logGA('/execute/' + self.type());
+ 
++    if (self.result.meta().length > 0) {
++      self.close();
++    }
++    
+     self.result.clear();
+     self.progress(0);
+     self.status('running');
+@@ -418,6 +422,27 @@ var Snippet = function (vm, notebook, snippet) {
+     });
+   };
+   
++  self.close = function() {
++	if (self.checkStatusTimeout != null) {
++	  clearTimeout(self.checkStatusTimeout);
++	  self.checkStatusTimeout = null;
++	}
++	
++    $.post("/spark/api/close_statement", {
++        notebook: ko.mapping.toJSON(notebook),
++        snippet: ko.mapping.toJSON(self)
++ 	  }, function (data) {
++ 	    if (data.status == 0) {
++ 	      self.status('closed'); 
++ 	    } else {
++ 	      self._ajax_error(data);
++ 	    }
++ 	}).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++      self.status('failed');
++    });
++  };
++  
+   self.getLogs = function() {
+     $.post("/spark/api/get_logs", {
+         notebook: ko.mapping.toJSON(notebook),
+@@ -532,6 +557,15 @@ var Notebook = function (vm, notebook) {
+       $(document).trigger("error", xhr.responseText);
+     });
+   };
++  
++  self.close = function () {
++    $.post("/spark/api/notebook/close", {
++        "notebook": ko.mapping.toJSON(self)
++    }, function (data) {
++   }).fail(function (xhr, textStatus, errorThrown) {
++      $(document).trigger("error", xhr.responseText);
++    });
++  };
+ }
+ 
+ 
+-- 
+1.7.9.5
+

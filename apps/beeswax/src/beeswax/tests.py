@@ -37,7 +37,11 @@ from django.utils.encoding import smart_str
 from django.utils.html import escape
 from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
+from django.db import transaction
 
+from desktop import redaction
+from desktop.redaction import logfilter
+from desktop.redaction.engine import RedactionPolicy, RedactionRule
 from desktop.lib.django_test_util import make_logged_in_client, assert_equal_mod_whitespace
 from desktop.lib.test_utils import grant_access, add_to_group
 from desktop.lib.security_util import get_localhost_name
@@ -60,7 +64,8 @@ from beeswax.models import SavedQuery, QueryHistory, HQL, HIVE_SERVER2
 from beeswax.server import dbms
 from beeswax.server.dbms import QueryServerException
 from beeswax.server.hive_server2_lib import HiveServerClient,\
-  PartitionValueCompatible, HiveServerTable
+  PartitionKeyCompatible, PartitionValueCompatible, HiveServerTable,\
+  HiveServerTColumnValue2
 from beeswax.test_base import BeeswaxSampleProvider
 from beeswax.hive_site import get_metastore
 
@@ -73,16 +78,16 @@ LOG = logging.getLogger(__name__)
 def _make_query(client, query, submission_type="Execute",
                 udfs=None, settings=None, resources=[],
                 wait=False, name=None, desc=None, local=True,
-                is_parameterized=True, max=30.0, database='default', email_notify=False, params=None, **kwargs):
+                is_parameterized=True, max=30.0, database='default', email_notify=False, params=None, server_name='beeswax', **kwargs):
 
   res = make_query(client, query, submission_type,
                    udfs, settings, resources,
-                   wait, name, desc, local, is_parameterized, max, database, email_notify, params, **kwargs)
+                   wait, name, desc, local, is_parameterized, max, database, email_notify, params, server_name, **kwargs)
 
   # Should be in the history if it's submitted.
   if submission_type == 'Execute':
     fragment = collapse_whitespace(smart_str(escape(query[:20])))
-    verify_history(client, fragment=fragment)
+    verify_history(client, fragment=fragment, server_name=server_name)
 
   return res
 
@@ -92,7 +97,8 @@ def get_csv(client, result_response):
   content = json.loads(result_response.content)
   assert_true(content['isSuccess'])
   csv_link = '/beeswax/download/%s/csv' % content['id']
-  return client.get(csv_link).content
+  csv_resp = client.get(csv_link)
+  return ''.join(csv_resp.streaming_content)
 
 
 class TestBeeswaxWithHadoop(BeeswaxSampleProvider):
@@ -199,8 +205,7 @@ for x in sys.stdin:
     # Minimal server operation
     assert_equal(['default', 'other_db'], self.db.get_databases())
 
-    # Query the data
-    # We use a semicolon here for kicks; the code strips it out.
+    # Use GROUP BY to trigger MR job
     QUERY = """
       SELECT MIN(foo), MAX(foo), SUM(foo) FROM test;
     """
@@ -213,9 +218,8 @@ for x in sys.stdin:
     response = wait_for_query_to_finish(self.client, response, max=180.0)
     content = fetch_query_result_data(self.client, response)
 
-    assert_equal([0, 255, 32640], content["results"][0], content)
+    assert_equal([0, 255, 32640], content["results"][0], content["results"][0])
     assert_equal(['INT_TYPE', 'INT_TYPE', 'BIGINT_TYPE'], [col['type'] for col in content["columns"]])
-    assert_equal(1, len(content["hadoop_jobs"]), content) # Should be 1 after HS2 bug is fixed
     self._verify_query_state(beeswax.models.QueryHistory.STATE.available)
 
     # Query multi-page request
@@ -239,7 +243,7 @@ for x in sys.stdin:
     # Download the data
     response = self.client.get(content["download_urls"]["csv"])
     # Header line plus data lines...
-    assert_equal(257, response.content.count("\n"))
+    assert_equal(257, ''.join(response.streaming_content).count("\n"))
 
   def test_result_escaping(self):
     # Check for XSS and NULL display
@@ -263,7 +267,7 @@ for x in sys.stdin:
     """
     Testing query with udf
     """
-    response = _make_query(self.client, "SELECT my_sqrt(foo), my_float(foo) FROM test WHERE foo=4",
+    response = _make_query(self.client, "SELECT my_sqrt(foo), my_float(foo) FROM test where foo=4 GROUP BY foo", # Force MR job with GROUP BY
       udfs=[('my_sqrt', 'org.apache.hadoop.hive.ql.udf.UDFSqrt'),
             ('my_float', 'org.apache.hadoop.hive.ql.udf.UDFToFloat')], local=False)
     response = wait_for_query_to_finish(self.client, response, max=60.0)
@@ -271,10 +275,8 @@ for x in sys.stdin:
 
     assert_equal([2.0, 4.0], content["results"][0])
     log = content['log']
-    assert_true(search_log_line('parse.SemanticAnalyzer', 'Completed plan generation', log), log)
-    assert_true(search_log_line('ql.Driver', 'Semantic Analysis Completed', log), log)
-    assert_true(search_log_line('exec.Task', '100%', log), log)
-    assert_true(search_log_line('ql.Driver', 'OK', log), log)
+    assert_true(search_log_line('map = 100%', log), log)
+    assert_true(search_log_line('reduce = 100%', log), log)
     # Test job extraction while we're at it
     assert_equal(1, len(content["hadoop_jobs"]), "Should have started 1 job and extracted it.")
 
@@ -475,8 +477,8 @@ for x in sys.stdin:
       result_holder[i] = response
       lock.release()
       LOG.info("Finished: " + str(i))
-    except:
-      LOG.exception("Saw exception in child thread.")
+    except Exception, e:
+      LOG.exception("Saw exception in child thread: %s" % e)
 
   def test_multiple_statements_no_result_set(self):
     hql = """
@@ -602,6 +604,8 @@ for x in sys.stdin:
 
     So we check the results by looking at the csv files.
     """
+    raise SkipTest # sqlite does not support concurrent transaction
+
     PARALLEL_TASKS = 2
     responses = [ None ] * PARALLEL_TASKS
     threads = []
@@ -617,6 +621,9 @@ for x in sys.stdin:
     for t in threads:
       t.join()
 
+    # Commit transactions to be sure that QueryHistory up to date
+    transaction.commit()
+
     for i in range(PARALLEL_TASKS):
       csv = get_csv(self.client, responses[i])
       # We get 3 rows: Column header, and 2 rows of results in double quotes
@@ -631,7 +638,8 @@ for x in sys.stdin:
     handle = self.db.execute_and_wait(query)
     # Get the result in csv. Should have 3 + 1 header row.
     csv_resp = download(handle, 'csv', self.db)
-    assert_equal(len(csv_resp.content.strip().split('\n')), limit + 1)
+    csv_content = ''.join(csv_resp.streaming_content)
+    assert_equal(len(csv_content.strip().split('\n')), limit + 1)
 
   def test_query_done_cb(self):
     hql = 'SELECT * FROM test'
@@ -662,7 +670,7 @@ for x in sys.stdin:
     handle = self.db.execute_and_wait(query)
     xls_resp = download(handle, 'xls', self.db)
 
-    dataset.xls = xls_resp.content
+    dataset.xls = ''.join(xls_resp.streaming_content)
     # It should have 257 lines (256 + header)
     assert_equal(len(dataset.csv.strip('\r\n').split('\r\n')), 257, dataset.csv)
 
@@ -670,7 +678,8 @@ for x in sys.stdin:
     query = hql_query(hql)
     handle = self.db.execute_and_wait(query)
     csv_resp = download(handle, 'csv', self.db)
-    assert_equal(csv_resp.content.replace('.0', ''), dataset.csv.replace('.0', ''))
+    csv_content = ''.join(csv_resp.streaming_content)
+    assert_equal(csv_content.replace('.0', ''), dataset.csv.replace('.0', ''))
 
   def test_data_upload(self):
     hql = 'SELECT * FROM test'
@@ -887,7 +896,7 @@ for x in sys.stdin:
 
       # Check that data is right
       if verify:
-        target_ls = self.cluster.fs.listdir(target_dir)
+        target_ls = self.cluster.fs.listdir(target_dir)[1:]
         assert_true(len(target_ls) >= 1)
         data_buf = ""
 
@@ -1143,7 +1152,6 @@ for x in sys.stdin:
 
     history = QueryHistory.objects.latest('id')
 
-#response = wait_for_query_to_finish(self.client, response)
     assert_equal_mod_whitespace("""
         CREATE TABLE `default.my_table2`
         (
@@ -1416,6 +1424,26 @@ for x in sys.stdin:
     ] )
 
 
+  def test_select_invalid_data(self):
+    filename = '/tmp/test_select_invalid_data'
+    self._make_custom_data_file(filename, [1, 2, 3, 'NaN', 'INF', '-INF', 'BAD']) # Infinity not supported yet
+    self._make_table('test_select_invalid_data', 'CREATE TABLE test_select_invalid_data (timestamp1 DOUBLE)', filename)
+
+    hql = """
+      SELECT * FROM test_select_invalid_data;
+    """
+    resp = _make_query(self.client, hql)
+    resp = wait_for_query_to_finish(self.client, resp, max=30.0)
+
+    content = json.loads(resp.content)
+    history_id = content['id']
+    query_history = QueryHistory.get(id=history_id)
+
+    resp = self.client.get("/beeswax/results/%s/0?format=json" % history_id)
+    content = json.loads(resp.content)
+    assert_equal([[1.0], [2.0], [3.0], [u'NaN'], [u'NULL'], [u'NULL'], [u'NULL']], content['results'])
+
+
   def test_create_database(self):
     resp = self.client.post("/beeswax/create/database", {
       'name': 'my_db',
@@ -1428,6 +1456,17 @@ for x in sys.stdin:
     resp = self.client.get("/metastore/databases/")
     assert_true('my_db' in resp.context['databases'], resp)
 
+    # Test for accented characters in 'comment'
+    resp = self.client.post("/beeswax/create/database", {
+      'name': 'credito',
+      'comment': 'crédito',
+      'create': 'Create database',
+      'use_default_location': True,
+    }, follow=True)
+    resp = self.client.get(reverse("beeswax:api_watch_query_refresh_json", kwargs={'id': resp.context['query'].id}), follow=True)
+    resp = wait_for_query_to_finish(self.client, resp, max=180.0)
+    resp = self.client.get("/metastore/databases/")
+    assert_true('credito' in resp.context['databases'], resp)
 
   def test_select_query_server(self):
     c = make_logged_in_client()
@@ -1489,6 +1528,43 @@ for x in sys.stdin:
     assert_equal(resp.status_code, 200)
     assert_true('<th>foo</th>' in resp.content, resp.content)
     assert_true([0, '0x0'] in resp.context['sample'], resp.context['sample'])
+
+  def test_redacting_queries(self):
+    c = make_logged_in_client()
+
+    old_policies = redaction.global_redaction_engine.policies
+    redaction.global_redaction_engine.policies = [
+      RedactionPolicy([
+        RedactionRule('', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
+      ])
+    ]
+
+    logfilter.add_log_redaction_filter_to_logger(redaction.global_redaction_engine, logging.root)
+
+    try:
+      # Make sure redacted queries are redacted.
+      query = 'SELECT "ssn=123-45-6789"'
+      expected_query = 'SELECT "ssn=XXX-XX-XXXX"'
+
+      resp = make_query(c, query)
+      content = json.loads(resp.content)
+      query_id = content['id']
+      history = beeswax.models.QueryHistory.objects.get(pk=query_id)
+      assert_equal(history.query, expected_query)
+      assert_true(history.is_redacted)
+
+      # Make sure unredacted queries are not redacted.
+      query = 'SELECT "hello"'
+      expected_query = 'SELECT "hello"'
+
+      resp = make_query(c, query)
+      content = json.loads(resp.content)
+      query_id = content['id']
+      history = beeswax.models.QueryHistory.objects.get(pk=query_id)
+      assert_equal(history.query, expected_query)
+      assert_false(history.is_redacted)
+    finally:
+      redaction.global_redaction_engine.policies = old_policies
 
 
 def test_import_gzip_reader():
@@ -1714,23 +1790,23 @@ def test_search_log_line():
     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     org.apache.hadoop.hive.ql.parse.ParseException: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     """
-  assert_true(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
+  assert_true(search_log_line('FAILED: Parse Error', logs))
 
   logs = "12/08/22 20:50:14 ERROR ql.Driver: FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant'"
-  assert_true(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
+  assert_true(search_log_line('FAILED: Parse Error', logs))
 
   logs = """
     FAILED: Parse Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse XXXX Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     org.apache.hadoop.hive.ql.parse.ParseException: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     """
-  assert_false(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
+  assert_false(search_log_line('FAILED: Undefined', logs))
 
   logs = """
     2012-08-18 12:23:15,648 ERROR [pool-1-thread-2] ql.Driver (SessionState.java:printError(380)) - FAILED: Parse
     Error: line 1:31 cannot recognize input near '''' '_this_is_not' 'SQL' in constant
     """
-  assert_false(search_log_line('ql.Driver', 'FAILED: Parse Error', logs))
+  assert_false(search_log_line('FAILED: Parse Error', logs))
 
 
 def test_split_statements():
@@ -1789,18 +1865,75 @@ class MockHiveServerTable(HiveServerTable):
 
 class TestHiveServer2API():
 
-  def test_partition_values(self):
+  def test_parsing_partition_values(self):
     table = MockHiveServerTable({'path_location': '/my/table'})
 
-    assert_equal(['2013022516'], PartitionValueCompatible(['datehour=2013022516'], table).values)
-    assert_equal(['2011-07', '2011-07-01', '12'], PartitionValueCompatible(['month=2011-07/dt=2011-07-01/hr=12'], table).values)
+    value = PartitionValueCompatible(['datehour=2013022516'], table)
+    assert_equal(['2013022516'], value.values)
+
+    value = PartitionValueCompatible(['month=2011-07/dt=2011-07-01/hr=12'], table)
+    assert_equal(['2011-07', '2011-07-01', '12'], value.values)
 
   def test_table_properties(self):
     table = MockHiveServerTable({})
     prev_extended_describe = getattr(MockHiveServerTable, 'extended_describe')
 
     try:
-      extended_describe = 'Table(tableName:page_view, dbName:default, owner:romain, createTime:1360732885, lastAccessTime:0, retention:0, sd:StorageDescriptor(cols:[FieldSchema(name:viewtime, type:int, comment:null), FieldSchema(name:userid, type:bigint, comment:null), FieldSchema(name:page_url, type:string, comment:null), FieldSchema(name:referrer_url, type:string, comment:null), FieldSchema(name:ip, type:string, comment:IP Address of the User), FieldSchema(name:dt, type:string, comment:null), FieldSchema(name:country, type:string, comment:null)], location:hdfs://localhost:8020/user/hive/warehouse/page_view, inputFormat:org.apache.hadoop.mapred.TextInputFormat, outputFormat:org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat, compressed:false, numBuckets:-1, serdeInfo:SerDeInfo(name:null, serializationLib:org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe, parameters:{serialization.format=1}), bucketCols:[], sortCols:[], parameters:{}, skewedInfo:SkewedInfo(skewedColNames:[], skewedColValues:[], skewedColValueLocationMaps:{}), storedAsSubDirectories:false), partitionKeys:[FieldSchema(name:dt, type:string, comment:null), FieldSchema(name:country, type:string, comment:null)], parameters:{numPartitions=0, numFiles=1, transient_lastDdlTime=1360732885, comment=This is the page view table}, viewOriginalText:null, viewExpandedText:null, tableType:MANAGED_TABLE)'
+      extended_describe = (
+        'Table('
+          'tableName:page_view, '
+          'dbName:default, '
+          'owner:romain, '
+          'createTime:1360732885, '
+          'lastAccessTime:0, '
+          'retention:0, '
+          'sd:StorageDescriptor('
+            'cols:['
+              'FieldSchema(name:viewtime, type:int, comment:null), '
+              'FieldSchema(name:userid, type:bigint, comment:null), '
+              'FieldSchema(name:page_url, type:string, comment:null), '
+              'FieldSchema(name:referrer_url, type:string, comment:null), '
+              'FieldSchema(name:ip, type:string, comment:IP Address of the User), '
+              'FieldSchema(name:dt, type:string, comment:null), '
+              'FieldSchema(name:country, type:string, comment:null)'
+            '], '
+            'location:hdfs://localhost:8020/user/hive/warehouse/page_view, '
+            'inputFormat:org.apache.hadoop.mapred.TextInputFormat, '
+            'outputFormat:org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat, '
+            'compressed:false, '
+            'numBuckets:-1, '
+            'serdeInfo:SerDeInfo('
+              'name:null, '
+              'serializationLib:org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe, '
+              'parameters:{serialization.format=1}'
+            '), '
+            'bucketCols:[], '
+            'sortCols:[], '
+            'parameters:{}, '
+            'skewedInfo:SkewedInfo('
+              'skewedColNames:[], '
+              'skewedColValues:[], '
+              'skewedColValueLocationMaps:{}'
+            '), '
+            'storedAsSubDirectories:false'
+          '), '
+          'partitionKeys:['
+            'FieldSchema(name:dt, type:string, comment:null), '
+            'FieldSchema(name:country, type:string, comment:null), '
+            'FieldSchema(name:decimal, type:decimal(9, 7), comment:this, has extra: sigils), '
+            'FieldSchema(name:complex, type:UNIONTYPE<int, double, array<string>, struct<a:int,b:string>>, comment:null), '
+          '], '
+          'parameters:{'
+            'numPartitions=0, '
+            'numFiles=1, '
+            'transient_lastDdlTime=1360732885, '
+            'comment=This is the page view table'
+          '}, '
+          'viewOriginalText:null, '
+          'viewExpandedText:null, '
+          'tableType:MANAGED_TABLE'
+        ')'
+      )
       setattr(table, 'extended_describe', extended_describe)
 
       assert_equal([['tableName', 'page_view'],
@@ -1829,7 +1962,15 @@ class TestHiveServer2API():
                     ['comment', 'null)'],
                     ['FieldSchema(name', 'country'],
                     ['type', 'string'],
-                    ['comment', 'null)]'],
+                    ['comment', 'null)'],
+                    ['FieldSchema(name', 'decimal'],
+                    ['type', 'decimal(9'],
+                    ['comment', 'this'],
+                    ['has extra', ' sigils)'],
+                    ['FieldSchema(name', 'complex'],
+                    ['type', 'UNIONTYPE<int'],
+                    ['struct<a:int,b', 'string>>'],
+                    ['comment', 'null)'],
                     ['parameters', '{numPartitions=0'],
                     ['numFiles', '1'],
                     ['transient_lastDdlTime', '1360732885'],
@@ -1839,8 +1980,76 @@ class TestHiveServer2API():
                     ['tableType', 'MANAGED_TABLE']
                   ],
                   table.properties)
+
+      assert_equal([PartitionKeyCompatible('dt', 'string', 'null'),
+                    PartitionKeyCompatible('country', 'string', 'null'),
+                    PartitionKeyCompatible('decimal', 'decimal(9, 7)', 'this, has extra: sigils'),
+                    PartitionKeyCompatible('complex', 'UNIONTYPE<int, double, array<string>, struct<a:int,b:string>>', 'null'),
+                   ], table.partition_keys)
     finally:
       setattr(table, 'extended_describe', prev_extended_describe)
+
+  def test_column_format_values_nulls(self):
+    data = [1, 1, 1]
+    nulls = '\x00'
+
+    assert_equal([1, 1, 1],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    data = [1, 1, 1]
+    nulls = '\x03'
+
+    assert_equal([None, None, 1],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    data = [1, 1, 1, 1, 1, 1, 1, 1]
+    nulls = 't' # 0b1110100
+
+    assert_equal([1, 1, None, 1, None, None, None, 1],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+
+    data = [1, 1, 'not_good', 'NaN', None, 'INF', 'INF', 3]
+    nulls = 't' # 0b1110100
+
+    assert_equal([1, 1, None, 'NaN', None, None, None, 3],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    data = [1] * 18
+    nulls = '\xff\xee\x03'
+
+    assert_equal([None, None, None, None, None, None, None, None, 1, None, None, None, 1, None, None, None, None, None],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    data = [1, 1, 1, 1, 1, 1, 1, 1]
+    nulls = '\x41'
+
+    assert_equal([None, 1, 1, 1, 1, 1, None, 1],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    data = [1] * 8 * 8
+    nulls = '\x01\x23\x45\x67\x89\xab\xcd\xef'
+
+    assert_equal([None, 1, 1, 1, 1, 1, 1, 1, None, None, 1, 1, 1, None, 1, 1, None, 1, None, 1, 1, 1, None, 1, None, None, None, 1, 1, None, None, 1, None, 1, 1,
+                  None, 1, 1, 1, None, None, None, 1, None, 1, None, 1, None, None, 1, None, None, 1, 1, None, None, None, None, None, None, 1, None, None, None],
+                 HiveServerTColumnValue2.set_nulls(data, nulls))
+
+  def test_column_detect_if_values_nulls(self):
+    data = [1, 2, 3]
+
+    nulls = ''
+    assert_true(data is HiveServerTColumnValue2.set_nulls(data, nulls))
+    nulls = '\x00'
+    assert_true(data is HiveServerTColumnValue2.set_nulls(data, nulls))
+    nulls = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    assert_true(data is HiveServerTColumnValue2.set_nulls(data, nulls))
+
+    nulls = 'aaaa'
+    assert_false(data is HiveServerTColumnValue2.set_nulls(data, nulls))
+    nulls = '\x00\x01\x00'
+    assert_false(data is HiveServerTColumnValue2.set_nulls(data, nulls))
+    nulls = '\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00'
+    assert_false(data is HiveServerTColumnValue2.set_nulls(data, nulls))
 
 
 class MockDbms:
@@ -1976,6 +2185,26 @@ class TestWithMockedServer(object):
     assert_equal('test_save_design desc', saved_design.doc.get().description)
     assert_false(saved_design.doc.get().is_historic())
 
+    # Save design with len(name) = 64
+    response = _make_query(self.client, 'SELECT', submission_type='Save',
+                name='test_character_limit', desc='test_character_limit desc')
+    content = json.loads(response.content)
+    design_id = content['design_id']
+
+    design = SavedQuery.objects.get(id=design_id)
+    design_obj = hql_query('SELECT')
+
+    # Save query
+    saved_design = _save_design(user=self.user, design=design, type_=HQL, design_obj=design_obj,
+                                explicit_save=True, name='This__design__name__contains___sixty__five___characters___exactly', desc='test_save_design desc')
+    len_after = len(saved_design.name)
+    assert_equal(len_after, 64)
+    saved_design = _save_design(user=self.user, design=design, type_=HQL, design_obj=design_obj,
+                                explicit_save=False, name='This__design__name__contains___sixty__five___characters___exactly', desc='test_save_design desc')
+    # Above design name is already 64 characters, so saved_design name shouldn't exceed the limit
+    len_after = len(saved_design.name)
+    assert_equal(len_after, 64)
+
   def test_get_history_xss(self):
     sql = 'SELECT count(sample_07.salary) FROM sample_07;"><iFrAME>src="javascript:alert(\'Hue has an xss\');"></iFraME>'
     sql_escaped = 'SELECT count(sample_07.salary) FROM sample_07;&quot;&gt;&lt;iFrAME&gt;src=&quot;javascript:alert(&#39;Hue has an xss&#39;);&quot;&gt;&lt;/iFraME&gt;'
@@ -2004,6 +2233,47 @@ class TestWithMockedServer(object):
     assert_true(sql_escaped in resp.content, resp.content)
     assert_false(sql in resp.content, resp.content)
 
+  def test_redact_saved_design(self):
+    old_policies = redaction.global_redaction_engine.policies
+    redaction.global_redaction_engine.policies = [
+      RedactionPolicy([
+        RedactionRule('', 'ssn=\d{3}-\d{2}-\d{4}', 'ssn=XXX-XX-XXXX'),
+      ])
+    ]
+
+    logfilter.add_log_redaction_filter_to_logger(redaction.global_redaction_engine, logging.root)
+
+    try:
+      # Make sure redacted queries are redacted.
+      query = 'SELECT "ssn=123-45-6789"'
+      expected_query = 'SELECT "ssn=XXX-XX-XXXX"'
+
+      response = _make_query(self.client, query, submission_type='Save', name='My Name 1', desc='My Description')
+      content = json.loads(response.content)
+      design_id = content['design_id']
+
+      design = SavedQuery.get(id=design_id)
+      data = json.loads(design.data)
+
+      assert_equal(data['query']['query'], expected_query)
+      assert_true(design.is_redacted)
+
+      # Make sure unredacted queries are not redacted.
+      query = 'SELECT "hello"'
+      expected_query = 'SELECT "hello"'
+
+      response = _make_query(self.client, query, submission_type='Save', name='My Name 2', desc='My Description')
+      content = json.loads(response.content)
+      design_id = content['design_id']
+
+      design = SavedQuery.get(id=design_id)
+      data = json.loads(design.data)
+
+      assert_equal(data['query']['query'], expected_query)
+      assert_false(design.is_redacted)
+    finally:
+      redaction.global_redaction_engine.policies = old_policies
+
 
 class TestDesign():
 
@@ -2021,9 +2291,8 @@ class TestDesign():
     assert_equal('\nADD FILE s3://host/my_s3_file\n', statements[2])
 
 
-def search_log_line(component, expected_log, all_logs):
-  """Checks if 'expected_log' can be found in one line of 'all_logs' outputed by the logging component 'component'."""
-  return re.compile('.+?%(component)s(.+?)%(expected_log)s' % {'component': component, 'expected_log': expected_log}).search(all_logs)
+def search_log_line(expected_log, all_logs):
+  return re.compile('%(expected_log)s' % {'expected_log': expected_log}).search(all_logs)
 
 
 def test_hiveserver2_get_security():

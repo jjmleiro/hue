@@ -1,0 +1,165 @@
+From 0078d890a9847780023b1eb583fbfaebc8d6d318 Mon Sep 17 00:00:00 2001
+From: Sean Mackrory <sean@cloudera.com>
+Date: Thu, 6 Nov 2014 13:26:19 -0700
+Subject: [PATCH 0600/1173] [spark] Adding Session DELETE command
+
+---
+ apps/spark/java/sparker-client.py                  |    5 +++-
+ .../main/java/com/cloudera/sparker/Session.java    |    3 ++
+ .../java/com/cloudera/sparker/SessionManager.java  |   29 ++++++++++++--------
+ .../java/com/cloudera/sparker/SparkerServlet.java  |   21 ++++++++++++++
+ 4 files changed, 45 insertions(+), 13 deletions(-)
+
+diff --git a/apps/spark/java/sparker-client.py b/apps/spark/java/sparker-client.py
+index b636a96..3884073 100755
+--- a/apps/spark/java/sparker-client.py
++++ b/apps/spark/java/sparker-client.py
+@@ -17,6 +17,7 @@ class SparkerClient:
+     # Constants
+     POST = 'POST'
+     GET = 'GET'
++    DELETE = 'DELETE'
+     ROOT = '/'
+     OK = 200
+     def __init__(self, host=sparker_client_default_host, port=sparker_client_default_port):
+@@ -47,6 +48,8 @@ class SparkerClient:
+         output = self.get_session()[self.output_cursor:]
+         self.output_cursor += len(output)
+         return output
++    def delete_session(self):
++        self.http_json(self.DELETE, self.ROOT + self.session_id)
+     def close_connection(self):
+         self.connection.close()
+ 
+@@ -78,7 +81,7 @@ try:
+         client.post_input(line)
+ except:
+     poller.stop_polling()
+-    # TODO: delete session?
++    client.delete_session()
+     client.close_connection()
+ 
+ sys.exit(0)
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java b/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+index 2f33c2c..afb4c11 100644
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/Session.java
+@@ -20,6 +20,7 @@ package com.cloudera.sparker;
+ 
+ import java.io.IOException;
+ import java.util.List;
++import java.util.concurrent.TimeoutException;
+ 
+ public interface Session {
+ 
+@@ -32,5 +33,7 @@ public interface Session {
+     List<String> getInputLines();
+ 
+     List<String> getOutputLines();
++
++    public void close() throws IOException, InterruptedException, TimeoutException;
+ }
+ 
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+index 037f8e3..5f2325c 100644
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SessionManager.java
+@@ -26,7 +26,7 @@ import java.util.concurrent.TimeoutException;
+ 
+ public class SessionManager {
+ 
+-    private ConcurrentHashMap<String, SparkerSession> sessions = new ConcurrentHashMap<String, SparkerSession>();
++    private ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<String, Session>();
+ 
+     public SessionManager() {
+         new SessionManagerGarbageCollector(this).start();
+@@ -38,14 +38,25 @@ public class SessionManager {
+ 
+     public Session create() throws IOException, InterruptedException {
+         String key = UUID.randomUUID().toString();
+-        SparkerSession session = new SparkerSession(key);
++        Session session = new SparkerSession(key);
+         sessions.put(key, session);
+         return session;
+     }
+ 
+-    public void close() throws InterruptedException, TimeoutException, IOException {
+-        for (SparkerSession session : sessions.values()) {
++    public void close() {
++        for (Session session : sessions.values()) {
++            this.close(session.getKey());
++        }
++    }
++
++    public void close(String key) {
++        Session session = this.get(key);
++        sessions.remove(key);
++        try {
+             session.close();
++        } catch (Exception e) {
++            // throws InterruptedException, TimeoutException, IOException
++            e.printStackTrace();
+         }
+     }
+ 
+@@ -55,15 +66,10 @@ public class SessionManager {
+ 
+     public void garbageCollect() {
+         long timeout = 60000; // Time in milliseconds; TODO: make configurable
+-        for (SparkerSession session : sessions.values()) {
++        for (Session session : sessions.values()) {
+             long now = System.currentTimeMillis();
+             if ((now - session.getLastActivity()) > timeout) {
+-                sessions.remove(session.getKey());
+-                try {
+-                   session.close();
+-                } catch (Exception e) {
+-                    e.printStackTrace();
+-                }
++                this.close(session.getKey());
+             }
+         }
+     }
+@@ -82,7 +88,6 @@ public class SessionManager {
+         public void run() {
+             try {
+                 while(true) {
+-                    System.out.println("Starting garbage collection");
+                     manager.garbageCollect();
+                     sleep(period);
+                 }
+diff --git a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+index 5a6ff87..639c82d 100644
+--- a/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
++++ b/apps/spark/java/src/main/java/com/cloudera/sparker/SparkerServlet.java
+@@ -105,6 +105,27 @@ public class SparkerServlet extends HttpServlet {
+         }
+     }
+ 
++    @Override
++    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
++        resp.setContentType(APPLICATION_JSON_MIME);
++        resp.setStatus(HttpServletResponse.SC_OK);
++
++        String requestType = req.getPathInfo();
++        requestType = (requestType != null) ? requestType.toLowerCase() : ROOT;
++
++        if (requestType.equals(ROOT)) {
++            resp.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
++        } else {
++            Matcher m = SESSION_ID.matcher(requestType);
++            if (m.matches()) {
++                String key = m.group(1);
++                manager.close(key);
++            } else {
++                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
++            }
++        }
++    }
++
+     private void createSession(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+         try {
+             Session session = manager.create();
+-- 
+1.7.9.5
+

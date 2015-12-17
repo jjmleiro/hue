@@ -1,0 +1,142 @@
+From 50c25439f9fed3e25675c66187e7b0d693c734b9 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 21 Oct 2014 12:29:51 +0200
+Subject: [PATCH 0054/1173] HUE-2418 [search] Automatically resize sibling
+ widgets on drop
+
+Automatic sizing of the widgets on drop
+---
+ apps/search/src/search/templates/search.mako       |   44 ++++++++++++++++----
+ apps/search/static/js/search.ko.js                 |    3 +-
+ .../src/desktop/templates/common_dashboard.mako    |    2 +-
+ desktop/core/static/js/ko.layout.js                |    6 +++
+ 4 files changed, 45 insertions(+), 10 deletions(-)
+
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 98b9c15..1db7b45 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -1700,27 +1700,51 @@ $(document).ready(function () {
+     viewModel.search();
+   }
+ 
+-  function widgetDraggedAdditionalHandler(widget) {
+-    showAddFacetDemiModal(widget);
++  function widgetDraggedAdditionalHandler(widget, row) {
++    showAddFacetDemiModal(widget, row);
++  }
++
++  function distributeRowWidgetsSize(row, waitForIt) {
++    if (row) {
++      if (waitForIt) {
++        var _initial = row.widgets().length;
++        var _widgetDropInterval = window.setInterval(function () {
++          if (row.widgets().length != _initial) {
++            window.clearInterval(_widgetDropInterval);
++            row.autosizeWidgets();
++          }
++        }, 100)
++      }
++      else {
++        row.autosizeWidgets();
++      }
++    }
+   }
+ 
+   var selectedWidget = null;
+-  function showAddFacetDemiModal(widget) {
++  var selectedRow = null;
++  function showAddFacetDemiModal(widget, row) {
+     if (["resultset-widget", "html-resultset-widget", "filter-widget", "leafletmap-widget"].indexOf(widget.widgetType()) == -1) {
+       viewModel.collection.template.fieldsModalFilter("");
+       viewModel.collection.template.fieldsModalType(widget.widgetType());
+       viewModel.collection.template.fieldsModalFilter.valueHasMutated();
+       $('#addFacetInput').typeahead({
+-          'source': viewModel.collection.template.availableWidgetFieldsNames(),
+-          'updater': function(item) {
+-              addFacetDemiModalFieldPreview({'name': function(){return item}});
+-              return item;
+-           }
++        'source': viewModel.collection.template.availableWidgetFieldsNames(),
++        'updater': function (item) {
++          addFacetDemiModalFieldPreview({'name': function () {
++            return item
++          }});
++          return item;
++        }
+       });
+       selectedWidget = widget;
++      selectedRow = row;
+       $("#addFacetDemiModal").modal("show");
+       $("#addFacetDemiModal input[type='text']").focus();
+     }
++    else {
++      distributeRowWidgetsSize(row, true);
++    }
+   }
+ 
+ 
+@@ -1735,11 +1759,15 @@ $(document).ready(function () {
+         _existingFacet.field(field.name());
+       }
+       $("#addFacetDemiModal").modal("hide");
++      if (selectedRow != null) {
++        distributeRowWidgetsSize(selectedRow);
++      }
+     }
+   }
+ 
+   function addFacetDemiModalFieldCancel() {
+     viewModel.removeWidget(selectedWidget);
++    selectedRow = null;
+   }
+ 
+   $(document).on("setResultsHeight", function () {
+diff --git a/apps/search/static/js/search.ko.js b/apps/search/static/js/search.ko.js
+index dbc7e69..4b2ab9b 100644
+--- a/apps/search/static/js/search.ko.js
++++ b/apps/search/static/js/search.ko.js
+@@ -1133,8 +1133,9 @@ var SearchViewModel = function (collection_json, query_json, initial_json) {
+     $.each(self.columns(), function (i, col) {
+       $.each(col.rows(), function (j, row) {
+         $.each(row.widgets(), function (z, widget) {
+-          if (widget.id() == widget_id){
++          if (widget && widget.id() == widget_id){
+             row.widgets.remove(widget);
++            row.autosizeWidgets();
+           }
+         });
+       });
+diff --git a/desktop/core/src/desktop/templates/common_dashboard.mako b/desktop/core/src/desktop/templates/common_dashboard.mako
+index 41e7121..527963a 100644
+--- a/desktop/core/src/desktop/templates/common_dashboard.mako
++++ b/desktop/core/src/desktop/templates/common_dashboard.mako
+@@ -146,7 +146,7 @@
+         options: {'handle': '.move-widget', 'opacity': 0.7, 'placeholder': 'row-highlight', 'greedy': true,
+             'stop': function(event, ui){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});},
+             'helper': function(event){lastWindowScrollPosition = $(window).scrollTop(); $('.card-body').slideUp('fast'); var _par = $('<div>');_par.addClass('card card-widget');var _title = $('<h2>');_title.addClass('card-heading simple');_title.text($(event.toElement).text());_title.appendTo(_par);_par.height(80);_par.width(180);return _par;}},
+-            dragged: function(widget){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});widgetDraggedAdditionalHandler(widget)}}">
++            dragged: function(widget){$('.card-body').slideDown('fast', function(){$(window).scrollTop(lastWindowScrollPosition)});widgetDraggedAdditionalHandler(widget, $data)}}">
+     </div>
+   </div>
+ </script>
+diff --git a/desktop/core/static/js/ko.layout.js b/desktop/core/static/js/ko.layout.js
+index d82eb68..72b71bf 100644
+--- a/desktop/core/static/js/ko.layout.js
++++ b/desktop/core/static/js/ko.layout.js
+@@ -88,6 +88,12 @@ var Row = function (widgets, vm) {
+     });
+     col.rows.remove(row);
+   }
++
++  self.autosizeWidgets = function () {
++    $.each(self.widgets(), function (i, widget) {
++      widget.size(Math.floor(12 / self.widgets().length));
++    });
++  }
+ }
+ 
+ 
+-- 
+1.7.9.5
+

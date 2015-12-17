@@ -1,0 +1,854 @@
+From a24af62c720fe5623834126c62c2260c94761be7 Mon Sep 17 00:00:00 2001
+From: Word <jword@ud43d7e19fd2350901189.ant.amazon.com>
+Date: Mon, 1 Sep 2014 14:47:10 -0700
+Subject: [PATCH 0025/1173] [core] Add CSRF protection to all requests
+
+---
+ .../src/beeswax/templates/choose_delimiter.mako    |    1 +
+ .../beeswax/src/beeswax/templates/choose_file.mako |    1 +
+ .../src/beeswax/templates/configuration.mako       |    1 +
+ apps/beeswax/src/beeswax/templates/confirm.mako    |    1 +
+ .../src/beeswax/templates/create_database.mako     |    1 +
+ .../beeswax/templates/create_table_manually.mako   |    1 +
+ .../src/beeswax/templates/define_columns.mako      |    1 +
+ apps/beeswax/src/beeswax/templates/execute.mako    |    4 ++++
+ .../src/beeswax/templates/list_designs.mako        |    1 +
+ .../beeswax/templates/list_trashed_designs.mako    |    1 +
+ apps/beeswax/src/beeswax/templates/my_queries.mako |    1 +
+ .../src/beeswax/templates/save_results.mako        |    1 +
+ .../src/beeswax/templates/watch_results.mako       |    2 ++
+ .../src/filebrowser/templates/edit.mako            |    2 ++
+ .../src/filebrowser/templates/fileop.mako          |    1 +
+ .../filebrowser/templates/listdir_components.mako  |   10 ++++++++++
+ .../src/filebrowser/templates/saveas.mako          |    1 +
+ apps/hbase/src/hbase/templates/app.mako            |    1 +
+ apps/jobsub/src/jobsub/templates/designs.mako      |    4 ++++
+ .../metastore/src/metastore/templates/confirm.mako |    1 +
+ .../src/metastore/templates/databases.mako         |    1 +
+ .../src/metastore/templates/describe_table.mako    |    1 +
+ .../src/metastore/templates/popups/load_data.mako  |    1 +
+ apps/metastore/src/metastore/templates/tables.mako |    2 ++
+ .../templates/dashboard/rerun_bundle_popup.mako    |    1 +
+ .../templates/dashboard/rerun_coord_popup.mako     |    1 +
+ .../oozie/templates/dashboard/rerun_job_popup.mako |    2 +-
+ apps/search/src/search/templates/search.mako       |    1 +
+ apps/spark/src/spark/templates/common.mako         |    1 +
+ apps/spark/src/spark/templates/list_contexts.mako  |    1 +
+ apps/sqoop/src/sqoop/templates/app.mako            |    3 +++
+ .../src/useradmin/templates/add_ldap_users.mako    |    1 +
+ .../useradmin/src/useradmin/templates/confirm.mako |    3 ++-
+ .../src/useradmin/templates/edit_group.mako        |    1 +
+ .../src/useradmin/templates/edit_permissions.mako  |    1 +
+ .../src/useradmin/templates/edit_user.mako         |    1 +
+ .../src/useradmin/templates/list_groups.mako       |    1 +
+ .../src/useradmin/templates/list_users.mako        |    1 +
+ .../templates/sync_ldap_users_groups.mako          |    1 +
+ apps/zookeeper/src/zookeeper/templates/create.mako |    1 +
+ apps/zookeeper/src/zookeeper/templates/edit.mako   |    1 +
+ desktop/core/src/desktop/lib/django_mako.py        |   17 +++++++++++++++--
+ desktop/core/src/desktop/lib/django_util.py        |    6 ++++--
+ desktop/core/src/desktop/settings.py               |    3 ++-
+ .../core/src/desktop/templates/common_header.mako  |   15 +++++++++++++++
+ desktop/core/src/desktop/templates/login.mako      |    4 ++--
+ 46 files changed, 100 insertions(+), 9 deletions(-)
+ mode change 100644 => 100755 desktop/core/src/desktop/settings.py
+
+diff --git a/apps/beeswax/src/beeswax/templates/choose_delimiter.mako b/apps/beeswax/src/beeswax/templates/choose_delimiter.mako
+index 6d13f47..5281eaa 100644
+--- a/apps/beeswax/src/beeswax/templates/choose_delimiter.mako
++++ b/apps/beeswax/src/beeswax/templates/choose_delimiter.mako
+@@ -73,6 +73,7 @@ ${ layout.metastore_menubar() }
+                 <li><a id="step3" href="#">${_('Step 3: Define Columns')}</a></li>
+             </ul>
+                 <form id="delimiterForm" action="${action}" method="POST" class="form-horizontal">
++                ${ csrf_token(request) | n,unicode }
+                 <div class="hide">
+                     ${util.render_form(file_form)}
+                     ${comps.field(delim_form['file_type'])}
+diff --git a/apps/beeswax/src/beeswax/templates/choose_file.mako b/apps/beeswax/src/beeswax/templates/choose_file.mako
+index 2a9c00c..8ce8e93 100644
+--- a/apps/beeswax/src/beeswax/templates/choose_file.mako
++++ b/apps/beeswax/src/beeswax/templates/choose_file.mako
+@@ -72,6 +72,7 @@ ${ layout.metastore_menubar() }
+                 <li><a href="#">${_('Step 3: Define Columns')}</a></li>
+             </ul>
+                 <form action="${action}" method="POST" class="form-horizontal">
++                ${ csrf_token(request) | n,unicode }
+                 <fieldset>
+                     <div class="alert alert-info"><h3>${_('Name Your Table and Choose A File')}</h3></div>
+                     <div class="control-group">
+diff --git a/apps/beeswax/src/beeswax/templates/configuration.mako b/apps/beeswax/src/beeswax/templates/configuration.mako
+index 0bf1b75..b63c59b 100644
+--- a/apps/beeswax/src/beeswax/templates/configuration.mako
++++ b/apps/beeswax/src/beeswax/templates/configuration.mako
+@@ -30,6 +30,7 @@ ${layout.menubar(section='configuration')}
+     <div class="card-body">
+       <p>
+         <form class="form-search" method="POST">
++          ${ csrf_token(request) | n,unicode }
+           <input type="text" id="filterInput" class="input-xlarge search-query" placeholder="${_('Search for key, value, etc.')}">
+           <a href="#" id="clearFilterBtn" class="btn">${_('Clear')}</a>
+         </form>
+diff --git a/apps/beeswax/src/beeswax/templates/confirm.mako b/apps/beeswax/src/beeswax/templates/confirm.mako
+index 7c0077d..c3cbc36 100644
+--- a/apps/beeswax/src/beeswax/templates/confirm.mako
++++ b/apps/beeswax/src/beeswax/templates/confirm.mako
+@@ -19,6 +19,7 @@ from django.utils.translation import ugettext as _
+ %>
+ 
+ <form action="{{ url }}" method="POST">>
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+ 	<a href="javascript:void(0);" class="close">&times;</a>
+ 	<h3>${ _('Confirm action') }</h3>
+diff --git a/apps/beeswax/src/beeswax/templates/create_database.mako b/apps/beeswax/src/beeswax/templates/create_database.mako
+index d3fc659..7a6b390 100644
+--- a/apps/beeswax/src/beeswax/templates/create_database.mako
++++ b/apps/beeswax/src/beeswax/templates/create_database.mako
+@@ -47,6 +47,7 @@ ${layout.metastore_menubar()}
+       </ul>
+ 
+       <form action="${ url(app_name + ':create_database')}" method="POST" id="mainForm" class="form-horizontal">
++        ${ csrf_token(request) | n,unicode }
+         <div class="steps">
+           <div id="step1" class="stepDetails">
+               <fieldset>
+diff --git a/apps/beeswax/src/beeswax/templates/create_table_manually.mako b/apps/beeswax/src/beeswax/templates/create_table_manually.mako
+index 728ffe1..6fd263f 100644
+--- a/apps/beeswax/src/beeswax/templates/create_table_manually.mako
++++ b/apps/beeswax/src/beeswax/templates/create_table_manually.mako
+@@ -77,6 +77,7 @@ ${ layout.metastore_menubar() }
+         </ul>
+ 
+         <form action="#" method="POST" id="mainForm" class="form-horizontal">
++      ${ csrf_token(request) | n,unicode }
+       <div class="steps">
+ 
+         <div id="step1" class="stepDetails">
+diff --git a/apps/beeswax/src/beeswax/templates/define_columns.mako b/apps/beeswax/src/beeswax/templates/define_columns.mako
+index c430184..ddb842e 100644
+--- a/apps/beeswax/src/beeswax/templates/define_columns.mako
++++ b/apps/beeswax/src/beeswax/templates/define_columns.mako
+@@ -73,6 +73,7 @@ ${ layout.metastore_menubar() }
+                 <li class="active"><a href="#">${_('Step 3: Define Columns')}</a></li>
+             </ul>
+                 <form action="${action}" method="POST" class="form-stacked">
++                ${ csrf_token(request) | n,unicode }
+                 <div class="hide">
+                     ${util.render_form(file_form)}
+                     ${util.render_form(delim_form)}
+diff --git a/apps/beeswax/src/beeswax/templates/execute.mako b/apps/beeswax/src/beeswax/templates/execute.mako
+index 90c1b16..6b1f086 100644
+--- a/apps/beeswax/src/beeswax/templates/execute.mako
++++ b/apps/beeswax/src/beeswax/templates/execute.mako
+@@ -67,6 +67,7 @@ ${layout.menubar(section='query')}
+         <div class="card-body">
+           <div id="advanced-settings">
+           <form id="advancedSettingsForm" action="" method="POST" class="form form-horizontal">
++              ${ csrf_token(request) | n,unicode }
+               <ul class="nav nav-list" style="border: none; padding: 0;">
+                 <li class="nav-header">${_('settings')}</li>
+                 <li class="white paramContainer">
+@@ -479,6 +480,7 @@ ${layout.menubar(section='query')}
+       <div class="card-body">
+         <p>
+         <form method="POST" action="" class="form-horizontal">
++          ${ csrf_token(request) | n,unicode }
+           <fieldset>
+             <!-- ko foreach: $root.design.parameters -->
+             <div class="control-group">
+@@ -510,6 +512,7 @@ ${layout.menubar(section='query')}
+         <p>
+ 
+         <form method="POST" action="" class="form-horizontal">
++          ${ csrf_token(request) | n,unicode }
+           <fieldset>
+             <!-- ko foreach: $root.design.parameters -->
+             <div class="control-group">
+@@ -624,6 +627,7 @@ ${layout.menubar(section='query')}
+       <h4 data-bind="text: $root.design.results.save.targetDirectoryError()"></h4>
+     <!-- /ko -->
+     <form id="saveResultsForm" method="POST" class="form form-inline">
++      ${ csrf_token(request) | n,unicode }
+       <fieldset>
+         <div data-bind="css: {'error': $root.design.results.save.targetFileError()}" class="control-group">
+           <div class="controls">
+diff --git a/apps/beeswax/src/beeswax/templates/list_designs.mako b/apps/beeswax/src/beeswax/templates/list_designs.mako
+index 97a7469..fc7821b 100644
+--- a/apps/beeswax/src/beeswax/templates/list_designs.mako
++++ b/apps/beeswax/src/beeswax/templates/list_designs.mako
+@@ -125,6 +125,7 @@ ${ layout.menubar(section='saved queries') }
+ 
+ <div id="deleteQuery" class="modal hide fade">
+   <form id="deleteQueryForm" action="${ url(app_name + ':delete_design') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <input type="hidden" name="skipTrash" id="skipTrash" value="false"/>
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+diff --git a/apps/beeswax/src/beeswax/templates/list_trashed_designs.mako b/apps/beeswax/src/beeswax/templates/list_trashed_designs.mako
+index bdb2e37..d1aa5ee 100644
+--- a/apps/beeswax/src/beeswax/templates/list_trashed_designs.mako
++++ b/apps/beeswax/src/beeswax/templates/list_trashed_designs.mako
+@@ -108,6 +108,7 @@ ${layout.menubar(section='saved queries')}
+ 
+ <div id="deleteQuery" class="modal hide fade">
+   <form id="deleteQueryForm" action="${ url(app_name + ':delete_design') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <input type="hidden" name="skipTrash" id="skipTrash" value="true"/>
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+diff --git a/apps/beeswax/src/beeswax/templates/my_queries.mako b/apps/beeswax/src/beeswax/templates/my_queries.mako
+index 1e9fd88..38883f4 100644
+--- a/apps/beeswax/src/beeswax/templates/my_queries.mako
++++ b/apps/beeswax/src/beeswax/templates/my_queries.mako
+@@ -164,6 +164,7 @@ ${layout.menubar(section='my queries')}
+ 
+ <div id="deleteQuery" class="modal hide fade">
+   <form id="deleteQueryForm" action="${ url(app_name + ':delete_design') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <input type="hidden" name="skipTrash" id="skipTrash" value="false"/>
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+diff --git a/apps/beeswax/src/beeswax/templates/save_results.mako b/apps/beeswax/src/beeswax/templates/save_results.mako
+index 9652b7d..31351fa 100644
+--- a/apps/beeswax/src/beeswax/templates/save_results.mako
++++ b/apps/beeswax/src/beeswax/templates/save_results.mako
+@@ -38,6 +38,7 @@ ${layout.menubar(section='query')}
+     <div class="card-body">
+       <p>
+         <form id="saveForm" action="${action}" method="POST" class="form form-inline">
++          ${ csrf_token(request) | n,unicode }
+           <fieldset>
+             <div class="control-group">
+               <div class="controls">
+diff --git a/apps/beeswax/src/beeswax/templates/watch_results.mako b/apps/beeswax/src/beeswax/templates/watch_results.mako
+index f31da6f..7020c09 100644
+--- a/apps/beeswax/src/beeswax/templates/watch_results.mako
++++ b/apps/beeswax/src/beeswax/templates/watch_results.mako
+@@ -113,6 +113,7 @@ ${layout.menubar(section='query')}
+               ${_('Hue stopped as one of your query contains some results.') }
+               ${_('Click on') }
+               <form action="${ url(app_name + ':watch_query_history', query.id) }?context=${ query.design.get_query_context() }" method="POST">
++                ${ csrf_token(request) | n,unicode }
+                 <input type="submit" value="${ _("next") }"/ class="btn btn-primary">
+               </form>
+               ${_('to continue execution of the remaining statements.') }
+@@ -296,6 +297,7 @@ ${layout.menubar(section='query')}
+ <div id="saveAs" class="modal hide fade">
+   <form id="saveForm" action="${url(app_name + ':save_results', query.id) }" method="POST"
+         class="form form-inline form-padding-fix">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3>${_('Save Query Results')}</h3>
+diff --git a/apps/filebrowser/src/filebrowser/templates/edit.mako b/apps/filebrowser/src/filebrowser/templates/edit.mako
+index d450d04..1091ac2 100644
+--- a/apps/filebrowser/src/filebrowser/templates/edit.mako
++++ b/apps/filebrowser/src/filebrowser/templates/edit.mako
+@@ -46,6 +46,7 @@ ${ fb_components.menubar() }
+         <div class="card-body">
+           <p>
+             <form class="form-stacked" method="post" action="${url('filebrowser.views.save_file')}">
++              ${ csrf_token(request) | n,unicode }
+               % if form.errors:
+               <div class="alert-message">
+                 % for field in form:
+@@ -72,6 +73,7 @@ ${ fb_components.menubar() }
+ 
+ <div id="saveAsModal" class="modal hide fade">
+     <form id="saveAsForm" action="${url('filebrowser.views.save_file')}" method="POST" class="form-stacked form-padding-fix">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Save as')}</h3>
+diff --git a/apps/filebrowser/src/filebrowser/templates/fileop.mako b/apps/filebrowser/src/filebrowser/templates/fileop.mako
+index 746c06f..45cdd31 100644
+--- a/apps/filebrowser/src/filebrowser/templates/fileop.mako
++++ b/apps/filebrowser/src/filebrowser/templates/fileop.mako
+@@ -30,6 +30,7 @@ ${ commonheader(_('File Operation'), 'filebrowser', user) | n,unicode }
+ <div class="container-fluid">
+ <div class="well">
+ <form action="" method="POST" enctype="multipart/form-data" class="form-stacked">
++${ csrf_token(request) | n,unicode }
+ <h1>${form.op}</h1>
+ % if isinstance(form, forms.Form):
+ 	${form.as_p()|n}
+diff --git a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+index f1929a9..58964c6 100644
+--- a/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
++++ b/apps/filebrowser/src/filebrowser/templates/listdir_components.mako
+@@ -108,6 +108,7 @@ from django.utils.translation import ugettext as _
+     </div>
+     <div class="modal-footer">
+       <form id="deleteForm" action="/filebrowser/rmtree" method="POST" enctype="multipart/form-data" class="form-stacked">
++        ${ csrf_token(request) | n,unicode }
+         <a class="btn" data-dismiss="modal">${_('No')}</a>
+         <input type="submit" value="${_('Yes')}" class="btn btn-danger" />
+       </form>
+@@ -125,6 +126,7 @@ from django.utils.translation import ugettext as _
+     </div>
+     <div class="modal-footer">
+       <form id="restoreTrashForm" action="/filebrowser/trash/restore" method="POST" enctype="multipart/form-data" class="form-stacked">
++        ${ csrf_token(request) | n,unicode }
+         <a class="btn" data-dismiss="modal">${_('No')}</a>
+         <input type="submit" value="${_('Yes')}" class="btn btn-primary" />
+       </form>
+@@ -144,6 +146,7 @@ from django.utils.translation import ugettext as _
+ 
+     <div class="modal-footer">
+       <form id="purgeTrashForm" action="/filebrowser/trash/purge" method="POST" enctype="multipart/form-data" class="form-stacked">
++        ${ csrf_token(request) | n,unicode }
+         <a class="btn" data-dismiss="modal">${_('Cancel')}</a>
+         <input type="submit" value="${_('Delete')}" class="btn btn-primary" />
+       </form>
+@@ -153,6 +156,7 @@ from django.utils.translation import ugettext as _
+   <!-- rename modal -->
+   <div id="renameModal" class="modal hide fade">
+     <form id="renameForm" action="/filebrowser/rename?next=${current_request_path}" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Renaming:')} <span id="renameFileName">file name</span></h3>
+@@ -181,6 +185,7 @@ from django.utils.translation import ugettext as _
+       select_filter = is_superuser and 'SelectWithOther' or ''
+     %>
+     <form id="chownForm" action="/filebrowser/chown" method="POST" enctype="multipart/form-data" class="form-stacked form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Change Owner/Group')}</h3>
+@@ -212,6 +217,7 @@ from django.utils.translation import ugettext as _
+   <!-- chmod modal -->
+   <div id="changePermissionModal" class="modal hide fade">
+     <form action="/filebrowser/chmod" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix" id="chmodForm">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Change Permissions:')} </h3>
+@@ -275,6 +281,7 @@ from django.utils.translation import ugettext as _
+   <!-- move modal -->
+   <div id="moveModal" class="modal hide fade">
+     <form id="moveForm" action="/filebrowser/move" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Move to')}</h3>
+@@ -296,6 +303,7 @@ from django.utils.translation import ugettext as _
+   <!-- copy modal -->
+   <div id="copyModal" class="modal hide fade">
+     <form id="copyForm" action="/filebrowser/copy" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Copy to')}</h3>
+@@ -350,6 +358,7 @@ from django.utils.translation import ugettext as _
+   <!-- new directory modal -->
+   <div id="createDirectoryModal" class="modal hide fade">
+     <form id="createDirectoryForm" data-bind="submit: createDirectory" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Create Directory')}</h3>
+@@ -374,6 +383,7 @@ from django.utils.translation import ugettext as _
+   <!-- new file modal -->
+   <div id="createFileModal" class="modal hide fade">
+     <form id="createFileForm" data-bind="submit: createFile" method="POST" enctype="multipart/form-data" class="form-inline form-padding-fix">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Create File')}</h3>
+diff --git a/apps/filebrowser/src/filebrowser/templates/saveas.mako b/apps/filebrowser/src/filebrowser/templates/saveas.mako
+index ecf147a..1f8c5d9 100644
+--- a/apps/filebrowser/src/filebrowser/templates/saveas.mako
++++ b/apps/filebrowser/src/filebrowser/templates/saveas.mako
+@@ -30,6 +30,7 @@
+     % endif
+     <div class="saveAsPrompt_popup">
+       <form method="post" action="${url('filebrowser.views.save_file')}">
++          ${ csrf_token(request) | n,unicode }
+           ${ _('Enter the location where you would like to save the file.') }
+           ${edit.render_field(form["path"], notitle=True)}
+           <div>${edit.render_field(form["contents"], hidden=True)}</div>
+diff --git a/apps/hbase/src/hbase/templates/app.mako b/apps/hbase/src/hbase/templates/app.mako
+index cfab7e5..3a560a6 100644
+--- a/apps/hbase/src/hbase/templates/app.mako
++++ b/apps/hbase/src/hbase/templates/app.mako
+@@ -193,6 +193,7 @@ ${ commonheader(None, "hbase", user) | n,unicode }
+ 
+     <!-- New Table Modal -->
+     <form id="new_table_modal" action="createTable" method="POST" class="modal hide fade ajaxSubmit" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a class="close pointer" data-dismiss="modal" aria-hidden="true">&times;</a>
+         <h3>${_('Create New Table')}</h3>
+diff --git a/apps/jobsub/src/jobsub/templates/designs.mako b/apps/jobsub/src/jobsub/templates/designs.mako
+index b41bc90..c248fa3 100644
+--- a/apps/jobsub/src/jobsub/templates/designs.mako
++++ b/apps/jobsub/src/jobsub/templates/designs.mako
+@@ -210,6 +210,7 @@ ${ commonheader(None, "jobsub", user) | n,unicode }
+ 
+ <div id="trashWf" class="modal hide fade">
+   <form id="trashWfForm" action="#" method="POST" style="margin:0">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="trashWfMessage">${_('Move the selected designs to trash?')}</h3>
+@@ -223,6 +224,7 @@ ${ commonheader(None, "jobsub", user) | n,unicode }
+ 
+ <div id="destroyWf" class="modal hide fade">
+   <form id="destroyWfForm" action="#" method="POST" style="margin:0">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyWfMessage">${_('Delete selected designs?')}</h3>
+@@ -236,6 +238,7 @@ ${ commonheader(None, "jobsub", user) | n,unicode }
+ 
+ <div id="purgeWf" class="modal hide fade">
+   <form id="purgeWfForm" action="#" method="POST" style="margin:0">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="purgeWfMessage">${_('Delete all trashed designs?')}</h3>
+@@ -249,6 +252,7 @@ ${ commonheader(None, "jobsub", user) | n,unicode }
+ 
+ <div id="restoreWf" class="modal hide fade">
+   <form id="restoreWfForm" action="#" method="POST" style="margin:0">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="restoreWfMessage">${_('Restore selected designs?')}</h3>
+diff --git a/apps/metastore/src/metastore/templates/confirm.mako b/apps/metastore/src/metastore/templates/confirm.mako
+index b270ac1..73d0fcf 100644
+--- a/apps/metastore/src/metastore/templates/confirm.mako
++++ b/apps/metastore/src/metastore/templates/confirm.mako
+@@ -19,6 +19,7 @@ from django.utils.translation import ugettext as _
+ %>
+ 
+ <form action="{{ url }}" method="POST">>
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="javascript:void(0);" class="close">&times;</a>
+     <h3>${ _('Confirm action') }</h3>
+diff --git a/apps/metastore/src/metastore/templates/databases.mako b/apps/metastore/src/metastore/templates/databases.mako
+index 775bbe7..cf78aeb 100644
+--- a/apps/metastore/src/metastore/templates/databases.mako
++++ b/apps/metastore/src/metastore/templates/databases.mako
+@@ -82,6 +82,7 @@ ${ components.menubar() }
+ 
+ <div id="dropDatabase" class="modal hide fade">
+   <form id="dropDatabaseForm" action="${ url('metastore:drop_database') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="dropDatabaseMessage">${_('Confirm action')}</h3>
+diff --git a/apps/metastore/src/metastore/templates/describe_table.mako b/apps/metastore/src/metastore/templates/describe_table.mako
+index cc02172..fb73f69 100644
+--- a/apps/metastore/src/metastore/templates/describe_table.mako
++++ b/apps/metastore/src/metastore/templates/describe_table.mako
+@@ -176,6 +176,7 @@ ${ components.menubar() }
+ 
+ <div id="dropTable" class="modal hide fade">
+   <form id="dropTableForm" method="POST" action="${ url('metastore:drop_table', database=database) }">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+ 
+diff --git a/apps/metastore/src/metastore/templates/popups/load_data.mako b/apps/metastore/src/metastore/templates/popups/load_data.mako
+index 7cf1a13..32fa1a1 100644
+--- a/apps/metastore/src/metastore/templates/popups/load_data.mako
++++ b/apps/metastore/src/metastore/templates/popups/load_data.mako
+@@ -20,6 +20,7 @@ from django.utils.translation import ugettext as _
+ <%namespace name="comps" file="../components.mako" />
+ 
+ <form method="POST" class="form-horizontal" id="load-data-form" onsubmit="return false;">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3>${_('Import data')}</h3>
+diff --git a/apps/metastore/src/metastore/templates/tables.mako b/apps/metastore/src/metastore/templates/tables.mako
+index c7107bc..1e70042 100644
+--- a/apps/metastore/src/metastore/templates/tables.mako
++++ b/apps/metastore/src/metastore/templates/tables.mako
+@@ -35,6 +35,7 @@ ${ components.menubar() }
+           <li class="nav-header">${_('database')}</li>
+           <li class="white">
+             <form action="${ url('metastore:show_tables') }" id="db_form" method="POST" style="margin-bottom: 0">
++              ${ csrf_token(request) | n,unicode }
+               ${ db_form | n,unicode }
+             </form>
+           </li>
+@@ -94,6 +95,7 @@ ${ components.menubar() }
+ 
+ <div id="dropTable" class="modal hide fade">
+   <form id="dropTableForm" action="${ url('metastore:drop_table', database=database) }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="dropTableMessage">${_('Confirm action')}</h3>
+diff --git a/apps/oozie/src/oozie/templates/dashboard/rerun_bundle_popup.mako b/apps/oozie/src/oozie/templates/dashboard/rerun_bundle_popup.mako
+index 6a416b1..dfb3190 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/rerun_bundle_popup.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/rerun_bundle_popup.mako
+@@ -23,6 +23,7 @@
+ 
+ 
+ <form action="${ action }" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="#" class="close" data-dismiss="modal">&times;</a>
+     <h3>${ _('Select coordinators to rerun') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/dashboard/rerun_coord_popup.mako b/apps/oozie/src/oozie/templates/dashboard/rerun_coord_popup.mako
+index 124d5df..c49961f 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/rerun_coord_popup.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/rerun_coord_popup.mako
+@@ -23,6 +23,7 @@
+ 
+ 
+ <form action="${ action }" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="#" class="close" data-dismiss="modal">&times;</a>
+     <span class="btn-group pull-right" style="margin-right: 20px">
+diff --git a/apps/oozie/src/oozie/templates/dashboard/rerun_job_popup.mako b/apps/oozie/src/oozie/templates/dashboard/rerun_job_popup.mako
+index 9a4ebdd..ff92e26 100644
+--- a/apps/oozie/src/oozie/templates/dashboard/rerun_job_popup.mako
++++ b/apps/oozie/src/oozie/templates/dashboard/rerun_job_popup.mako
+@@ -23,7 +23,7 @@
+ 
+ 
+ <form action="${ action }" method="POST">
+-
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="#" class="close" data-dismiss="modal">&times;</a>
+     <h3>${ _('Select actions to rerun') }</h3>
+diff --git a/apps/search/src/search/templates/search.mako b/apps/search/src/search/templates/search.mako
+index 46a9a72..219ec4f 100644
+--- a/apps/search/src/search/templates/search.mako
++++ b/apps/search/src/search/templates/search.mako
+@@ -691,6 +691,7 @@ ${ dashboard.layout_skeleton() }
+   <!-- ko if: $data.response.numFound > 0 -->
+   <span class="pull-right">
+     <form method="POST" action="${ url('search:download') }">
++      ${ csrf_token(request) | n,unicode }
+       <input type="hidden" name="collection" data-bind="value: ko.mapping.toJSON($root.collection)"/>
+       <input type="hidden" name="query" data-bind="value: ko.mapping.toJSON($root.query)"/>
+       <input type="hidden" name="download">
+diff --git a/apps/spark/src/spark/templates/common.mako b/apps/spark/src/spark/templates/common.mako
+index 8d24994..fc4b976 100644
+--- a/apps/spark/src/spark/templates/common.mako
++++ b/apps/spark/src/spark/templates/common.mako
+@@ -91,6 +91,7 @@ def is_selected(section, matcher):
+ <%def name="uploadAppModal()">
+ <div id="uploadAppModal" class="modal hide fade">
+   <form class="form-horizontal" id="uploadAppForm" action="${ url('spark:upload_app') }" method="POST" enctype="multipart/form-data">
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="#" class="close" data-dismiss="modal">&times;</a>
+     <h3>${_('Upload application')}</h3>
+diff --git a/apps/spark/src/spark/templates/list_contexts.mako b/apps/spark/src/spark/templates/list_contexts.mako
+index 0d6a991..ef0feb3 100644
+--- a/apps/spark/src/spark/templates/list_contexts.mako
++++ b/apps/spark/src/spark/templates/list_contexts.mako
+@@ -76,6 +76,7 @@ ${ common.navbar('contexts') }
+ 
+ <div id="deleteContext" class="modal hide fade">
+   <form id="deleteContextForm" action="${ url('spark:delete_contexts') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <input type="hidden" name="skipTrash" id="skipTrash" value="false"/>
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+diff --git a/apps/sqoop/src/sqoop/templates/app.mako b/apps/sqoop/src/sqoop/templates/app.mako
+index da7f4b3..65e3876 100644
+--- a/apps/sqoop/src/sqoop/templates/app.mako
++++ b/apps/sqoop/src/sqoop/templates/app.mako
+@@ -122,6 +122,7 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+     <div id="job-editor" class="row-fluid section hide" data-bind="with: job">
+       <div class="sidebar-nav span2" data-bind="visible: $root.job().persisted">
+         <form id="advanced-settings" method="POST" class="form form-horizontal noPadding">
++          ${ csrf_token(request) | n,unicode }
+           <ul class="nav nav-list">
+             <li class="nav-header" data-bind="visible: $root.job().persisted">${_('Actions')}</li>
+             <li data-bind="visible: $root.job().persisted() && !$root.job().isRunning()">
+@@ -193,6 +194,7 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+           </ul>
+ 
+           <form method="POST" class="form form-horizontal noPadding" data-bind="with: page">
++            ${ csrf_token(request) | n,unicode }
+             <div class="alert alert-info"><h3 data-bind="text: description"></h3></div>
+             <div class="job-form" data-bind="template: {'name': template(), 'data': node}">
+             </div>
+@@ -240,6 +242,7 @@ ${ commonheader(None, "sqoop", user) | n,unicode }
+     <div id="connection-editor" class="row-fluid section hide" data-bind="with: editConnection">
+       <div id="connection-forms" class="span12">
+         <form method="POST" class="form form-horizontal noPadding">
++          ${ csrf_token(request) | n,unicode }
+           <div class="control-group">
+             <label class="control-label">${ _('Name') }</label>
+             <div class="controls">
+diff --git a/apps/useradmin/src/useradmin/templates/add_ldap_users.mako b/apps/useradmin/src/useradmin/templates/add_ldap_users.mako
+index 365d694..0ea2dfe 100644
+--- a/apps/useradmin/src/useradmin/templates/add_ldap_users.mako
++++ b/apps/useradmin/src/useradmin/templates/add_ldap_users.mako
+@@ -32,6 +32,7 @@ ${ layout.menubar(section='users') }
+     <br/>
+ 
+   <form id="editForm" method="POST" class="form form-horizontal" autocomplete="off">
++    ${ csrf_token(request) | n,unicode }
+     <fieldset>
+           % for field in form.fields:
+                   % if form[field].is_hidden:
+diff --git a/apps/useradmin/src/useradmin/templates/confirm.mako b/apps/useradmin/src/useradmin/templates/confirm.mako
+index 6baa59b..cee2e6e 100644
+--- a/apps/useradmin/src/useradmin/templates/confirm.mako
++++ b/apps/useradmin/src/useradmin/templates/confirm.mako
+@@ -21,7 +21,8 @@ ${ commonheader(title, "useradmin", user) | n,unicode }
+ <div class="container-fluid">
+ 	<h1>${_('Confirm')}</h1>
+ 	<form action="${path}" method="POST">
+-		${title}
++	    ${ csrf_token(request) | n,unicode }
++	    ${title}
+ 		<input type="submit" value="${_('Yes')}">
+ 	</form>
+ </div>
+diff --git a/apps/useradmin/src/useradmin/templates/edit_group.mako b/apps/useradmin/src/useradmin/templates/edit_group.mako
+index 103ab1a..8e3f10c 100644
+--- a/apps/useradmin/src/useradmin/templates/edit_group.mako
++++ b/apps/useradmin/src/useradmin/templates/edit_group.mako
+@@ -57,6 +57,7 @@ ${layout.menubar(section='groups')}
+     <br/>
+ 
+     <form id="editForm" action="${urllib.quote(action)}" method="POST" class="form form-horizontal" autocomplete="off">
++      ${ csrf_token(request) | n,unicode }
+       <fieldset>
+           % for field in form:
+         ${render_field(field)}
+diff --git a/apps/useradmin/src/useradmin/templates/edit_permissions.mako b/apps/useradmin/src/useradmin/templates/edit_permissions.mako
+index d972c1a..9332799 100644
+--- a/apps/useradmin/src/useradmin/templates/edit_permissions.mako
++++ b/apps/useradmin/src/useradmin/templates/edit_permissions.mako
+@@ -45,6 +45,7 @@ ${layout.menubar(section='permissions')}
+     <br/>
+ 
+     <form id="editForm" action="${urllib.quote(action)}" method="POST" class="form form-horizontal">
++      ${ csrf_token(request) | n,unicode }
+       <fieldset>
+           % for field in form:
+           ${render_field(field)}
+diff --git a/apps/useradmin/src/useradmin/templates/edit_user.mako b/apps/useradmin/src/useradmin/templates/edit_user.mako
+index 1bfa5f4..a059f21 100644
+--- a/apps/useradmin/src/useradmin/templates/edit_user.mako
++++ b/apps/useradmin/src/useradmin/templates/edit_user.mako
+@@ -33,6 +33,7 @@ ${ layout.menubar(section='users') }
+ 
+     <br/>
+     <form id="editForm" method="POST" class="form form-horizontal" autocomplete="off">
++    ${ csrf_token(request) | n,unicode }
+     <div id="properties" class="section">
+       <ul class="nav nav-tabs" style="margin-bottom: 0">
+         <li class="active">
+diff --git a/apps/useradmin/src/useradmin/templates/list_groups.mako b/apps/useradmin/src/useradmin/templates/list_groups.mako
+index bf00b1e..5c6304b 100644
+--- a/apps/useradmin/src/useradmin/templates/list_groups.mako
++++ b/apps/useradmin/src/useradmin/templates/list_groups.mako
+@@ -108,6 +108,7 @@ ${layout.menubar(section='groups')}
+ 
+ <div id="deleteGroup" class="modal hide fade groupModal">
+   <form id="deleteGroupForm" action="${ url('useradmin.views.delete_group') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="deleteGroupMessage">${_("Are you sure you want to delete the selected group(s)?")}</h3>
+diff --git a/apps/useradmin/src/useradmin/templates/list_users.mako b/apps/useradmin/src/useradmin/templates/list_users.mako
+index 9c3d019..4c7cd96 100644
+--- a/apps/useradmin/src/useradmin/templates/list_users.mako
++++ b/apps/useradmin/src/useradmin/templates/list_users.mako
+@@ -118,6 +118,7 @@ ${layout.menubar(section='users')}
+ 
+   <div id="deleteUser" class="modal hide fade">
+     <form id="dropTableForm" action="${ url('useradmin.views.delete_user') }" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+ 
+diff --git a/apps/useradmin/src/useradmin/templates/sync_ldap_users_groups.mako b/apps/useradmin/src/useradmin/templates/sync_ldap_users_groups.mako
+index b031261..7f31471 100644
+--- a/apps/useradmin/src/useradmin/templates/sync_ldap_users_groups.mako
++++ b/apps/useradmin/src/useradmin/templates/sync_ldap_users_groups.mako
+@@ -34,6 +34,7 @@ from django.utils.translation import ugettext as _
+ </%def>
+ 
+ <form action="${path}" method="POST" class="form form-horizontal">
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header left">
+     <button type="button" class="close" data-dismiss="modal">&times;</button>
+     <h3>${_('Sync LDAP users and groups')}</h3>
+diff --git a/apps/zookeeper/src/zookeeper/templates/create.mako b/apps/zookeeper/src/zookeeper/templates/create.mako
+index 954abd1..973737e 100644
+--- a/apps/zookeeper/src/zookeeper/templates/create.mako
++++ b/apps/zookeeper/src/zookeeper/templates/create.mako
+@@ -39,6 +39,7 @@ ${ shared.menubar() }
+ ${ shared.header(_breadcrumbs, clusters) }
+ 
+ <form class="createZnodeForm" action="" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   ${form.as_table()|n}
+   <br/>
+   <br/>
+diff --git a/apps/zookeeper/src/zookeeper/templates/edit.mako b/apps/zookeeper/src/zookeeper/templates/edit.mako
+index 699dd2e..996bb95 100644
+--- a/apps/zookeeper/src/zookeeper/templates/edit.mako
++++ b/apps/zookeeper/src/zookeeper/templates/edit.mako
+@@ -40,6 +40,7 @@ ${ shared.menubar() }
+ ${ shared.header(_breadcrumbs,clusters) }
+ 
+ <form action="" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   ${form.as_table()|n}
+   <br/>
+   <input type="submit" class="btn btn-primary" value="${ _('Save') }">
+diff --git a/desktop/core/src/desktop/lib/django_mako.py b/desktop/core/src/desktop/lib/django_mako.py
+index 6aa390f..187627c 100644
+--- a/desktop/core/src/desktop/lib/django_mako.py
++++ b/desktop/core/src/desktop/lib/django_mako.py
+@@ -23,13 +23,17 @@ import os
+ import tempfile
+ from mako.lookup import TemplateLookup, TemplateCollection
+ import django.template
++from django import template
++
++register = template.Library()
+ 
+ ENCODING_ERRORS = 'replace'
+ 
+ # Things to automatically import into all template namespaces
+ IMPORTS=[
+   "from desktop.lib.django_mako import url",
+-  "from django.utils.html import escape"
++  "from django.utils.html import escape",
++  "from desktop.lib.django_mako import csrf_token"
+ ]
+ 
+ class DesktopLookup(TemplateCollection):
+@@ -81,7 +85,6 @@ class DesktopLookup(TemplateCollection):
+ 
+ lookup = DesktopLookup()
+ 
+-
+ def render_to_string_test(template_name, django_context):
+   """
+   In tests, send a template rendered signal.  This puts
+@@ -121,3 +124,13 @@ def url(view_name, *args, **view_args):
+   """URL tag for use in templates - like {% url ... %} in django"""
+   from django.core.urlresolvers import reverse
+   return reverse(view_name, args=args, kwargs=view_args)
++
++
++from django.core.context_processors import csrf
++
++def csrf_token(request):
++  """
++  Returns the rendered common footer
++  """
++  csrf_token = csrf(request)["csrf_token"]
++  return str.format("<input type='hidden' name='csrfmiddlewaretoken' value='{0}' />",csrf_token)
+diff --git a/desktop/core/src/desktop/lib/django_util.py b/desktop/core/src/desktop/lib/django_util.py
+index 3c6085d..2a0900b 100644
+--- a/desktop/core/src/desktop/lib/django_util.py
++++ b/desktop/core/src/desktop/lib/django_util.py
+@@ -25,6 +25,7 @@ import datetime
+ 
+ from django.utils.tzinfo import LocalTimezone
+ from django.utils.translation import ungettext, ugettext
++from django.core.context_processors import csrf
+ from django.core import urlresolvers, serializers
+ from django.conf import settings
+ from django.utils.http import urlencode # this version is unicode-friendly
+@@ -135,10 +136,10 @@ def _get_template_lib(template, kwargs):
+   return template_lib
+ 
+ 
+-def _render_to_response(template, *args, **kwargs):
++def _render_to_response(template, request, *args, **kwargs):
+   template_lib = _get_template_lib(template, kwargs)
+-
+   if template_lib == DJANGO:
++    kwargs.update(csrf(request))
+     return django_render_to_response(template, *args, **kwargs)
+   elif template_lib == MAKO:
+     return django_mako.render_to_response(template, *args, **kwargs)
+@@ -216,6 +217,7 @@ def render(template, request, data, json=None, template_lib=None, force_template
+       return render_json(data, request.GET.get("callback"), status=status)
+   else:
+     return _render_to_response(template,
++                               request,
+                                RequestContext(request=request, dict_=data),
+                                template_lib=template_lib,
+                                status=status,
+diff --git a/desktop/core/src/desktop/settings.py b/desktop/core/src/desktop/settings.py
+old mode 100644
+new mode 100755
+index 6a06ac5..a31acb8
+--- a/desktop/core/src/desktop/settings.py
++++ b/desktop/core/src/desktop/settings.py
+@@ -129,8 +129,9 @@ MIDDLEWARE_CLASSES = [
+     'desktop.middleware.ExceptionMiddleware',
+     'desktop.middleware.ClusterMiddleware',
+     'desktop.middleware.AppSpecificMiddleware',
+-    'django.middleware.transaction.TransactionMiddleware'
++    'django.middleware.transaction.TransactionMiddleware',
+     # 'debug_toolbar.middleware.DebugToolbarMiddleware'
++    'django.middleware.csrf.CsrfViewMiddleware'
+ ]
+ 
+ if os.environ.get(ENV_DESKTOP_DEBUG):
+diff --git a/desktop/core/src/desktop/templates/common_header.mako b/desktop/core/src/desktop/templates/common_header.mako
+index 053a878..adef806 100644
+--- a/desktop/core/src/desktop/templates/common_header.mako
++++ b/desktop/core/src/desktop/templates/common_header.mako
+@@ -175,6 +175,21 @@ from django.utils.translation import ugettext as _
+         $.ajaxSetup({ cache: false });
+       }
+ 
++      //Add CSRF Token to all XHR Requests
++      var csrftoken = $.cookie('csrftoken');
++      function csrfSafeMethod(method) {
++        // these HTTP methods do not require CSRF protection
++        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
++      }
++      $.ajaxSetup({
++        beforeSend: function(xhr, settings) {
++          if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
++            xhr.setRequestHeader("X-CSRFToken", csrftoken);
++          }
++        }
++      });
++      /////
++
+       // prevents framebusting and clickjacking
+       if (self == top){
+         $("body").css({
+diff --git a/desktop/core/src/desktop/templates/login.mako b/desktop/core/src/desktop/templates/login.mako
+index b8c9917..660f1a2 100644
+--- a/desktop/core/src/desktop/templates/login.mako
++++ b/desktop/core/src/desktop/templates/login.mako
+@@ -191,7 +191,7 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
+       <div id="logo"></div>
+ 
+       <form method="POST" action="${action}" class="well">
+-
++        ${ csrf_token(request) | n,unicode }
+         %if first_login_ever:
+           <h3>${_('Create your Hue account')}</h3>
+         %else:
+@@ -288,4 +288,4 @@ ${ commonheader("Welcome to Hue", "login", user, "50px") | n,unicode }
+   });
+ </script>
+ 
+-${ commonfooter(messages) | n,unicode }
+\ No newline at end of file
++${ commonfooter(messages) | n,unicode }
+-- 
+1.7.9.5
+

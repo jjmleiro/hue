@@ -1,0 +1,325 @@
+From 0815b712b4acb7680340a6d41f53065ab298cb33 Mon Sep 17 00:00:00 2001
+From: Paul McCaughtry <paul.mccaughtry@cloudera.com>
+Date: Mon, 13 Oct 2014 15:39:57 -0500
+Subject: [PATCH 0036/1173] HUE-2404 [oozie] CSRF token missing in rerun
+ popups
+
+Added CSRF token to form with POST methods
+---
+ .../src/oozie/templates/editor/action_utils.mako   |    1 +
+ .../src/oozie/templates/editor/control_utils.mako  |    3 +++
+ .../src/oozie/templates/editor/create_bundle.mako  |    1 +
+ .../oozie/templates/editor/create_coordinator.mako |    2 +-
+ .../oozie/templates/editor/create_workflow.mako    |    1 +
+ .../src/oozie/templates/editor/edit_bundle.mako    |    2 +-
+ .../oozie/templates/editor/edit_coordinator.mako   |    1 +
+ .../src/oozie/templates/editor/edit_workflow.mako  |    1 +
+ .../oozie/templates/editor/import_coordinator.mako |    1 +
+ .../oozie/templates/editor/import_workflow.mako    |    2 +-
+ .../src/oozie/templates/editor/list_bundles.mako   |    2 ++
+ .../oozie/templates/editor/list_coordinators.mako  |    2 ++
+ .../templates/editor/list_trashed_bundles.mako     |    3 +++
+ .../editor/list_trashed_coordinators.mako          |    3 +++
+ .../templates/editor/list_trashed_workflows.mako   |    3 +++
+ .../src/oozie/templates/editor/list_workflows.mako |    2 ++
+ .../oozie/templates/editor/submit_job_popup.mako   |    1 +
+ 17 files changed, 28 insertions(+), 3 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/action_utils.mako b/apps/oozie/src/oozie/templates/editor/action_utils.mako
+index 63c7b83..5c57c95 100644
+--- a/apps/oozie/src/oozie/templates/editor/action_utils.mako
++++ b/apps/oozie/src/oozie/templates/editor/action_utils.mako
+@@ -28,6 +28,7 @@
+ % endif
+   <div data-bind="with: context().node">
+     <form class="form-horizontal" id="${node_type}-action-form" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close">&times;</a>
+         <h3 class="message" data-bind="text: '${_('Edit Node: ')}' + name()"></h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/control_utils.mako b/apps/oozie/src/oozie/templates/editor/control_utils.mako
+index 8c6399a..9efd5a0 100644
+--- a/apps/oozie/src/oozie/templates/editor/control_utils.mako
++++ b/apps/oozie/src/oozie/templates/editor/control_utils.mako
+@@ -27,6 +27,7 @@
+ % endif
+   <div data-bind="with: context().node">
+     <form class="form-horizontal" id="${node_type}-convert-form" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3 class="message" data-bind="text: '${_('Edit Node: ')}' + name()"></h3>
+@@ -60,6 +61,7 @@
+ % endif
+   <div data-bind="with: context().node">
+     <form class="form-horizontal" id="${node_type}-action-form" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3 class="message" data-bind="text: '${_('Edit Node: ')}' + name()"></h3>
+@@ -99,6 +101,7 @@
+ % endif
+   <div data-bind="with: context().node">
+     <form class="form-horizontal" id="${node_type}-action-form" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div class="modal-header">
+         <a href="#" class="close" data-dismiss="modal">&times;</a>
+         <h3 class="message" data-bind="text: '${_('Edit Node: ')}' + name()"></h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/create_bundle.mako b/apps/oozie/src/oozie/templates/editor/create_bundle.mako
+index 3afbd92..5d7f89b 100644
+--- a/apps/oozie/src/oozie/templates/editor/create_bundle.mako
++++ b/apps/oozie/src/oozie/templates/editor/create_bundle.mako
+@@ -29,6 +29,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div class="container-fluid">
+   <form class="form-horizontal" id="bundleForm" action="${ url('oozie:create_bundle') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="row-fluid">
+       <div class="span2">
+         <div class="sidebar-nav">
+diff --git a/apps/oozie/src/oozie/templates/editor/create_coordinator.mako b/apps/oozie/src/oozie/templates/editor/create_coordinator.mako
+index 999afcb..2a1808f 100644
+--- a/apps/oozie/src/oozie/templates/editor/create_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/editor/create_coordinator.mako
+@@ -64,7 +64,7 @@ ${ layout.menubar(section='coordinators') }
+         <li><a href="#step5" class="step">${ _('Step 5: Advanced settings') }</a></li>
+       </ul>
+       <form class="form-horizontal" action="${ url('oozie:create_coordinator') }" method="POST">
+-
++        ${ csrf_token(request) | n,unicode }
+         <div class="steps">
+ 
+           <div id="step1" class="stepDetails">
+diff --git a/apps/oozie/src/oozie/templates/editor/create_workflow.mako b/apps/oozie/src/oozie/templates/editor/create_workflow.mako
+index 0aa3c59..d09ada6 100644
+--- a/apps/oozie/src/oozie/templates/editor/create_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor/create_workflow.mako
+@@ -44,6 +44,7 @@ ${ layout.menubar(section='workflows') }
+           <div class="card-body">
+             <p>
+               <form class="form-horizontal" id="workflowForm" action="${ url('oozie:create_workflow') }" method="POST">
++                ${ csrf_token(request) | n,unicode }
+               <fieldset>
+               ${ utils.render_field(workflow_form['name']) }
+               ${ utils.render_field(workflow_form['description']) }
+diff --git a/apps/oozie/src/oozie/templates/editor/edit_bundle.mako b/apps/oozie/src/oozie/templates/editor/edit_bundle.mako
+index 39b8b15..6066408 100644
+--- a/apps/oozie/src/oozie/templates/editor/edit_bundle.mako
++++ b/apps/oozie/src/oozie/templates/editor/edit_bundle.mako
+@@ -89,7 +89,7 @@ ${ layout.menubar(section='bundles') }
+       <div class="card card-small">
+       <h1 class="card-heading simple">${ _('Bundle Editor : ') } ${ bundle.name }</h1>
+       <form id="jobForm" class="form-horizontal" action="${ url('oozie:edit_bundle', bundle=bundle.id) }" method="POST">
+-
++        ${ csrf_token(request) | n,unicode }
+       <div id="properties" class="section">
+         <ul class="nav nav-pills">
+           <li class="active"><a href="#step1" class="step">${ _('Step 1: General') }</a></li>
+diff --git a/apps/oozie/src/oozie/templates/editor/edit_coordinator.mako b/apps/oozie/src/oozie/templates/editor/edit_coordinator.mako
+index d80108f..52c3a60 100644
+--- a/apps/oozie/src/oozie/templates/editor/edit_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/editor/edit_coordinator.mako
+@@ -87,6 +87,7 @@ ${ layout.menubar(section='coordinators') }
+       <div class="card card-small">
+         <h1 class="card-heading simple">${ _('Coordinator Editor : ') } ${ coordinator.name }</h1>
+       <form id="jobForm" class="form-horizontal" action="${ url('oozie:edit_coordinator', coordinator=coordinator.id) }" method="POST">
++      ${ csrf_token(request) | n,unicode }
+       <div id="properties" class="section">
+         <ul class="nav nav-pills">
+           <li class="active"><a href="#step1" class="step">${ _('Step 1: General') }</a></li>
+diff --git a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+index 4429243..6c778c8 100644
+--- a/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor/edit_workflow.mako
+@@ -31,6 +31,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="workflow" class="container-fluid">
+   <form class="form-horizontal" id="jobForm" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   <div class="ribbon-wrapper hide">
+     <div class="ribbon">${ _('Unsaved') }</div>
+   </div>
+diff --git a/apps/oozie/src/oozie/templates/editor/import_coordinator.mako b/apps/oozie/src/oozie/templates/editor/import_coordinator.mako
+index 585a98e..ee31170 100644
+--- a/apps/oozie/src/oozie/templates/editor/import_coordinator.mako
++++ b/apps/oozie/src/oozie/templates/editor/import_coordinator.mako
+@@ -39,6 +39,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+     <div style="min-height:300px">
+       <form class="form-horizontal" id="coordinatorForm" action="${ url('oozie:import_coordinator') }" method="POST" enctype="multipart/form-data">
++        ${ csrf_token(request) | n,unicode }
+         <div class="row-fluid">
+           <div class="span12">
+             <fieldset>
+diff --git a/apps/oozie/src/oozie/templates/editor/import_workflow.mako b/apps/oozie/src/oozie/templates/editor/import_workflow.mako
+index a8f3019..e3dbd56 100644
+--- a/apps/oozie/src/oozie/templates/editor/import_workflow.mako
++++ b/apps/oozie/src/oozie/templates/editor/import_workflow.mako
+@@ -39,7 +39,7 @@ ${ layout.menubar(section='workflows') }
+ 
+     <div style="min-height:300px">
+       <form class="form-horizontal" id="workflowForm" action="${ url('oozie:import_workflow') }" method="POST" enctype="multipart/form-data">
+-
++      ${ csrf_token(request) | n,unicode }
+       <div class="row-fluid">
+         <div class="span12">
+           <fieldset>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_bundles.mako
+index 9ae9de7..c73906a 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_bundles.mako
+@@ -132,6 +132,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div id="trash-job" class="modal hide">
+   <form id="trashForm" action="${ url('oozie:delete_bundle') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="trashMessage">${ _('Move the selected bundle(s) to trash?') }</h3>
+@@ -148,6 +149,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div id="destroy-job" class="modal hide">
+   <form id="destroyForm" action="${ url('oozie:delete_bundle') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyMessage">${ _('Delete the selected bundle(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_coordinators.mako
+index 2b6de16..85fd2eb 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_coordinators.mako
+@@ -136,6 +136,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+ <div id="trash-job" class="modal hide">
+   <form id="trashForm" action="${ url('oozie:delete_coordinator') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="trashMessage">${ _('Move the selected coordinator(s) to trash?') }</h3>
+@@ -152,6 +153,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+ <div id="destroy-job" class="modal hide">
+   <form id="destroyForm" action="${ url('oozie:delete_coordinator') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyMessage">${ _('Delete the selected coordinator(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_trashed_bundles.mako b/apps/oozie/src/oozie/templates/editor/list_trashed_bundles.mako
+index ffad18b..b510594 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_trashed_bundles.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_trashed_bundles.mako
+@@ -96,6 +96,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div id="purge-job" class="modal hide">
+   <form id="purgeForm" action="${ url('oozie:delete_bundle') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="purgefMessage">${ _('Delete all bundle(s)?') }</h3>
+@@ -112,6 +113,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div id="destroy-job" class="modal hide">
+   <form id="destroyForm" action="${ url('oozie:delete_bundle') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyMessage">${ _('Delete the selected bundle(s)?') }</h3>
+@@ -128,6 +130,7 @@ ${ layout.menubar(section='bundles') }
+ 
+ <div id="restore-job" class="modal hide">
+   <form id="restoreForm" action="${ url('oozie:restore_bundle') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="restoreMessage">${ _('Restore the selected bundle(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_trashed_coordinators.mako b/apps/oozie/src/oozie/templates/editor/list_trashed_coordinators.mako
+index 810a059..715d553 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_trashed_coordinators.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_trashed_coordinators.mako
+@@ -96,6 +96,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+ <div id="purge-job" class="modal hide">
+   <form id="purgeForm" action="${ url('oozie:delete_coordinator') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="purgeMessage">${ _('Delete all coordinator(s)?') }</h3>
+@@ -113,6 +114,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+ <div id="destroy-job" class="modal hide">
+   <form id="purgeForm" action="${ url('oozie:delete_coordinator') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="purgeMessage">${ _('Delete the selected coordinator(s)?') }</h3>
+@@ -130,6 +132,7 @@ ${ layout.menubar(section='coordinators') }
+ 
+ <div id="restore-job" class="modal hide">
+   <form id="restoreWfForm" action="${ url('oozie:restore_coordinator') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="restoreWfMessage">${ _('Restore the selected coordinator(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_trashed_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_trashed_workflows.mako
+index e4a75ef..c7bd1eb 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_trashed_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_trashed_workflows.mako
+@@ -96,6 +96,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="destroyWf" class="modal hide fade">
+   <form id="destroyWfForm" action="${ url('oozie:delete_workflow') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyWfMessage">${ _('Delete the selected workflow(s)?') }</h3>
+@@ -112,6 +113,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="purgeWfs" class="modal hide fade">
+   <form id="purgeWfsForm" action="${ url('oozie:delete_workflow') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="purgeWfsMessage">${ _('Delete all trashed workflow(s)?') }</h3>
+@@ -128,6 +130,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="restoreWf" class="modal hide fade">
+   <form id="restoreWfForm" action="${ url('oozie:restore_workflow') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="restoreWfMessage">${ _('Restore the selected workflow(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/list_workflows.mako b/apps/oozie/src/oozie/templates/editor/list_workflows.mako
+index 13b4677..53629f5 100644
+--- a/apps/oozie/src/oozie/templates/editor/list_workflows.mako
++++ b/apps/oozie/src/oozie/templates/editor/list_workflows.mako
+@@ -131,6 +131,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="trashWf" class="modal hide fade">
+   <form id="trashWfForm" action="${ url('oozie:delete_workflow') }" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="trashWfMessage">${ _('Move the selected workflow(s) to trash?') }</h3>
+@@ -147,6 +148,7 @@ ${ layout.menubar(section='workflows') }
+ 
+ <div id="destroyWf" class="modal hide fade">
+   <form id="destroyWfForm" action="${ url('oozie:delete_workflow') }?skip_trash=true" method="POST">
++    ${ csrf_token(request) | n,unicode }
+     <div class="modal-header">
+       <a href="#" class="close" data-dismiss="modal">&times;</a>
+       <h3 id="destroyWfMessage">${ _('Delete the selected workflow(s)?') }</h3>
+diff --git a/apps/oozie/src/oozie/templates/editor/submit_job_popup.mako b/apps/oozie/src/oozie/templates/editor/submit_job_popup.mako
+index ac6df56..987a074 100644
+--- a/apps/oozie/src/oozie/templates/editor/submit_job_popup.mako
++++ b/apps/oozie/src/oozie/templates/editor/submit_job_popup.mako
+@@ -22,6 +22,7 @@
+ 
+ 
+ <form action="${ action }" method="POST">
++  ${ csrf_token(request) | n,unicode }
+   <div class="modal-header">
+     <a href="#" class="close" data-dismiss="modal">&times;</a>
+     <h3>${ _('Submit this job?') }</h3>
+-- 
+1.7.9.5
+

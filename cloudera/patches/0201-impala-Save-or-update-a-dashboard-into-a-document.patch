@@ -1,0 +1,171 @@
+From 9fed9e06ae9f741fe0758283f0b687e273de8618 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 13 Oct 2014 14:34:27 -0700
+Subject: [PATCH 0201/1173] [impala] Save or update a dashboard into a
+ document
+
+---
+ apps/impala/src/impala/dashboards.py            |   20 +++++++++++++-------
+ apps/impala/src/impala/models.py                |   23 +++++++++++++++--------
+ apps/impala/src/impala/templates/dashboard.mako |   10 +++++-----
+ apps/impala/static/js/impala-dashboard.ko.js    |    6 +++---
+ 4 files changed, 36 insertions(+), 23 deletions(-)
+
+diff --git a/apps/impala/src/impala/dashboards.py b/apps/impala/src/impala/dashboards.py
+index 226be07..71df4a1 100644
+--- a/apps/impala/src/impala/dashboards.py
++++ b/apps/impala/src/impala/dashboards.py
+@@ -42,7 +42,7 @@ def dashboard(request):
+   dashboard_id = request.GET.get('dashboard')
+   
+   if dashboard_id:
+-    dashboard = Dashboard(data=Document2.objects.get(id=dashboard_id).data)
++    dashboard = Dashboard(document=Document2.objects.get(id=dashboard_id))
+   else:
+     dashboard = Dashboard()
+ 
+@@ -99,6 +99,7 @@ def query(request):
+     fields = [fq['field'] for fq in fqs]
+     result['selected'] = facet['field'] in fields
+   else:
++    dashboard['resultsetSelectedFields'] = map(lambda f: '`%s`' % f if f in ('date',) else f, dashboard['resultsetSelectedFields'])
+     fields = ', '.join(dashboard['resultsetSelectedFields']) if dashboard['resultsetSelectedFields'] else '*'
+     hql = "SELECT %(fields)s FROM %(database)s.%(table)s" % {
+         'database': database, 
+@@ -158,9 +159,12 @@ def new_search(request):
+   return render('dashboard.mako', request, {
+     'query_json': json.dumps({}),
+     'dashboard_json': json.dumps({
++      'id': None,
+       'layout': [],
+-      'facets': [],
+-      'properties': [{'database': '', 'table': '', 'fields': []}]
++      'dashboard': {
++          'facets': [],
++          'properties': [{'database': '', 'table': '', 'fields': []}]
++        }
+       }),
+      'initial_json': json.dumps({
+         'layout': [
+@@ -181,14 +185,16 @@ def save(request):
+   layout = json.loads(request.POST.get('layout', '{}'))
+ 
+   if dashboard:
++    name = '%s.%s' % (dashboard['properties'][0]['database'], dashboard['properties'][0]['table']) # Dynamic currently
++
+     if dashboard.get('id'):
+       dashboard_doc = Document2.objects.get(id=dashboard['id'])
+-    else:
+-      dashboard['name'] = '%s.%s' % (dashboard['properties'][0]['database'], dashboard['properties'][0]['table'])
+-      dashboard_doc = Document2.objects.create(name=dashboard['name'], type='impala-dashboard', owner=request.user)
++    else:      
++      dashboard_doc = Document2.objects.create(name=name, type='impala-dashboard', owner=request.user)
++
+     dashboard_doc.update_data({'dashboard': dashboard})
+     dashboard_doc.update_data({'layout': layout})
+-    dashboard_doc.name = dashboard['name']
++    dashboard_doc.name = name
+     dashboard_doc.save()
+     response['status'] = 0
+     response['id'] = dashboard_doc.id
+diff --git a/apps/impala/src/impala/models.py b/apps/impala/src/impala/models.py
+index b8a04af..d0b3151 100644
+--- a/apps/impala/src/impala/models.py
++++ b/apps/impala/src/impala/models.py
+@@ -26,28 +26,35 @@ class Dashboard():
+   def __init__(self, data=None, document=None):
+     self.document = document
+ 
+-    if data is not None:
++    if document is not None:
++      self.data = document.data
++    elif data is not None:
+       self.data = data
+     else:
+-      self.data = json.dumps(
+-          {'layout': [
++      self.data = json.dumps({
++          'layout': [
+                   {"size":2,"rows":[{"widgets":[{"size":12,"name":"Total Employees","id":"52f07188-f30f-1296-2450-f77e02e1a5c1","widgetType":"facet-widget",
+                        "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]}],"drops":["temp"],"klass":"card card-home card-column span2"},
+                   {"size":10,"rows":[{"widgets":[
+                       {"size":12,"name":"Grid Results","id":"52f07188-f30f-1296-2450-f77e02e1a5c0","widgetType":"resultset-widget",
+                        "properties":{},"offset":0,"isLoading":True,"klass":"card card-widget span12"}]}],
+                   "drops":["temp"],"klass":"card card-home card-column span10"}
+-             ],
+-          'facets': [{'id': '52f07188-f30f-1296-2450-f77e02e1a5c1', 'label': 'Total Employees', 'type': 'field', 'field': 'total_emp', 'widget_type': 'facet-widget', 
++          ],
++          'dashboard': {
++            'facets': [{'id': '52f07188-f30f-1296-2450-f77e02e1a5c1', 'label': 'Total Employees', 'type': 'field', 'field': 'total_emp', 'widget_type': 'facet-widget', 
+                         'properties': {'limit': 10}}],
+-          'properties': [{'database': 'default', 'table': 'sample_07', 'fields': []}]
++            'properties': [{'database': 'default', 'table': 'sample_07', 'fields': []}]
++          }
+       })
+ 
+   def get_json(self, user):
+     _data = self.get_data()
+ 
+-    _data['properties'][0]['fields'] = Controller(user).get_fields(_data['properties'][0]['database'], _data['properties'][0]['table'])
+-    
++    _data['dashboard']['properties'][0]['fields'] = Controller(user).get_fields(_data['dashboard']['properties'][0]['database'], _data['dashboard']['properties'][0]['table'])
++
++    if self.document is not None:
++      _data['dashboard']['id'] = self.document.id  
++
+     return json.dumps(_data)
+  
+   def get_data(self):
+diff --git a/apps/impala/src/impala/templates/dashboard.mako b/apps/impala/src/impala/templates/dashboard.mako
+index 75233de..ab24af5 100644
+--- a/apps/impala/src/impala/templates/dashboard.mako
++++ b/apps/impala/src/impala/templates/dashboard.mako
+@@ -237,15 +237,15 @@ ${ dashboard.layout_skeleton() }
+     <!-- ko if: type() == 'range' -->
+       <div data-bind="foreach: {data: data(), afterRender: function(){ $root.getWidgetById($parent.id()).isLoading(false); }}">
+         <div class="trigger-exclude">
+-          <!-- ko if: ! selected -->
+-            <a class="pointer" data-bind="text: $data.from + ' - ' + $data.to, click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
+-            <span class="pointer counter" data-bind="text: ' (' + $data.value + ')', click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></span>
++          <!-- ko if: ! selected() -->
++            <a class="pointer" data-bind="text: $data.value(), click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></a>
++            <span class="pointer counter" data-bind="text: ' (' + $data.count() + ')', click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }"></span>
+             <a class="exclude pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field, 'exclude': true}) }" title="${ _('Exclude this value') }"><i class="fa fa-minus"></i></a>
+           <!-- /ko -->
+           <!-- ko if: selected -->
+             <span class="pointer" data-bind="click: function(){ $root.query.selectRangeFacet({count: $data.value, widget_id: $parent.id(), from: $data.from, to: $data.to, cat: $data.field}) }">
+-              <strong data-bind="text: $data.from + ' - ' + $data.to"></strong>
+-              <a class="pointer" data-bind="visible: ! exclude"><i class="fa fa-times"></i></a>
++              <strong data-bind="text: $data.value()"></strong>
++              <a class="pointer" data-bind="visible: ! exclude()"><i class="fa fa-times"></i></a>
+               <a class="pointer" data-bind="visible: exclude"><i class="fa fa-plus"></i></a>
+             </span>
+           <!-- /ko -->
+diff --git a/apps/impala/static/js/impala-dashboard.ko.js b/apps/impala/static/js/impala-dashboard.ko.js
+index 4da81dc..68819b2 100644
+--- a/apps/impala/static/js/impala-dashboard.ko.js
++++ b/apps/impala/static/js/impala-dashboard.ko.js
+@@ -174,9 +174,9 @@ var Dashboard = function (vm, dashboard) {
+   self.resultsetFieldsFilter = ko.observable(""); // For UI
+ 
+   self.resultsetSelectedFields = ko.observableArray(self.fieldNames());
+-  self.resultsetSelectedFields.subscribe(function(value) {
++  /**self.resultsetSelectedFields.subscribe(function(value) {
+     vm.search();
+-  });
++  });*/
+ 
+   self.resultsetFilteredFields = ko.computed(function() {
+     var _fields = [];
+@@ -251,7 +251,7 @@ var ImpalaDashboardViewModel = function (query_json, dashboard_json, initial_jso
+     loadLayout(self, dashboard_json.layout);
+ 
+     self.query = new Query(self, query_json);
+-    self.dashboard = new Dashboard(self, dashboard_json);
++    self.dashboard = new Dashboard(self, dashboard_json.dashboard);
+     self.initial = initial_json;
+ 
+     self.results = ko.observableArray([]);
+-- 
+1.7.9.5
+

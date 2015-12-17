@@ -1,0 +1,45 @@
+From afedee444a7d3243b1e55909254f14f2d40952f5 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 19 Nov 2014 15:40:08 +0100
+Subject: [PATCH 0291/1173] [oozie] Convert to decision removes the join node
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    4 ----
+ apps/oozie/static/js/workflow-editor.ko.js         |    6 ++++++
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f2fad40..f85c21f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1008,10 +1008,6 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user) | n,unicode }
+       <input type="text" data-bind="value: id" />
+       <input type="text" data-bind="value: name" />
+     </div>
+-
+-    <div>
+-      <a class="pointer" data-bind="click: function() { $root.convertToFork($parent, $data) }">Convert to Fork</a>
+-    </div>
+   </div>
+   <!-- /ko -->
+ </script>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4f4446e..ca4a74b 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -863,6 +863,12 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+ 
+   self.convertToDecision = function (widget, node) {
+     if (widget.widgetType() == "fork-widget"){
++      var _row = self.getWidgetParentRow(widget.id());
++      var _next = self.getNextRow(_row);
++      while (_next.widgets().length == 0){
++        _next = self.getNextRow(_next);
++      }
++      self.removeWidgetById(_next.widgets()[0].id()); // remove the join
+       widget.widgetType("decision-widget");
+       node.type("decision-widget");
+       var _newName = "decision-" + node.id().slice(0, 4);
+-- 
+1.7.9.5
+

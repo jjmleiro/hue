@@ -1,0 +1,144 @@
+From d5c81ca8556872aef2aac690af099e60c59c06e1 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Wed, 28 Jan 2015 08:26:33 +0800
+Subject: [PATCH 0709/1173] [livy] Fix yarn sessions
+
+---
+ apps/spark/java/bin/livy-repl                      |    4 ++-
+ apps/spark/java/bin/livy-server                    |    4 ++-
+ apps/spark/java/bin/livy-yarn-client               |   28 ++++++++++++++++++++
+ .../hue/livy/server/sessions/YarnSession.scala     |    2 +-
+ .../java/livy-yarn/src/main/bash/run-class.sh      |    2 --
+ .../com/cloudera/hue/livy/yarn/AppMaster.scala     |    2 +-
+ .../scala/com/cloudera/hue/livy/yarn/Client.scala  |    6 ++---
+ 7 files changed, 39 insertions(+), 9 deletions(-)
+ create mode 100755 apps/spark/java/bin/livy-yarn-client
+
+diff --git a/apps/spark/java/bin/livy-repl b/apps/spark/java/bin/livy-repl
+index e65d4f6..f8bdcd7 100755
+--- a/apps/spark/java/bin/livy-repl
++++ b/apps/spark/java/bin/livy-repl
+@@ -21,6 +21,8 @@ set -e
+ 
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
+ 
++CLASSPATH="$LIVY_HOME/livy-repl/target/lib/*:$LIVY_HOME/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar:$CLASSPATH"
++
+ exec java \
+-	-cp "$LIVY_HOME/livy-repl/target/lib/*:$LIVY_HOME/livy-repl/target/livy-repl-3.7.0-SNAPSHOT.jar" \
++	-cp "$CLASSPATH" \
+ 	com.cloudera.hue.livy.repl.Main "$@"
+diff --git a/apps/spark/java/bin/livy-server b/apps/spark/java/bin/livy-server
+index 2160c3f..829d55a 100755
+--- a/apps/spark/java/bin/livy-server
++++ b/apps/spark/java/bin/livy-server
+@@ -21,7 +21,9 @@ set -e
+ 
+ export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
+ 
++CLASSPATH="$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar:$CLASSPATH"
++
+ exec java \
+ 	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 \
+-	-cp "$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar" \
++	-cp "$CLASSPATH" \
+ 	com.cloudera.hue.livy.server.Main "$@"
+diff --git a/apps/spark/java/bin/livy-yarn-client b/apps/spark/java/bin/livy-yarn-client
+new file mode 100755
+index 0000000..925a65f
+--- /dev/null
++++ b/apps/spark/java/bin/livy-yarn-client
+@@ -0,0 +1,28 @@
++#!/bin/bash
++# Licensed to Cloudera, Inc. under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  Cloudera, Inc. licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++#
++# Runs Livy server.
++
++set -e
++
++export LIVY_HOME=$(cd $(dirname $0)/.. && pwd)
++
++CLASSPATH="$LIVY_HOME/livy-server/target/lib/*:$LIVY_HOME/livy-server/target/livy-server-3.7.0-SNAPSHOT.jar:`hadoop classpath`:$CLASSPATH"
++
++exec java \
++	-cp "$CLASSPATH" \
++	com.cloudera.hue.livy.yarn.Client "$@"
+diff --git a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
+index fe61200..fd5127d 100644
+--- a/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
++++ b/apps/spark/java/livy-server/src/main/scala/com/cloudera/hue/livy/server/sessions/YarnSession.scala
+@@ -26,7 +26,7 @@ object YarnSession {
+     )
+ 
+     Future {
+-      var x = job.waitForRPC(10000)
++      var x = job.waitForRPC(100000)
+ 
+       println("x: %s" format x)
+ 
+diff --git a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+index 8bc1fb7..1018387 100755
+--- a/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
++++ b/apps/spark/java/livy-yarn/src/main/bash/run-class.sh
+@@ -36,7 +36,5 @@ function check_and_enable_64_bit_mode {
+ # Check if logback configuration is specified. If not - set to resources/logback.xml
+ [[ $JAVA_OPTS != *-Dlogback.configuration* && -f $DEFAULT_LOGBACK_FILE ]] && JAVA_OPTS="$JAVA_OPTS -Dlogback.configuration=file:$DEFAULT_LOGBACK_FILE"
+ 
+-JAVA_OPTS="$JAVA_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006"
+-
+ echo $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+ exec $JAVA $JAVA_OPTS -cp "$CLASSPATH" "$@"
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+index 329fd6c..6cd7e48 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/AppMaster.scala
+@@ -15,7 +15,7 @@ object AppMaster extends Logging {
+   val SESSION_KIND = "livy-repl.session.kind"
+ 
+   def main(args: Array[String]): Unit = {
+-    val lang = args(1)
++    val lang = args(0)
+ 
+     val containerIdString = System.getenv(ApplicationConstants.Environment.CONTAINER_ID.toString)
+     info("got container id: %s" format containerIdString)
+diff --git a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+index 6b6e04a..04cf15f 100644
+--- a/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
++++ b/apps/spark/java/livy-yarn/src/main/scala/com/cloudera/hue/livy/yarn/Client.scala
+@@ -13,8 +13,8 @@ import scala.collection.JavaConversions._
+ object Client extends Logging {
+ 
+   def main(args: Array[String]): Unit = {
+-    val packagePath = new Path(args(1))
+-    val lang = args(2)
++    val packagePath = new Path(args(0))
++    val lang = args(1)
+ 
+     val yarnConf = new YarnConfiguration()
+     yarnConf.set("yarn.resourcemanager.am.max-attempts", "1")
+@@ -35,7 +35,7 @@ object Client extends Logging {
+ 
+       info("waiting for job to start")
+ 
+-      job.waitForStatus(Running(), 10000) match {
++      job.waitForStatus(Running(), 100000) match {
+         case Some(Running()) => {
+           info("job started successfully on %s:%s" format(job.getHost, job.getPort))
+         }
+-- 
+1.7.9.5
+

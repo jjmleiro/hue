@@ -1,0 +1,62 @@
+From 916dc1d771e663a52b80af1e5e1277a79de5b916 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Mon, 8 Dec 2014 17:24:12 -0800
+Subject: [PATCH 0623/1173] [spark] Stub out interruption support
+
+---
+ .../sparker/server/resources/SessionResource.java  |    9 +++++++++
+ .../hue/sparker/server/sessions/Session.java       |    2 ++
+ .../hue/sparker/server/sessions/SparkSession.java  |    6 ++++++
+ 3 files changed, 17 insertions(+)
+
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+index df3736e..28505dc 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/resources/SessionResource.java
+@@ -118,4 +118,13 @@ public class SessionResource {
+         sessionManager.close(id);
+         return Response.noContent().build();
+     }
++
++
++    @Path("/{id}/interrupt")
++    @POST
++    @Timed
++    public Response interruptStatement(@PathParam("id") String id) throws SessionManager.SessionNotFound, Session.StatementNotFound {
++        Session session = sessionManager.get(id);
++        session.interrupt();
++    }
+ }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+index 7e0b57a..9cac5f4 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/Session.java
+@@ -43,6 +43,8 @@ public interface Session {
+ 
+     public void close() throws IOException, InterruptedException, TimeoutException;
+ 
++    void interrupt() throws Exception;
++
+     public static class StatementNotFound extends Throwable {
+ 
+     }
+diff --git a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+index 28551ed..e862584 100644
+--- a/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
++++ b/apps/spark/java/sparker-server/src/main/java/com/cloudera/hue/sparker/server/sessions/SparkSession.java
+@@ -157,6 +157,12 @@ public class SparkSession implements Session {
+         process.destroy();
+     }
+ 
++    @Override
++    public void interrupt() throws Exception {
++        // FIXME: is there a better way to do this?
++        throw new Exception("not implemented");
++    }
++
+     private void touchLastActivity() {
+         this.lastActivity = System.currentTimeMillis();
+     }
+-- 
+1.7.9.5
+

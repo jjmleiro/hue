@@ -1,0 +1,254 @@
+From f3b168117b39fc0617fc6abbefff3c00e131d871 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Wed, 18 Feb 2015 10:24:31 -0800
+Subject: [PATCH 0949/1173] HUE-2534 [hbase] Automatically detect
+ configuration based on hbase-site.xml
+
+---
+ apps/beeswax/src/beeswax/server/dbms.py            |    2 +-
+ apps/hbase/src/hbase/api.py                        |   16 +++++++---------
+ apps/hbase/src/hbase/conf.py                       |   12 +++++++-----
+ apps/hbase/src/hbase/hbase_site.py                 |   16 +++++++++++++++-
+ apps/oozie/src/oozie/views/editor2.py              |    3 +++
+ desktop/conf.dist/hue.ini                          |    5 +----
+ desktop/conf/pseudo-distributed.ini.tmpl           |    1 +
+ .../core/src/desktop/lib/thrift_/http_client.py    |    7 -------
+ desktop/core/src/desktop/lib/thrift_util.py        |   10 +++++-----
+ 9 files changed, 40 insertions(+), 32 deletions(-)
+
+diff --git a/apps/beeswax/src/beeswax/server/dbms.py b/apps/beeswax/src/beeswax/server/dbms.py
+index b919fc1..807aa0a 100644
+--- a/apps/beeswax/src/beeswax/server/dbms.py
++++ b/apps/beeswax/src/beeswax/server/dbms.py
+@@ -88,7 +88,7 @@ def get_query_server_config(name='beeswax', server=None):
+             'port': hive_site.hiveserver2_thrift_http_port(),
+             'end_point': hive_site.hiveserver2_thrift_http_path()
+         },
+-        'transport_mode': hive_site.hiveserver2_transport_mode(),
++        'transport_mode': 'http' if hive_site.hiveserver2_transport_mode() == 'HTTP' else 'socket',
+     }
+ 
+   LOG.debug("Query Server: %s" % query_server)
+diff --git a/apps/hbase/src/hbase/api.py b/apps/hbase/src/hbase/api.py
+index f924ba1..c9090a7 100644
+--- a/apps/hbase/src/hbase/api.py
++++ b/apps/hbase/src/hbase/api.py
+@@ -29,7 +29,7 @@ from desktop.lib.exceptions_renderable import PopupException
+ 
+ from hbase.server.hbase_lib import get_thrift_type, get_client_type
+ from hbase import conf
+-from hbase.hbase_site import get_server_principal, get_server_authentication
++from hbase.hbase_site import get_server_principal, get_server_authentication, is_using_thrift_ssl, is_using_thrift_http
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -62,14 +62,14 @@ class HbaseApi(object):
+     try:
+       full_config = json.loads(conf.HBASE_CLUSTERS.get().replace("'", "\""))
+     except:
+-      full_config = [conf.HBASE_CLUSTERS.get()]
+-    for config in full_config: #hack cause get() is weird
++      full_config = [conf.HBASE_CLUSTERS.get()] #hack cause get() is weird
+ 
+-      match = re.match('\((?P<name>[^\(\)\|]+)\|(?P<protocol>https?://)?(?P<host>.+):(?P<port>[0-9]+)\)', config)
++    for config in full_config:
++      match = re.match('\((?P<name>[^\(\)\|]+)\|(?P<host>.+):(?P<port>[0-9]+)\)', config)
+       if match:
+         clusters += [{
+           'name': match.group('name'),
+-          'host': (match.group('protocol') + match.group('host')) if match.group('protocol') else match.group('host'),
++          'host': match.group('host'),
+           'port': int(match.group('port'))
+         }]
+       else:
+@@ -97,10 +97,8 @@ class HbaseApi(object):
+                                   use_sasl=_security['use_sasl'],
+                                   timeout_seconds=30,
+                                   transport=conf.THRIFT_TRANSPORT.get(),
+-                                  transport_mode=conf.TRANSPORT_MODE.get(),
+-                                  http_url=\
+-                                      ('http://' if (conf.TRANSPORT_MODE.get() == 'http' and not target['host'].startswith('http')) else '') \
+-                                      + target['host'] + ':' + str(target['port'])
++                                  transport_mode='http' if is_using_thrift_http() else 'tcp',
++                                  http_url=('https://' if is_using_thrift_ssl() else 'http://') + target['host'] + ':' + str(target['port'])
+     )
+ 
+     if hasattr(client, 'setCustomHeaders'):
+diff --git a/apps/hbase/src/hbase/conf.py b/apps/hbase/src/hbase/conf.py
+index 603e13c..ac3c56d 100644
+--- a/apps/hbase/src/hbase/conf.py
++++ b/apps/hbase/src/hbase/conf.py
+@@ -19,7 +19,7 @@ import os
+ 
+ from django.utils.translation import ugettext_lazy as _t
+ 
+-from desktop.lib.conf import Config, validate_thrift_transport
++from desktop.lib.conf import Config, validate_thrift_transport, coerce_str_lowercase
+ 
+ 
+ HBASE_CLUSTERS = Config(
+@@ -52,10 +52,12 @@ HBASE_CONF_DIR = Config(
+   default=os.environ.get("HBASE_CONF_DIR", '/etc/hbase/conf')
+ )
+ 
+-TRANSPORT_MODE = Config(
+-  key="transport_mode",
+-  help=_t("Force the underlying mode of the Thrift Transport: socket|http. http is required for using the doAs impersonation."),
+-  default='socket'
++# Hidden, just for making patching of older version of Hue easier. To remove in Hue 4.
++USE_DOAS = Config(
++  key='use_doas',
++  help=_t('Force Hue to use Http Thrift mode with doas impersonation, regarless of hbase-site.xml properties.'),
++  default=False,
++  type=bool
+ )
+ 
+ 
+diff --git a/apps/hbase/src/hbase/hbase_site.py b/apps/hbase/src/hbase/hbase_site.py
+index 863d949..d4abf7e 100644
+--- a/apps/hbase/src/hbase/hbase_site.py
++++ b/apps/hbase/src/hbase/hbase_site.py
+@@ -22,7 +22,7 @@ import os.path
+ from hadoop import confparse
+ from desktop.lib.security_util import get_components
+ 
+-from hbase.conf import HBASE_CONF_DIR
++from hbase.conf import HBASE_CONF_DIR, USE_DOAS
+ 
+ 
+ LOG = logging.getLogger(__name__)
+@@ -34,6 +34,11 @@ SITE_DICT = None
+ _CNF_HBASE_THRIFT_KERBEROS_PRINCIPAL = 'hbase.thrift.kerberos.principal'
+ _CNF_HBASE_AUTHENTICATION = 'hbase.security.authentication'
+ 
++_CNF_HBASE_IMPERSONATION_ENABLED = 'hbase.thrift.support.proxyuser'
++_CNF_HBASE_USE_THRIFT_HTTP = 'hbase.regionserver.thrift.http'
++_CNF_HBASE_USE_THRIFT_SSL = 'hbase.thrift.ssl.enabled'
++
++
+ 
+ def reset():
+   global SITE_DICT
+@@ -56,6 +61,15 @@ def get_server_principal():
+ def get_server_authentication():
+   return get_conf().get(_CNF_HBASE_AUTHENTICATION, 'NOSASL').upper()
+ 
++def is_impersonation_enabled():
++  return get_conf().get(_CNF_HBASE_IMPERSONATION_ENABLED, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
++
++def is_using_thrift_http():
++  return get_conf().get(_CNF_HBASE_USE_THRIFT_HTTP, 'FALSE').upper() == 'TRUE' or USE_DOAS.get()
++
++def is_using_thrift_ssl():
++  return get_conf().get(_CNF_HBASE_USE_THRIFT_SSL, 'FALSE').upper() == 'TRUE'
++
+ 
+ def _parse_site():
+   global SITE_DICT
+diff --git a/apps/oozie/src/oozie/views/editor2.py b/apps/oozie/src/oozie/views/editor2.py
+index 3f019a3..bcae27c 100644
+--- a/apps/oozie/src/oozie/views/editor2.py
++++ b/apps/oozie/src/oozie/views/editor2.py
+@@ -200,6 +200,9 @@ def save_workflow(request):
+   if workflow['properties'].get('imported'): # Old workflow format
+     workflow['properties']['imported'] = False
+     response['url'] = reverse('oozie:edit_workflow') + '?workflow=' + str(workflow_doc.id)
++    workflow.set_workspace(request.user)
++    workflow.check_workspace(request.fs, request.user)
++
+ 
+   workflow_doc.update_data({'workflow': workflow})
+   workflow_doc.update_data({'layout': layout})
+diff --git a/desktop/conf.dist/hue.ini b/desktop/conf.dist/hue.ini
+index 7af4f9c..42d2552 100644
+--- a/desktop/conf.dist/hue.ini
++++ b/desktop/conf.dist/hue.ini
+@@ -928,6 +928,7 @@
+ [hbase]
+   # Comma-separated list of HBase Thrift servers for clusters in the format of '(name|host:port)'.
+   # Use full hostname with security.
++  # If using Kerberos we assume GSSAPI SASL, not PLAIN.
+   ## hbase_clusters=(Cluster|localhost:9090)
+ 
+   # HBase configuration directory, where hbase-site.xml is located.
+@@ -941,10 +942,6 @@
+   # which is useful when used in conjunction with the nonblocking server in Thrift.
+   ## thrift_transport=buffered
+ 
+-  # The underlying mode of the Thrift Transport: socket or http.
+-  # http is required for using the doAs impersonation.
+-  ## transport_mode=socket
+-
+ 
+ ###########################################################################
+ # Settings to configure Solr Search
+diff --git a/desktop/conf/pseudo-distributed.ini.tmpl b/desktop/conf/pseudo-distributed.ini.tmpl
+index 3c0774c..3897dae 100644
+--- a/desktop/conf/pseudo-distributed.ini.tmpl
++++ b/desktop/conf/pseudo-distributed.ini.tmpl
+@@ -936,6 +936,7 @@
+ [hbase]
+   # Comma-separated list of HBase Thrift servers for clusters in the format of '(name|host:port)'.
+   # Use full hostname with security.
++  # If using Kerberos we assume GSSAPI SASL, not PLAIN.
+   ## hbase_clusters=(Cluster|localhost:9090)
+ 
+   # HBase configuration directory, where hbase-site.xml is located.
+diff --git a/desktop/core/src/desktop/lib/thrift_/http_client.py b/desktop/core/src/desktop/lib/thrift_/http_client.py
+index 929a641..123ed04 100644
+--- a/desktop/core/src/desktop/lib/thrift_/http_client.py
++++ b/desktop/core/src/desktop/lib/thrift_/http_client.py
+@@ -16,14 +16,7 @@
+ # limitations under the License.
+ #
+ 
+-import httplib
+ import logging
+-import os
+-import socket
+-import sys
+-import urllib
+-import urlparse
+-import warnings
+ 
+ from cStringIO import StringIO
+ 
+diff --git a/desktop/core/src/desktop/lib/thrift_util.py b/desktop/core/src/desktop/lib/thrift_util.py
+index b4d37ae..e6f6370 100644
+--- a/desktop/core/src/desktop/lib/thrift_util.py
++++ b/desktop/core/src/desktop/lib/thrift_util.py
+@@ -248,26 +248,26 @@ def connect_to_thrift(conf):
+ 
+   Returns a tuple of (service, protocol, transport)
+   """
+-  if conf.transport_mode == 'TCP':
++  if conf.transport_mode == 'http':
++    mode = THttpClient(conf.http_url)
++  else:
+     if conf.use_ssl:
+       mode = TSSLSocket(conf.host, conf.port, validate=conf.validate, ca_certs=conf.ca_certs, keyfile=conf.keyfile, certfile=conf.certfile)
+     else:
+       mode = TSocket(conf.host, conf.port)
+-  else:
+-    mode = THttpClient(conf.http_url)
+ 
+   if conf.timeout_seconds:
+     # Thrift trivia: You can do this after the fact with
+     # _grab_transport_from_wrapper(self.wrapped.transport).setTimeout(seconds*1000)
+     mode.setTimeout(conf.timeout_seconds * 1000.0)
+ 
+-  if conf.transport_mode == 'HTTP':
++  if conf.transport_mode == 'http':
+     if conf.use_sasl and conf.mechanism != 'PLAIN':
+       mode.set_kerberos_auth()
+     else:
+       mode.set_basic_auth(conf.username, conf.password)
+ 
+-  if conf.transport_mode == 'TCP' and conf.use_sasl:
++  if conf.transport_mode == 'socket' and conf.use_sasl:
+     def sasl_factory():
+       saslc = sasl.Client()
+       saslc.setAttr("host", str(conf.host))
+-- 
+1.7.9.5
+

@@ -1,0 +1,248 @@
+From f4aaa729778e65514d458124ca2a440412eed0bd Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Tue, 20 Jan 2015 12:25:52 +0100
+Subject: [PATCH 0468/1173] [oozie] Split datepicker and timepicker for
+ coordinator start and end
+
+---
+ .../oozie/templates/editor/coordinator_editor.mako |  122 ++++++++++++--------
+ apps/oozie/static/js/coordinator-editor.ko.js      |   30 ++++-
+ 2 files changed, 99 insertions(+), 53 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+index b826da6..747622b 100644
+--- a/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/coordinator_editor.mako
+@@ -112,46 +112,50 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         <h1 class="card-heading simple">${ _('How often?') }</h1>
+ 
+         <div class="card-body">
+-          <div class="btn-group" data-toggle="buttons-radio">
+-            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'hours'}, click: function(){ coordinator.properties.frequency_unit('hours') }">${ _('Hourly') }</a>
+-            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'days'}, click: function(){ coordinator.properties.frequency_unit('days') }">${ _('Daily') }</a>
+-            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'weeks'}, click: function(){ coordinator.properties.frequency_unit('weeks') }">${ _('Weekly') }</a>
+-            <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'months'}, click: function(){ coordinator.properties.frequency_unit('months') }">${ _('Monthly') }</a>
+-          </div>
+ 
+-          <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
+-            <i class="fa fa-sliders"></i>
+-          </a>
++        <form class="form-horizontal">
++          <div class="control-group" data-bind="visible: ! coordinator.properties.cron_advanced()">
++            <label class="control-label">${ _('Crontab') }</label>
++            <div class="controls" id="jqCron-container">
++              <div id="jqCron-instance" style="margin-top: 5px; display: inline-block"></div>
++              <label class="checkbox" style="display: inline-block; margin-top: 5px">
++                <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
++              </label>
++            </div>
++          </div>
++          <div class="control-group" data-bind="visible: coordinator.properties.cron_advanced">
++            <label class="control-label">${ _('Crontab') }</label>
++            <div class="controls">
++              <input id="coord-frequency" type="text" data-bind="value: coordinator.properties.cron_frequency" name="cron_frequency"/>
++              <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" target="_blank"><i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i></a>
++                <label class="checkbox" style="display: inline-block; margin-top: 5px; margin-left: 10px">
++                <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
++              </label>
++              </span>
++            </div>
++          </div>
++          <div class="control-group" style="margin-bottom: 0">
++            <label class="control-label"></label>
++            <div class="controls">
++            <a href="#" data-bind="click: function() { $root.coordinator.showAdvancedFrequencyUI(! $root.coordinator.showAdvancedFrequencyUI()) }">
++              <i class="fa fa-sliders"></i> <span data-bind="visible: ! coordinator.showAdvancedFrequencyUI()">${ _('Show advanced options') }</span><span data-bind="visible: coordinator.showAdvancedFrequencyUI">${ _('Hide advanced options') }</span>
++            </a>      
++            </div>
++          </div>
++        </form>
++          
++        
+ 
+-          <div data-bind="visible: coordinator.showAdvancedFrequencyUI" style="padding-top: 20px">
++          <div data-bind="visible: coordinator.showAdvancedFrequencyUI">
+             <form class="form-horizontal">
+               <div class="control-group">
+-                <label class="control-label">${ _('Repeats every') }</label>
+-                <div class="controls">
+-                  <input type="number" class="input-small" /> 
+-                  <span class="help-inline"><span data-bind="visible: coordinator.properties.frequency_unit() == 'hours'">${ _('hours') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'days'">${ _('days') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'weeks'">${ _('weeks') }</span><span data-bind="visible: coordinator.properties.frequency_unit() == 'months'">${ _('months') }</span></span>
+-                </div>
+-              </div>
+-              <div class="control-group" data-bind="visible: coordinator.properties.frequency_unit() == 'weeks'">
+-                <label class="control-label">${ _('On') }</label>
+-                <div class="controls">
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('M') }</label> 
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('T') }</label>
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('W') }</label>
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('T') }</label>
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('F') }</label>
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('S') }</label>
+-                  <label class="checkbox inline-block margin-left-10"><input type="checkbox" />${ _('S') }</label>
+-                </div>
+-              </div>
+-              <div class="control-group">
+                 <label class="control-label">${ _('Starts on') }</label>
+                 <div class="controls">
+                   <div class="input-prepend input-group">
+-                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.start, datepicker: {}" />
++                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.startDateUI, datepicker: {}" />
+                   </div>
+                   <div class="input-prepend input-group">
+-                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.start, timepicker: {}" />
++                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.startTimeUI, timepicker: {}" />
+                   </div>
+                   <span class="help-inline"></span>
+                 </div>
+@@ -160,10 +164,10 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                 <label class="control-label">${ _('Ends on') }</label>
+                 <div class="controls">
+                   <div class="input-prepend input-group">
+-                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.end, datepicker: {}" />
++                    <span class="add-on input-group-addon"><i class="fa fa-calendar"></i></span><input type="text" class="input-small" data-bind="value: coordinator.properties.endDateUI, datepicker: {}" />
+                   </div>
+                   <div class="input-prepend input-group">
+-                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.end, timepicker: {}" />
++                    <span class="add-on input-group-addon"><i class="fa fa-clock-o"></i></span><input type="text" class="input-mini" data-bind="value: coordinator.properties.endTimeUI, timepicker: {}" />
+                   </div>
+                   <span class="help-inline"></span>
+                 </div>
+@@ -175,22 +179,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+                   <span class="help-inline"></span>
+                 </div>
+               </div>
+-              <div class="control-group" style="margin-bottom: 0">
+-                <label class="control-label"><hr/></label>
+-                <div class="controls">
+-                  <label class="checkbox" style="display: inline-block; margin-top: 10px">
+-                    <input type="checkbox" name="coordinator.properties.cron_advanced" data-bind="checked: coordinator.properties.cron_advanced" /> ${ _('Advanced Cron syntax') }
+-                  </label>
+-                </div>
+-              </div>
+-              <div class="control-group" data-bind="visible: coordinator.properties.cron_advanced">
+-                <label class="control-label">${ _('Crontab') }</label>
+-                <div class="controls">
+-                  <input data-bind="value: coordinator.properties.cron_frequency" />
+-                  <span class="help-inline"><a data-bind="visible: coordinator.properties.cron_advanced" href="http://quartz-scheduler.org/api/2.0.0/org/quartz/CronExpression.html" class="pull-right" target="_blank"><i class="fa fa-question-circle" title="${ _('Check syntax ?') }"></i>
+-                </a></span>
+-                </div>
+-              </div>
++              
+             </form>
+             
+           </div>
+@@ -199,6 +188,7 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+         </div>
+       </div>
+ 
++
+       <div class="card card-home" data-bind="visible: coordinator.properties.workflow()" style="margin-top: 20px; margin-bottom: 20px">
+         <h1 class="card-heading simple">${ _('Workflow Parameters') }</h1>
+ 
+@@ -243,7 +233,14 @@ ${ commonheader(_("Coordinator Editor"), "Oozie", user) | n,unicode }
+               <input data-bind="value: dataset_variable"/>
+ 
+               <!-- ko if: dataset_type() == 'input_path' || dataset_type() == 'output_path' -->              
+-              [hourly] [daily] [weekly] [monthly]
++              
++            
++            ## <div class="btn-group" data-toggle="buttons-radio">
++            ##   <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'hours'}, click: function(){ coordinator.properties.frequency_unit('hours') }">${ _('Hourly') }</a>
++            ##   <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'days'}, click: function(){ coordinator.properties.frequency_unit('days') }">${ _('Daily') }</a>
++            ##   <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'weeks'}, click: function(){ coordinator.properties.frequency_unit('weeks') }">${ _('Weekly') }</a>
++            ##   <a class="btn pointer" data-bind="css: {'active': coordinator.properties.frequency_unit() == 'months'}, click: function(){ coordinator.properties.frequency_unit('months') }">${ _('Monthly') }</a>
++            ## </div>
+ 
+               <a href="#" data-bind="click: function() { show_advanced(! show_advanced()) }">
+                 <i class="fa fa-sliders"></i>
+@@ -432,13 +429,36 @@ ${ commonshare() | n,unicode }
+ 
+ ${ dashboard.import_bindings() }
+ 
+-
+ <script src="/oozie/static/js/coordinator-editor.ko.js" type="text/javascript" charset="utf-8"></script>
+ 
+ 
+ <script type="text/javascript">
+   ${ utils.slaGlobal() }
+ 
++  ${ utils.cron_js() }
++  
++  var coordCron =
++    $('#coord-frequency')
++      .jqCron({
++        texts: {
++          i18n: cron_i18n
++        },
++        enabled_minute: false,
++        multiple_dom: true,
++        multiple_month: true,
++        multiple_mins: true,
++        multiple_dow: true,
++        multiple_time_hours: true,
++        multiple_time_minutes: false,
++        default_period: 'day',
++        default_value: ${ coordinator_json | n,unicode }.properties.cron_frequency,
++        no_reset_button: true,
++        lang: 'i18n',
++        jquery_container: $('#jqCron-container'),
++        jquery_element: $('#jqCron-instance')
++      })
++      .jqCronGetInstance();
++
+   var viewModel = new CoordinatorEditorViewModel(${ coordinator_json | n,unicode }, ${ credentials_json | n,unicode }, ${ workflows_json | n,unicode }, ${ can_edit_json | n,unicode });
+   ko.applyBindings(viewModel, $("#editor")[0]);
+ 
+diff --git a/apps/oozie/static/js/coordinator-editor.ko.js b/apps/oozie/static/js/coordinator-editor.ko.js
+index ed4b7f4..2db3be1 100644
+--- a/apps/oozie/static/js/coordinator-editor.ko.js
++++ b/apps/oozie/static/js/coordinator-editor.ko.js
+@@ -29,6 +29,32 @@ var Coordinator = function (vm, coordinator) {
+   self.showAdvancedFrequencyUI = ko.observable(typeof coordinator.showAdvancedFrequencyUI != "undefined" && coordinator.showAdvancedFrequencyUI != null ? coordinator.showAdvancedFrequencyUI : false);
+   self.workflowParameters = ko.mapping.fromJS(typeof coordinator.workflowParameters != "undefined" && coordinator.workflowParameters != null ? coordinator.workflowParameters : []);
+ 
++  self.properties.startDateUI = ko.observable(typeof coordinator.properties.start != "undefined" && coordinator.properties.start.indexOf("T") > -1 ? coordinator.properties.start.split("T")[0]:"");
++  self.properties.startTimeUI = ko.observable(typeof coordinator.properties.start != "undefined" && coordinator.properties.start.indexOf("T") > -1 ? coordinator.properties.start.split("T")[1]:"");
++  self.properties.endDateUI = ko.observable(typeof coordinator.properties.end != "undefined" && coordinator.properties.end.indexOf("T") > -1 ? coordinator.properties.end.split("T")[0]:"");
++  self.properties.endTimeUI = ko.observable(typeof coordinator.properties.end != "undefined" && coordinator.properties.end.indexOf("T") > -1 ? coordinator.properties.end.split("T")[1]:"");
++
++  self.properties.startDateUI.subscribe(function(newVal){
++    self.setStartDate();
++  });
++  self.properties.startTimeUI.subscribe(function(newVal){
++    self.setStartDate();
++  });
++  self.properties.endDateUI.subscribe(function(newVal){
++    self.setEndDate();
++  });
++  self.properties.endTimeUI.subscribe(function(newVal){
++    self.setEndDate();
++  });
++
++
++  self.setStartDate = function() {
++    self.properties.start(self.properties.startDateUI() + "T" + self.properties.startTimeUI());
++  }
++  self.setEndDate = function() {
++    self.properties.end(self.properties.endDateUI() + "T" + self.properties.endTimeUI());
++  }
++
+   self.properties.workflow.subscribe(function(newVal) {
+     if (newVal) {
+ 	  $.get("/oozie/editor/workflow/parameters/", {
+@@ -50,9 +76,9 @@ var Coordinator = function (vm, coordinator) {
+ 
+   self.properties.cron_advanced.subscribe(function(value) {
+     if (value || ! vm.isEditing()) {
+-      //coordCron.disable();
++      coordCron.disable();
+     } else {
+-      //coordCron.enable();
++      coordCron.enable();
+     }
+   });
+   
+-- 
+1.7.9.5
+

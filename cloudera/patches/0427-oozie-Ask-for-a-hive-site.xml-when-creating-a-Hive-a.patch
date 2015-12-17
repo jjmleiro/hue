@@ -1,0 +1,109 @@
+From 2fb9e2e3c5a4aa09cce867ab4656fd1de5eaafb1 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Fri, 9 Jan 2015 17:46:52 -0800
+Subject: [PATCH 0427/1173] [oozie] Ask for a hive-site.xml when creating a
+ Hive action
+
+---
+ apps/oozie/src/oozie/models2.py                    |   10 +++++-----
+ .../templates/editor/gen2/workflow-hive.xml.mako   |    4 ++--
+ .../oozie/templates/editor/workflow_editor.mako    |   17 ++++++++++++-----
+ 3 files changed, 19 insertions(+), 12 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/models2.py b/apps/oozie/src/oozie/models2.py
+index c1e9fbd..6910421 100644
+--- a/apps/oozie/src/oozie/models2.py
++++ b/apps/oozie/src/oozie/models2.py
+@@ -524,18 +524,18 @@ class HiveAction(Action):
+           'help_text': _('Path to manipulate before starting the application.'),
+           'type': ''
+      },
+-     'job_xml': { 
+-          'name': 'job_xml',
+-          'label': _('Job XML'),
++     'hive_xml': { 
++          'name': 'hive_xml',
++          'label': _('Hive XML'),
+           'value': [],
+-          'help_text': _('Refer to a Hadoop JobConf job.xml'),
++          'help_text': _('Refer to a hive-site.xml renamed hive-conf.xml'),
+           'type': ''
+      }
+   }
+ 
+   @classmethod
+   def get_mandatory_fields(cls):
+-    return [cls.FIELDS['script_path']]
++    return [cls.FIELDS['script_path'], cls.FIELDS['hive_xml']]
+ 
+ 
+ class HiveServer2Action(Action):
+diff --git a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+index de0e417..f075692 100644
+--- a/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
++++ b/apps/oozie/src/oozie/templates/editor/gen2/workflow-hive.xml.mako
+@@ -23,8 +23,8 @@
+             <name-node>${'${'}nameNode}</name-node>
+ 
+             ${ common.prepares(node['properties']['prepares']) }
+-            % if node['properties']['job_xml']:
+-              <job-xml>${ node['properties']['job_xml'] }</job-xml>
++            % if node['properties']['hive_xml']:
++              <job-xml>${ node['properties']['hive_xml'] }</job-xml>
+             % endif
+             ${ common.configuration(node['properties']['properties']) }
+ 
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index f3006a9..6715e0f 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -158,7 +158,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     <a title="${ _('Workspace') }" target="_blank" rel="tooltip" data-placement="right"
+         data-original-title="${ _('Go upload additional files and libraries to the deployment directory on HDFS') }"
+-        data-bind="css: {'btn': true}, attr: {href: '/filebrowser/view' + $root.workflow.properties.deployment_dir() }">
++        data-bind="css: {'btn': true}, attr: { href: '/filebrowser/view' + $root.workflow.properties.deployment_dir() }">
+       <i class="fa fa-fw fa-folder-open"></i>
+     </a>
+ 
+@@ -519,8 +519,10 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+       ${ _('Delete') } <i class="fa fa-plus"></i>
+     </a>
+ 
+-    <h6>${ _('Job XML') }</h6>
+-    <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: properties.job_xml, filechooserOptions: globalFilechooserOptions, attr: { placeholder: $root.workflow_properties.job_xml.help_text }"/>
++    <!-- ko if: properties.job_xml -->
++      <h6>${ _('Job XML') }</h6>
++      <input type="text" class="input-xlarge filechooser-input" data-bind="filechooser: properties.job_xml, filechooserOptions: globalFilechooserOptions, attr: { placeholder: $root.workflow_properties.job_xml.help_text }"/>
++    <!-- /ko -->
+ 
+     <h6>
+       <a class="pointer" data-bind="click: function(){ properties.job_properties.push({'name': '', 'value': ''}); $(document).trigger('drawArrows') }">
+@@ -695,9 +697,14 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+ 
+     <div data-bind="visible: $root.isEditing">
+       <div data-bind="visible: ! $parent.ooziePropertiesExpanded()" class="nowrap">
+-        <input type="text" class="filechooser-input" data-bind="filechooser: properties.script_path, filechooserOptions: globalFilechooserOptions, attr: { placeholder:  $root.workflow_properties.script_path.help_text }"/>
++        <input type="text" style="width:25%" class="filechooser-input" data-bind="filechooser: properties.script_path, filechooserOptions: globalFilechooserOptions, attr: { placeholder:  $root.workflow_properties.script_path.help_text }"/>
+         <span data-bind='template: { name: "common-fs-link", data: {path: properties.script_path(), with_label: false}}'></span>
+ 
++        &nbsp;&nbsp;
++
++        <span data-bind="text: $root.workflow_properties.hive_xml.label"></span>      
++        <input type="text" style="width:25%" class="input-large filechooser-input" data-bind="filechooser: properties.hive_xml, filechooserOptions: globalFilechooserOptions, attr: { placeholder: $root.workflow_properties.hive_xml.help_text }"/>
++
+         <div class="row-fluid">
+           <div class="span6" data-bind="template: { name: 'common-properties-parameters' }"></div>
+         </div>
+@@ -1646,7 +1653,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+         <td data-bind="text: label" style="width: 1%; padding-right: 10px" class="no-wrap"></td>
+         <td>
+           <!-- ko if: type() == '' -->
+-          <input type="text" class="filechooser-input" data-bind="value: value, valueUpdate:'afterkeydown', filechooser: value, filechooserOptions: globalFilechooserOptions, attr: { placeholder: help_text }">
++          <input type="text" class="filechooser-input" style="width:80%" data-bind="value: value, valueUpdate:'afterkeydown', filechooser: value, filechooserOptions: globalFilechooserOptions, attr: { placeholder: help_text }">
+           <!-- /ko -->
+           <!-- ko if: type() == 'text' -->
+           <input type="text" data-bind="value: value, valueUpdate:'afterkeydown', attr: { placeholder: help_text }" class="input-xlarge"/>
+-- 
+1.7.9.5
+

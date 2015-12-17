@@ -1,0 +1,26 @@
+From ae311c611a161307787f25bf24233550e5f29582 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erickt@cloudera.com>
+Date: Tue, 17 Mar 2015 19:11:43 -0700
+Subject: [PATCH 1117/1173] [hadoop] Default to always verifying certificates
+ are signed.
+
+---
+ .../hadoop/src/hadoop/yarn/node_manager_api.py     |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py b/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
+index c90de7d..b38a104 100644
+--- a/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
++++ b/desktop/libs/hadoop/src/hadoop/yarn/node_manager_api.py
+@@ -38,7 +38,7 @@ def get_resource_manager_api(api_url):
+ 
+ 
+ class ResourceManagerApi(object):
+-  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=False):
++  def __init__(self, oozie_url, security_enabled=False, ssl_cert_ca_verify=True):
+     self._url = posixpath.join(oozie_url, 'ws', _API_VERSION)
+     self._client = HttpClient(self._url, logger=LOG)
+     self._root = Resource(self._client)
+-- 
+1.7.9.5
+

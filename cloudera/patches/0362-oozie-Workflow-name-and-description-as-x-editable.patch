@@ -1,0 +1,66 @@
+From af62536a27cf0c720c6c224e44a9eacc6adb30db Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 29 Dec 2014 13:29:06 +0100
+Subject: [PATCH 0362/1173] [oozie] Workflow name and description as
+ x-editable
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |   11 +++++++----
+ apps/oozie/static/css/workflow-editor.css          |   20 ++++++++++++++++++++
+ 2 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index afc69b5..915cd6e 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -184,10 +184,13 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     % endif
+   </div>
+ 
+-  <form class="form-search" style="margin: 0">
+-    <strong>${_("Name")}</strong>
+-    <input data-bind="value: $root.workflow.name"/>
+-    <input data-bind="value: $root.workflow.properties.description" class="span6"/>
++  <form class="form-search">
++    <div class="inline workflow-name">
++      <span data-bind="editable: $root.workflow.name, editableOptions: {enabled: $root.isEditing(), placement: 'right'}"></span>
++    </div>
++    <div class="inline workflow-description">
++      <span data-bind="editable: $root.workflow.properties.description, editableOptions: {enabled: $root.isEditing(), placement: 'right', emptytext: '${_('Add a description...')}'}"></span>
++    </div>
+   </form>
+ </div>
+ 
+diff --git a/apps/oozie/static/css/workflow-editor.css b/apps/oozie/static/css/workflow-editor.css
+index 422b7c6..817d499 100644
+--- a/apps/oozie/static/css/workflow-editor.css
++++ b/apps/oozie/static/css/workflow-editor.css
+@@ -516,4 +516,24 @@ em {
+   margin-left: 0;
+   border: 1px solid #d8d8d8;
+   border-top: none;
++}
++
++.workflow-name {
++  font-size: 20px;
++  font-weight: 300;
++}
++
++.workflow-description {
++  margin-left: 10px;
++  font-size: 14px;
++}
++
++.editable-empty, .editable-empty:hover {
++  color: #666!important;
++  opacity: .55;
++}
++
++.form-search {
++  margin: 0;
++  padding-top: 5px;
+ }
+\ No newline at end of file
+-- 
+1.7.9.5
+

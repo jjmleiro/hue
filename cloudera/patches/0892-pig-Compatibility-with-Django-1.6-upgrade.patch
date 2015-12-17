@@ -1,0 +1,34 @@
+From 3ea2b1c5d2e9fe0ecf012a6c13624c9a93e91749 Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Mon, 23 Feb 2015 07:49:18 -0800
+Subject: [PATCH 0892/1173] [pig] Compatibility with Django 1.6 upgrade
+
+---
+ apps/pig/src/pig/views.py |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/src/pig/views.py b/apps/pig/src/pig/views.py
+index a2c4e5e..cab510e 100644
+--- a/apps/pig/src/pig/views.py
++++ b/apps/pig/src/pig/views.py
+@@ -53,7 +53,7 @@ def app(request):
+ 
+ 
+ def scripts(request):
+-  return JsonResponse(get_scripts(request.user, is_design=True))
++  return JsonResponse(get_scripts(request.user, is_design=True), safe=False)
+ 
+ 
+ @show_oozie_error
+@@ -64,7 +64,7 @@ def dashboard(request):
+   hue_jobs = Document.objects.available(PigScript, request.user, with_history=True)
+   massaged_jobs = pig_api.massaged_jobs_for_json(request, jobs, hue_jobs)
+ 
+-  return JsonResponse(massaged_jobs)
++  return JsonResponse(massaged_jobs, safe=False)
+ 
+ 
+ def save(request):
+-- 
+1.7.9.5
+

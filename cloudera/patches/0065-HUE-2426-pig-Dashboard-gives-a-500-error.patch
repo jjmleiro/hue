@@ -1,0 +1,29 @@
+From 3399e8e63c17dc8a30846c4e4ce621317fc04aea Mon Sep 17 00:00:00 2001
+From: Romain Rigaux <romain@cloudera.com>
+Date: Tue, 21 Oct 2014 18:34:43 -0700
+Subject: [PATCH 0065/1173] HUE-2426 [pig] Dashboard gives a 500 error
+
+---
+ apps/pig/src/pig/api.py |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/apps/pig/src/pig/api.py b/apps/pig/src/pig/api.py
+index 39c3bef..254373a 100644
+--- a/apps/pig/src/pig/api.py
++++ b/apps/pig/src/pig/api.py
+@@ -137,8 +137,10 @@ class OozieApi:
+ 
+   def get_jobs(self):
+     kwargs = {'cnt': OozieApi.MAX_DASHBOARD_JOBS,}
+-    kwargs['user'] = self.user.username
+-    kwargs['name'] = OozieApi.WORKFLOW_NAME
++    kwargs['filters'] = {
++        ('user', self.user.username),
++        ('name', OozieApi.WORKFLOW_NAME)
++    }
+ 
+     return get_oozie(self.user).get_workflows(**kwargs).jobs
+ 
+-- 
+1.7.9.5
+

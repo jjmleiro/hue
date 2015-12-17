@@ -1,0 +1,59 @@
+From 03c7c22c4c4f8d0db60f08303da87987d183d694 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Mon, 8 Dec 2014 20:09:59 +0100
+Subject: [PATCH 0568/1173] [spark] Fix table scrolling for all the tables
+
+---
+ apps/spark/src/spark/templates/editor.mako     |   10 ++++++----
+ desktop/core/static/js/jquery.tablescroller.js |    3 +++
+ 2 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/apps/spark/src/spark/templates/editor.mako b/apps/spark/src/spark/templates/editor.mako
+index d5fee53..1a2d588 100644
+--- a/apps/spark/src/spark/templates/editor.mako
++++ b/apps/spark/src/spark/templates/editor.mako
+@@ -167,7 +167,7 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+           <li class="nav-header">${_('database')}</li>
+         </ul>
+         <!-- ko if: $root.assistContent && $root.assistContent().mainObjects().length > 0 -->
+-          <select data-bind="options: $root.assistContent().mainObjects, chosen: {}" class="input-medium" data-placeholder="${_('Choose a database...')}"></select>
++          <select data-bind="options: $root.assistContent().mainObjects, chosen: {isAssist: true}" class="input-medium" data-placeholder="${_('Choose a database...')}"></select>
+           <input type="text" placeholder="${ _('Table name...') }" style="width:90%; margin-top: 20px"/>
+           <div data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length == 0">${_('The selected database has no tables.')}</div>
+           <ul data-bind="visible: Object.keys($root.assistContent().firstLevelObjects()).length > 0, foreach: Object.keys($root.assistContent().firstLevelObjects())" class="unstyled assist-main">
+@@ -482,13 +482,15 @@ ${ commonheader(_('Query'), app_name, user, "68px") | n,unicode }
+   };
+ 
+   ko.bindingHandlers.chosen = {
+-    init: function (element) {
++    init: function (element, valueAccessor) {
+       $(element).chosen({
+         disable_search_threshold: 5,
+         width: "100%"
+       }).change(function (e, obj) {
+-        viewModel.assistContent().selectedMainObject(obj.selected);
+-        loadAssistFirstLevel();
++        if (typeof valueAccessor().isAssist != "undefined" && valueAccessor().isAssist){
++          viewModel.assistContent().selectedMainObject(obj.selected);
++          loadAssistFirstLevel();
++        }
+       });
+     },
+     update: function (element, valueAccessor, allBindings) {
+diff --git a/desktop/core/static/js/jquery.tablescroller.js b/desktop/core/static/js/jquery.tablescroller.js
+index 4333d38..5293e2c 100644
+--- a/desktop/core/static/js/jquery.tablescroller.js
++++ b/desktop/core/static/js/jquery.tablescroller.js
+@@ -107,6 +107,9 @@
+           if ($(el).data("original-height") > minHeightVal){
+             $(el).css("overflow-y", "auto").height(minHeightVal);
+           }
++          if (fixedHeight > -1){
++            $(el).css("overflow-y", "auto").height(fixedHeight);
++          }
+         }
+       }
+     }
+-- 
+1.7.9.5
+

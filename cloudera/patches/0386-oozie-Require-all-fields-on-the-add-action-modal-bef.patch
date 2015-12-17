@@ -1,0 +1,57 @@
+From 9ed5067fc44d7f28fb884e1abac4542618645760 Mon Sep 17 00:00:00 2001
+From: Enrico Berti <hello@enricoberti.com>
+Date: Wed, 31 Dec 2014 11:24:21 +0100
+Subject: [PATCH 0386/1173] [oozie] Require all fields on the add action modal
+ before adding
+
+---
+ .../oozie/templates/editor/workflow_editor.mako    |    2 +-
+ apps/oozie/static/js/workflow-editor.ko.js         |   19 +++++++++++++++++++
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+index ed92f7b..636903c 100644
+--- a/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
++++ b/apps/oozie/src/oozie/templates/editor/workflow_editor.mako
+@@ -1661,7 +1661,7 @@ ${ commonheader(_("Workflow Editor"), "Oozie", user, "40px") | n,unicode }
+     </table>
+ 
+     <br/>
+-    <a class="btn btn-primary disable-feedback" data-bind="click: addActionDemiModalFieldPreview">
++    <a class="btn btn-primary disable-feedback" data-bind="css: {'disabled': ! addActionPropertiesFilledOut()}, click: function(field){ addActionPropertiesFilledOut() ? addActionDemiModalFieldPreview(field) : void(0) } ">
+       ${ _('Add') }
+     </a>
+   </div>
+diff --git a/apps/oozie/static/js/workflow-editor.ko.js b/apps/oozie/static/js/workflow-editor.ko.js
+index 4775ee8..c55d076 100644
+--- a/apps/oozie/static/js/workflow-editor.ko.js
++++ b/apps/oozie/static/js/workflow-editor.ko.js
+@@ -460,6 +460,25 @@ var WorkflowEditorViewModel = function (layout_json, workflow_json, credentials_
+   };
+ 
+   self.addActionProperties = ko.observableArray([]);
++  self.addActionPropertiesFilledOut = ko.computed(function (){
++    var _filledInternalValues = function (val) {
++      var _iAllFilled = true;
++      val.forEach(function(iVal){
++        if (iVal.value() == ''){
++          _iAllFilled = false;
++        }
++      });
++      return _iAllFilled;
++    }
++    var _allFilled = true;
++    ko.utils.arrayForEach(self.addActionProperties(), function (property) {
++      var _val = property.value();
++      if (($.isArray(_val) && !_filledInternalValues(_val) ) || _val == ''){
++        _allFilled = false;
++      }
++    });
++    return _allFilled;
++  });
+   self.subworfklows = ko.observableArray(subworkflows_json);
+   self.getSubWorkflow = function(uuid) {
+     var wf = $.grep(self.subworfklows(), function(wf, i) {
+-- 
+1.7.9.5
+

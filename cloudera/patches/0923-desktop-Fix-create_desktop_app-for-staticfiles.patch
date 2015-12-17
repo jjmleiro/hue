@@ -1,0 +1,25 @@
+From 6a68f334c81cd6699adec99b96096b04294e78c4 Mon Sep 17 00:00:00 2001
+From: Erick Tryzelaar <erick.tryzelaar@gmail.com>
+Date: Wed, 25 Feb 2015 12:33:02 -0800
+Subject: [PATCH 0923/1173] [desktop] Fix create_desktop_app for staticfiles
+
+---
+ .../src/app_name/templates/shared_components.mako  |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/desktop/core/src/desktop/app_template/src/app_name/templates/shared_components.mako b/desktop/core/src/desktop/app_template/src/app_name/templates/shared_components.mako
+index 5c2b4a3..052fb46 100644
+--- a/desktop/core/src/desktop/app_template/src/app_name/templates/shared_components.mako
++++ b/desktop/core/src/desktop/app_template/src/app_name/templates/shared_components.mako
+@@ -30,7 +30,7 @@ ${'<%'}def name="menubar(section='')">
+           <ul class="nav">
+             <li class="currentApp">
+               <a href="/${app_name}">
+-                <img src="${ static(app_name + '/art/icon_${app_name}_48.png') }" class="app-icon" />
++                <img src="${"${"} static(${app_name} + '/art/icon_${app_name}_48.png') }" class="app-icon" />
+                 ${" ".join(word.capitalize() for word in app_name.split("_"))}
+               </a>
+              </li>
+-- 
+1.7.9.5
+
